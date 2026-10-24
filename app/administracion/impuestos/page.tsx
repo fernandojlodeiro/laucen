@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const BASE = "/administracion/impuestos";
-type SP = { rs?: string; ver?: string; mes?: string; p?: string; editar?: string; nuevo?: string; ok?: string; error?: string };
+type SP = { rs?: string; ver?: string; mes?: string; leer?: string; p?: string; editar?: string; nuevo?: string; ok?: string; error?: string };
 const n2 = (x: number) => x.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const plata = (x: number) => `$ ${n2(x)}`;
 const mesAr = (p: string) => p.split("-").reverse().join("/");
@@ -65,6 +65,7 @@ export default async function Impuestos({ searchParams }: { searchParams: Promis
   const conDifs = controles.filter((c) => c.diferencias.length);
 
   const mes = sp.mes && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.mes) ? sp.mes : hoyArgentina().slice(0, 7);
+  const leerDesde = sp.leer && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.leer) ? sp.leer : "";
   const meses = mesesParaElegir();
 
   return (
@@ -72,7 +73,11 @@ export default async function Impuestos({ searchParams }: { searchParams: Promis
       subtitulo="IVA, Ingresos Brutos (Convenio Multilateral) y la municipal de Córdoba: las declaraciones del contador, sus diferencias con lo cargado y cómo viene el mes"
       acciones={<>
         <BotonNuevo texto={NUEVA_DDJJ} />
-        {drive?.listo && <BotonTarea accion={accionBuscarDrive} tipo="ddjj-drive" clase={SUAVE} texto="Buscar en el Drive" />}
+        {drive?.listo && <>
+          <Desplegable parametro="leer" etiqueta="Leer desde" valor={leerDesde}
+            opciones={[{ valor: "", texto: "Últimos 3 meses" }, ...meses.map((m) => ({ valor: m, texto: nombreMes(m) }))]} />
+          <BotonTarea accion={accionBuscarDrive} tipo="ddjj-drive" clase={SUAVE} texto="Buscar en el Drive" campos={{ desde: leerDesde }} />
+        </>}
         <SubirDdjj organizacionId={org} />
       </>}>
       <Avisos sp={sp} />

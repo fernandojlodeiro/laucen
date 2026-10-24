@@ -12,6 +12,7 @@
 
 import { consulta } from "@/lib/erp/base";
 import { huecosDeNumeracion, ventasExternasDelPeriodo } from "@/lib/administracion/ventas-externas";
+import { comprasExternasDelPeriodo } from "@/lib/administracion/compras-externas";
 import { CONDICION_RECEPTOR_TEXTO } from "@/lib/arca/facturar";
 import {
   ADUANA, alicuotaDe, baseIvaDespacho, clasificarImpuestosDespacho, tipoCompra, textoComprobante,
@@ -213,8 +214,10 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
 
 /** Todo lo del período de una razón social: ventas (de todos los canales), compras y avisos. */
 export async function libroIvaPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null) {
-  const [propias, externas, { compras, avisos: avisosCompras }] = await Promise.all([ventasDelPeriodo(org, desde, hasta, null, emisorId),
-    ventasExternasDelPeriodo(org, desde, hasta, emisorId), comprasDelPeriodo(org, desde, hasta, emisorId)]);
+  const [propias, externas, { compras: comprasLaucen, avisos: avisosCompras }, comprasAntes] = await Promise.all([ventasDelPeriodo(org, desde, hasta, null, emisorId),
+    ventasExternasDelPeriodo(org, desde, hasta, emisorId), comprasDelPeriodo(org, desde, hasta, emisorId), comprasExternasDelPeriodo(org, desde, hasta, emisorId)]);
+  // Las compras de antes de Laucen, de Mis Comprobantes (lib/administracion/compras-externas.ts).
+  const compras = [...comprasLaucen, ...comprasAntes];
   // Las facturadas con otro sistema (Virtual Seller) entran igual que las de Laucen (lib/administracion/ventas-externas.ts).
   const ventas = [...propias, ...externas];
   const avisos = [...avisosCompras, ...(await avisosDelPeriodo(org, desde, hasta, ventas, compras, emisorId))];

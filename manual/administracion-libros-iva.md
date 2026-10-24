@@ -78,14 +78,26 @@ Elegí período (y canal, si querés, en ventas), andá a la pestaña del libro 
 ### Sumar las ventas facturadas con otro sistema
 Si antes se facturaba con otro sistema (con el mismo punto de venta), sus ventas se suman al libro como si las hubiera emitido este, así el libro y los archivos de ARCA quedan completos y con la numeración seguida.
 1. En el otro sistema, exportá los dos archivos del Libro de IVA Digital de **ventas** (comprobantes y alícuotas), **del mismo período**.
-2. Apretá **+ Importar ventas de otro sistema** (arriba a la derecha).
-3. Elegí la razón social, escribí el nombre del sistema y elegí los dos archivos.
-4. Apretá **Importar**. Sale cuántas ventas se sumaron y de qué fechas a qué fechas.
+2. Apretá **+ Importar ventas o compras anteriores** (arriba a la derecha).
+3. En «Ventas facturadas con otro sistema», elegí la razón social, escribí el nombre del sistema y elegí los dos archivos.
+4. Apretá **Importar ventas**. Sale cuántas ventas se sumaron y de qué fechas a qué fechas.
 
 - Lo que también está emitido acá (mismo tipo, punto de venta y número) se saltea: vale lo de acá.
 - Importar de nuevo el mismo período reemplaza lo anterior; no duplica.
 - En la tabla, esas ventas muestran el nombre del sistema al lado del documento del cliente y no tienen enlace.
 - Si la numeración de un tipo de comprobante tiene un salto, la pestaña **Avisos** lo muestra.
+
+### Sumar las compras de antes de cargarlas en el sistema
+Para los meses en que las facturas de compra no se cargaban acá, el libro de IVA compras se completa con lo que ARCA tiene registrado.
+1. En ARCA, **Mis Comprobantes › Recibidos**, bajá el Excel del período (ARCA deja bajar hasta 365 días por vez: si es más, en varios archivos).
+2. Apretá **+ Importar ventas o compras anteriores** (arriba a la derecha).
+3. En «Compras de antes de cargarlas en Laucen», elegí la razón social y el o los archivos.
+4. Apretá **Importar compras**.
+
+- Entran **sólo al libro de IVA** (y a sus archivos, al Excel y a la posición de impuestos): no son facturas de compra, así que no generan deuda con el proveedor, ni asiento, ni piden cuenta de gasto.
+- Las que ya están cargadas como factura de compra se saltean.
+- Si el archivo es del CUIT de la otra razón social, no se importa y avisa.
+- En la tabla, esas compras dicen «anterior a Laucen (Mis Comprobantes)» debajo del proveedor y no tienen enlace.
 
 ### Ver sólo las ventas de un canal
 En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales."

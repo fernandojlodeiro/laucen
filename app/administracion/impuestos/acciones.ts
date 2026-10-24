@@ -14,6 +14,7 @@ import { borrarDdjj, borrarJurisdiccion, corregirDdjj, grabarDdjj, grabarJurisdi
 import { codigoJurisdiccion, nombreJurisdiccion } from "@/lib/impuestos/jurisdicciones";
 import { leerDdjjDelDrive, textoResultado } from "@/lib/impuestos/drive-ddjj";
 import { deFondo } from "@/lib/tareas-fondo";
+import { hoyArgentina } from "@/lib/rango-fechas";
 
 const BASE = "/administracion/impuestos";
 const texto = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -153,11 +154,20 @@ export async function accionGrabarMunicipal(fd: FormData) {
 }
 
 /** «Buscar en el Drive»: lee de fondo las declaraciones que el contador dejó en las carpetas de los últimos meses. */
-export async function accionBuscarDrive() {
+/** Cuántos meses hay de `desde` (AAAA-MM) al mes de `hoy`, los dos incluidos. */
+function mesesDesde(desde: string, hoy: string) {
+  const [a, m] = desde.split("-").map(Number), [ah, mh] = hoy.split("-").map(Number);
+  return (ah - a) * 12 + (mh - m) + 1;
+}
+
+export async function accionBuscarDrive(fd: FormData) {
   const s = await entrarErp("impuestos_ver");
+  // «Leer desde» un mes (para levantar las de meses viejos); sin elegir, los últimos 3.
+  const desde = String(fd.get("desde") ?? "");
+  const meses = /^\d{4}-(0[1-9]|1[0-2])$/.test(desde) ? Math.min(36, Math.max(1, mesesDesde(desde, hoyArgentina()))) : undefined;
   return deFondo(s, "ddjj-drive", "Buscar declaraciones en el Drive", async () => {
-    // Corta a los 4 minutos (la pantalla tiene 5): lo que quede, en la próxima vuelta.
-    const r = await leerDdjjDelDrive(s.org.id, s.usuario.id, { hastaMs: Date.now() + 240_000 });
+    // Corta a los 4 minutos (la pantalla tiene 5): lo que quede, en la próxima vuelta (lo ya leído no se vuelve a leer).
+    const r = await leerDdjjDelDrive(s.org.id, s.usuario.id, { hastaMs: Date.now() + 240_000, meses });
     revalidatePath(BASE);
     return `Drive: ${textoResultado(r)}`;
   });

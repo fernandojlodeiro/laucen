@@ -5,13 +5,12 @@
 // lib/administracion/arca-mc.ts.
 
 import { revalidatePath } from "next/cache";
-import ExcelJS from "exceljs";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, id, texto } from "@/lib/erp/acciones";
 import { tienePermiso } from "@/lib/permisos";
 import { crearCuenta } from "@/lib/administracion/contabilidad";
-import { leerCsvArca, leerTablaArca } from "@/lib/administracion/arca-mc-leer";
+import { leerArchivoArca } from "@/lib/administracion/arca-mc-archivo";
 import { guardarLote, importarLote } from "@/lib/administracion/arca-mc";
 import { emisorDe } from "@/lib/arca/facturar";
 
@@ -40,33 +39,6 @@ function previaCon(lote: number, cuentas: Record<string, number | null>, aviso?:
 }
 
 /** El texto del CSV: UTF-8, o Windows-1252 si no es UTF-8 válido (los .csv viejos de ARCA). */
-function decodificar(buf: ArrayBuffer): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  } catch {
-    return new TextDecoder("windows-1252").decode(buf);
-  }
-}
-
-/** La primera hoja del Excel como tabla de celdas (fechas → AAAA-MM-DD). */
-async function tablaDeExcel(buf: ArrayBuffer): Promise<(string | number | null)[][]> {
-  const libro = new ExcelJS.Workbook();
-  try { await libro.xlsx.load(buf); } catch { throw new ErrorErp("No se pudo leer el Excel. Bajá de ARCA el .csv o el .xlsx de \"Mis Comprobantes – Recibidos\"."); }
-  const hoja = libro.worksheets[0];
-  if (!hoja) throw new ErrorErp("El Excel no tiene hojas.");
-  const tabla: (string | number | null)[][] = [];
-  hoja.eachRow({ includeEmpty: true }, (fila) => {
-    const celdas: (string | number | null)[] = [];
-    for (let i = 1; i <= Math.max(hoja.actualColumnCount, fila.cellCount); i++) {
-      const v = fila.getCell(i).value as unknown;
-      celdas.push(v == null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "number" ? v
-        : typeof v === "object" && v && "result" in v ? (v as { result: string | number }).result ?? null
-        : typeof v === "object" && v && "richText" in v ? (v as { richText: { text: string }[] }).richText.map((t) => t.text).join("") : String(v));
-    }
-    tabla.push(celdas);
-  });
-  return tabla;
-}
 
 export async function accionSubirArca(fd: FormData) {
   const s = await entrarErp("compras_ver");
@@ -77,7 +49,7 @@ export async function accionSubirArca(fd: FormData) {
     const buf = await archivo.arrayBuffer();
     const esExcel = /\.xlsx$/i.test(archivo.name);
     if (!esExcel && !/\.(csv|txt)$/i.test(archivo.name)) throw new ErrorErp("Tiene que ser el .csv (o el .xlsx) de \"Mis Comprobantes – Recibidos\".");
-    const lectura = esExcel ? leerTablaArca(await tablaDeExcel(buf)) : leerCsvArca(decodificar(buf));
+    const lectura = await leerArchivoArca(buf, esExcel);
     // El archivo es del CUIT con el que se bajó de ARCA: la razón social elegida (o la principal).
     const emisor = await emisorDe(s.org.id, id(fd, "emisor") || null);
     const lote = await guardarLote(s.org.id, archivo.name, lectura, s.usuario.id, emisor?.id ?? null);

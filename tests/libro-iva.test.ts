@@ -238,3 +238,16 @@ test("ventas de otro sistema: se leen los mismos TXT que escribe el libro, y se 
   assert.deepEqual(huecosDeNumeracion([{ tipo: 6, puntoVenta: 2, numero: "10" }, { tipo: 6, puntoVenta: 2, numero: "13" }, { tipo: 1, puntoVenta: 2, numero: "5" }]),
     [{ tipo: 6, puntoVenta: 2, desde: 11, hasta: 12 }]);
 });
+
+test("compras de antes de Laucen: Mis Comprobantes como lo lleva el libro (las NC como NC, B y C sin crédito)", async () => {
+  const { deMisComprobantes } = await import("@/lib/administracion/compras-externas");
+  const base = { fila: 1, fecha: "2025-07-14", tipoTexto: "NC A", letra: "A" as const, nd: false, numeroHasta: null, cae: null, cuit: "30703088534",
+    denominacion: "MERCADOLIBRE S.R.L.", moneda: "ARS" as const, cotizacion: 1, noGravado: 0, exento: 0, percepcionIva: 100, percepcionIibb: 50, otrosTributos: 0 };
+  const nc = deMisComprobantes({ ...base, tipo: 3, nc: true, puntoVenta: 58, numero: 404128, alicuotas: [{ pct: 21, neto: 1000, iva: 210 }], netoGravado: 1000, iva: 210, total: 1360 });
+  assert.ok(!("error" in nc));
+  if ("error" in nc) return;
+  assert.deepEqual([nc.tipo, nc.nc, nc.puntoVenta, nc.numero, nc.docNro, nc.percepcionIva, nc.percepcionIibb, nc.total], [3, true, 58, "404128", "30703088534", 100, 50, 1360]);
+  assert.deepEqual(nc.alicuotas, [{ pct: 21, base: 1000, iva: 210 }]);
+  const b = deMisComprobantes({ ...base, tipo: 6, tipoTexto: "Factura B", letra: "B", nc: false, puntoVenta: 1, numero: 5, alicuotas: [], netoGravado: 0, iva: 0, total: 500, percepcionIva: 0, percepcionIibb: 0 });
+  assert.ok(!("error" in b) && b.sinDiscriminar === 500 && b.alicuotas.length === 0);
+});

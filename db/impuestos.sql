@@ -118,3 +118,22 @@ create table if not exists venta_externa (
 );
 create index if not exists venta_externa_fecha on venta_externa (organizacion_id, emisor_id, fecha);
 alter table venta_externa enable row level security;
+
+-- Compras de períodos anteriores a Laucen, de "Mis Comprobantes – Recibidos" (lib/administracion/compras-externas.ts).
+create table if not exists compra_externa (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  emisor_id        bigint not null references emisor(id) on delete cascade,
+  sistema          text not null,
+  fecha            date not null,
+  cuit             text not null,
+  tipo             int not null,
+  punto_venta      int not null,
+  numero           bigint not null,
+  datos            jsonb not null,
+  archivo          text,
+  importado_ts     timestamptz not null default now(),
+  unique (emisor_id, cuit, tipo, punto_venta, numero)
+);
+create index if not exists compra_externa_fecha on compra_externa (organizacion_id, emisor_id, fecha);
+alter table compra_externa enable row level security;

@@ -6,6 +6,8 @@
 
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, una } from "@/lib/erp/base";
+import { leerArchivoArca } from "@/lib/administracion/arca-mc-archivo";
+import { deMisComprobantes, importarComprasExternas, type CompraExterna } from "@/lib/administracion/compras-externas";
 import { deFondo } from "@/lib/tareas-fondo";
 import { archivosLibroIvaDigital, rangoMes } from "@/lib/administracion/libro-iva";
 import { libroIvaPeriodo } from "@/lib/administracion/libro-iva-base";
@@ -53,4 +55,34 @@ export async function accionImportarVentasExternas(fd: FormData) {
 async function textoDe(f: File) {
   const b = Buffer.from(await f.arrayBuffer());
   try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch { return b.toString("latin1"); }
+}
+
+// Compras de períodos anteriores a Laucen (Fer, 24/10): "Mis Comprobantes – Recibidos" de ARCA → compra_externa
+// (lib/administracion/compras-externas.ts). Sólo para el libro: no son facturas de compra.
+export async function accionImportarComprasExternas(fd: FormData) {
+  const s = await entrarErp("libros_iva_ver");
+  const volver = String(fd.get("volver") ?? "/administracion/libros-iva");
+  return intentar(volver.startsWith("/administracion/libros-iva") ? volver : "/administracion/libros-iva", async () => {
+    const rs = Number(fd.get("rs")) || 0;
+    const archivos = fd.getAll("archivo").filter((a): a is File => a instanceof File && a.size > 0);
+    if (!archivos.length) throw new ErrorErp("Elegí el archivo de Mis Comprobantes – Recibidos (.xlsx o .csv).");
+    const e = await una<{ cuit: string }>("select regexp_replace(cuit, '\\D', '', 'g') cuit from emisor where organizacion_id = $1 and id = $2", [s.org.id, rs]);
+    if (!e) throw new ErrorErp("Elegí la razón social.");
+    const cbtes: CompraExterna[] = [];
+    const errores: string[] = [];
+    for (const a of archivos) {
+      // ARCA le pone el CUIT al nombre del archivo: si es de la otra razón social, se avisa en vez de mezclar.
+      const cuit = a.name.match(/CUIT[_ ]?(\d{11})/i)?.[1];
+      if (cuit && cuit !== e.cuit) throw new ErrorErp(`«${a.name}» es del CUIT ${cuit}, no de la razón social elegida.`);
+      const l = await leerArchivoArca(await a.arrayBuffer(), /\.xlsx$/i.test(a.name));
+      errores.push(...l.errores);
+      for (const c of l.comprobantes) {
+        const x = deMisComprobantes(c);
+        if ("error" in x) errores.push(x.error); else cbtes.push(x);
+      }
+    }
+    const r = await importarComprasExternas(s.org.id, rs, "Mis Comprobantes", archivos.map((a) => a.name).join(", ").slice(0, 200), cbtes);
+    const f = (x: string) => x.split("-").reverse().join("/");
+    return `Compras del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están cargadas como facturas de compra` : ""}.${errores.length ? ` No entraron: ${errores.slice(0, 3).join(" ")}${errores.length > 3 ? ` (y ${errores.length - 3} más)` : ""}` : ""}`;
+  });
 }

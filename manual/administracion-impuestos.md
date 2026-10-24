@@ -29,7 +29,7 @@ Todo es de una razón social a la vez: cada una presenta sus propias declaracion
 ## Qué hay en la pantalla
 
 Arriba a la derecha:
-- **Buscar en el Drive** (sólo si Google Drive está conectado y tiene la ruta de las carpetas): busca de fondo las declaraciones que dejó el contador en las carpetas de los últimos tres meses; ver "Declaraciones que el contador deja en el Drive".
+- **Buscar en el Drive** (sólo si Google Drive está conectado y tiene la ruta de las carpetas): busca de fondo las declaraciones que dejó el contador en las carpetas de los últimos tres meses. Para levantar meses más viejos, elegí antes el mes en **Leer desde** (al lado del botón): lee de ese mes hasta hoy. Si son muchos, corta a los pocos minutos y avisa; apretá de nuevo y sigue donde quedó (lo ya leído no se vuelve a leer); ver "Declaraciones que el contador deja en el Drive".
 - **Nueva declaración a mano**: abre debajo del título un formulario chico con **Impuesto** (IVA, Ingresos Brutos o Municipalidad de Córdoba), **Mes declarado**, **Rectificativa (0 si es la original)** y el botón **Crear y cargar los importes**. Es para cuando no se tiene el PDF.
 - **Subir declaración**: elegís el PDF (o una foto) de la declaración; ver "Subir una declaración".
 
