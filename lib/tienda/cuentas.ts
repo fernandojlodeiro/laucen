@@ -10,7 +10,8 @@ import type { Tienda } from "@/lib/tienda/tienda";
 
 const DIAS = 60;
 
-async function secreto(): Promise<string> {
+/** El secreto de las firmas de la tienda (sesión del comprador, antibot). */
+export async function secreto(): Promise<string> {
   const r = await una<{ valor: string }>("select valor #>> '{}' valor from config_org where organizacion_id is null and clave = 'tienda_secreto'");
   if (r?.valor) return r.valor;
   const nuevo = randomBytes(32).toString("hex");

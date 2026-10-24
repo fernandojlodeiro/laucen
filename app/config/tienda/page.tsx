@@ -21,6 +21,7 @@ import { COLORES_POR_DEFECTO } from "@/app/tienda/[slug]/tema";
 import SubirImagen from "./SubirImagen";
 import { accionCrearTienda, accionGuardarTienda } from "./acciones";
 import { accionNuevoDominio, accionVerificarDominio, accionBorrarDominio, accionGuardarDominio } from "./dominios";
+import { accionGuardarTurnstile } from "./antibot";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,13 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
   const direcciones = new Map(await Promise.all(tiendas.map(async (t) =>
     [t.id, await urlTiendaDe(t.id, t.config?.slug || slugDe(t.nombre))] as const)));
   const puedeDominios = tienePermiso(s.permisos, "tienda_dominios");
+  // Antibot (lib/tienda/antibot.ts): intentos frenados en la semana y si hay Turnstile.
+  const [frenados, turnstile] = await Promise.all([
+    consulta<{ resultado: string; n: number }>(`select resultado, count(*)::int n from tienda_intento
+      where organizacion_id = $1 and creado_ts > now() - interval '7 days' and resultado <> 'ok' group by resultado order by 2 desc`, [s.org.id]),
+    consulta<{ site_key: string | null; hay_secreta: boolean }>("select site_key, secret_key is not null hay_secreta from tienda_antibot where organizacion_id = $1", [s.org.id]),
+  ]);
+  const ts = turnstile[0];
   const llave = hayLlaveVercel();
 
   const VOLVER = "/config/tienda";
@@ -338,6 +346,28 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
           </section>
         );
       })}
+
+      {tiendas.length > 0 && (
+        <section className="mb-6">
+          <TituloSeccion titulo="Protección contra bots" />
+          <div className={`${CAJA} text-xs space-y-3`}>
+            <p className="text-[#5C6B76]">El pago (checkout), el ingreso y la creación de cuenta tienen un campo trampa que una persona no ve, un tiempo mínimo para completarlos y un tope de intentos por conexión. Con las claves de Cloudflare Turnstile se suma su verificación (casi siempre invisible).</p>
+            <p><b>Frenados en los últimos 7 días:</b>{" "}
+              {frenados.length ? frenados.map((f) => `${f.n} ${({ trampa: "llenaron el campo trampa", muy_rapido: "demasiado rápidos", vencido: "página vencida", turnstile: "no pasaron Turnstile", tope_ip: "pasaron el tope por conexión" } as Record<string, string>)[f.resultado] ?? f.resultado}`).join(" · ") : "ninguno"}</p>
+            <form action={accionGuardarTurnstile} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <label><span className={ETIQUETA}>Turnstile: clave del sitio (Site Key)</span>
+                <input name="site_key" defaultValue={ts?.site_key ?? ""} className={`${CAMPO} w-full font-mono`} /></label>
+              <label><span className={ETIQUETA}>Clave secreta (Secret Key)</span>
+                <input name="secret_key" type="password" autoComplete="off" placeholder={ts?.hay_secreta ? "Cargada (vacío = no se cambia)" : "Sin cargar"} className={`${CAMPO} w-full font-mono`} /></label>
+              <span className="flex gap-2">
+                <BotonEnviar clase={PRIMARIO} corriendo="Grabando…">Grabar claves</BotonEnviar>
+                {ts?.site_key && <button name="quitar" value="1" className={SUAVE}>Apagar Turnstile</button>}
+              </span>
+            </form>
+            <p className="text-[11px] text-[#5C6B76]">Estado: {ts?.site_key && ts.hay_secreta ? <span className="text-[#167655] font-semibold">Turnstile prendido</span> : "sin Turnstile"}. Las claves se crean en Cloudflare › Turnstile, con los dominios de la tienda.</p>
+          </div>
+        </section>
+      )}
     </Pantalla>
   );
 }

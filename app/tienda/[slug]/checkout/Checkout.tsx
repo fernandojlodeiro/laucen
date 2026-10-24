@@ -11,6 +11,7 @@ import type { Medio } from "@/lib/tienda/checkout";
 import type { MetodoEnvio, Resumen } from "../resumen";
 import { CONDICIONES_IVA, PROVINCIAS, precio, sinDireccion } from "../comun";
 import { confirmarCompra, cotizarAccion, sucursalesOcaAccion } from "../acciones";
+import Antibot from "../Antibot";
 
 export type Precarga = Partial<Record<"nombre" | "email" | "telefono" | "documento" | "razon_social" | "condicion_iva" | "calle" | "numero" | "piso_depto" | "localidad" | "provincia" | "codigo_postal", string>>;
 
@@ -47,8 +48,9 @@ function Campo({ nombre, etiqueta, opcional, ...resto }: { nombre: string; etiqu
   );
 }
 
-export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion }: {
+export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion, antibot }: {
   slug: string; medios: Medio[]; metodos: MetodoEnvio[]; inicial: Resumen; precarga: Precarga;
+  antibot: { marca: string; siteKey: string | null };
   eleccion: { metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string };
 }) {
   const [metodo, setMetodo] = useState(eleccion.metodoEnvioId);
@@ -312,6 +314,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
         <div ref={cajaError}>
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
         </div>
+        <Antibot marca={antibot.marca} siteKey={antibot.siteKey} />
         <button type="submit" disabled={ocupado || !medios.length || !metodos.some((x) => x.disponible)}
           className="inline-flex h-12 w-full items-center justify-center rounded-md bg-[var(--boton)] text-base font-semibold text-white transition-colors hover:bg-[var(--boton-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {yendo ? "Te estamos llevando…" : enviando ? "Confirmando…" : "Confirmar compra"}

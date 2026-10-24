@@ -4,6 +4,7 @@
 // comprador. Toda la lógica de negocio está en lib/tienda/*; acá se lee el
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
+import { controlarBot } from "@/lib/tienda/antibot";
 import { sucursalesOca } from "@/lib/oca/envios";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -119,6 +120,7 @@ const MEDIOS = ["mercadopago", "payway", "payway_debito", "transferencia", "efec
 export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { error: string }> {
   try {
     const t = await tiendaDe(fd);
+    await controlarBot(t, "checkout", fd);
     const carrito = await leerCarrito(t.slug);
     const cuenta = await cuentaActual(t);
     const medio = MEDIOS.find((m) => m === fd.get("medio"));
@@ -198,6 +200,7 @@ export async function crearCuenta(fd: FormData) {
   const t = await tiendaDe(fd);
   const codigo = String(fd.get("codigo") ?? "");
   await intentar(rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`), async () => {
+    await controlarBot(t, "crear_cuenta", fd);
     await crearCuentaDesdePedido(t, codigo, String(fd.get("clave") ?? ""));
     refrescar(t);
     return "¡Listo! Ya tenés tu cuenta: la próxima compra es más rápida.";
@@ -210,6 +213,7 @@ export async function ingresarAccion(fd: FormData) {
   await intentar(rutaTienda(t, `/cuenta${volver ? "?volver=checkout" : ""}`), async () => {
     const email = texto(fd, "email"), clave = String(fd.get("clave") ?? "");
     if (!email || !clave) throw new ErrorErp("Completá tu mail y tu contraseña.");
+    await controlarBot(t, "ingresar", fd);
     await ingresar(t, email, clave);
     refrescar(t);
     return volver ? { ir: volver } : undefined;

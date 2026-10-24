@@ -1,6 +1,8 @@
 // Mi cuenta: sin sesión, ingresar (mail + contraseña); con sesión, mis pedidos
 // de esta tienda y "Salir".
 
+import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
+import Antibot from "../Antibot";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -37,6 +39,7 @@ export default async function Cuenta({ params, searchParams }: Props) {
             <label htmlFor="clave" className={ETIQUETA}>Contraseña</label>
             <input id="clave" name="clave" type="password" autoComplete="current-password" required className={CAMPO} />
           </div>
+          <Antibot marca={await marcaDeTiempo()} siteKey={await turnstileDe(t.organizacionId)} />
           <button type="submit" className={`${BOTON} w-full`}>Ingresar</button>
         </form>
         <p className="text-sm text-gray-500">

@@ -15,6 +15,7 @@ import { abierta, cargarTienda } from "../catalogo";
 import { Aviso, BOTON, TITULO } from "../piezas";
 import { metodosEnvio, resumir, type Resumen } from "../resumen";
 import Checkout, { type Precarga } from "./Checkout";
+import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Finalizar compra" };
@@ -80,6 +81,7 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
       {error && <Aviso tipo="error">{error}</Aviso>}
       {resumen && (
         <Checkout slug={t.slug} medios={mediosVisibles} metodos={metodos} inicial={resumen} precarga={precarga}
+          antibot={{ marca: await marcaDeTiempo(), siteKey: await turnstileDe(t.organizacionId) }}
           eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }} />
       )}
     </div>

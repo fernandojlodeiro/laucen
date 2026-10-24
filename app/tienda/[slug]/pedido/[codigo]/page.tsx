@@ -18,6 +18,8 @@ import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAMPO, ETIQUETA, IconoWhatsapp } 
 import { crearCuenta, reintentarMercadoPago } from "../../acciones";
 import { paywayPublico } from "../../pagos";
 import PagoPayway from "./PagoPayway";
+import Antibot from "../../Antibot";
+import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Tu pedido", robots: { index: false } };
@@ -202,6 +204,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
               <label htmlFor="clave" className={ETIQUETA}>Contraseña (8 caracteres o más)</label>
               <input id="clave" name="clave" type="password" minLength={8} required autoComplete="new-password" className={CAMPO} />
             </div>
+            <Antibot marca={await marcaDeTiempo()} siteKey={await turnstileDe(t.organizacionId)} />
             <button type="submit" className={BOTON}>Crear mi cuenta</button>
           </form>
         </section>

@@ -134,6 +134,12 @@ Errores típicos:
 - "Hay dominios que redirigen a éste: cambialos primero (o dejalo como otra marca)."
 - "Ese dominio ya está conectado a otro proyecto de Vercel: hay que sacarlo de allá primero."
 
+### Protección contra bots
+En [Tienda web](/config/tienda), abajo de todo, **Protección contra bots**:
+- Siempre activo: el **pago (checkout)**, el **ingreso** a la cuenta y la **creación de cuenta** tienen un campo trampa que una persona no ve (si viene lleno, es un programa), un **tiempo mínimo** para completarlos (3 segundos en el pago) y un **tope de intentos por conexión** (en el pago, 15 por hora y 40 por día; al ingresar, 10 por hora y 40 por día; al crear la cuenta, 10 por hora y 30 por día). Quien se pasa ve "Hubo demasiados intentos desde esta conexión. Probá de nuevo en un rato."
+- **Frenados en los últimos 7 días**: cuántos intentos se cortaron y por qué.
+- **Cloudflare Turnstile** (opcional): se crean las claves en Cloudflare › Turnstile con los dominios de la tienda, se pegan la **clave del sitio** y la **clave secreta** y **"Grabar claves"**. La secreta no se vuelve a mostrar (vacía = queda la que estaba). Con Turnstile, los formularios suman la verificación de Cloudflare, que casi siempre es invisible. **"Apagar Turnstile"** la saca y quedan las otras protecciones. Si Cloudflare no contesta, el formulario sigue andando.
+
 ### Sacar un dominio
 
 Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras la tienda tenga otros dominios ("Primero borrá los demás dominios de la tienda…"), ni uno de otra marca mientras haya dominios que redirigen a él ("Primero borrá o cambiá los dominios que redirigen a éste.").
