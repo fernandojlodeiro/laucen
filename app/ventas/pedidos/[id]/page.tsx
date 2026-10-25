@@ -27,6 +27,8 @@ import Operacion from "./Operacion";
 import AccionesPedido from "./AccionesPedido";
 import NuevoPedido, { type EdicionPedido } from "../NuevoPedido";
 import { motivoNoEditable } from "@/lib/pedidos/editar";
+import { motivoNoCambiaCliente } from "@/lib/pedidos/cliente";
+import CambiarCliente from "./CambiarCliente";
 import EnvioOca from "./EnvioOca";
 import { envioOcaDe } from "@/lib/oca/envios";
 import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
@@ -158,6 +160,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   // El lápiz (Fer, 7/10): un presupuesto siempre; un pedido si todavía no se tocó (lib/pedidos/editar.ts).
   const editable = !(await motivoNoEditable(s.org.id, pid));
+  // «Cambiar cliente» (lib/pedidos/cliente.ts) y el cliente que tenía antes del primer cambio.
+  const motivoCliente = c.estado === "presupuesto" ? null : await motivoNoCambiaCliente(s.org.id, pid);
+  const original = (await una<{ o: { id?: number; nombre?: string; razon_social?: string; cuit?: string; documento?: string; contacto?: { email?: string } } | null }>(
+    "select datos_externos -> 'cliente_original' o from pedido where id = $1", [pid]))?.o ?? null;
   const nombreDoc = c.estado === "presupuesto" ? "Presupuesto" : "Pedido";
   if (editable && sp.editar === "ficha") {
     const canalPedido = (await una<{ c: number }>("select canal_id::int c from pedido where id = $1", [pid]))!.c;
@@ -221,11 +227,18 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         <Dato t="Total"><span className="font-bold tabular-nums">{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</span>
           {c.moneda !== v && <span className="text-[#5C6B76]"> (cargado en {c.moneda === "USD" ? "dólares" : "pesos"})</span>}</Dato>
         <Dato t="Depósito">{c.deposito ?? "—"}{!c.afecta_stock && <span className="text-[#5C6B76]"> · no mueve stock</span>}</Dato>
-        <Dato t="Cliente">
+        <CambiarCliente pid={pid} facturado={facturado} motivo={motivoCliente}>
           {c.cliente_id ? <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-semibold text-[#16577F] hover:underline">{c.cliente}</Link> : "—"}
           {c.documento_numero && <div className="text-[#5C6B76]">{c.documento_tipo} {c.documento_numero}</div>}
           {c.cliente_email && <div className="text-[#5C6B76]">{c.cliente_email}</div>}
-        </Dato>
+          {original && (
+            <div className="text-[11px] text-[#5C6B76] mt-1">
+              Original: {original.id ? <Link href={`/ventas/clientes/${original.id}`} className="text-[#16577F] hover:underline">{original.razon_social ?? original.nombre}</Link> : original.razon_social ?? original.nombre ?? "consumidor final"}
+              {(original.cuit ?? original.documento) && <> · {original.cuit ? `CUIT ${original.cuit}` : original.documento}</>}
+              {original.contacto?.email && <> · {original.contacto.email}</>}
+            </div>
+          )}
+        </CambiarCliente>
         <Dato t="Canal">{c.canal}</Dato>
         <Dato t="Fecha">{fecha(c.fecha)}</Dato>
         <Dato t="Unidades"><span className="tabular-nums">{unidades}</span></Dato>
@@ -315,7 +328,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   <tr key={i} className={TR}>
                     <td className={TDN}>{fechaHora(h.fecha)}</td>
                     <td className={`${TD} whitespace-nowrap`}>
-                      {h.estado_anterior ? `${etiqueta(ESTADOS_PEDIDO, h.estado_anterior)} → ` : ""}<b>{etiqueta(ESTADOS_PEDIDO, h.estado_nuevo)}</b>
+                      {h.estado_anterior === h.estado_nuevo ? <span className="text-[#5C6B76]">Sin cambio de estado</span>
+                        : <>{h.estado_anterior ? `${etiqueta(ESTADOS_PEDIDO, h.estado_anterior)} → ` : ""}<b>{etiqueta(ESTADOS_PEDIDO, h.estado_nuevo)}</b></>}
                     </td>
                     <td className={TD}>{h.quien_nombre === "sistema" ? "Sistema" : h.quien_nombre}</td>
                     <td className={`${TD} text-[#5C6B76]`}>{h.nota ?? ""}</td>

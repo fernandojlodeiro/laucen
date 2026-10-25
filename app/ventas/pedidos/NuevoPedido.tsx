@@ -41,7 +41,7 @@ const MEDIOS = ["Efectivo", "Transferencia", "Tarjeta de débito", "Tarjeta de c
 /** Cuadro de búsqueda al tipear (desde la segunda letra) con la X para borrar
  *  y la caja "Comienza por" (tildada de entrada), como BuscadorVivo pero sin
  *  tocar la dirección: busca con una acción del servidor. */
-function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>) {
+export function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>) {
   const [texto, setTexto] = useState("");
   const [comienza, setComienza] = useState(true);
   const [hallados, setHallados] = useState<T[]>([]);
@@ -70,7 +70,7 @@ function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>)
   };
 }
 
-function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
+export function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
   b: ReturnType<typeof usarBusqueda<unknown>>; placeholder: string; alEnter?: () => void;
   /** Flecha abajo / arriba: moverse por la lista de resultados (Fer, 7/10: todo con el teclado). */
   alFlecha?: (paso: 1 | -1) => void; id?: string;
@@ -100,7 +100,7 @@ function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
 
 /** Alta rápida de un cliente que no apareció en el buscador: pide ahí mismo los datos principales de la
  *  ficha (Fer, 22/10: CUIT / CUIL y DNI por separado, sin desplegable de tipo de documento). */
-function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
+export function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   nombreInicial: string; documentoInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void;
 }) {
   // Si lo que se buscó era un número, va a su campo: 11 cifras = CUIT, si no, DNI.

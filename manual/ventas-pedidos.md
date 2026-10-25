@@ -84,10 +84,10 @@ Se abre con **"+ Nuevo pedido o presupuesto"**, debajo del encabezado. Sirve par
 
 Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloques, de arriba hacia abajo:
 
-1. **Cabecera**: Estado (y la marca de carrito en espera, con un recuadro que explica desde qué hora se puede tocar), Pago (con el medio), el cartel **"A COBRAR $ …"** si corresponde, Total (y "cargado en dólares/pesos" si se cargó en la otra moneda), Depósito (o "no mueve stock"), Cliente (con documento y mail), Canal, Fecha, Unidades y Notas.
+1. **Cabecera**: Estado (y la marca de carrito en espera, con un recuadro que explica desde qué hora se puede tocar), Pago (con el medio), el cartel **"A COBRAR $ …"** si corresponde, Total (y "cargado en dólares/pesos" si se cargó en la otra moneda), Depósito (o "no mueve stock"), Cliente (con documento y mail, el botón **"Cambiar cliente"** y, si se cambió, **"Original: …"** con el cliente que tenía), Canal, Fecha, Unidades y Notas.
 2. **"Líneas"**: SKU (enlace al producto, con su foto si tiene), Título (en un carrito de Mercado Libre con varias órdenes, debajo dice "Orden ML …"), Cantidad, **Garantía** (la que tenía lo vendido en el momento de la venta), Lista, Descuento, Unitario, Subtotal y el Total.
 3. **"Envío"**: si es de Mercado Envíos, Logística (Full, Flex, Colecta, Despacho en correo, A convenir), Estado del envío, "Despachar antes de", "Entrega estimada", las fechas del envío según Mercado Libre (**"Etiqueta impresa"**, **"Lista para preparar"**, **"En camino"**, **"Recibido por el cliente"**: en verde con la fecha y hora cuando pasó, **"Pendiente"** en amarillo mientras no; "No entregado", "Devuelto" o "Cancelado" en rojo si pasó). "Despachar antes de" es el plazo que figura en la etiqueta (en azul; en rojo si ya venció sin despachar), "Recibe", "Seguimiento" y "Dirección". Si no, los datos de entrega cargados ("Sin datos de envío." si no hay). En los pedidos que no son de Mercado Libre y tienen dirección con código postal, el botón **"🚚 Despachar por OCA"**; ya dado de alta en OCA, el número de envío, **"🖨 Etiqueta de OCA"**, **"↻ Actualizar seguimiento"**, **"Anular en OCA"** (mientras no salió) y los últimos movimientos que informó OCA. Ver [OCA](/config/envios/oca). Debajo, la **"Comisión de Mercado Libre"** (y el número de carrito) y, en rojo, el aviso si tiene artículos sin vincular.
-4. **"Historial de estados"**: fecha, cambio ("Pagado → **En preparación**"), quién (o "Sistema") y nota.
+4. **"Historial de estados"**: fecha, cambio ("Pagado → **En preparación**"; "Sin cambio de estado" cuando lo que cambió fue el cliente), quién (o "Sistema") y nota (por ejemplo "Cliente cambiado: A → B").
 5. **"Mensajes"** (sólo si hay): la conversación del pedido, como un chat. Trae los mensajes de Mercado Libre de la venta y el WhatsApp del cliente desde que se hizo el pedido. Los del comprador salen a la izquierda y los nuestros a la derecha, con quién lo escribió (el comprador, nosotros o la IA), dónde y cuándo.
 5. **"Cargos de Mercado Libre"** (sólo si ya están): la venta, cada cargo restado por tipo y el **"Neto de Mercado Libre"**; aparte, las retenciones y percepciones.
 6. **"Operación"** (sólo pedidos que **no** son de Mercado Libre): ver más abajo.
@@ -217,6 +217,20 @@ Antes de que salga sola una factura (la facturación automática de [Facturació
 - **Si hay duda** (otra razón social o domicilio sin CUIT, pide A sin dar el CUIT, un CUIT que no es válido o que en ARCA no corresponde a A, partir la factura, otro importe, algo que no se entiende…), **no factura**: el pedido queda con **"⚠ Factura retenida: no se facturó sola"** y el motivo, arriba del bloque «Facturación», y avisa en la barra de estado (**"Facturas"**), en la ventana y en el aviso de Windows (ver [Mis avisos](/config/avisos)). Corregí lo que haga falta en la ficha del cliente y en las Observaciones de la factura, y apretá **"Facturar"**.
 
 Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo nuevo o cambian las notas.
+
+### Cambiar el cliente del pedido
+
+Para corregir un pedido cargado a nombre de otro (por ejemplo, con la razón social equivocada y la factura rechazada). Vale para cualquier pedido no cancelado, **pagado o no y también los de Mercado Libre**.
+
+1. En la cabecera, debajo del cliente, **"Cambiar cliente"**. Se abre ahí mismo el buscador de clientes (el mismo de «Nuevo pedido») con **"+ Cliente nuevo"** para darlo de alta.
+2. Elegido el cliente, si le faltan datos para facturar lo avisa en amarillo con **"Completar en la ficha (se abre aparte)"**.
+3. **Sin factura**: **"Cambiar el cliente"**. Después, **"Facturar"** sale con el cliente nuevo.
+4. **Con factura**: **"Cambiar y refacturar"** hace una **nota de crédito idéntica** de la factura actual y una **factura nueva** a nombre del cliente nuevo (como "Refacturar con datos actuales"). Hace falta poder facturar.
+5. El cartel verde dice **"Listo: el cliente ahora es …"** ahí mismo.
+
+Queda registro: en la cabecera, **"Original: …"** con el primer cliente que tuvo el pedido (y su CUIT o documento y el mail que había escrito el comprador en la tienda), y una línea en el historial "Cliente cambiado: A → B". Los avisos y la factura por mail o WhatsApp van a los datos del cliente nuevo.
+
+No se puede (lo dice en lugar del botón): si el pedido **ya está en una cuenta corriente**, o si hay una factura **a medio salir** (pendiente o con error: primero terminarla con «Facturar»).
 
 ### Refacturar (cambiar una factura ya hecha)
 

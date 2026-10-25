@@ -11,7 +11,9 @@ import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
-import { refacturar, liberarFactura, LARGO_LEYENDA } from "@/lib/facturacion/revision";
+import { refacturar, liberarFactura, LARGO_LEYENDA, sqlFacturaVigente } from "@/lib/facturacion/revision";
+import { cambiarClientePedido } from "@/lib/pedidos/cliente";
+import { tienePermiso } from "@/lib/permisos";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
 import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
@@ -339,4 +341,27 @@ export async function accionBorrarComprobantePago(fd: FormData) {
     revalidatePath(`/ventas/pedidos/${pid}`);
     return "Comprobante borrado.";
   });
+}
+
+/** «Cambiar cliente» (Fer, 25/10; lib/pedidos/cliente.ts). Si el pedido ya tenía factura, la refactura con el
+ *  cliente nuevo (nota de crédito idéntica y factura nueva); si no, queda listo para «Facturar». */
+export async function accionCambiarCliente(pid: number, clienteId: number): Promise<{ error?: string; ok?: string }> {
+  const s = await entrarErp("pedidos_ver");
+  try {
+    if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
+    const facturado = await una(`select 1 from comprobante cb where cb.organizacion_id = $1 and cb.pedido_id = $2 and ${sqlFacturaVigente("cb")}`, [s.org.id, pid]);
+    if (facturado && !tienePermiso(s.permisos, "facturacion_ver")) throw new ErrorErp("El pedido ya está facturado: el cliente lo cambia quien puede facturar.");
+    const r = await cambiarClientePedido(s.org.id, pid, clienteId, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    if (!r.facturado) return { ok: `Listo: el cliente ahora es ${r.nuevo}.` };
+    try {
+      const m = await refacturar(s.org.id, pid, s.usuario.id);
+      revalidatePath("/administracion/facturacion");
+      return { ok: `Listo: el cliente ahora es ${r.nuevo}. ${m}` };
+    } catch (e) {
+      return { error: `El cliente ya es ${r.nuevo}, pero la factura nueva no salió: ${motivoErp(e)} Probá con «Refacturar con datos actuales».` };
+    }
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
 }
