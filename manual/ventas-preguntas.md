@@ -38,7 +38,7 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 **Sin responder** (las más viejas primero, hasta 200). Cada pregunta es una tarjeta con:
 - Desde el [Tablero de Mercado Libre](/mercadolibre) se llega con una cuenta ya elegida (la dirección lleva el filtro de esa cuenta): se ven sólo sus preguntas y mensajes.
-- La **publicación**: foto, título, la cuenta (canal), el **plan** de la publicación (Clásica, Premium, Premium 3x, 9x o 12x), el número de publicación (enlace "↗" que abre la publicación en Mercado Libre) y **"Stock del canal: N"** (o "Sin vincular a un producto" si la publicación no está atada a un producto de Laucen).
+- La **publicación**: foto, título, la cuenta (canal), el **plan** de la publicación (Clásica, Premium, Premium 3x, 9x o 12x), el número de publicación (enlace "↗" que abre la publicación en Mercado Libre), el **SKU del producto** (abre su ficha) con un **lápiz** al lado (abre la ficha ya en edición, por ejemplo para corregir sus datos técnicos para la IA) y **"Stock del canal: N"** (o "Sin vincular a un producto" si la publicación no está atada a un producto de Laucen).
 - Hace cuánto llegó ("recién", "hace 5 min", "hace 3 h", "hace 2 días"; con el mouse encima, la fecha y hora).
 - El texto de la pregunta.
 - El cuadro **"Respuesta"** (si la IA ya propuso una, viene escrita y la etiqueta dice "(la propuso la IA: revisala)").
@@ -50,7 +50,7 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 La lista de lo que la IA buscó en internet porque no estaba en la ficha del producto y **agregó sola a sus datos técnicos**, lo más nuevo primero (de a 50, con el paginador abajo): el producto (foto, SKU y título), **lo que agregó**, la **certeza** (Seguro, Con duda, No coinciden), lo que preguntaron (de dónde vino y cuándo) y las **fuentes** (las páginas de donde lo sacó; se abren en otra pestaña).
 
-Sirve para encontrar lo que la IA agregó y corregirlo si está mal: el **lápiz** abre la ficha del producto en edición, donde se cambia o se borra el renglón en **Datos técnicos para la IA**.
+Sirve para encontrar lo que la IA agregó y corregirlo si está mal: el SKU abre la ficha del producto y el **lápiz** al lado del SKU la abre en edición, donde se cambia o se borra el renglón en **Datos técnicos para la IA**.
 
 ### Pestaña Mensajes
 

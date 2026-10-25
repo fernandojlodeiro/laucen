@@ -41,7 +41,6 @@ export default async function DatosInternet({ org, sp }: { org: string; sp: { p?
               <th className={TH}>Producto</th>
               <th className={TH}>Lo que agregó</th>
               <th className={TH} title="Qué tan seguro es lo que encontró">Certeza</th>
-              <th className={TH} />
               <th className={TH}>Lo que preguntaron</th>
               <th className={TH}>Fuentes</th>
             </tr>
@@ -53,16 +52,16 @@ export default async function DatosInternet({ org, sp }: { org: string; sp: { p?
                   <div className="flex items-start gap-2">
                     <FotosProducto fotos={f.fotos} titulo={f.titulo} />
                     <div>
-                      <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link>
+                      <span className="inline-flex items-center gap-1">
+                        <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline" title="Abrir la ficha del producto">{f.sku}</Link>
+                        <Lapiz href={`/catalogo/productos/${f.producto_id}?editar=ficha`} etiqueta="Editar el producto (datos técnicos para la IA)" />
+                      </span>
                       <TituloCorto titulo={f.titulo} />
                     </div>
                   </div>
                 </td>
                 <td className={`${TD} max-w-96 whitespace-pre-wrap`}>{f.dato}</td>
                 <td className={`${TD} whitespace-nowrap`}>{CERTEZA[f.certeza] ?? f.certeza}</td>
-                <td className={TD}>
-                  <Lapiz href={`/catalogo/productos/${f.producto_id}?editar=ficha`} etiqueta="Corregir los datos técnicos del producto" />
-                </td>
                 <td className={`${TD} max-w-80 text-[#5C6B76]`}>
                   <span className="line-clamp-2" title={f.pregunta}>{f.pregunta}</span>
                   <span className="block text-[10px]">{f.origen ?? ""} · {fechaHora(f.creado_ts)}</span>

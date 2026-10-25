@@ -8,7 +8,7 @@ import Link from "next/link";
 import { consulta, una } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import Pestanas from "@/app/componentes/Pestanas";
-import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA, Lapiz } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { SQL_SIN_RESPONDER, importarConversacion } from "@/lib/mercadolibre/mensajes";
 import { SQL_DERIVADA_ESPERA } from "@/lib/mercadolibre/sql-mensajes";
@@ -104,7 +104,7 @@ type Pregunta = {
   id: string; canal: string | null; firma: string | null; item_id: string; titulo: string | null; foto: string | null; permalink: string | null;
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
-  ia_estado: string | null; respondida_auto: boolean; ia_internet: Hallazgo | null;
+  ia_estado: string | null; respondida_auto: boolean; ia_internet: Hallazgo | null; producto_id: number | null; sku: string | null;
   canal_id: number | null; comprador_id: string | null; compras: number; ultima_compra: Date | null; cliente_id: number | null;
   tipo: string | null; tags: unknown; terms: unknown; anteriores: number;
 };
@@ -119,6 +119,8 @@ const DE_PREGUNTA = `
          (pu.id is not null) vinculada,
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
          q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto, q.ia_internet,
+         (select pr.id::int from variacion v join producto pr on pr.id = v.producto_id where v.id = pu.variacion_id) producto_id,
+         (select pr.sku_base from variacion v join producto pr on pr.id = v.producto_id where v.id = pu.variacion_id) sku,
          q.canal_id::int, q.comprador_id::text, mi.tipo, mi.tags, mi.terms,
          -- Otras preguntas del mismo comprador (en cualquier cuenta): «Ver preguntas anteriores».
          case when q.comprador_id is null then 0 else (select count(*) from meli_pregunta x where x.organizacion_id = q.organizacion_id and x.comprador_id = q.comprador_id and x.id <> q.id)::int end anteriores,
@@ -151,6 +153,12 @@ function Publicacion({ q }: { q: Pregunta }) {
           {q.permalink
             ? <a href={q.permalink} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline font-mono">{q.item_id} ↗</a>
             : <span className="font-mono">{q.item_id}</span>}
+          {q.producto_id && (
+            <span className="inline-flex items-center gap-1">
+              <Link href={`/catalogo/productos/${q.producto_id}`} className="text-[#16577F] hover:underline font-mono" title="Abrir la ficha del producto">{q.sku ?? "Ficha"}</Link>
+              <Lapiz href={`/catalogo/productos/${q.producto_id}?editar=ficha`} etiqueta="Editar el producto (datos técnicos para la IA)" />
+            </span>
+          )}
           {q.vinculada
             ? <span>Stock del canal: <b className="tabular-nums">{q.disponible ?? 0}</b></span>
             : <span>Sin vincular a un producto</span>}
