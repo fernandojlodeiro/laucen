@@ -583,3 +583,19 @@ create table if not exists pedido_comprobante_pago (
 );
 create index if not exists pedido_comprobante_pago_pedido on pedido_comprobante_pago (pedido_id);
 alter table pedido_comprobante_pago enable row level security;
+
+-- El conforme de retiro (Fer, 25/10): la firma de quien retira en el local —el cliente o un comisionista— y,
+-- si hace falta, la foto de su DNI. Sólo queda guardado: no mueve nada del pedido. Mismo bucket privado
+-- «comprobantes», carpeta <org>/pedidos/<id>/retiro.
+create table if not exists pedido_conforme_retiro (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  pedido_id        bigint not null references pedido(id) on delete cascade,
+  ruta             text not null,
+  nombre           text,
+  tipo             text,
+  subido_por       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists pedido_conforme_retiro_pedido on pedido_conforme_retiro (pedido_id);
+alter table pedido_conforme_retiro enable row level security;

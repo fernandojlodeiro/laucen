@@ -123,7 +123,7 @@ Los datos del vendedor salen de la **razón social principal** (ver [Razones soc
 1. Abrí [Pedidos](/ventas/pedidos) y filtrá por el canal de la tienda.
 2. El pedido aparece con el número que vio el cliente (#N), sus líneas, el envío y el medio de pago.
 3. Si pagó por **transferencia**, cuando la veas acreditada apretá en el pedido **"Confirmar pago de $ …"**: pasa a pagado.
-   Si el cliente te mandó el comprobante, guardalo en el pedido con **"📎 Subir comprobante"** (foto o PDF, hasta 20 MB): queda en la operación del pedido con un link para verlo y un tacho para borrarlo. Se guarda en un lugar privado: sólo lo ven los usuarios del sistema.
+   Si el cliente te mandó el comprobante, guardalo en el pedido con **"📎 Subir comprobante de pago"** (foto o PDF, hasta 20 MB; el botón aparece sólo mientras el cobro no está registrado): queda en la operación del pedido, como "Comprobante de pago:", con un link para verlo y un tacho para borrarlo. Se guarda en un lugar privado: sólo lo ven los usuarios del sistema.
 4. Si es **efectivo al retirar**, ya entró en picking; al entregarlo se usa **"Cliente presente: retira y paga"** (cobra, entrega y factura).
 
 ### El cliente dice que pagó con Mercado Pago pero el pedido sigue pendiente

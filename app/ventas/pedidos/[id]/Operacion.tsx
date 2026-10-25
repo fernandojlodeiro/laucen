@@ -14,8 +14,8 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto, accionBorrarComprobantePago } from "./acciones";
-import SubirComprobante from "./SubirComprobante";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto, accionBorrarComprobantePago, accionBorrarConformeRetiro } from "./acciones";
+import SubirArchivo from "./SubirArchivo";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { supabaseServer } from "@/lib/supabase";
 
@@ -86,12 +86,32 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
     select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
-  // Los comprobantes de pago, con un link firmado por una hora (el bucket es privado).
-  const filasComp = await consulta<{ id: number; ruta: string; nombre: string | null; origen: string; creado: Date }>(
-    "select id::int, ruta, nombre, origen, creado_ts creado from pedido_comprobante_pago where pedido_id = $1 and organizacion_id = $2 order by id", [pid, org]);
-  const sb = filasComp.length ? await supabaseServer() : null;
-  const comprobantes = await Promise.all(filasComp.map(async (c) => ({
-    ...c, url: (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
+  // Los comprobantes de pago y el conforme de retiro, con un link firmado por una hora (el bucket es privado).
+  const archivosDe = async (tabla: "pedido_comprobante_pago" | "pedido_conforme_retiro") => {
+    const filas = await consulta<{ id: number; ruta: string; nombre: string | null; creado: Date }>(
+      `select id::int, ruta, nombre, creado_ts creado from ${tabla} where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, org]);
+    const sb = filas.length ? await supabaseServer() : null;
+    return Promise.all(filas.map(async (c) => ({
+      ...c, url: (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
+  };
+  const [comprobantes, conformes] = await Promise.all([archivosDe("pedido_comprobante_pago"), archivosDe("pedido_conforme_retiro")]);
+  const Archivos = ({ filas, borrar, titulo }: { filas: typeof comprobantes; borrar: (fd: FormData) => Promise<void>; titulo: string }) => filas.map((c) => (
+    <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E9F0] bg-white px-2 py-1">
+      {c.url ? <a href={c.url} target="_blank" rel="noopener" className="text-[#16577F] underline">{c.nombre ?? titulo}</a> : <span>{c.nombre ?? titulo}</span>}
+      <span className="text-[#5C6B76]">· {fechaHora(c.creado)}</span>
+      <TachoConfirmar accion={borrar} campos={{ pedido_id: String(pid), id: String(c.id) }} pregunta="¿Borrar?" />
+    </span>
+  ));
+  // El conforme de retiro (Fer, 25/10): cuando no lo lleva ningún transporte; la firma de quien retira y, si hace falta, su DNI.
+  const sinTransporte = p.canal_tipo === "mercadolibre" ? p.ml_retira : p.retiro;
+  const BloqueConforme = sinTransporte && (p.estado !== "cancelado" || conformes.length > 0) && (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      {p.estado !== "cancelado" && <SubirArchivo orgId={org} pedidoId={pid} clase="retiro" />}
+      {conformes.length > 0 && <span className="text-[#5C6B76]">Conforme de retiro:</span>}
+      <Archivos filas={conformes} borrar={accionBorrarConformeRetiro} titulo="Conforme" />
+      {p.estado !== "cancelado" && conformes.length === 0 && <span className="text-[11px] text-[#5C6B76]">La firma de quien retira (el cliente o un comisionista) y, si hace falta, la foto de su DNI. Sólo queda guardado.</span>}
+    </div>
+  );
   // Lo que arrastra cancelar (OCA, Payway, la factura), para las preguntas del botón.
   const cancelar = p.canal_tipo !== "mercadolibre" && !CERRADOS.includes(p.estado) ? await queArrastraCancelar(org, pid) : null;
   const nombreMedio = (m: string) => (Object.hasOwn(TIPOS_MEDIO, m) ? TIPOS_MEDIO[m as keyof typeof TIPOS_MEDIO].nombre : m);
@@ -129,18 +149,21 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
     // «Cliente presente: retira» la entrega, la factura si falta y le avisa a ML que se concretó.
     return (
       <>
-        {p.ml_retira && p.estado === "preparado" && (
+        {((p.ml_retira && p.estado === "preparado") || BloqueConforme) && (
           <>
             <h2 className="text-sm font-bold mb-2">Operación</h2>
             {sp.b === "op" && (sp.ok || sp.error) && (
               <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>{sp.error ?? sp.ok}</p>
             )}
-            <div className={`${CAJA} mb-4`}>
-              <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="pedido_id" value={pid} />
-                <BotonEnviar clase={VERDE} corriendo="Entregando y avisando…">Cliente presente: retira</BotonEnviar>
-                <span className="text-[11px] text-[#5C6B76]">Queda entregado, se factura si falta (la factura se sube a Mercado Libre) y se le avisa solo a Mercado Libre que el comprador ya lo tiene.</span>
-              </form>
+            <div className={`${CAJA} mb-4 grid gap-3`}>
+              {p.ml_retira && p.estado === "preparado" && (
+                <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="pedido_id" value={pid} />
+                  <BotonEnviar clase={VERDE} corriendo="Entregando y avisando…">Cliente presente: retira</BotonEnviar>
+                  <span className="text-[11px] text-[#5C6B76]">Queda entregado, se factura si falta (la factura se sube a Mercado Libre) y se le avisa solo a Mercado Libre que el comprador ya lo tiene.</span>
+                </form>
+              )}
+              {BloqueConforme}
             </div>
           </>
         )}
@@ -233,17 +256,15 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {automatico && ["preparado", "despachado"].includes(p.estado) && (
           <p className="text-[11px] text-[#5C6B76]">El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan.</p>
         )}
-        {/* Comprobantes de pago: los que sube un operador (después, los que lleguen por mail o WhatsApp). */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <SubirComprobante orgId={org} pedidoId={pid} />
-          {comprobantes.map((c) => (
-            <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E9F0] bg-white px-2 py-1">
-              {c.url ? <a href={c.url} target="_blank" rel="noopener" className="text-[#16577F] underline">{c.nombre ?? "Comprobante"}</a> : <span>{c.nombre ?? "Comprobante"}</span>}
-              <span className="text-[#5C6B76]">· {fechaHora(c.creado)}{c.origen !== "operador" ? ` · por ${c.origen === "mail" ? "mail" : "WhatsApp"}` : ""}</span>
-              <TachoConfirmar accion={accionBorrarComprobantePago} campos={{ pedido_id: String(pid), id: String(c.id) }} pregunta="¿Borrar?" />
-            </span>
-          ))}
-        </div>
+        {/* El comprobante de pago: mientras el cobro no está registrado (después, los que lleguen por mail o WhatsApp). */}
+        {(pagoPendiente || comprobantes.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {pagoPendiente && <SubirArchivo orgId={org} pedidoId={pid} clase="pago" />}
+            {comprobantes.length > 0 && <span className="text-[#5C6B76]">Comprobante de pago:</span>}
+            <Archivos filas={comprobantes} borrar={accionBorrarComprobantePago} titulo="Comprobante" />
+          </div>
+        )}
+        {BloqueConforme}
         {pagoPendiente && !pideMedio && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />

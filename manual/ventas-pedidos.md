@@ -114,6 +114,13 @@ El lápiz abre el mismo formulario del alta con los datos cargados: cliente, mon
 
 ### El bloque "Operación"
 
+**Comprobante de pago y conforme de retiro**, dos botones distintos:
+
+- **"📎 Subir comprobante de pago"**: sólo mientras el cobro **no está registrado** (pago pendiente, a cobrar o a convenir). Foto o PDF. Lo subido queda como "Comprobante de pago:" con su link y su tacho, aunque después el pago se confirme.
+- **"✍ Subir conforme de retiro"**: sólo cuando el pedido **no va por ningún transporte** (retira en el local; en Mercado Libre, las ventas que retiran). Es la firma de quien retira —el cliente o un comisionista— y, si hace falta, la foto de su DNI (por ejemplo, cuando pagó con tarjeta de crédito). Se pueden elegir varias fotos a la vez. Sólo queda guardado como "Conforme de retiro:": no cambia el estado ni el pago.
+
+Los dos se guardan en un lugar privado: sólo los ven los usuarios del sistema.
+
 Aparece en los pedidos que no son de Mercado Libre. Según el estado y el pago muestra:
 
 - **"Entrega: …"** (el método de envío, si tiene).

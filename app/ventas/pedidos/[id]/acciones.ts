@@ -312,16 +312,19 @@ export async function accionFacturaWhatsapp(fd: FormData) {
   });
 }
 
-/** Guarda el comprobante de pago que el navegador ya subió (bucket privado «comprobantes»). */
-export async function guardarComprobantePago(fd: FormData): Promise<{ motivo?: string }> {
+// Lo que el navegador ya subió al bucket privado «comprobantes»: el comprobante de pago y el conforme de retiro
+// (la firma de quien retira y su DNI; Fer, 25/10). Son dos cosas distintas, cada una con su tabla.
+const ARCHIVOS = { pago: "pedido_comprobante_pago", retiro: "pedido_conforme_retiro" } as const;
+
+async function guardarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS): Promise<{ motivo?: string }> {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
   try {
     if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
     const ruta = texto(fd, "ruta");
-    if (!ruta || !ruta.startsWith(`${s.org.id}/`)) throw new ErrorErp("No llegó bien el comprobante. Probá de nuevo.");
-    await consulta(`insert into pedido_comprobante_pago (organizacion_id, pedido_id, ruta, nombre, tipo, origen, subido_por)
-                    values ($1, $2, $3, $4, $5, 'operador', $6)`, [s.org.id, pid, ruta, texto(fd, "nombre"), texto(fd, "tipo"), s.usuario.id]);
+    if (!ruta || !ruta.startsWith(`${s.org.id}/`)) throw new ErrorErp("No llegó bien el archivo. Probá de nuevo.");
+    await consulta(`insert into ${ARCHIVOS[clase]} (organizacion_id, pedido_id, ruta, nombre, tipo, subido_por) values ($1, $2, $3, $4, $5, $6)`,
+      [s.org.id, pid, ruta, texto(fd, "nombre"), texto(fd, "tipo"), s.usuario.id]);
     revalidatePath(`/ventas/pedidos/${pid}`);
     return {};
   } catch (e) {
@@ -329,19 +332,24 @@ export async function guardarComprobantePago(fd: FormData): Promise<{ motivo?: s
   }
 }
 
-export async function accionBorrarComprobantePago(fd: FormData) {
+async function borrarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS) {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
   await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
-    const r = await una<{ ruta: string }>("delete from pedido_comprobante_pago where id = $1 and organizacion_id = $2 and pedido_id = $3 returning ruta",
+    const r = await una<{ ruta: string }>(`delete from ${ARCHIVOS[clase]} where id = $1 and organizacion_id = $2 and pedido_id = $3 returning ruta`,
       [id(fd, "id"), s.org.id, pid]);
     if (r?.ruta.startsWith(`${s.org.id}/`)) {
       try { await (await supabaseServer()).storage.from("comprobantes").remove([r.ruta]); } catch { /* queda huérfano */ }
     }
     revalidatePath(`/ventas/pedidos/${pid}`);
-    return "Comprobante borrado.";
+    return clase === "pago" ? "Comprobante borrado." : "Conforme borrado.";
   });
 }
+
+export async function guardarComprobantePago(fd: FormData) { return guardarArchivo(fd, "pago"); }
+export async function accionBorrarComprobantePago(fd: FormData) { return borrarArchivo(fd, "pago"); }
+export async function guardarConformeRetiro(fd: FormData) { return guardarArchivo(fd, "retiro"); }
+export async function accionBorrarConformeRetiro(fd: FormData) { return borrarArchivo(fd, "retiro"); }
 
 /** «Cambiar cliente» (Fer, 25/10; lib/pedidos/cliente.ts). Si el pedido ya tenía factura, la refactura con el
  *  cliente nuevo (nota de crédito idéntica y factura nueva); si no, queda listo para «Facturar». */
