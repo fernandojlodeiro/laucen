@@ -51,6 +51,24 @@ export async function activarPush(): Promise<{ estado: EstadoPush; equipos?: num
   return { estado: "activo", equipos: r.equipos };
 }
 
+/** ¿Este equipo recibe sólo las derivaciones? (null: no tiene los avisos activados). */
+export async function modoPush(): Promise<boolean | null> {
+  const sus = anda() ? await suscripcion() : null;
+  if (!sus) return null;
+  const r = await fetch(`/api/avisos/equipo?endpoint=${encodeURIComponent(sus.endpoint)}`, { cache: "no-store" }).then((x) => x.json()).catch(() => null) as { solo?: boolean | null } | null;
+  return r?.solo ?? null;
+}
+
+export async function cambiarModoPush(solo: boolean): Promise<{ ok: boolean; error?: string }> {
+  const sus = await suscripcion();
+  if (!sus) return { ok: false, error: "Este equipo no tiene los avisos activados." };
+  return pedirAvisos({ accion: "modo", endpoint: sus.endpoint, solo });
+}
+
+/** iPhone o iPad abierto en Safari (no desde el ícono de la pantalla de inicio): ahí Apple no deja recibir avisos. */
+export const iphoneSinInstalar = () => typeof window !== "undefined" && /iPhone|iPad/.test(navigator.userAgent)
+  && !(window.matchMedia?.("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true);
+
 export async function desactivarPush(): Promise<{ equipos?: number | null }> {
   guardar(APAGADO, true);
   const sus = await suscripcion();

@@ -35,7 +35,7 @@ De entrada, todas las cajas vienen tildadas.
 
 El botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
 
-Y abajo, el recuadro **"Avisos de Windows, aunque no tengas Laucen abierto"**: dice si **esta computadora** tiene los avisos activados y en cuántos equipos en total, con los botones **"Activar en esta computadora"**, **"Desactivar en esta computadora"** y **"Mandar un aviso de prueba"**.
+Y abajo, el recuadro **"Avisos en la computadora y el celular, aunque no tengas Laucen abierto"**: dice si **este equipo** (la computadora o el celular desde el que estás mirando) tiene los avisos activados y en cuántos equipos en total, con los botones **"Activar en este equipo"**, **"Desactivar en este equipo"** y **"Mandar un aviso de prueba"**. Con los avisos activados, la caja **"En este equipo, sólo lo derivado a una persona"**.
 
 ## Cómo se hace
 
@@ -48,16 +48,26 @@ Y abajo, el recuadro **"Avisos de Windows, aunque no tengas Laucen abierto"**: d
 La primera vez que entrás a Laucen en una computadora, abajo a la izquierda aparece el cartel **"🔔 ¿Te avisamos por Windows?"**. Con **"Sí, avisame"** el navegador te pide permiso: elegí **"Permitir"** y listo. Con **"Ahora no"** no vuelve a aparecer en esa computadora, y se activa después desde esta pantalla:
 
 1. Entrá a esta pantalla desde la computadora (o el celular) donde querés recibirlos.
-2. En el recuadro de abajo apretá **"Activar en esta computadora"**.
+2. En el recuadro de abajo apretá **"Activar en este equipo"**.
 3. El navegador pregunta si permitís las notificaciones: elegí **"Permitir"**.
 4. Para probar, apretá **"Mandar un aviso de prueba"**: en unos segundos aparece el cartel abajo a la derecha de la pantalla.
 
 Si con **"Mandar un aviso de prueba"** la pantalla dice que el aviso llegó pero no viste el cartel, lo está tapando Windows: en Inicio › Configuración › Sistema › Notificaciones, tienen que estar prendidas las notificaciones y las de tu navegador (Google Chrome o Microsoft Edge), y apagado «No molestar» (o «Asistente de concentración»). Los avisos que no se mostraron quedan en el centro de notificaciones (el globito al lado de la hora).
 
+### Recibir en el celular sólo lo derivado a una persona
+
+Laucen se instala en el celular como una app, sin bajar nada de ninguna tienda, y avisa aunque esté cerrado:
+
+- **Android**: entrá a laucen.com con Chrome. Para tenerlo como app, menú ⋮ (arriba a la derecha) › «Agregar a la pantalla principal» o «Instalar app». Entrá a esta pantalla y apretá **"Activar en este equipo"** (y «Permitir»).
+- **iPhone**: Apple sólo deja recibir avisos a lo que está en la pantalla de inicio. Abrí laucen.com en Safari, tocá Compartir (el cuadrado con la flecha para arriba, abajo en el medio) › **«Agregar a pantalla de inicio»** › «Agregar». Abrí Laucen desde ese ícono, entrá a esta pantalla y apretá **"Activar en este equipo"** (y «Permitir»).
+
+Un celular empieza recibiendo **sólo lo derivado a una persona**: los mensajes de Mercado Libre que la IA derivó, los WhatsApp que quedaron en espera y los reclamos para atender. Tocando el aviso se abre esa conversación para contestar. Con la caja **"En este equipo, sólo lo derivado a una persona"** destildada, recibe todo, como la computadora. Cada equipo elige lo suyo: la computadora puede recibir todo y el celular sólo lo derivado.
+
 Si el navegador dice que las notificaciones están bloqueadas: tocá el candado a la izquierda de la dirección, en «Notificaciones» elegí «Permitir» y volvé a cargar la pantalla.
 
 ## Criterios y reglas
 
+- **Equipos «sólo lo derivado»**: reciben lo derivado a una persona aunque ese tipo esté destildado arriba; nunca los pedidos, las preguntas ni los otros avisos. Como en los demás equipos, no avisan mientras tengas Laucen a la vista en otro lado ni más de una vez cada tantos minutos.
 - **El número de la barra de abajo se pinta de amarillo** cuando entró algo que todavía no viste, aunque tengas las dos opciones destildadas. Vuelve a blanco cuando entrás a esa pantalla (por ejemplo, a [Preguntas y mensajes](/ventas/preguntas) para las preguntas). Lo que ya viste y sigue pendiente queda en blanco. Al lado de **Mensajes**, **👤 N** en amarillo: las conversaciones que la IA derivó a una persona y esperan que alguien del equipo conteste (queda mientras esperan, las hayas visto o no).
 - **Los contadores se actualizan solos**, cada pocos segundos, sin tener que cambiar de pantalla. Si estás mirando la pantalla de lo que entró (por ejemplo, la lista de preguntas), también se actualiza sola, salvo que estés escribiendo en un campo.
 - **Qué abre la ventana** (de los tipos tildados): un pedido nuevo a preparar; una pregunta o un mensaje de Mercado Libre sin responder en el que la IA dijo que **le falta un dato** o que **el cliente pide hablar con una persona**; y un chat de WhatsApp que la IA **dejó en espera** para una persona. Muestra lo que escribió el cliente, por qué no contestó la IA y lo que propone, con el botón **"Ir a responder"** (en un pedido: el cliente, el total, lo que compró y **"Ver el pedido"**).

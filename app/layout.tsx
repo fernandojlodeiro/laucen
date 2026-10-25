@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "Laucen",
   description: "Gestión de ventas, stock e importación",
   icons: { icon: "/marca/laucen-logo.svg", apple: "/marca/laucen-logo.png" },
+  // Instalable en el celular (app/manifest.ts); en iPhone, como app de pantalla completa.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Laucen", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

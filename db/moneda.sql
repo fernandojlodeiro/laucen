@@ -186,6 +186,9 @@ create table if not exists push_suscripcion (
   ultimo_ok_ts     timestamptz
 );
 create index if not exists push_suscripcion_usuario on push_suscripcion (usuario_id, organizacion_id);
+-- Este equipo recibe sólo lo derivado a una persona (Fer, 25/10): mensajes de ML que la IA derivó, WhatsApp en espera
+-- y reclamos. Los celulares nacen así; se cambia en Configuración › Mis avisos.
+alter table push_suscripcion add column if not exists solo_derivaciones boolean not null default false;
 alter table push_suscripcion enable row level security;
 
 -- Las llaves con que Laucen firma los avisos push (VAPID). Las genera la app la primera vez. Una sola fila.
@@ -212,7 +215,10 @@ declare
                      and sugerencia_ts > now() - interval '61 minutes')
         or exists (select 1 from public.meli_conversacion where (sin_leer > 0 and ia_estado in ('falta_dato', 'persona') or derivada_ts is not null)
                      and sugerencia_ts > now() - interval '61 minutes')
-        or exists (select 1 from public.chat_caso where resuelto_ts is null and abierto_ts > now() - interval '61 minutes'))
+        or exists (select 1 from public.chat_caso where resuelto_ts is null and abierto_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.meli_conversacion where derivada_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.reclamo where creado_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.reclamo_mensaje where de in ('comprador', 'ml') and fecha > now() - interval '61 minutes'))
 $cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;

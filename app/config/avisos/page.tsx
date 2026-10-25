@@ -64,11 +64,12 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
         </div>
       </form>
       <div className={`${CAJA} mt-4`}>
-        <TituloSeccion titulo="Avisos de Windows, aunque no tengas Laucen abierto" />
+        <TituloSeccion titulo="Avisos en la computadora y el celular, aunque no tengas Laucen abierto" />
         <p className="text-[11px] text-[#5C6B76] mb-3">
-          Cuando entra un reclamo para atender o la IA no contesta algo, aparece un cartel de Windows abajo a la derecha (con el sonido de Windows), aunque hayas cerrado
-          Laucen. Tocándolo se abre Laucen ahí. Se activa en cada computadora o celular por separado. Si tenés Laucen a la vista, avisa la
-          pantalla y no Windows.
+          Cuando entra un reclamo para atender o la IA no contesta algo, aparece un aviso (en la computadora, un cartel de Windows abajo a la derecha; en el
+          celular, como el de cualquier app), aunque hayas cerrado Laucen. Tocándolo se abre Laucen ahí. Se activa en cada computadora o celular por
+          separado, entrando a esta pantalla desde ese equipo; cada uno elige si recibe todo o sólo lo derivado a una persona. Si tenés Laucen a la
+          vista, avisa la pantalla.
         </p>
         <AvisosWindows />
       </div>

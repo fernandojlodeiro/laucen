@@ -1,24 +1,26 @@
 // Los avisos de Windows de esta computadora (Configuración › Mis avisos):
-// GET la llave pública y en cuántos equipos están activados; POST
-// { accion: "alta", suscripcion, equipo } | { accion: "baja", endpoint } | { accion: "prueba" }.
+// GET la llave pública, en cuántos equipos están activados y (con ?endpoint=) si este equipo recibe sólo
+// derivaciones; POST { accion: "alta", suscripcion, equipo } | { accion: "baja", endpoint } | { accion: "prueba" }
+// | { accion: "modo", endpoint, solo }.
 
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
-import { llavesPush, suscribir, desuscribir, equiposDe, avisoDePrueba, type SuscripcionNavegador } from "@/lib/avisos-push";
+import { llavesPush, suscribir, desuscribir, equiposDe, avisoDePrueba, modoEquipo, cambiarModoEquipo, type SuscripcionNavegador } from "@/lib/avisos-push";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const s = await sesionActual();
   if (!s) return Response.json({ error: "sin sesión" }, { status: 401 });
-  const [k, equipos] = await Promise.all([llavesPush(), equiposDe(s.usuario.id, s.org.id)]);
-  return Response.json({ publica: k.publica, equipos });
+  const endpoint = new URL(req.url).searchParams.get("endpoint");
+  const [k, equipos, solo] = await Promise.all([llavesPush(), equiposDe(s.usuario.id, s.org.id), endpoint ? modoEquipo(s.usuario.id, endpoint) : null]);
+  return Response.json({ publica: k.publica, equipos, solo });
 }
 
 export async function POST(req: Request) {
   const s = await sesionActual();
   if (!s) return Response.json({ ok: false }, { status: 401 });
-  const b = (await req.json().catch(() => ({}))) as { accion?: string; suscripcion?: SuscripcionNavegador; equipo?: string; endpoint?: string };
+  const b = (await req.json().catch(() => ({}))) as { accion?: string; suscripcion?: SuscripcionNavegador; equipo?: string; endpoint?: string; solo?: boolean };
   try {
     if (b.accion === "alta") {
       const sus = b.suscripcion;
@@ -26,6 +28,8 @@ export async function POST(req: Request) {
       await suscribir(s.usuario.id, s.org.id, sus, String(b.equipo ?? ""), (p) => tienePermiso(s.permisos, p));
     } else if (b.accion === "baja" && b.endpoint) {
       await desuscribir(s.usuario.id, b.endpoint);
+    } else if (b.accion === "modo" && b.endpoint) {
+      await cambiarModoEquipo(s.usuario.id, b.endpoint, b.solo === true);
     } else if (b.accion === "prueba") {
       const n = await avisoDePrueba(s.usuario.id, s.org.id);
       if (!n) return Response.json({ ok: false, error: "No hay ninguna computadora con los avisos activados." });

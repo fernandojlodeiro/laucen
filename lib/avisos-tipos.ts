@@ -19,7 +19,12 @@ export type AvisoIa = {
   motivo: string;   // por qué no contestó la IA (vacío en un pedido)
   propuesta: string | null;
   href: string;
+  /** Un mensaje de Mercado Libre que la IA derivó a una persona (para los equipos que reciben sólo derivaciones). */
+  derivada?: boolean;
 };
+
+/** Lo que la IA (o el sistema) pasó a una persona: los equipos «sólo derivaciones» reciben sólo esto (Fer, 25/10). */
+export const esDerivacion = (a: AvisoIa) => a.tipo === "whatsapp" || a.tipo === "reclamos" || (a.tipo === "mensajes" && !!a.derivada);
 
 /** En el orden de la barra de estado (Fer, 11/10). */
 export const TIPOS_AVISO: ClaveContador[] = ["reclamos", "mensajes", "preguntas", "whatsapp", "pedidos", "facturas"];

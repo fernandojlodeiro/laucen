@@ -41,6 +41,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // nombre de la tienda solo, para Google todas las fichas se llamaban igual). La portada, el nombre.
   return { title: { default: nombre, template: `%s | ${nombre}` }, description: t.config.bajada || `Tienda online de ${nombre}`,
     icons: t.config.logo ? { icon: t.config.logo, apple: t.config.logo } : { icon: [] },
+    // La tienda no se instala como Laucen (app/manifest.ts es del panel).
+    manifest: null, appleWebApp: null,
     alternates: canonical ? { canonical } : undefined,
     openGraph: { siteName: nombre, locale: "es_AR", type: "website", ...(canonical ? { url: canonical } : {}), ...(t.config.logo ? { images: [t.config.logo] } : {}) } };
 }

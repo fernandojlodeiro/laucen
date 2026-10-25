@@ -156,7 +156,7 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
     ...mensajes.map((m): AvisoIa => ({
       tipo: "mensajes", id: m.pack_id, marca: Number(m.marca), titulo: `Mensaje${m.cuenta ? ` en ${m.cuenta}` : ""}`,
       detalle: m.pedido_id ? `Pedido ${m.pedido_id}` : "", texto: m.texto ?? "(adjunto)", motivo: MOTIVO[m.ia_estado] ?? "",
-      propuesta: m.sugerencia, href: `/ventas/preguntas?ver=mensajes&pack=${encodeURIComponent(m.pack_id)}`,
+      propuesta: m.sugerencia, href: `/ventas/preguntas?ver=mensajes&pack=${encodeURIComponent(m.pack_id)}`, derivada: m.ia_estado === "derivar",
     })),
     ...casos.map((k): AvisoIa => ({
       tipo: "whatsapp", id: k.id, marca: Number(k.id), titulo: `WhatsApp de ${k.nombre}`, detalle: k.asunto,

@@ -18,7 +18,7 @@ import { rolesDeLaOrg, permisosEfectivos } from "@/lib/roles";
 import { tienePermiso, todos, type Permisos, type PermisoKey } from "@/lib/permisos";
 import { urlPanel } from "@/lib/tienda/dominios";
 import { pendientesIa, marcasActuales, subirMarca, completarMarcas, prefsDe, type Marcas } from "@/lib/avisos";
-import { TIPOS_AVISO, type AvisoIa } from "@/lib/avisos-tipos";
+import { TIPOS_AVISO, esDerivacion, type AvisoIa } from "@/lib/avisos-tipos";
 
 /** Las llaves para firmar los avisos (VAPID). La primera vez se generan y quedan en la base. */
 export async function llavesPush(): Promise<{ publica: string; privada: string }> {
@@ -31,17 +31,28 @@ export async function llavesPush(): Promise<{ publica: string; privada: string }
 
 export type SuscripcionNavegador = { endpoint: string; keys: { p256dh: string; auth: string } };
 
-/** Esta computadora queda anotada para recibir avisos. Lo que ya estaba pendiente no se avisa. */
+/** Este equipo queda anotado para recibir avisos. Lo que ya estaba pendiente no se avisa. Un celular nace recibiendo
+ *  sólo las derivaciones (Fer, 25/10); si ya estaba anotado, conserva lo que se eligió. */
 export async function suscribir(usuario: string, org: string, s: SuscripcionNavegador, equipo: string, puede: (p: PermisoKey) => boolean): Promise<void> {
   await consulta(`
-    insert into push_suscripcion (organizacion_id, usuario_id, endpoint, p256dh, auth, equipo) values ($1, $2, $3, $4, $5, $6)
+    insert into push_suscripcion (organizacion_id, usuario_id, endpoint, p256dh, auth, equipo, solo_derivaciones) values ($1, $2, $3, $4, $5, $6, $7)
     on conflict (endpoint) do update set organizacion_id = excluded.organizacion_id, usuario_id = excluded.usuario_id,
       p256dh = excluded.p256dh, auth = excluded.auth, equipo = excluded.equipo`,
-    [org, usuario, s.endpoint, s.keys.p256dh, s.keys.auth, equipo.slice(0, 120)]);
+    [org, usuario, s.endpoint, s.keys.p256dh, s.keys.auth, equipo.slice(0, 120), /Android|iPhone/.test(equipo)]);
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, push_avisado) values ($1, $2, $3::jsonb)
     on conflict (usuario_id, organizacion_id) do update set push_avisado = coalesce(usuario_preferencia.push_avisado, excluded.push_avisado)`,
     [usuario, org, JSON.stringify(await marcasActuales(org))]);
+}
+
+/** Qué recibe este equipo: todo, o sólo lo derivado a una persona. */
+export async function modoEquipo(usuario: string, endpoint: string): Promise<boolean | null> {
+  const r = await una<{ solo: boolean }>("select solo_derivaciones solo from push_suscripcion where usuario_id = $1 and endpoint = $2", [usuario, endpoint]);
+  return r ? r.solo : null;
+}
+
+export async function cambiarModoEquipo(usuario: string, endpoint: string, solo: boolean): Promise<void> {
+  await consulta("update push_suscripcion set solo_derivaciones = $3 where usuario_id = $1 and endpoint = $2", [usuario, endpoint, solo]);
 }
 
 export async function desuscribir(usuario: string, endpoint: string): Promise<void> {
@@ -55,15 +66,18 @@ export async function equiposDe(usuario: string, org: string): Promise<number> {
 
 type Aviso = { titulo: string; texto: string; url: string };
 
-/** Manda un aviso a todas las computadoras del usuario. Las que el navegador dio de baja se borran. */
-async function mandar(usuario: string, org: string, aviso: Aviso): Promise<number> {
-  const subs = await consulta<{ id: string; endpoint: string; p256dh: string; auth: string }>(
-    "select id::text, endpoint, p256dh, auth from push_suscripcion where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
+/** Manda un aviso a todos los equipos del usuario: `aviso` dice qué le toca a cada uno según reciba todo o sólo
+ *  derivaciones (null: nada). Los que el navegador dio de baja se borran. */
+async function mandar(usuario: string, org: string, aviso: Aviso | ((soloDerivaciones: boolean) => Aviso | null)): Promise<number> {
+  const subs = await consulta<{ id: string; endpoint: string; p256dh: string; auth: string; solo: boolean }>(
+    "select id::text, endpoint, p256dh, auth, solo_derivaciones solo from push_suscripcion where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
   if (!subs.length) return 0;
   const k = await llavesPush();
-  const cuerpo = JSON.stringify(aviso);
   let ok = 0;
   for (const s of subs) {
+    const este = typeof aviso === "function" ? aviso(s.solo) : aviso;
+    if (!este) continue;
+    const cuerpo = JSON.stringify(este);
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, {
         vapidDetails: { subject: urlPanel() || "https://laucen.com", publicKey: k.publica, privateKey: k.privada },
@@ -90,10 +104,20 @@ function armar(items: AvisoIa[]): Aviso {
     const a = items[0];
     if (a.tipo === "pedidos") return { titulo: a.titulo, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     if (a.tipo === "reclamos") return { titulo: `${a.titulo}: para atender`, texto: [a.detalle, a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
+    if (a.derivada) return { titulo: `${a.titulo}: espera a una persona`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
+    if (a.tipo === "whatsapp") return { titulo: `${a.titulo}: espera a una persona`, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     return { titulo: `${a.titulo}: la IA no contestó`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
   }
   if (items.every((a) => a.tipo === "pedidos")) {
     return { titulo: `Entraron ${items.length} pedidos nuevos`, texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.detalle}`.slice(0, 90)).join("\n"), url: "/ventas/pedidos?estado=pendientes" };
+  }
+  if (items.every(esDerivacion)) {
+    return {
+      titulo: `${items.length} casos esperan a una persona`,
+      texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.texto}`.slice(0, 90)).join("\n"),
+      url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera"
+        : items.every((a) => a.tipo === "reclamos") ? "/ventas/reclamos" : "/ventas/preguntas?ver=mensajes",
+    };
   }
   return {
     titulo: `${items.length} cosas te necesitan en Laucen`,
@@ -116,7 +140,8 @@ export async function avisarOrg(org: string, permiso: PermisoKey, aviso: Aviso):
   let n = 0;
   for (const u of usuarios) {
     const permisos = await permisosDe(u.usuario_id, org).catch(() => null);
-    if (permisos && tienePermiso(permisos, permiso)) n += await mandar(u.usuario_id, org, aviso);
+    // Los equipos que reciben sólo derivaciones, no.
+    if (permisos && tienePermiso(permisos, permiso)) n += await mandar(u.usuario_id, org, (solo) => (solo ? null : aviso));
   }
   return n;
 }
@@ -148,13 +173,19 @@ export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }
     const items = await pendientesIa(f.organizacion_id, puede, marcas);
     if (!items.length) continue;
     // Sólo los tipos que eligió en Mis avisos; los demás quedan como avisados igual.
+    // Un equipo «sólo derivaciones» recibe lo derivado aunque en Mis avisos ese tipo no abra la ventana.
     const tipos = prefsDe(f).ventana;
     const elegidos = items.filter((a) => tipos[a.tipo]);
-    if (elegidos.length && await mandar(f.usuario_id, f.organizacion_id, armar(elegidos))) avisos++;
+    const derivados = items.filter(esDerivacion);
+    const enviados = await mandar(f.usuario_id, f.organizacion_id, (solo) => {
+      const estos = solo ? derivados : elegidos;
+      return estos.length ? armar(estos) : null;
+    });
+    if (enviados) avisos++;
     const nuevas: Marcas = {};
     for (const a of items) nuevas[a.tipo] = Math.max(nuevas[a.tipo] ?? 0, a.marca);
     await subirTodas(f.usuario_id, f.organizacion_id, nuevas);
-    if (elegidos.length) await consulta("update usuario_preferencia set push_ultimo_ts = now() where usuario_id = $1 and organizacion_id = $2", [f.usuario_id, f.organizacion_id]);
+    if (enviados) await consulta("update usuario_preferencia set push_ultimo_ts = now() where usuario_id = $1 and organizacion_id = $2", [f.usuario_id, f.organizacion_id]);
   }
   return { usuarios: filas.length, avisos };
 }
