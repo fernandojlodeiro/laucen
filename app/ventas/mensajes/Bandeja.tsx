@@ -11,13 +11,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  FILTROS, ORIGENES, ICONO_ORIGEN, NOMBRE_ORIGEN,
+  FILTROS, ORIGENES, NOMBRE_ORIGEN,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
 } from "@/lib/mensajes/bandeja-tipos";
 import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionProponerBandeja, accionResolverCaso } from "./acciones";
 import Llave from "./Llave";
 import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
 import CorregirIa from "@/app/componentes/CorregirIa";
+import { LogoOrigen } from "@/app/componentes/LogosCanal";
 
 const CADA = 5000, CADA_SIN_ABRIR = 10000;
 const SUAVE = "text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F] disabled:opacity-50";
@@ -109,11 +110,13 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
             ))}
           </div>
           {origenes.length > 2 && (
-            <div className="flex gap-1 mt-2 overflow-x-auto pb-0.5" aria-label="Por canal">
+            <div role="group" className="flex flex-wrap gap-1 mt-2" aria-label="Por canal">
               {origenes.map((o) => (
-                <button key={o.clave} type="button" onClick={() => setOrigen(o.clave)} aria-pressed={origen === o.clave}
-                  className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${origen === o.clave ? "bg-[#16577F] border-[#16577F] text-white" : "bg-white border-[#D5DDE5] text-[#5C6B76]"}`}>
-                  {o.icono ? `${o.icono} ` : ""}{o.texto} ({foto.porOrigen[o.clave]})
+                <button key={o.clave} type="button" onClick={() => setOrigen(o.clave)} aria-pressed={origen === o.clave} title={o.nombre}
+                  className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${origen === o.clave ? "bg-[#16577F] border-[#16577F] text-white" : "bg-white border-[#D5DDE5] text-[#5C6B76]"}`}>
+                  <LogoOrigen origen={o.clave} />
+                  {o.texto ? <span>{o.texto}</span> : <span className="sr-only">{o.nombre}</span>}
+                  <span>{foto.porOrigen[o.clave]}</span>
                 </button>
               ))}
             </div>
@@ -131,7 +134,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
               className={`w-full text-left px-3 py-2.5 md:py-2 border-b border-[#F0F3F8] flex gap-2 items-start ${f.clave === abierto ? "bg-[#EAF4EF]" : "hover:bg-[#F7F9FB]"}`}>
               <span className="mt-0.5 h-10 w-10 md:h-8 md:w-8 shrink-0 rounded-full bg-[#DCEFE6] text-[#167655] grid place-items-center text-sm md:text-xs font-bold relative" title={NOMBRE_ORIGEN[f.origen]}>
                 {(f.nombre.replace(/^Pregunta: /, "").trim()[0] ?? "?").toUpperCase()}
-                <span className="absolute -bottom-1 -right-1 text-[11px] leading-none" aria-hidden>{ICONO_ORIGEN[f.origen]}</span>
+                <span className="absolute -bottom-1 -right-1 text-[11px] leading-none"><LogoOrigen origen={f.origen} clase="h-3.5 w-3.5" /></span>
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-2">
@@ -234,7 +237,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
         <button type="button" onClick={alVolver} className="md:hidden text-xl px-2 py-1 text-[#16577F]" aria-label="Volver a la lista">←</button>
         <button type="button" onClick={() => setVerMas(!verMas)} className="min-w-0 flex-1 text-left" aria-expanded={verMas} title="Ver los datos y los enlaces">
           <div className="text-sm font-bold truncate">{chat.nombre}</div>
-          <div className="text-[11px] text-[#5C6B76] truncate">{ICONO_ORIGEN[chat.origen]} {chat.detalle}</div>
+          <div className="text-[11px] text-[#5C6B76] truncate flex items-center gap-1"><LogoOrigen origen={chat.origen} clase="h-3 w-3 shrink-0" /><span className="truncate">{chat.detalle}</span></div>
         </button>
         {chat.notas != null && <button type="button" onClick={() => setVerNotas(!verNotas)} className={SUAVE} title="Notas internas">📝<span className="hidden md:inline"> Notas</span></button>}
         {chat.ia && (

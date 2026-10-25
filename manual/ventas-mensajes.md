@@ -33,19 +33,19 @@ Tiene tres pestañas:
 
 ## Qué hay en la pantalla
 
-**A la izquierda, la lista** de conversaciones, la más nueva primero. Cada una con su inicial y el **ícono del canal** (🟢 WhatsApp, 📷 Instagram, 🟡 Mercado Libre, ❓ pregunta, ⚠️ reclamo), el nombre (el cliente, el comprador, o «Pregunta: …» con la publicación), debajo de dónde es (teléfono, cuenta de Mercado Libre, pedido, reclamo), el último mensaje (🤖 si lo mandó la IA, ✓ si una persona) y las marcas **👤 En espera** (amarilla), **Persona** (la atiende una persona) y el punto verde de **sin responder**.
+**A la izquierda, la lista** de conversaciones, la más nueva primero. Cada una con su inicial y el **logo del canal** (WhatsApp, Instagram, Mercado Libre para mensajes y preguntas, ⚠️ reclamo), el nombre (el cliente, el comprador, o «Pregunta: …» con la publicación), debajo de dónde es (teléfono, cuenta de Mercado Libre, pedido, reclamo), el último mensaje (🤖 si lo mandó la IA, ✓ si una persona) y las marcas **👤 En espera** (amarilla), **Persona** (la atiende una persona) y el punto verde de **sin responder**.
 
 Arriba de la lista:
 - el buscador (nombre, teléfono, producto, número de pack…);
 - las pestañas **En espera** (lo que la IA derivó a una persona, las preguntas a las que le faltó un dato y los reclamos para atender; es la que abre primero), **Sin responder** (el último mensaje es del cliente), **Todos** y **Con persona** (la IA no contesta), cada una con su cuenta;
-- los botoncitos por canal (**Todo**, **WhatsApp**, **Mercado Libre**, **Preguntas**, **Reclamos**, **Instagram**), con cuántas hay de cada uno en la pestaña elegida. Aparecen los canales que tienen algo.
+- los botoncitos por canal, con cuántas hay de cada uno en la pestaña elegida: **Todo**, el logo de **WhatsApp**, el de **Instagram**, el de Mercado Libre con **Mensajes** (la charla con el comprador después de la venta) y con **Preguntas**, y **Reclamos**. Aparecen los canales que tienen algo.
 
 Cada persona ve los canales que su rol puede ver: WhatsApp con «Mensajes», Mercado Libre con «Preguntas y mensajes», reclamos con «Reclamos y devoluciones». Entran los mensajes de Mercado Libre de los últimos 60 días, las preguntas sin responder (y las respondidas de la última semana) y los reclamos abiertos (y los cerrados en los últimos 15 días); lo anterior se ve en [Preguntas y mensajes](/ventas/preguntas) y [Reclamos](/ventas/reclamos).
 
 **A la derecha, la conversación abierta** (en el celular tapa la pantalla, con **←** para volver a la lista):
 - Arriba: el nombre y de dónde es (tocándolo, en el celular, se ven los enlaces), los **enlaces** (ficha del cliente, pedido, la venta, la ficha del producto, la publicación ↗, la ficha del reclamo), **📝 Notas** (en WhatsApp: notas internas que el cliente no ve) y el **interruptor de la IA** de esa conversación (en WhatsApp y en mensajes de Mercado Libre).
 - Lo que está **En espera**: en WhatsApp, cada caso con su motivo y **"Resolver"**; en Mercado Libre, «Derivada a una persona» (sale de En espera cuando le escribís); en un reclamo, «Reclamo para atender» con el plazo.
-- Los mensajes: los del cliente a la izquierda; los nuestros a la derecha, marcados 🤖 (la IA), con el nombre de quien lo mandó, «📱 Desde el teléfono» o «Desde Mercado Libre»; los de Mercado Libre en un reclamo, en el medio. ✓ enviado, ✓✓ entregado, ✓✓ celeste leído; **NO ENTREGADO** con el motivo. Debajo de cada respuesta de la IA, **"Corregir a la IA"**.
+- Los mensajes: los del cliente a la izquierda; los nuestros a la derecha, marcados 🤖 (la IA), con el nombre de quien lo mandó, «📱 Desde el teléfono» o «Desde Mercado Libre»; los de Mercado Libre en un reclamo, en el medio. ✓ enviado, ✓✓ entregado, ✓✓ celeste leído; **NO ENTREGADO** con el motivo. Debajo de cada respuesta de la IA, y de toda respuesta a una pregunta, **"Corregir a la IA"**.
 - Abajo: el cuadro para escribir, **"Enviar"** (en la computadora, Enter envía y Mayúscula+Enter es renglón nuevo; en el celular, el botón) y, en Mercado Libre, **"Proponer con IA"** y la cuenta de caracteres. Si ya hay una respuesta propuesta por la IA, viene escrita en el cuadro.
 - Si no se le puede escribir, el motivo en lugar del cuadro (pasaron las 24 horas de WhatsApp, la pregunta ya está respondida, Mercado Libre no deja mandar un mensaje en ese reclamo).
 

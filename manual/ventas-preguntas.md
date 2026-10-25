@@ -125,7 +125,7 @@ Qué hace con eso:
 
 ### Corregir a la IA
 
-Debajo de cada respuesta que mandó la IA (sola, o una persona sin cambiarle nada) está el botón **"Corregir a la IA"**:
+Debajo de cada pregunta respondida (la haya contestado la IA o una persona) está el botón **"Corregir a la IA"**:
 
 1. Tocalo y escribí qué estuvo mal: qué dijo y cuál es lo correcto (por ejemplo, «No tiene Zigbee: sólo Wi-Fi y Bluetooth» o «Nunca ofrezcas envío en el día»).
 2. Apretá **"Ver qué va a cambiar"**. La IA propone, sin grabar nada todavía:

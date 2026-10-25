@@ -295,7 +295,8 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
     mensajes.push({
       id: `${q.id}:r`, clase: q.respondida_auto ? "ia" : "operador", texto: q.respuesta, ts: q.respondida_ts ?? q.fecha, estado: null, motivo: null, usd: 0, herramientas: [],
       quien: q.respondida_auto ? null : q.respondida_por ? `${q.respondida_por}${q.respondida_con_ia ? " con la IA" : ""}` : "Desde Mercado Libre",
-      ...(q.respondida_auto || q.respondida_con_ia ? { corregir: { origen: "pregunta" as const, id: q.id } } : {}),
+      // Toda respuesta se puede corregir, la haya escrito quien la haya escrito (Fer, 25/10): lo que se corrige es lo que la IA aprende.
+      corregir: { origen: "pregunta" as const, id: q.id },
     });
   }
   return {

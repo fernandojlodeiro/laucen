@@ -25,20 +25,22 @@ export const esFiltro = (x: unknown): x is FiltroBandeja => FILTROS.some((f) => 
 /** De dónde viene: los botoncitos de arriba de la lista. */
 export type FiltroOrigen = "todos" | "whatsapp" | "instagram" | "ml" | "pregunta" | "reclamo";
 
-export const ORIGENES: { clave: FiltroOrigen; texto: string; icono: string }[] = [
-  { clave: "todos", texto: "Todo", icono: "" },
-  { clave: "whatsapp", texto: "WhatsApp", icono: "🟢" },
-  { clave: "instagram", texto: "Instagram", icono: "📷" },
-  { clave: "ml", texto: "Mercado Libre", icono: "🟡" },
-  { clave: "pregunta", texto: "Preguntas", icono: "❓" },
-  { clave: "reclamo", texto: "Reclamos", icono: "⚠️" },
+/** texto: lo que se lee al lado del logo (WhatsApp e Instagram van sólo con su logo, para que entren todos sin correr la
+ *  fila; Fer, 25/10). nombre: el nombre entero, para quien no ve el logo. */
+export const ORIGENES: { clave: FiltroOrigen; texto: string; nombre: string; icono: string }[] = [
+  { clave: "todos", texto: "Todo", nombre: "Todo", icono: "" },
+  { clave: "whatsapp", texto: "", nombre: "WhatsApp", icono: "🟢" },
+  { clave: "instagram", texto: "", nombre: "Instagram", icono: "📷" },
+  { clave: "ml", texto: "Mensajes", nombre: "Mensajes de Mercado Libre", icono: "🟡" },
+  { clave: "pregunta", texto: "Preguntas", nombre: "Preguntas de Mercado Libre", icono: "❓" },
+  { clave: "reclamo", texto: "Reclamos", nombre: "Reclamos", icono: "⚠️" },
 ];
 
 export const esFiltroOrigen = (x: unknown): x is FiltroOrigen => ORIGENES.some((o) => o.clave === x);
 
 export const ICONO_ORIGEN: Record<Origen, string> = { whatsapp: "🟢", instagram: "📷", prueba: "🧪", ml: "🟡", pregunta: "❓", reclamo: "⚠️" };
 export const NOMBRE_ORIGEN: Record<Origen, string> = {
-  whatsapp: "WhatsApp", instagram: "Instagram", prueba: "Prueba", ml: "Mercado Libre", pregunta: "Pregunta de Mercado Libre", reclamo: "Reclamo",
+  whatsapp: "WhatsApp", instagram: "Instagram", prueba: "Prueba", ml: "Mensajes de Mercado Libre", pregunta: "Pregunta de Mercado Libre", reclamo: "Reclamo",
 };
 
 /** La clave que viaja en la dirección (?con=). Un número suelto es un chat (las direcciones de antes). */

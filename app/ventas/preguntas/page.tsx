@@ -255,7 +255,8 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
           <p className="mt-1 text-[11px] text-[#5C6B76]">
             {q.respondida_auto ? "Respondió la IA sola" : <>Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_por && q.respondida_con_ia ? " con la IA" : ""}</>}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
           </p>
-          {(q.respondida_auto || q.respondida_con_ia) && <><Internet h={q.ia_internet} /><div className="mt-1"><CorregirIa origen="pregunta" id={q.id} /></div></>}
+          {(q.respondida_auto || q.respondida_con_ia) && <Internet h={q.ia_internet} />}
+          <div className="mt-1"><CorregirIa origen="pregunta" id={q.id} /></div>
         </section>
       ))}
     </div>
