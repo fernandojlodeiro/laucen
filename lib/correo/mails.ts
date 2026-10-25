@@ -42,7 +42,8 @@ type DatosPedido = {
 async function datosPedido(org: string, pedidoId: number) {
   const p = await una<DatosPedido>(`
     select p.id::int, p.codigo_seguimiento codigo, p.moneda, case when p.moneda = 'USD' then p.total_usd else p.total_ars end total,
-           cl.email, coalesce(cl.nombre_pila, cl.nombre) nombre, p.datos_externos #>> '{tienda,medio}' medio,
+           coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
+           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre, p.datos_externos #>> '{tienda,medio}' medio,
            me.nombre metodo, me.tipo metodo_tipo, p.costo_envio_ars costo_envio, p.envio
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
@@ -145,7 +146,8 @@ export async function mailBienvenida(t: Tienda, email: string, nombre: string | 
 export async function mailFactura(org: string, comprobanteId: number, o: { manual?: boolean } = {}): Promise<Resultado> {
   const c = await una<{ tipo_cbte: number; punto_venta: number; numero: string | null; estado: string; pedido_id: number | null; email: string | null; nombre: string | null;
     por_mail: boolean | null; canal_tipo: string | null }>(`
-    select cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.pedido_id::int, cl.email, coalesce(cl.nombre_pila, cl.nombre) nombre, cl.factura_por_mail por_mail, ca.tipo canal_tipo
+    select cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.pedido_id::int,
+           coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email, coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre, coalesce((p.datos_externos #>> '{tienda,contacto,factura_mail}')::boolean, cl.factura_por_mail) por_mail, ca.tipo canal_tipo
       from comprobante cb left join pedido p on p.id = cb.pedido_id left join canal ca on ca.id = p.canal_id
       left join cliente cl on cl.id = coalesce(cb.cliente_id, p.cliente_id)
      where cb.id = $1 and cb.organizacion_id = $2`, [comprobanteId, org]);

@@ -33,6 +33,19 @@ export const MEDIOS_CONTADO: { clave: MedioContado; nombre: string }[] = [
 
 /** Marcas de débito de Payway (payment_method_id): con descuento de débito, sólo éstas y en un pago. */
 export const MARCAS_DEBITO = [31, 105, 108];
+/** Las que aceptan los planes de cuotas sin interés de Payway: Visa y Mastercard de crédito (Fer, 25/10:
+ *  la promo de cuotas es sólo con ésas; con otra tarjeta, en cuotas, va por Mercado Pago). */
+export const MARCAS_CUOTAS = [1, 104];
+
+/** Qué tarjetas se ofrecen al pagar con Payway: débito → sólo débito; en cuotas → Visa y Master de
+ *  crédito; en un pago con crédito → las de crédito (si el débito tiene su opción, con descuento). Sin el
+ *  esquema de cuotas prendido, todas. */
+export function marcasPermitidas(f: Financiacion, debito: boolean, cuotas: number | null | undefined): (id: number) => boolean {
+  if (debito) return (id) => MARCAS_DEBITO.includes(id);
+  if (!f.activo) return () => true;
+  if ((cuotas ?? 1) > 1) return (id) => MARCAS_CUOTAS.includes(id);
+  return f.medios_descuento.includes("debito") ? (id) => !MARCAS_DEBITO.includes(id) : () => true;
+}
 
 const num = (x: unknown, min: number, max: number) => {
   const n = Number(x);

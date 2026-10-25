@@ -63,15 +63,17 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 
 ### Carrito
 
-Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el + se apaga cuando no hay más stock), "N disponibles" y el precio. Una barra de "Sumá $ … más para tener envío gratis" o "¡Tu compra tiene envío gratis!". A la derecha, **"Resumen de compra"**: productos, descuentos que ya aplican, envío ("Se calcula en el paso siguiente"), total y **"Continuar compra"**. Avisa si no alcanza el stock o si algún producto ya no está disponible.
+Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el + se apaga cuando no hay más stock), "N disponibles" y el precio. Una barra de "Sumá $ … más para tener envío gratis" o "¡Tu compra tiene envío gratis!". A la derecha, **"Resumen de compra"**: productos, descuentos que ya aplican, envío ("Se calcula en el paso siguiente"), total y **"Finalizar compra"**. Abajo de los productos, el botón **"Seguir comprando más productos"**. Avisa si no alcanza el stock o si algún producto ya no está disponible. Al llegar (después de «Agregar al carrito») la pantalla abre arriba de todo, y el − / + / Eliminar no la mueven.
 
 ### Finalizar compra (checkout)
 
 Una sola página con tres bloques y el resumen al costado:
 
-1. **Tus datos**: Nombre y apellido, Mail, **WhatsApp** y DNI o CUIT. El interruptor **«Necesito factura A»** (como en Mercado Libre) cambia el DNI por los datos fiscales, todos obligatorios: Razón social, CUIT, Condición frente al IVA (responsable inscripto, monotributo o exento) y domicilio fiscal (calle y número, localidad, provincia y código postal). Abajo, **«Prefiero recibir la factura por»** Mail y/o WhatsApp (se pueden tildar las dos; de entrada, Mail).
+1. **Tus datos**: Nombre y apellido, Mail, **WhatsApp** y DNI o CUIT. Cada campo obligatorio dice **«obligatorio»** chiquito en ámbar a la derecha. El interruptor **«Necesito factura A»** (como en Mercado Libre) cambia el DNI por los datos fiscales: Razón social, CUIT, Condición frente al IVA (responsable inscripto, monotributo o exento) y Provincia del domicilio fiscal (obligatorios; la provincia viene en Córdoba), y calle, localidad y código postal (opcionales). Abajo, **«Prefiero recibir la factura por»** Mail y WhatsApp, las dos tildadas de entrada (en verde: «Podés tildar las dos»).
 2. **Entrega**: los métodos de envío activos, cada uno con su costo ("Gratis", "A convenir", "Según provincia"…); los que piden dirección muestran Calle, Número, Piso / depto, Localidad, Provincia, Código postal y Referencia para el envío. Los de OCA se cotizan con el código postal ("Según código postal" mientras no esté) y muestran en cuántos días hábiles llega; con **OCA a sucursal** aparece **"Sucursal de OCA donde lo retirás"** con las sucursales de ese código postal. Andreani aparece como "Próximamente".
-3. **Medio de pago**: los medios activos, con su descuento y su explicación.
+3. **Medio de pago**: los medios activos en el orden de Medios de pago (con el esquema de cuotas: Transferencia o efectivo, Tarjeta de débito, Tarjeta de crédito y Mercado Pago), cada uno con su descuento y un resumen chico siempre a la vista (qué incluye). Al elegir uno, su explicación; con Tarjeta de crédito, **«¿En cuántas cuotas?»**: una fila por opción con la cuota grande, el total y «Sin interés», como en Mercado Libre. En el pago con tarjeta sólo se ofrecen las que corresponden: con débito, tarjetas de débito; en cuotas, Visa o Mastercard de crédito (con otra, en cuotas por Mercado Pago); en un pago con crédito, las de crédito.
+   Al confirmar, un cartel **«¡Listo, recibimos tu pedido!»** dice adónde lo llevamos (al sitio seguro de Mercado Pago, al pago con tarjeta de Payway o a su pedido) y que no cierre la página.
+   **Los avisos de la compra** (mails del pedido, factura) van al mail que escribió el comprador, aunque el cliente ya existiera con otro mail (por ejemplo, una empresa que se encuentra por su CUIT).
 4. **Notas** (opcional).
 
 El resumen se recalcula solo al cambiar envío, medio o provincia. Botón **"Confirmar compra"** ("Al confirmar se crea tu pedido y te mostramos cómo seguir."). Arriba, "¿Ya tenés cuenta? Ingresá".
@@ -111,7 +113,7 @@ Los datos del vendedor salen de la **razón social principal** (ver [Razones soc
 
 1. Busca el producto con el buscador o por categorías.
 2. En la ficha elige la variante y la cantidad y toca **"Comprar ahora"** (va directo a finalizar) o **"Agregar al carrito"**.
-3. En el carrito toca **"Continuar compra"**.
+3. En el carrito toca **"Finalizar compra"**.
 4. Completa sus datos, cómo lo recibe y cómo paga, y toca **"Confirmar compra"**. No hace falta tener cuenta.
 5. Según el medio: Mercado Pago lo lleva a pagar ahí; Payway le pide la tarjeta en la página del pedido; transferencia y efectivo le muestran las instrucciones.
 6. Queda en la página de su pedido, con el número y el estado. Ahí puede crear su cuenta en un clic.

@@ -17,6 +17,7 @@ import { metodosEnvio, resumir, type Resumen } from "../resumen";
 import Checkout, { type Precarga } from "./Checkout";
 import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
 import { etiquetasDelHost, idCatalogo } from "@/lib/tienda/publicidad";
+import { financiacionTienda, planesDisponibles } from "@/lib/tienda/financiacion";
 import { EventoPublicidad } from "../Publicidad";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
   }
 
   const cuenta = await cuentaActual(t);
+  const fin = financiacionTienda(t);
   const [medios, metodos] = await Promise.all([mediosActivos(t), metodosEnvio(t)]);
   const mediosVisibles = medios.filter((m) => m.tipo !== "cuenta_corriente" || cuenta?.cuentaCorriente);
 
@@ -93,7 +95,9 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
       {resumen && (
         <Checkout slug={t.slug} medios={mediosVisibles} metodos={metodos} inicial={resumen} precarga={precarga}
           antibot={{ marca: await marcaDeTiempo(), siteKey: await turnstileDe(t.organizacionId) }}
-          eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }} />
+          eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }}
+          planesCredito={fin.activo ? planesDisponibles(fin, { medio: "payway" }) : []}
+          hastaCuotasMp={fin.activo ? planesDisponibles(fin, { medio: "mercadopago" }).at(-1)?.cuotas ?? null : null} />
       )}
     </div>
   );

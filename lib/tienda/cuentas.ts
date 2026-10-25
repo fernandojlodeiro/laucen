@@ -60,7 +60,7 @@ export async function cuentaActual(t: Tienda): Promise<CuentaTienda | null> {
 export async function crearCuentaDesdePedido(t: Tienda, codigo: string, clave: string) {
   if (clave.length < 8) throw new ErrorErp("La contraseña tiene que tener al menos 8 caracteres.");
   const p = await una<{ cliente_id: number; email: string | null }>(`
-    select p.cliente_id::int, cl.email from pedido p join cliente cl on cl.id = p.cliente_id
+    select p.cliente_id::int, lower(coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email)) email from pedido p join cliente cl on cl.id = p.cliente_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [t.organizacionId, t.canalId, codigo]);
   if (!p?.email) throw new ErrorErp("No encontramos el pedido.");
   const ya = await una("select 1 from cliente_cuenta where organizacion_id = $1 and email = $2", [t.organizacionId, p.email]);

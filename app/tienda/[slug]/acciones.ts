@@ -88,13 +88,17 @@ export async function guardarCodigoPostal(fd: FormData) {
   refrescar(t);
 }
 
+/** + / − / Eliminar del carrito: sin navegar (sólo se vuelve a dibujar el carrito), así la pantalla no
+ *  salta (Fer, 25/10: con cada + se iba al pie y volvía). Si falla, vuelve con el error. */
 export async function cambiarCantidad(fd: FormData) {
   const t = await tiendaDe(fd);
-  await intentar(rutaTienda(t, "/carrito"), async () => {
+  try {
     const cantidad = Math.min(999, Math.max(0, Math.trunc(Number(fd.get("cantidad"))) || 0));
     await fijarCantidad(t.slug, id(fd, "variacion"), cantidad);
     refrescar(t);
-  });
+  } catch (e) {
+    redirect(`${rutaTienda(t, "/carrito")}?error=${encodeURIComponent(motivoErp(e))}`);
+  }
 }
 
 // ── Checkout ─────────────────────────────────────────────
@@ -143,14 +147,15 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     if (!metodo) throw new ErrorErp("Elegí cómo lo recibís.");
     const doc = (texto(fd, "documento") ?? "").replace(/\D/g, "");
     const esCuit = doc.length === 11;
-    // «Necesito factura A»: razón social, CUIT, condición frente al IVA y domicilio fiscal, todos.
+    // «Necesito factura A»: razón social, CUIT, condición frente al IVA y la provincia del domicilio fiscal
+    // (convenio multilateral); calle, localidad y código postal, opcionales.
     const facturaA = fd.get("factura_a") === "1";
     const fiscal = facturaA ? { calle: texto(fd, "fiscal_calle") ?? "", localidad: texto(fd, "fiscal_localidad") ?? "", provincia: texto(fd, "fiscal_provincia") ?? "", codigo_postal: texto(fd, "fiscal_cp") ?? "" } : null;
     if (facturaA) {
       if (!esCuit) throw new ErrorErp("Para la factura A poné el CUIT: 11 números, sin guiones.");
       if (!texto(fd, "razon_social")) throw new ErrorErp("Para la factura A poné la razón social.");
       if (!["responsable_inscripto", "monotributo", "exento"].includes(texto(fd, "condicion_iva") ?? "")) throw new ErrorErp("Para la factura A elegí la condición frente al IVA.");
-      if (!fiscal || Object.values(fiscal).some((v) => !v)) throw new ErrorErp("Para la factura A completá el domicilio fiscal: calle y número, localidad, provincia y código postal.");
+      if (!fiscal?.provincia) throw new ErrorErp("Para la factura A elegí la provincia del domicilio fiscal.");
     }
     const conDireccion = !sinDireccion(metodo.tipo);
     const condicion = texto(fd, "condicion_iva");

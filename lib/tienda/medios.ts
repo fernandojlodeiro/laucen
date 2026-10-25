@@ -9,7 +9,7 @@ import { consulta } from "@/lib/erp/base";
 import { descuentoContado, financiacionTienda, textoContado, type MedioContado } from "@/lib/tienda/financiacion";
 import type { Tienda } from "@/lib/tienda/tienda";
 
-export type Medio = { id: number; tipo: string; nombre: string; descuento_pct: number; instrucciones: string | null; aviso: string | null };
+export type Medio = { id: number; tipo: string; nombre: string; descuento_pct: number; instrucciones: string | null; aviso: string | null; orden: number };
 
 /** Una cuenta para transferir (medio_pago.cuentas). */
 export type CuentaTransferencia = { banco: string; titular: string | null; cuit: string | null; cbu: string | null; alias: string | null };
@@ -23,17 +23,20 @@ export function cuentasDe(x: unknown): CuentaTransferencia[] {
 export const tipoBase = (tipo: string) => (tipo === "payway_debito" ? "payway" : tipo);
 
 export const mediosActivos = cache(async (t: Tienda): Promise<Medio[]> => {
-  const filas = await consulta<Medio>(`select distinct on (tipo) id::int, tipo, nombre, descuento_pct::float, instrucciones, aviso from medio_pago
+  const filas = await consulta<Medio>(`select distinct on (tipo) id::int, tipo, nombre, descuento_pct::float, instrucciones, aviso, orden from medio_pago
                                         where organizacion_id = $1 and (canal_id is null or canal_id = $2) and activo order by tipo, canal_id nulls last`,
     [t.organizacionId, t.canalId]);
+  // En el orden de Medios de pago (la consulta los trae por tipo).
+  filas.sort((a, b) => a.orden - b.orden || a.id - b.id);
   const f = financiacionTienda(t);
   if (!f.activo) return filas;
   const r: Medio[] = [];
   for (const m of filas) {
     const d = descuentoContado(f, m.tipo);
     if (m.tipo === "payway" && f.medios_descuento.includes("debito")) {
-      r.push({ ...m, nombre: "Tarjeta de crédito", descuento_pct: 0 });
+      // Débito primero (tiene el descuento), después crédito (Fer, 25/10).
       r.push({ ...m, tipo: "payway_debito", nombre: "Tarjeta de débito", descuento_pct: f.descuento_pct });
+      r.push({ ...m, nombre: "Tarjeta de crédito", descuento_pct: 0 });
     } else r.push(d == null ? m : { ...m, descuento_pct: d });
   }
   return r;

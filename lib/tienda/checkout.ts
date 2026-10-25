@@ -15,7 +15,7 @@ import { sucursalesOca } from "@/lib/oca/envios";
 import { cotizar, type LineaCarrito } from "@/lib/tienda/cotizar";
 import { mediosActivos, tipoBase } from "@/lib/tienda/medios";
 import { planesDelCarrito } from "@/lib/tienda/cuotas";
-import { codigoPayway, financiacionTienda, planesDisponibles, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { codigoPayway, financiacionTienda, marcasPermitidas, planesDisponibles, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
 import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
@@ -27,7 +27,7 @@ export type DatosCompra = {
   carrito: LineaCarrito[];
   cliente: { nombre: string; email: string; telefono?: string | null; documento?: string | null; cuit?: string | null; razon_social?: string | null; condicion_iva?: string | null;
     /** Con «Necesito factura A»: el domicilio fiscal. */
-    fiscal?: { calle: string; localidad: string; provincia: string; codigo_postal: string } | null;
+    fiscal?: { calle: string; localidad: string; provincia: string; codigo_postal: string } | null; // calle, localidad y CP pueden venir vacíos
     /** «Prefiero recibir la factura por»: mail y/o WhatsApp (cliente.factura_por_mail / factura_por_whatsapp). */
     facturaPorMail?: boolean; facturaPorWhatsapp?: boolean };
   entrega: { metodoEnvioId: number; calle?: string | null; numero?: string | null; piso_depto?: string | null; localidad?: string | null; provincia?: string | null; codigo_postal?: string | null; referencia?: string | null; sucursalOca?: string | null };
@@ -91,7 +91,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
       documento_tipo: doc ? (doc.length === 11 ? "CUIT" : "DNI") : null, documento_numero: doc, cuit: d.cliente.cuit ?? (doc?.length === 11 ? doc : null),
       condicion_iva: d.cliente.condicion_iva ?? null,
       // La fiscal, la de la factura A; la de envío, la de la entrega.
-      direccion: d.cliente.fiscal ? { calle: d.cliente.fiscal.calle, localidad: d.cliente.fiscal.localidad, provincia: d.cliente.fiscal.provincia, codigo_postal: d.cliente.fiscal.codigo_postal } : null,
+      direccion: d.cliente.fiscal ? { calle: d.cliente.fiscal.calle || undefined, localidad: d.cliente.fiscal.localidad || undefined, provincia: d.cliente.fiscal.provincia, codigo_postal: d.cliente.fiscal.codigo_postal || undefined } : null,
       direccion_envio: d.entrega.calle ? { calle: d.entrega.calle, numero: d.entrega.numero ?? undefined, piso_depto: d.entrega.piso_depto ?? undefined,
         localidad: d.entrega.localidad ?? undefined, provincia: d.entrega.provincia ?? undefined, codigo_postal: d.entrega.codigo_postal ?? undefined } : null,
     },
@@ -106,7 +106,12 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
       provincia: d.entrega.provincia, codigo_postal: d.entrega.codigo_postal, referencia: d.entrega.referencia }, sucursal_oca: sucursalOca },
     notas: d.notas?.trim() || null,
     // medio: el de medio_pago (payway_debito → payway, con debito: true); cuotas: las elegidas con el esquema de cuotas (el pago las respeta).
+    // contacto: quién compró y cómo ubicarlo EN ESTA compra. El cliente puede ser una empresa ya cargada
+    // (se la encuentra por el CUIT) con otro mail: los avisos del pedido van a lo que escribió el comprador
+    // (Fer, 25/10: con el CUIT de Virtual Argentina, el mail le llegaba a otra persona).
     datos_externos: { tienda: { descuentos: cot.descuentos, medio: tipoBase(d.medio), subtotal: cot.subtotal, dominio: t.dominio,
+      contacto: { nombre: d.cliente.nombre.trim(), email: d.cliente.email.trim().toLowerCase(), telefono: d.cliente.telefono?.trim() || null,
+        factura_mail: d.cliente.facturaPorMail ?? true, factura_whatsapp: d.cliente.facturaPorWhatsapp ?? false },
       ...(d.medio === "payway_debito" ? { debito: true } : {}), ...(cot.cuotas ? { cuotas: cot.cuotas.elegidas } : {}) } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
   await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [pedido.pedidoId, org, codigo]);
@@ -121,8 +126,8 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     if (d.cliente.fiscal && op.clienteId) {
       await consulta(`insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, localidad, provincia, codigo_postal, pais, principal)
                       select $1, $2, 'Fiscal', $3, $4, $5, $6, 'AR', false
-                       where not exists (select 1 from cliente_direccion where cliente_id = $2 and etiqueta = 'Fiscal' and lower(coalesce(calle, '')) = lower($3))`,
-        [org, pedido.clienteId, d.cliente.fiscal.calle, d.cliente.fiscal.localidad, d.cliente.fiscal.provincia, d.cliente.fiscal.codigo_postal]);
+                       where not exists (select 1 from cliente_direccion where cliente_id = $2 and etiqueta = 'Fiscal' and lower(coalesce(calle, '')) = lower(coalesce($3, '')))`,
+        [org, pedido.clienteId, d.cliente.fiscal.calle || null, d.cliente.fiscal.localidad || null, d.cliente.fiscal.provincia, d.cliente.fiscal.codigo_postal || null]);
     }
   }
   if (pedido.reservo) await avisarStockMl(org, pedido.pedidoId);
@@ -165,6 +170,9 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
   } else if (p.tienda?.cuotas) {
     // Las cuotas se eligieron al comprar y su interés ya está en el total del pedido.
     if (tarjeta.cuotas !== p.tienda.cuotas) throw new ErrorErp(`Elegiste ${p.tienda.cuotas === 1 ? "un pago" : `${p.tienda.cuotas} cuotas`} al comprar: el pago es así.`);
+    if (!marcasPermitidas(financiacionTienda(t), false, p.tienda.cuotas)(tarjeta.marca)) {
+      throw new ErrorErp(p.tienda.cuotas > 1 ? "En cuotas sin interés, sólo con Visa o Mastercard de crédito. Con otra tarjeta podés pagar en cuotas con Mercado Pago." : "Con tarjeta de débito elegí la opción «Tarjeta de débito» (tiene descuento).");
+    }
   } else {
     const vars = (await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id])).map((x) => x.v);
     const planes = await planesDeLaCompra(t, vars, "payway");

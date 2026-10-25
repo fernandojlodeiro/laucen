@@ -10,7 +10,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { planesDeLaCompra } from "@/lib/tienda/checkout";
-import { MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { financiacionTienda, marcasPermitidas } from "@/lib/tienda/financiacion";
 import { cuentasDe } from "@/lib/tienda/medios";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
@@ -45,7 +45,9 @@ async function cargarPedido(t: Tienda, codigo: string) {
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') fecha, p.estado, p.estado_pago, p.moneda,
            case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, p.costo_envio_ars, p.envio, p.medio_pago,
            coalesce(p.datos_externos #>> '{tienda,medio}', (select medio from pago where pedido_id = p.id order by id desc limit 1)) medio,
-           p.cliente_id::int, cl.email, cl.nombre, coalesce(cl.telefono_movil, cl.telefono) telefono, me.tipo metodo_tipo,
+           p.cliente_id::int, coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
+           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre) nombre,
+           coalesce(p.datos_externos #>> '{tienda,contacto,telefono}', cl.telefono_movil, cl.telefono) telefono, me.tipo metodo_tipo,
            p.datos_externos #> '{tienda,descuentos}' descuentos, p.datos_externos #>> '{tienda,subtotal}' subtotal,
            (p.datos_externos #>> '{tienda,cuotas}')::int cuotas, (p.datos_externos #>> '{tienda,debito}')::boolean debito
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
@@ -92,7 +94,9 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   // Cuotas: las elegidas al comprar (esquema de cuotas: el interés ya está en el total) o, en un pedido sin elegir, los planes de la compra.
   const planes = !pagarConTarjeta || p.debito || p.cuotas ? []
     : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), "payway");
-  const marcas = p.debito ? MARCAS_PAYWAY.filter((x) => MARCAS_DEBITO.includes(x.id)) : MARCAS_PAYWAY;
+  // Las tarjetas que puede usar: con débito, sólo débito; en cuotas, Visa y Master de crédito; en un pago, las de crédito.
+  const permitida = marcasPermitidas(financiacionTienda(t), !!p.debito, p.cuotas);
+  const marcas = MARCAS_PAYWAY.filter((x) => permitida(x.id));
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;
   // Los precios de las líneas ya tienen aplicados los descuentos: se muestran como ahorro.
@@ -121,6 +125,11 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
           : <h1 className="text-2xl font-bold sm:text-3xl">{pagado || p.estado_pago === "a_convenir" || p.estado_pago === "a_cobrar" ? "¡Gracias por tu compra!" : "¡Recibimos tu pedido!"}</h1>}
         <p className="text-gray-500">Pedido <b className="text-gray-800">#{p.id}</b> · {p.fecha}</p>
         <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${estado.color}`}>{estado.texto}</span>
+        {!fallo && p.email && (
+          <p className="mx-auto max-w-md pt-1 text-sm text-gray-600">
+            Te mandamos un mail a <b className="text-gray-800">{p.email}</b> con todos los datos de tu compra. Leelo para estar al tanto: ahí te vamos avisando cada novedad.
+          </p>
+        )}
       </div>
 
       {fallo && (
