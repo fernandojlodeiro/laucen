@@ -15,7 +15,7 @@ import { conMarca, urlTienda } from "@/lib/tienda/dominios-tienda";
 import { enviarMail, escapar, plantilla, type Resultado } from "@/lib/correo/mailer";
 import { cuentasDe, type CuentaTransferencia } from "@/lib/tienda/medios";
 
-const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null });
+const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null, whatsapp: t.config.whatsapp ?? null });
 const remitenteDe = (t: Tienda) => ({ nombre: nombreTienda(t), email: t.config.email ?? null });
 const saludo = (nombre: string | null) => { const n = (nombre ?? "").trim().split(/[ ,]/)[0]; return n ? `Hola ${escapar(n)},` : "Hola,"; };
 
@@ -167,8 +167,11 @@ export async function mailFactura(org: string, comprobanteId: number, o: { manua
   return enviarMail(org, {
     para: c.email, asunto: `Tu ${nombreCbte}`, remitente: remitenteDe(t), tipo: "factura", clave: o.manual ? null : `factura:${comprobanteId}`,
     comprobanteId, pedidoId: c.pedido_id,
-    html: plantilla(marca, `Tu ${tipo?.nombre?.toLowerCase() ?? "factura"}`,
-      `<p>${saludo(c.nombre)} te mandamos la ${escapar(nombreCbte)}${c.pedido_id ? ` de tu pedido #${c.pedido_id}` : ""}. Va adjunta en PDF.</p>`),
+    // Un mail normal, sin título grande (Fer, 25/10).
+    html: plantilla(marca, null,
+      `<p>${saludo(c.nombre)}</p>
+       <p>Te mandamos la factura${c.pedido_id ? ` correspondiente a tu pedido <b>#${c.pedido_id}</b>` : ""}, adjunta en PDF (${escapar(nombreCbte)}).</p>
+       <p>¡Muchas gracias por tu compra!</p>`),
     adjuntos: [{ nombre: `${nombreCbte.replace(/\s+/g, "-")}.pdf`, datos: await pdfComprobante(org, comprobanteId), tipo: "application/pdf" }],
   });
 }

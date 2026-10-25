@@ -8,7 +8,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, una, consulta, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
 import { intentar, id, texto } from "@/lib/erp/acciones";
-import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
+import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO, sqlEstadoPago } from "@/lib/pedidos";
 import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { refacturar, liberarFactura, LARGO_LEYENDA, sqlFacturaVigente } from "@/lib/facturacion/revision";
@@ -211,18 +211,21 @@ export async function accionVigenciaPresupuesto(fd: FormData) {
 export async function accionClientePresente(fd: FormData) {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
-  const volver = `/ventas/pedidos/${pid}?b=op`;
-  await intentar(volver, async () => {
-    // Una venta de Mercado Libre sin envío también (Fer, 22/10): se entrega, se factura si falta y se le avisa a ML.
-    const esMl = !!(await una("select 1 from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2 and c.tipo = 'mercadolibre'", [pid, s.org.id]));
-    if (esMl) await exigirCarritoLibre(s.org.id, pid); else await pedidoOperable(s.org.id, pid);
-    const r = esMl ? await clientePresenteRetiraMl(s.org.id, pid, s.usuario.id) : await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
-    revalidatePath(`/ventas/pedidos/${pid}`);
-    revalidatePath("/ventas/pedidos");
-    const listo = r.hecho.join(" · ");
-    if (r.fallo.length) throw new ErrorErp(`${listo.charAt(0).toUpperCase() + listo.slice(1)}. Falló: ${r.fallo.join(" · ")}`);
-    return `${listo.charAt(0).toUpperCase() + listo.slice(1)}.`;
-  });
+  await intentar(`/ventas/pedidos/${pid}?b=op`, () => retirar(s.org.id, pid, s.usuario.id, texto(fd, "medio")));
+}
+
+/** «Cliente presente: retira»: entregado, factura si falta (y, en Mercado Libre, el aviso a ML). Lo usan el botón
+ *  verde y el conforme de retiro (subir la firma hace lo mismo). Devuelve qué hizo; si algo falló, tira. */
+async function retirar(org: string, pid: number, quien: string, medio: string | null): Promise<string> {
+  // Una venta de Mercado Libre sin envío también (Fer, 22/10): se entrega, se factura si falta y se le avisa a ML.
+  const esMl = !!(await una("select 1 from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2 and c.tipo = 'mercadolibre'", [pid, org]));
+  if (esMl) await exigirCarritoLibre(org, pid); else await pedidoOperable(org, pid);
+  const r = esMl ? await clientePresenteRetiraMl(org, pid, quien) : await clientePresenteRetira(org, pid, quien, medio);
+  revalidatePath(`/ventas/pedidos/${pid}`);
+  revalidatePath("/ventas/pedidos");
+  const listo = r.hecho.join(" · ");
+  if (r.fallo.length) throw new ErrorErp(`${listo.charAt(0).toUpperCase() + listo.slice(1)}. Falló: ${r.fallo.join(" · ")}`);
+  return `${listo.charAt(0).toUpperCase() + listo.slice(1)}.`;
 }
 
 /** Eliminar del todo un presupuesto o un pedido cancelado (Fer, 7/10): sólo
@@ -312,6 +315,28 @@ export async function accionFacturaWhatsapp(fd: FormData) {
   });
 }
 
+/** «Mandar por mail» / «Reenviar por mail»: la factura en PDF al mail del cliente, aunque no tenga el tilde. */
+export async function accionFacturaMail(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const cid = id(fd, "comprobante_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!cid || !(await una("select 1 from comprobante where id = $1 and organizacion_id = $2 and pedido_id = $3", [cid, s.org.id, pid]))) throw new ErrorErp("El comprobante no existe.");
+    const { mailFactura } = await import("@/lib/correo/mails");
+    const r = await mailFactura(s.org.id, cid, { manual: true });
+    revalidatePath(volver);
+    if (r.ok) return "Factura enviada por mail.";
+    // En pantalla, en criollo; el motivo técnico queda en el registro de mails.
+    const MOTIVOS: Record<string, string> = {
+      sin_mail: "El cliente no tiene mail: cargalo en su ficha.", mail_invalido: "El mail del cliente no es válido: corregilo en su ficha.",
+      dominio_sin_correo: "Ese mail no existe (el dominio no recibe correo): corregilo en la ficha del cliente.",
+      sin_configurar: "El correo de salida no está configurado (Configuración › Correo).", sin_autorizar: "La factura todavía no está autorizada.",
+    };
+    throw new ErrorErp(MOTIVOS[r.motivo ?? ""] ?? "No se pudo mandar el mail. Probá de nuevo en un rato.");
+  });
+}
+
 // Lo que el navegador ya subió al bucket privado «comprobantes»: el comprobante de pago y el conforme de retiro
 // (la firma de quien retira y su DNI; Fer, 25/10). Son dos cosas distintas, cada una con su tabla.
 const ARCHIVOS = { pago: "pedido_comprobante_pago", retiro: "pedido_conforme_retiro" } as const;
@@ -348,7 +373,25 @@ async function borrarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS) {
 
 export async function guardarComprobantePago(fd: FormData) { return guardarArchivo(fd, "pago"); }
 export async function accionBorrarComprobantePago(fd: FormData) { return borrarArchivo(fd, "pago"); }
-export async function guardarConformeRetiro(fd: FormData) { return guardarArchivo(fd, "retiro"); }
+/** El conforme de retiro (Fer, 25/10): subir la firma de quien retira cumple la función de «Cliente presente:
+ *  retira» si el pedido ya está preparado y no hay que elegir con qué pagó. Con varias fotos, al terminar la última. */
+export async function guardarConformeRetiro(fd: FormData): Promise<{ motivo?: string; ok?: string }> {
+  const g = await guardarArchivo(fd, "retiro");
+  if (g.motivo || fd.get("ultimo") !== "1") return g;
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const p = await una<{ estado: string; estado_pago: string; ml: boolean }>(`
+    select p.estado, ${sqlEstadoPago("p")} estado_pago, c.tipo = 'mercadolibre' ml from pedido p join canal c on c.id = p.canal_id
+     where p.id = $1 and p.organizacion_id = $2`, [pid, s.org.id]);
+  if (p?.estado !== "preparado") return { ok: "Conforme guardado." };
+  if (!p.ml && !["pagado", "a_convenir"].includes(p.estado_pago))
+    return { ok: "Conforme guardado. Falta cobrarlo: elegí con qué pagó y tocá «Cliente presente: retira y paga»." };
+  try {
+    return { ok: `Conforme guardado. ${await retirar(s.org.id, pid, s.usuario.id, null)}` };
+  } catch (e) {
+    return { motivo: `Conforme guardado, pero no se pudo entregar: ${motivoErp(e)}` };
+  }
+}
 export async function accionBorrarConformeRetiro(fd: FormData) { return borrarArchivo(fd, "retiro"); }
 
 /** «Cambiar cliente» (Fer, 25/10; lib/pedidos/cliente.ts). Si el pedido ya tenía factura, la refactura con el

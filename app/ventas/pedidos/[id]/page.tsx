@@ -20,7 +20,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp, accionFacturaMail } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
@@ -117,12 +117,15 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
   const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null; asociado_id: number | null; wa_estado: string | null; wa_detalle: string | null; wa_enviado_ts: Date | null;
+    mail_para: string | null; mail_ts: Date | null; mail_salio: boolean | null;
     es_ml: boolean; ml_estado: string | null; ml_subida_ts: Date | null; ml_documento_id: string | null; ml_error: string | null; ml_cola_id: number | null }>(`
     select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones, cb.comprobante_asociado_id::int asociado_id, cb.wa_estado, cb.wa_detalle, cb.wa_enviado_ts,
+           m.para mail_para, m.creado_ts mail_ts, m.salio mail_salio,
            (ca.tipo = 'mercadolibre' and p.id_externo is not null) es_ml, ${sqlEstadoFacturaMl("cb")} ml_estado, cb.ml_subida_ts, cb.ml_documento_id,
            (select q.ultimo_error from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_error,
            (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_cola_id
       from comprobante cb join pedido p on p.id = cb.pedido_id join canal ca on ca.id = p.canal_id
+      left join lateral (select e.para, e.creado_ts, e.salio from correo_enviado e where e.comprobante_id = cb.id order by e.id desc limit 1) m on true
      where cb.pedido_id = $1 and cb.organizacion_id = $2 order by cb.id`, [pid, s.org.id]);
   const enMl = (x: (typeof comprobantes)[number]) => ({ estado: x.ml_estado, subida_ts: x.ml_subida_ts, documento_id: x.ml_documento_id, error: x.ml_error, cola_id: x.ml_cola_id });
   const subibles = comprobantes.filter((x) => x.estado === "autorizado" && x.es_ml && puedeSubir(enMl(x)));
@@ -405,6 +408,19 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   <span className={`text-[11px] ${x.wa_estado === "error" ? "text-[#C03420]" : "text-[#5C6B76]"}`}>
                     WhatsApp: {x.wa_estado === "enviado" ? `enviada${x.wa_enviado_ts ? ` el ${fechaHora(x.wa_enviado_ts)}` : ""} (${x.wa_detalle ?? ""})` : x.wa_detalle ?? x.wa_estado}
                   </span>
+                )}
+                {x.mail_ts && (
+                  <span className={`text-[11px] ${x.mail_salio ? "text-[#5C6B76]" : "text-[#C03420]"}`}>
+                    Mail: {x.mail_salio ? `enviado a ${x.mail_para} el ${fechaHora(x.mail_ts)}` : `no salió a ${x.mail_para}`}
+                  </span>
+                )}
+                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && (
+                  // Mandar (o reenviar) la factura por mail, aunque no tenga tildado «Factura por mail» (Fer, 25/10).
+                  <form action={accionFacturaMail}>
+                    <input type="hidden" name="pedido_id" value={pid} />
+                    <input type="hidden" name="comprobante_id" value={x.id} />
+                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">{x.mail_salio ? "Reenviar por mail" : "Mandar por mail"}</BotonEnviar>
+                  </form>
                 )}
                 {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && x.wa_estado !== "enviado" && (
                   <form action={accionFacturaWhatsapp}>

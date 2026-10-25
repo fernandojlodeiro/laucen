@@ -134,7 +134,13 @@ export async function enviarFacturaWhatsapp(org: string, id: number, o: { manual
 export async function alAutorizarWhatsapp(org: string, id: number): Promise<void> {
   try {
     const d = await datosDe(org, id);
-    if (!d || !correspondeWhatsapp(d).ok) return;
+    if (!d) return;
+    if (!correspondeWhatsapp(d).ok) {
+      // La quería por WhatsApp y no hay número (Fer, 25/10: no llegó y la ficha no decía por qué): queda dicho en el pedido.
+      if (!d.whatsapp && d.factura_por_whatsapp !== false && !TIPOS_CBTE[d.tipo_cbte]?.nc && d.canal_tipo !== "mercadolibre")
+        await anotar(org, id, "sin_numero", "No salió: el cliente no tiene WhatsApp cargado en su ficha.");
+      return;
+    }
     await enviarFacturaWhatsapp(org, id);
   } catch (e) {
     console.error("[factura por WhatsApp]", id, e instanceof Error ? e.message : e);

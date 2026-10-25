@@ -109,7 +109,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
       {p.estado !== "cancelado" && <SubirArchivo orgId={org} pedidoId={pid} clase="retiro" />}
       {conformes.length > 0 && <span className="text-[#5C6B76]">Conforme de retiro:</span>}
       <Archivos filas={conformes} borrar={accionBorrarConformeRetiro} titulo="Conforme" />
-      {p.estado !== "cancelado" && conformes.length === 0 && <span className="text-[11px] text-[#5C6B76]">La firma de quien retira (el cliente o un comisionista) y, si hace falta, la foto de su DNI. Sólo queda guardado.</span>}
+      {p.estado !== "cancelado" && conformes.length === 0 && <span className="text-[11px] text-[#5C6B76]">La firma de quien retira (el cliente o un comisionista) y, si hace falta, la foto de su DNI. Con el pedido preparado, al subirla queda entregado, como «Cliente presente: retira».</span>}
     </div>
   );
   // Lo que arrastra cancelar (OCA, Payway, la factura), para las preguntas del botón.

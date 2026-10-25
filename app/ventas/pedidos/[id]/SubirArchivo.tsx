@@ -25,8 +25,8 @@ export default function SubirArchivo({ orgId, pedidoId, clase }: { orgId: string
     if (!archivos.length) return;
     if (archivos.some((f) => !f.type.startsWith("image/") && f.type !== "application/pdf")) { setEstado("Tienen que ser fotos o PDF."); return; }
     setEstado("Subiendo…");
-    let motivo: string | null = null;
-    for (const f of archivos) {
+    let motivo: string | null = null, ok: string | null = null;
+    for (const [i, f] of archivos.entries()) {
       const r = await subirArchivo("comprobantes", orgId, f, `pedidos/${pedidoId}${c.carpeta}`);
       if ("motivo" in r) { motivo = r.motivo ?? "No se pudo subir."; break; }
       const fd = new FormData();
@@ -34,10 +34,12 @@ export default function SubirArchivo({ orgId, pedidoId, clase }: { orgId: string
       fd.set("ruta", r.ruta);
       fd.set("nombre", f.name.slice(0, 120));
       fd.set("tipo", f.type);
-      const g = await c.guardar(fd);
+      if (i === archivos.length - 1) fd.set("ultimo", "1");
+      const g: { motivo?: string; ok?: string } = await c.guardar(fd);
       if (g.motivo) { motivo = g.motivo; break; }
+      ok = g.ok ?? null;
     }
-    setEstado(motivo);
+    setEstado(motivo ?? ok);
     if (archivo.current) archivo.current.value = "";
     router.refresh();
   }

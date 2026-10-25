@@ -114,6 +114,9 @@ export function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerra
   // La condición de IVA se sugiere sola (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor
   // final. Si la persona la eligió a mano, ya no se toca.
   const [ivaElegida, setIvaElegida] = useState(false);
+  // Cómo quiere la factura (Fer, 25/10): las dos tildadas de entrada, como en el pago de la tienda.
+  const [facturaMail, setFacturaMail] = useState(true);
+  const [facturaWhatsapp, setFacturaWhatsapp] = useState(true);
   const [error, setError] = useState("");
   // Los que ya están cargados con esos datos (mismo CUIT, DNI o razón social): se ofrece elegirlos.
   const [repetidos, setRepetidos] = useState<ClienteHallado[]>([]);
@@ -137,7 +140,7 @@ export function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerra
   const guardar = (igual = false) => {
     setError(""); setRepetidos([]);
     grabar(async () => {
-      const r = await crearClienteDesdePedido({ ...v, igual });
+      const r = await crearClienteDesdePedido({ ...v, facturaMail, facturaWhatsapp, igual });
       if (r.cliente) return alCrear(r.cliente);
       setError(r.error ?? "No se pudo crear el cliente.");
       setRepetidos(r.repetidos ?? []); setForzable(!!r.forzable);
@@ -191,6 +194,11 @@ export function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerra
         {campo("email", "Mail")}
         {campo("telefono", "Teléfono")}
         {campo("whatsapp", "WhatsApp", { placeholder: "351 555-1234" })}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className={ETIQUETA}>La factura le llega</span>
+        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={facturaMail} onChange={(e) => setFacturaMail(e.target.checked)} className="h-4 w-4 accent-[#16577F]" /> Por mail</label>
+        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={facturaWhatsapp} onChange={(e) => setFacturaWhatsapp(e.target.checked)} className="h-4 w-4 accent-[#16577F]" /> Por WhatsApp</label>
       </div>
       <div className="grid grid-cols-6 gap-2">
         {campo("calle", "Calle", { className: "col-span-3" })}

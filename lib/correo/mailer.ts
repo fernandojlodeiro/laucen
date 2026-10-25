@@ -136,9 +136,19 @@ export const escapar = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&l
 /** El sobre de todos los mails: el nombre de la marca arriba (sin imágenes: los clientes de
  *  correo las bloquean), título, cuerpo, un botón con el link escrito abajo por si no anda, y
  *  el pie con la marca y su web. */
-export function plantilla(marca: { nombre: string; web: string; color?: string | null }, titulo: string, cuerpo: string, boton?: { texto: string; url: string }) {
+/** El WhatsApp para la firma: 5491178442020 → +54 9 11 7844-2020 (otro formato, tal cual con el +). */
+export function whatsappLegible(n: string): string {
+  const d = n.replace(/\D/g, "");
+  const m = d.match(/^549(11|2\d{2}|3\d{2})(\d{3,4})(\d{4})$/);
+  return m ? `+54 9 ${m[1]} ${m[2]}-${m[3]}` : `+${d}`;
+}
+
+/** El mail entero. `titulo` null = un mail normal, sin el título grande (Fer, 25/10: la factura). Todos terminan
+ *  con la misma firma: «Saludos», la marca y por dónde comunicarse (este mail o el WhatsApp de la tienda). */
+export function plantilla(marca: { nombre: string; web: string; color?: string | null; whatsapp?: string | null }, titulo: string | null, cuerpo: string, boton?: { texto: string; url: string }) {
   const color = marca.color && /^#[0-9a-f]{6}$/i.test(marca.color) ? marca.color : "#3483FA";
   const web = marca.web.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const wa = marca.whatsapp?.replace(/\D/g, "") || null;
   // Documento entero con viewport: sin eso, el celular lo dibuja como en una pantalla ancha y lo achica
   // o lo agranda a su gusto (Fer, 24/10: el total se partía en dos renglones). Márgenes chicos para que
   // en el celular el contenido tenga lugar.
@@ -146,11 +156,14 @@ export function plantilla(marca: { nombre: string; web: string; color?: string |
 <body style="margin:0;padding:0;background:#F5F5F5"><div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#F5F5F5;padding:16px 8px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #E5E5E5;border-radius:12px;padding:22px 18px">
     <div style="font-size:15px;font-weight:700;color:#333">${escapar(marca.nombre)}</div>
-    <h1 style="font-size:20px;margin:14px 0 16px;color:#222">${escapar(titulo)}</h1>
+    ${titulo ? `<h1 style="font-size:20px;margin:14px 0 16px;color:#222">${escapar(titulo)}</h1>` : `<div style="height:14px"></div>`}
     <div style="font-size:15px;line-height:1.6;color:#444;overflow-wrap:anywhere">${cuerpo}</div>
     ${boton ? `<p style="margin:24px 0 8px"><a href="${escapar(boton.url)}" style="background:${color};color:#fff;text-decoration:none;font-weight:700;border-radius:8px;padding:12px 22px;display:inline-block">${escapar(boton.texto)}</a></p>
     <p style="font-size:12px;color:#777;margin-top:16px">Si el botón no funciona, copiá y pegá este link:<br><span style="color:#2968C8;word-break:break-all">${escapar(boton.url)}</span></p>` : ""}
+    <p style="font-size:15px;line-height:1.6;color:#444;margin:22px 0 0">Saludos,<br><b>${escapar(marca.nombre)}</b></p>
+    <p style="font-size:13px;line-height:1.5;color:#666;margin:10px 0 0">Cualquier cosa, podés comunicarte respondiendo este mail${wa
+      ? ` o por WhatsApp al <a href="https://wa.me/${wa}" style="color:${color};font-weight:700;white-space:nowrap">${escapar(whatsappLegible(wa))}</a>` : ""}.</p>
   </div>
-  <p style="text-align:center;font-size:11px;color:#999;margin-top:16px">${escapar(marca.nombre)} · ${escapar(web)}<br>Si tenés alguna duda, respondé este mail.</p>
+  <p style="text-align:center;font-size:11px;color:#999;margin-top:16px">${escapar(marca.nombre)} · ${escapar(web)}</p>
 </div></body></html>`;
 }

@@ -39,6 +39,8 @@ export type ClienteHallado = {
 export async function crearClienteDesdePedido(d: {
   nombre: string; tipo: string; cuit: string; dni: string; condicionIva: string; email: string; telefono: string; whatsapp: string;
   calle: string; numero: string; pisoDepto: string; localidad: string; provincia: string; codigoPostal: string;
+  /** Cómo quiere la factura (Fer, 25/10): las mismas dos casillas que la ficha y el pago de la tienda. */
+  facturaMail: boolean; facturaWhatsapp: boolean;
   /** Ya se avisó que hay otro con la misma razón social y es otro cliente. */
   igual?: boolean;
 }): Promise<{ cliente?: ClienteHallado; error?: string; repetidos?: ClienteHallado[]; forzable?: boolean }> {
@@ -62,6 +64,8 @@ export async function crearClienteDesdePedido(d: {
     if (!dir.provincia) return { error: "Elegí la provincia de la dirección." };
     const whatsapp = d.whatsapp.trim() ? whatsappNormal(d.whatsapp) : null;
     if (d.whatsapp.trim() && !whatsapp) return { error: "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234)." };
+    if (d.facturaWhatsapp && !whatsapp) return { error: "Para mandarle la factura por WhatsApp, cargá su WhatsApp (o destildá la casilla)." };
+    if (d.facturaMail && !d.email.trim()) return { error: "Para mandarle la factura por mail, cargá su mail (o destildá la casilla)." };
     // Sin elegir (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor final. La pantalla ya
     // la sugiere; esto la asegura aunque la pantalla abierta sea de antes del cambio.
     const iva = Object.hasOwn(CONDICIONES_IVA, d.condicionIva) ? d.condicionIva : cuit ? "responsable_inscripto" : dni ? "consumidor_final" : null;
@@ -86,10 +90,10 @@ export async function crearClienteDesdePedido(d: {
     }
     const id = await enTransaccion(async (c) => {
       const r = await c.query<{ id: string }>(`
-        insert into cliente (organizacion_id, nombre, razon_social, tipo, cuit, documento_tipo, documento_numero, condicion_iva, email, telefono, whatsapp)
-        values ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+        insert into cliente (organizacion_id, nombre, razon_social, tipo, cuit, documento_tipo, documento_numero, condicion_iva, email, telefono, whatsapp, factura_por_mail, factura_por_whatsapp)
+        values ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
         [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", cuit, dni ? "DNI" : null, dni, iva,
-          d.email.trim() || null, d.telefono.trim() || null, whatsapp]);
+          d.email.trim() || null, d.telefono.trim() || null, whatsapp, d.facturaMail, d.facturaWhatsapp]);
       const cid = Number(r.rows[0].id);
       await c.query(`insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
                      values ($1, $2, $3, $4, $5, $6, $7, $8, 'AR', true)`,
