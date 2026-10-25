@@ -116,7 +116,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
            pl.variacion_id is not null reservada
       from pedido_linea pl left join variacion v on v.id = pl.variacion_id
       left join kit_componente kc on kc.variacion_kit_id = v.id and not kc.sobrante left join variacion c on c.id = kc.variacion_componente_id
-     where pl.organizacion_id = $1 and pl.pedido_id = any($2::bigint[]) order by pl.orden, pl.id, c.sku`, [org, pedidoIds]);
+     where pl.organizacion_id = $1 and pl.pedido_id = any($2::bigint[]) and not pl.datos_externos ? 'concepto' order by pl.orden, pl.id, c.sku`, [org, pedidoIds]);
 
   return pedidos.map((p) => {
     const res = reservado.filter((r) => r.pedido_id === p.id);

@@ -208,9 +208,10 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       // Si el precio es el de la lista, lo pone crearPedido con precioDe (queda
       // registrado el precio de lista y su descuento); si se cambió, va el escrito.
       const deLista = sugerido != null && Math.abs(precio - sugerido) < 0.005;
+      const concepto = fd.get(`l_${clave}_concepto`) ? { titulo: texto(fd, `l_${clave}_titulo`) ?? "" } : null;
       lineas.push({
-        variacionId: Number(fd.get(`l_${clave}_variacion`)) || 0, cantidad: numero(fd, `l_${clave}_cantidad`) ?? 0,
-        precio: deLista ? null : precio, descuentoPct: numero(fd, `l_${clave}_descuento`) ?? 0,
+        variacionId: concepto ? null : Number(fd.get(`l_${clave}_variacion`)) || 0, cantidad: numero(fd, `l_${clave}_cantidad`) ?? 0,
+        precio: deLista && !concepto ? null : precio, descuentoPct: numero(fd, `l_${clave}_descuento`) ?? 0, concepto,
       });
     }
     const esPresupuesto = fd.get("tipo") === "presupuesto";
@@ -259,6 +260,10 @@ export async function accionEditarPedido(fd: FormData): Promise<{ error: string 
       const cantidad = numero(fd, `l_${clave}_cantidad`) ?? 0;
       if (!Number.isInteger(cantidad) || cantidad <= 0) throw new ErrorErp(`Línea ${i + 1}: la cantidad tiene que ser un entero mayor que cero.`);
       const deLista = sugerido != null && Math.abs(precio - sugerido) < 0.005;
+      if (fd.get(`l_${clave}_concepto`)) {
+        lineas.push({ concepto: true, titulo: texto(fd, `l_${clave}_titulo`), cantidad, precio_unitario: precio, descuento_pct: numero(fd, `l_${clave}_descuento`) || null });
+        continue;
+      }
       lineas.push({ variacion_id: Number(fd.get(`l_${clave}_variacion`)) || null, cantidad,
         precio_unitario: deLista ? null : precio, descuento_pct: numero(fd, `l_${clave}_descuento`) || null });
     }

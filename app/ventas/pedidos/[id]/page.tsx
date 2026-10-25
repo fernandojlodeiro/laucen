@@ -194,13 +194,13 @@ export default async function DetallePedido({ params, searchParams }: { params: 
       c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean; cuit: string | null; condicion_iva: string | null }>(`
         select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente, cuit, condicion_iva
           from cliente where id = $1`, [c.cliente_id]) : null,
-      consulta<{ variacion: number; sku: string; titulo: string; disponible: number; cantidad: number; lista: number | null; unit: number; descuento: number }>(`
-        select l.variacion_id::int variacion, coalesce(v.sku, l.sku, '') sku, coalesce(titulo_variacion(v.id), l.titulo) titulo,
+      consulta<{ variacion: number; sku: string; titulo: string; disponible: number; cantidad: number; lista: number | null; unit: number; descuento: number; concepto: boolean }>(`
+        select coalesce(l.variacion_id, 0)::int variacion, l.datos_externos ? 'concepto' concepto, coalesce(v.sku, l.sku, '') sku, coalesce(titulo_variacion(v.id), l.titulo) titulo,
                stock_disponible_canal(l.organizacion_id, v.id, p.canal_id) disponible, l.cantidad::int,
                (case when p.moneda = 'USD' then l.precio_lista_usd else l.precio_lista_ars end)::float lista,
                (case when p.moneda = 'USD' then l.precio_unit_usd else l.precio_unit_ars end)::float unit, coalesce(l.descuento_pct, 0)::float descuento
           from pedido_linea l join pedido p on p.id = l.pedido_id left join variacion v on v.id = l.variacion_id
-         where l.pedido_id = $1 and l.variacion_id is not null order by l.orden, l.id`, [pid]),
+         where l.pedido_id = $1 and (l.variacion_id is not null or l.datos_externos ? 'concepto') order by l.orden, l.id`, [pid]),
     ]);
     const pe = await una<{ moneda: "ARS" | "USD"; lista: number | null; envio_ars: number; tc: number | null; vigencia: string | null }>(`
       select moneda, lista_precios_id::int lista, costo_envio_ars::float envio_ars, nullif(total_ars, 0) / nullif(total_usd, 0) tc, to_char(vigencia, 'YYYY-MM-DD') vigencia
@@ -212,7 +212,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
       cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null,
         faltaFacturar: faltaParaFacturar(cli.condicion_iva, cli.cuit) } : null,
       // Con precio de lista y descuento, se muestran los dos (lista × (1 − descuento) = el precio que tenía); si no, el precio tal cual.
-      lineas: lineasEd.map((l) => ({ variacion: l.variacion, sku: l.sku, titulo: l.titulo, sugerido: null, disponible: l.disponible, cantidad: l.cantidad,
+      lineas: lineasEd.map((l) => ({ variacion: l.variacion, concepto: l.concepto, sku: l.sku, titulo: l.titulo, sugerido: null, disponible: l.disponible, cantidad: l.cantidad,
         precio: l.lista && l.descuento ? l.lista : l.unit, descuento: l.lista && l.descuento ? l.descuento : null })),
       entrega: dirEd && (dirEd.calle || dirEd.localidad) ? "envio" : "retiro", direccion: dirEd,
       costoEnvio: pe!.envio_ars ? (pe!.moneda === "USD" && pe!.tc ? Math.round((pe!.envio_ars / pe!.tc) * 100) / 100 : pe!.envio_ars) : null,
