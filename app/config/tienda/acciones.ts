@@ -36,7 +36,7 @@ async function slugOcupado(slug: string, canalId: number) {
   return filas.some((f) => (f.slug || slugDe(f.nombre)) === slug);
 }
 
-const CLAVES = ["nombre", "slug", "color_marca", "color_marca_texto", "color_boton", "color_verde", "color_fondo", "logo", "banner", "banner_2", "banner_3", "bajada",
+const CLAVES = ["nombre", "slug", "color_marca", "color_marca_texto", "color_boton", "color_verde", "color_fondo", "logo", "bajada",
   "devoluciones", "garantia", "sobre_nosotros", "whatsapp", "email", "direccion", "horario"] as const;
 
 export async function accionGuardarTienda(fd: FormData) {
@@ -61,7 +61,7 @@ export async function accionGuardarTienda(fd: FormData) {
       if (v.whatsapp.length < 10 || v.whatsapp.length > 15) throw new ErrorErp("El WhatsApp va en formato internacional, sólo números (ej. 5493511234567).");
     }
     if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) throw new ErrorErp("El mail no parece válido.");
-    for (const k of ["logo", "banner", "banner_2", "banner_3"] as const) if (v[k] && !/^https:\/\//.test(v[k]!)) v[k] = null;
+    if (v.logo && !/^https:\/\//.test(v.logo)) v.logo = null;
 
     // Se mezcla en config: las claves vacías se sacan y las demás (token,
     // sincronizar_stock, etc.) quedan como estaban.
