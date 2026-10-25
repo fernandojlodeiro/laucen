@@ -35,6 +35,7 @@ import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/d
 import { leerFacturasDelDrive, organizacionesParaLeerFacturas } from "@/lib/compras/drive-facturas";
 import { renovarTokensInstagram } from "@/lib/mensajes/instagram";
 import { anunciosMetaPendientes, leerAnunciosMeta } from "@/lib/publicidad/meta-ads";
+import { googleAdsPendientes, leerGoogleAds } from "@/lib/publicidad/google-ads";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -108,6 +109,11 @@ export async function GET(req: Request) {
   for (const org of await anunciosMetaPendientes()) {
     if (Date.now() - t0 > 30_000) break;
     informe[`meta_ads_${org}`] = await leerAnunciosMeta(org).catch((e) => (e instanceof Error ? e.message : String(e)));
+  }
+  // Lo mismo con Google Ads (lib/publicidad/google-ads.ts).
+  for (const org of await googleAdsPendientes()) {
+    if (Date.now() - t0 > 35_000) break;
+    informe[`google_ads_${org}`] = await leerGoogleAds(org).catch((e) => (e instanceof Error ? e.message : String(e)));
   }
   // Mercado Libre: la cola de salida (hasta ~45 s) y, de noche, la barrida.
   // Van en paralelo con las importaciones: son pedidos a ML, no a la base.

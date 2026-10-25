@@ -183,3 +183,28 @@ alter table meta_ads_credencial enable row level security;
 -- anuncio «Enviar mensaje»). {plataforma, anuncio_id, campana, fuente, medio, ts}. Ver lib/publicidad/atribucion.ts.
 alter table pedido add column if not exists atribucion jsonb;
 alter table chat add column if not exists atribucion jsonb;
+
+-- Google Ads en el embudo de publicidad (Fer, 25/10). La app de Google de Laucen (un cliente OAuth de un proyecto de
+-- Google Cloud con la API de Google Ads, y el token de desarrollador si la cuenta lo pide): una sola fila, la carga el
+-- dueño del sistema en Informes › Embudo de publicidad. Termina en _credencial: el asistente no la lee.
+create table if not exists google_ads_app_credencial (
+  id               int primary key check (id = 1),
+  client_id        text not null default '',
+  client_secret    text not null default '',
+  developer_token  text,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table google_ads_app_credencial enable row level security;
+
+-- La cuenta de Google Ads conectada de cada organización («Conectar Google Ads»: permiso de Google para leer los
+-- anuncios). `cuentas`: [{id, nombre, moneda, login}] (login = la cuenta administradora por la que se llega, si hay).
+create table if not exists google_ads_credencial (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  refresh_token    text not null,
+  cuentas          jsonb not null default '[]',
+  conectado_ts     timestamptz not null default now(),
+  lectura_ts       timestamptz,
+  lectura_estado   text,
+  estado           text not null default 'activo' check (estado in ('activo', 'desconectado'))
+);
+alter table google_ads_credencial enable row level security;

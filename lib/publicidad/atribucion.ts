@@ -18,6 +18,9 @@ export type Atribucion = {
 /** Lo que conviene poner en «Parámetros de URL» de cada anuncio de Meta: así el pedido sabe de qué anuncio vino. */
 export const PARAMETROS_META = "utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.id}}";
 
+/** Lo mismo para Google Ads: en la cuenta (o la campaña), «Sufijo de URL final». {creative} es el id del anuncio. */
+export const PARAMETROS_GOOGLE = "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={creative}";
+
 export const GALLETA_ORIGEN = "lc_origen";
 /** Gana el último anuncio por 30 días (lo habitual en las plataformas). */
 export const DIAS_ORIGEN = 30;

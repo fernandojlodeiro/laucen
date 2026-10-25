@@ -9,7 +9,8 @@
 //   · Meta: el gasto, impresiones y clics por anuncio (anuncio_dia, lib/publicidad/meta-ads.ts); «escribieron» = los chats
 //     de WhatsApp o Instagram que empezaron desde un anuncio (chat.atribucion); ventas = los pedidos de la tienda web que
 //     llegaron desde un anuncio (pedido.atribucion), sin cancelados ni devueltos. Ver lib/publicidad/atribucion.ts.
-//   · Google y TikTok: todavía sin conectar el gasto; sí las ventas de la web que llegaron desde sus anuncios.
+//   · Google: lo mismo que Meta, con el gasto de Google Ads (lib/publicidad/google-ads.ts).
+//   · TikTok: todavía sin conectar el gasto; sí las ventas de la web que llegaron desde sus anuncios.
 //   · Tienda web sin anuncio: los pedidos de la web que no vinieron de un anuncio, para comparar.
 // Los montos en pesos de cada momento; un gasto en dólares se pasa a pesos con el dólar de ese día.
 
@@ -23,7 +24,7 @@ export type FilaEmbudo = {
 };
 
 export type AnuncioEmbudo = {
-  anuncioId: string; anuncio: string | null; campana: string | null;
+  plataforma: "meta" | "google"; anuncioId: string; anuncio: string | null; campana: string | null;
   gasto: number; vieron: number | null; clics: number | null; escribieron: number; ventas: number; vendido: number;
 };
 
@@ -42,9 +43,9 @@ export async function embudo(org: string, desde: string, hasta: string): Promise
         join canal ca on ca.id = c.canal_id
        where d.organizacion_id = $1 and d.fecha between $2::date and $3::date
        group by c.canal_id, ca.nombre order by c.canal_id`, v),
-    consulta<{ gasto: number | null; vieron: number | null; clics: number | null; n: number }>(`
-      select sum(${GASTO_ARS})::float8 gasto, sum(d.impresiones)::float8 vieron, sum(d.clics)::float8 clics, count(*)::int n
-        from anuncio_dia d where d.organizacion_id = $1 and d.plataforma = 'meta' and d.fecha between $2::date and $3::date`, v),
+    consulta<{ plataforma: string; gasto: number | null; vieron: number | null; clics: number | null; n: number }>(`
+      select d.plataforma, sum(${GASTO_ARS})::float8 gasto, sum(d.impresiones)::float8 vieron, sum(d.clics)::float8 clics, count(*)::int n
+        from anuncio_dia d where d.organizacion_id = $1 and d.fecha between $2::date and $3::date group by d.plataforma`, v),
     consulta<{ plataforma: string; n: number }>(`
       select ch.atribucion ->> 'plataforma' plataforma, count(*)::int n from chat ch
        where ch.organizacion_id = $1 and ch.atribucion is not null and ${EN_PERIODO("ch.creado_ts")} group by 1`, v),
@@ -56,28 +57,35 @@ export async function embudo(org: string, desde: string, hasta: string): Promise
        where p.organizacion_id = $1 and ca.tipo in ('web_minorista', 'web_mayorista') and p.atribucion is null and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")}`, v),
     consulta<AnuncioEmbudo>(`
       with g as (
-        select d.anuncio_id, max(d.anuncio) anuncio, max(d.campana) campana, sum(${GASTO_ARS})::float8 gasto,
+        select d.plataforma, d.anuncio_id, max(d.anuncio) anuncio, max(d.campana) campana, sum(${GASTO_ARS})::float8 gasto,
                sum(d.impresiones)::float8 vieron, sum(d.clics)::float8 clics
-          from anuncio_dia d where d.organizacion_id = $1 and d.plataforma = 'meta' and d.fecha between $2::date and $3::date group by d.anuncio_id),
-      c as (select ch.atribucion ->> 'anuncio_id' anuncio_id, count(*)::int n from chat ch
-             where ch.organizacion_id = $1 and ch.atribucion ->> 'plataforma' = 'meta' and ${EN_PERIODO("ch.creado_ts")} group by 1),
-      p as (select p.atribucion ->> 'anuncio_id' anuncio_id, count(*)::int n, coalesce(sum(p.total_ars), 0)::float8 monto from pedido p
-             where p.organizacion_id = $1 and p.atribucion ->> 'plataforma' = 'meta' and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")} group by 1)
-      select coalesce(g.anuncio_id, c.anuncio_id, p.anuncio_id) "anuncioId", g.anuncio, g.campana, coalesce(g.gasto, 0) gasto, g.vieron, g.clics,
+          from anuncio_dia d where d.organizacion_id = $1 and d.plataforma in ('meta', 'google') and d.fecha between $2::date and $3::date
+         group by d.plataforma, d.anuncio_id),
+      c as (select ch.atribucion ->> 'plataforma' plataforma, ch.atribucion ->> 'anuncio_id' anuncio_id, count(*)::int n from chat ch
+             where ch.organizacion_id = $1 and ch.atribucion ->> 'plataforma' in ('meta', 'google') and ch.atribucion ->> 'anuncio_id' is not null
+               and ${EN_PERIODO("ch.creado_ts")} group by 1, 2),
+      p as (select p.atribucion ->> 'plataforma' plataforma, p.atribucion ->> 'anuncio_id' anuncio_id, count(*)::int n, coalesce(sum(p.total_ars), 0)::float8 monto
+              from pedido p
+             where p.organizacion_id = $1 and p.atribucion ->> 'plataforma' in ('meta', 'google') and p.atribucion ->> 'anuncio_id' is not null
+               and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")} group by 1, 2)
+      select coalesce(g.plataforma, c.plataforma, p.plataforma) plataforma, coalesce(g.anuncio_id, c.anuncio_id, p.anuncio_id) "anuncioId",
+             g.anuncio, g.campana, coalesce(g.gasto, 0) gasto, g.vieron, g.clics,
              coalesce(c.n, 0) escribieron, coalesce(p.n, 0) ventas, coalesce(p.monto, 0) vendido
-        from g full join c on c.anuncio_id = g.anuncio_id full join p on p.anuncio_id = coalesce(g.anuncio_id, c.anuncio_id)
-       where coalesce(g.anuncio_id, c.anuncio_id, p.anuncio_id) is not null
+        from g full join c on c.plataforma = g.plataforma and c.anuncio_id = g.anuncio_id
+        full join p on p.plataforma = coalesce(g.plataforma, c.plataforma) and p.anuncio_id = coalesce(g.anuncio_id, c.anuncio_id)
        order by coalesce(g.gasto, 0) desc, coalesce(p.monto, 0) desc`, v),
   ]);
   const chatsDe = (pl: string) => chats.find((x) => x.plataforma === pl)?.n ?? 0;
   const ped = (pl: string) => pedidos.find((x) => x.plataforma === pl) ?? { ventas: 0, vendido: 0 };
-  const m = meta[0];
+  const gastoDe = (pl: string) => meta.find((x) => x.plataforma === pl);
+  const m = gastoDe("meta"), go = gastoDe("google");
   const filas: FilaEmbudo[] = [
     ...ml.map((c): FilaEmbudo => ({ clave: `ml:${c.canal_id}`, canal: "Mercado Libre", detalle: c.nombre, gasto: c.gasto, vieron: c.vieron, clics: c.clics,
       escribieron: null, ventas: c.ventas, vendido: c.vendido, unidad: "unidades" })),
     { clave: "meta", canal: "Meta (Facebook e Instagram)", detalle: null, gasto: m?.n ? m.gasto ?? 0 : null, vieron: m?.n ? m.vieron : null, clics: m?.n ? m.clics : null,
       escribieron: chatsDe("meta"), ventas: ped("meta").ventas, vendido: ped("meta").vendido, unidad: "pedidos" },
-    { clave: "google", canal: "Google", detalle: null, gasto: null, vieron: null, clics: null, escribieron: null, ventas: ped("google").ventas, vendido: ped("google").vendido, unidad: "pedidos" },
+    { clave: "google", canal: "Google", detalle: null, gasto: go?.n ? go.gasto ?? 0 : null, vieron: go?.n ? go.vieron : null, clics: go?.n ? go.clics : null,
+      escribieron: chatsDe("google") || null, ventas: ped("google").ventas, vendido: ped("google").vendido, unidad: "pedidos" },
     { clave: "tiktok", canal: "TikTok", detalle: null, gasto: null, vieron: null, clics: null, escribieron: null, ventas: ped("tiktok").ventas, vendido: ped("tiktok").vendido, unidad: "pedidos" },
     ...(ped("otro").ventas ? [{ clave: "otro", canal: "Otras campañas (con utm)", detalle: null, gasto: null, vieron: null, clics: null, escribieron: null,
       ventas: ped("otro").ventas, vendido: ped("otro").vendido, unidad: "pedidos" as const }] : []),

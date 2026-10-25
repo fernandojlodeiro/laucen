@@ -44,3 +44,9 @@ test("la galleta va y vuelve; una rota o vieja no inventa nada", () => {
   assert.equal(deGalleta("{no es json"), null);
   assert.equal(deGalleta(""), null);
 });
+
+test("el sufijo recomendado de Google: plataforma y anuncio ({creative} es el id del anuncio)", () => {
+  const g = p("utm_source=google&utm_medium=cpc&utm_campaign=2134567890&utm_content=678901234567&gclid=Cj0");
+  assert.equal(g?.plataforma, "google");
+  assert.equal(g?.anuncio_id, "678901234567");
+});
