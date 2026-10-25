@@ -189,6 +189,10 @@ create index if not exists push_suscripcion_usuario on push_suscripcion (usuario
 -- Este equipo recibe sólo lo derivado a una persona (Fer, 25/10): mensajes de ML que la IA derivó, WhatsApp en espera
 -- y reclamos. Los celulares nacen así; se cambia en Configuración › Mis avisos.
 alter table push_suscripcion add column if not exists solo_derivaciones boolean not null default false;
+-- Un equipo «sólo derivaciones» avisa siempre, aunque Laucen esté a la vista en otro lado: lleva sus propias marcas de
+-- hasta dónde avisó. Se puede silenciar un rato o apagar (pausado_hasta; 'infinity' = apagado). Fer, 25/10.
+alter table push_suscripcion add column if not exists pausado_hasta timestamptz;
+alter table push_suscripcion add column if not exists marcas jsonb;
 alter table push_suscripcion enable row level security;
 
 -- Las llaves con que Laucen firma los avisos push (VAPID). Las genera la app la primera vez. Una sola fila.

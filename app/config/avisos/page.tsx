@@ -8,7 +8,10 @@ import { Pantalla, Avisos, BotonesFicha, editandoFicha, TituloSeccion, ValorVist
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CADA_MIN_MAX } from "@/lib/avisos-tipos";
 import AvisosWindows from "./AvisosWindows";
-import { accionGuardarAvisos } from "./acciones";
+import { accionEquipo, accionGuardarAvisos } from "./acciones";
+import { equiposDelUsuario } from "@/lib/avisos-push";
+import { Interruptor } from "@/app/radar/Piezas";
+import { SUAVE } from "@/app/botones";
 import ProbarSonido from "./ProbarSonido";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +76,7 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
         </p>
         <AvisosWindows />
       </div>
+      <TusEquipos usuario={s.usuario.id} org={s.org.id} />
       <p className="text-[11px] text-[#5C6B76] mt-3">
         Con las dos destildadas no suena ni se abre nada, pero igual el número de la barra de abajo se pinta de amarillo
         cuando entra algo que todavía no viste, hasta que entrás a esa pantalla.
@@ -90,5 +94,45 @@ function Opcion({ nombre, activa, editando, titulo, ayuda }: { nombre: string; a
         <span className="block text-[11px] text-[#5C6B76]">{ayuda}</span>
       </span>
     </label>
+  );
+}
+
+/** Los equipos con avisos activados (Fer, 25/10): de cada uno, si recibe todo o sólo lo derivado, y prenderlo,
+ *  apagarlo o silenciarlo un rato. Se maneja desde cualquier equipo (por ejemplo, silenciar el celular desde la PC). */
+async function TusEquipos({ usuario, org }: { usuario: string; org: string }) {
+  const equipos = await equiposDelUsuario(usuario, org).catch(() => []);
+  if (!equipos.length) return null;
+  const hora = (d: Date) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <div className={`${CAJA} mt-4`}>
+      <TituloSeccion titulo={`Tus equipos (${equipos.length})`} />
+      <p className="text-[11px] text-[#5C6B76] mb-2">
+        Cada computadora o celular donde activaste los avisos. Los que reciben <b>sólo lo derivado a una persona</b> avisan siempre, aunque tengas Laucen
+        abierto en otro lado; para que no suenen un rato, silencialos acá (también desde otro equipo).
+      </p>
+      <div className="grid gap-3">
+        {equipos.map((e) => (
+          <div key={e.id} className="border border-[#E3E9F0] rounded-lg p-2 grid gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold">{e.equipo || "Equipo"} <span className="font-normal text-[11px] text-[#5C6B76]">· desde {new Date(e.creado_ts).toLocaleDateString("es-AR")}</span></span>
+              <Interruptor compacto accion={accionEquipo} campos={{ id: String(e.id), que: "interruptor" }} prendido={!e.apagado}
+                etiqueta={e.apagado ? "Avisos apagados" : e.silenciado_hasta ? `Silenciado hasta el ${hora(e.silenciado_hasta)}` : "Avisos prendidos"} />
+            </div>
+            <Interruptor compacto accion={accionEquipo} campos={{ id: String(e.id), que: e.solo ? "todo" : "solo" }} prendido={e.solo}
+              etiqueta="Sólo lo derivado a una persona" ayuda="Mensajes de Mercado Libre que la IA derivó, WhatsApp en espera y reclamos. Apagado, recibe todo (como la computadora)." />
+            {!e.apagado && (
+              <div className="flex flex-wrap gap-2">
+                {e.silenciado_hasta
+                  ? <form action={accionEquipo}><input type="hidden" name="id" value={e.id} /><input type="hidden" name="que" value="prender" /><button className={SUAVE}>Que vuelva a avisar ya</button></form>
+                  : <>
+                      <form action={accionEquipo}><input type="hidden" name="id" value={e.id} /><input type="hidden" name="que" value="hora" /><button className={SUAVE}>Silenciar 1 hora</button></form>
+                      <form action={accionEquipo}><input type="hidden" name="id" value={e.id} /><input type="hidden" name="que" value="manana" /><button className={SUAVE}>Silenciar hasta mañana 8 h</button></form>
+                    </>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

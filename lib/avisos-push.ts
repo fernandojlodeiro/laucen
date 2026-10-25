@@ -10,6 +10,9 @@
 // lib/avisos.ts), agrupado en un solo aviso. Lo corre cada minuto el job de
 // pg_cron 'avisos-push' (db/moneda.sql). No avisa si el usuario tiene Laucen a
 // la vista (ahí avisa la pantalla) ni más de una vez cada `aviso_cada_min`.
+// Los equipos «sólo derivaciones» (el celular: Fer, 25/10) van aparte: avisan
+// siempre lo derivado a una persona, con sus propias marcas, salvo que estén
+// silenciados (pausado_hasta).
 
 import webpush from "web-push";
 import { consulta, una } from "@/lib/erp/base";
@@ -35,10 +38,10 @@ export type SuscripcionNavegador = { endpoint: string; keys: { p256dh: string; a
  *  sólo las derivaciones (Fer, 25/10); si ya estaba anotado, conserva lo que se eligió. */
 export async function suscribir(usuario: string, org: string, s: SuscripcionNavegador, equipo: string, puede: (p: PermisoKey) => boolean): Promise<void> {
   await consulta(`
-    insert into push_suscripcion (organizacion_id, usuario_id, endpoint, p256dh, auth, equipo, solo_derivaciones) values ($1, $2, $3, $4, $5, $6, $7)
+    insert into push_suscripcion (organizacion_id, usuario_id, endpoint, p256dh, auth, equipo, solo_derivaciones, marcas) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
     on conflict (endpoint) do update set organizacion_id = excluded.organizacion_id, usuario_id = excluded.usuario_id,
-      p256dh = excluded.p256dh, auth = excluded.auth, equipo = excluded.equipo`,
-    [org, usuario, s.endpoint, s.keys.p256dh, s.keys.auth, equipo.slice(0, 120), /Android|iPhone/.test(equipo)]);
+      p256dh = excluded.p256dh, auth = excluded.auth, equipo = excluded.equipo, marcas = coalesce(push_suscripcion.marcas, excluded.marcas)`,
+    [org, usuario, s.endpoint, s.keys.p256dh, s.keys.auth, equipo.slice(0, 120), /Android|iPhone/.test(equipo), JSON.stringify(await marcasActuales(org))]);
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, push_avisado) values ($1, $2, $3::jsonb)
     on conflict (usuario_id, organizacion_id) do update set push_avisado = coalesce(usuario_preferencia.push_avisado, excluded.push_avisado)`,
@@ -52,7 +55,35 @@ export async function modoEquipo(usuario: string, endpoint: string): Promise<boo
 }
 
 export async function cambiarModoEquipo(usuario: string, endpoint: string, solo: boolean): Promise<void> {
-  await consulta("update push_suscripcion set solo_derivaciones = $3 where usuario_id = $1 and endpoint = $2", [usuario, endpoint, solo]);
+  const r = await una<{ id: number }>("select id::int from push_suscripcion where usuario_id = $1 and endpoint = $2", [usuario, endpoint]);
+  if (r) await cambiarEquipo(usuario, r.id, { solo });
+}
+
+export type EquipoPush = { id: number; equipo: string; solo: boolean; apagado: boolean; silenciado_hasta: Date | null; creado_ts: Date; ultimo_ok_ts: Date | null };
+
+/** Los equipos del usuario con los avisos activados (Configuración › Mis avisos). */
+export async function equiposDelUsuario(usuario: string, org: string): Promise<EquipoPush[]> {
+  return consulta<EquipoPush>(`
+    select id::int, equipo, solo_derivaciones solo, coalesce(pausado_hasta = 'infinity', false) apagado,
+           case when pausado_hasta > now() and pausado_hasta <> 'infinity' then pausado_hasta end silenciado_hasta, creado_ts, ultimo_ok_ts
+      from push_suscripcion where usuario_id = $1 and organizacion_id = $2 order by creado_ts`, [usuario, org]);
+}
+
+/** Cambia un equipo: recibir todo o sólo derivaciones, y silenciarlo (`pausa`: hasta cuándo; null = que vuelva a
+ *  avisar; Infinity = apagado). Al pasar a «sólo derivaciones» o volver a avisar, arranca desde ahora: lo que pasó
+ *  mientras tanto no se avisa de golpe. */
+export async function cambiarEquipo(usuario: string, id: number, c: { solo?: boolean; pausa?: Date | null | "apagado" }): Promise<void> {
+  const r = await una<{ organizacion_id: string }>("select organizacion_id from push_suscripcion where id = $1 and usuario_id = $2", [id, usuario]);
+  if (!r) return;
+  const marcas = JSON.stringify(await marcasActuales(r.organizacion_id));
+  if (c.solo !== undefined) {
+    await consulta("update push_suscripcion set solo_derivaciones = $3, marcas = case when $3 then $4::jsonb else marcas end where id = $1 and usuario_id = $2", [id, usuario, c.solo, marcas]);
+  }
+  if (c.pausa !== undefined) {
+    const hasta = c.pausa === "apagado" ? "infinity" : c.pausa ? c.pausa.toISOString() : null;
+    await consulta(`update push_suscripcion set pausado_hasta = $3::timestamptz, marcas = case when $3::timestamptz is null then $4::jsonb else marcas end
+                     where id = $1 and usuario_id = $2`, [id, usuario, hasta, marcas]);
+  }
 }
 
 export async function desuscribir(usuario: string, endpoint: string): Promise<void> {
@@ -66,37 +97,40 @@ export async function equiposDe(usuario: string, org: string): Promise<number> {
 
 type Aviso = { titulo: string; texto: string; url: string };
 
-/** Manda un aviso a todos los equipos del usuario: `aviso` dice qué le toca a cada uno según reciba todo o sólo
- *  derivaciones (null: nada). Los que el navegador dio de baja se borran. */
-async function mandar(usuario: string, org: string, aviso: Aviso | ((soloDerivaciones: boolean) => Aviso | null)): Promise<number> {
-  const subs = await consulta<{ id: string; endpoint: string; p256dh: string; auth: string; solo: boolean }>(
-    "select id::text, endpoint, p256dh, auth, solo_derivaciones solo from push_suscripcion where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
-  if (!subs.length) return 0;
+type Sub = { id: string; endpoint: string; p256dh: string; auth: string; solo: boolean; pausado: boolean };
+
+/** Manda un aviso a un equipo. Si el navegador lo dio de baja, se borra. */
+async function enviarA(s: Sub, aviso: Aviso): Promise<boolean> {
   const k = await llavesPush();
-  let ok = 0;
-  for (const s of subs) {
-    const este = typeof aviso === "function" ? aviso(s.solo) : aviso;
-    if (!este) continue;
-    const cuerpo = JSON.stringify(este);
-    try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, {
-        vapidDetails: { subject: urlPanel() || "https://laucen.com", publicKey: k.publica, privateKey: k.privada },
-        TTL: 60 * 60 * 12, urgency: "high",
-      });
-      ok++;
-      await consulta("update push_suscripcion set ultimo_ok_ts = now() where id = $1", [s.id]);
-    } catch (e) {
-      const status = (e as { statusCode?: number }).statusCode;
-      if (status === 404 || status === 410) await consulta("delete from push_suscripcion where id = $1", [s.id]);
-      else console.error("[avisos-push]", status, e instanceof Error ? e.message : e);
-    }
+  try {
+    await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(aviso), {
+      vapidDetails: { subject: urlPanel() || "https://laucen.com", publicKey: k.publica, privateKey: k.privada },
+      TTL: 60 * 60 * 12, urgency: "high",
+    });
+    await consulta("update push_suscripcion set ultimo_ok_ts = now() where id = $1", [s.id]);
+    return true;
+  } catch (e) {
+    const status = (e as { statusCode?: number }).statusCode;
+    if (status === 404 || status === 410) await consulta("delete from push_suscripcion where id = $1", [s.id]);
+    else console.error("[avisos-push]", status, e instanceof Error ? e.message : e);
+    return false;
   }
+}
+
+/** Manda un aviso a los equipos del usuario que reciben todo y no están silenciados (`todos`: también a los
+ *  «sólo derivaciones» y silenciados, para la prueba). */
+async function mandar(usuario: string, org: string, aviso: Aviso, todos = false): Promise<number> {
+  const subs = await consulta<Sub>(
+    `select id::text, endpoint, p256dh, auth, solo_derivaciones solo, coalesce(pausado_hasta > now(), false) pausado
+       from push_suscripcion where usuario_id = $1 and organizacion_id = $2`, [usuario, org]);
+  let ok = 0;
+  for (const s of subs) if ((todos || (!s.solo && !s.pausado)) && await enviarA(s, aviso)) ok++;
   return ok;
 }
 
 /** Un aviso de prueba, ya, sin límite (botón de Configuración › Mis avisos). */
 export async function avisoDePrueba(usuario: string, org: string): Promise<number> {
-  return mandar(usuario, org, { titulo: "Laucen: aviso de prueba", texto: "Así te llegan los avisos de lo que la IA no contestó.", url: "/config/avisos" });
+  return mandar(usuario, org, { titulo: "Laucen: aviso de prueba", texto: "Así te llegan los avisos de lo que la IA no contestó.", url: "/config/avisos" }, true);
 }
 
 function armar(items: AvisoIa[]): Aviso {
@@ -141,13 +175,50 @@ export async function avisarOrg(org: string, permiso: PermisoKey, aviso: Aviso):
   for (const u of usuarios) {
     const permisos = await permisosDe(u.usuario_id, org).catch(() => null);
     // Los equipos que reciben sólo derivaciones, no.
-    if (permisos && tienePermiso(permisos, permiso)) n += await mandar(u.usuario_id, org, (solo) => (solo ? null : aviso));
+    if (permisos && tienePermiso(permisos, permiso)) n += await mandar(u.usuario_id, org, aviso);
   }
   return n;
 }
 
-/** La vuelta del job: a cada usuario con avisos activados le manda (como mucho) un aviso con lo nuevo. */
+/** La vuelta del job: a cada usuario con avisos activados le manda (como mucho) un aviso con lo nuevo; y a cada
+ *  equipo «sólo derivaciones», lo derivado nuevo. */
 export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }> {
+  const r = await vueltaGeneral();
+  return { usuarios: r.usuarios, avisos: r.avisos + await vueltaDerivaciones().catch((e) => { console.error("[avisos-push] derivaciones", e); return 0; }) };
+}
+
+/** Los equipos «sólo derivaciones» (Fer, 25/10): avisan lo derivado a una persona aunque el usuario tenga Laucen a la
+ *  vista en otro lado, cada uno con sus marcas. Uno silenciado no avisa ni junta lo de mientras tanto. */
+async function vueltaDerivaciones(): Promise<number> {
+  const subs = await consulta<Sub & { usuario_id: string; organizacion_id: string; marcas: Marcas | null }>(`
+    select id::text, endpoint, p256dh, auth, true solo, false pausado, usuario_id, organizacion_id, marcas
+      from push_suscripcion where solo_derivaciones and (pausado_hasta is null or pausado_hasta <= now())`);
+  let n = 0;
+  const permisosDeUsuario = new Map<string, Permisos | null>();
+  for (const s of subs) {
+    const llave = `${s.usuario_id}|${s.organizacion_id}`;
+    if (!permisosDeUsuario.has(llave)) permisosDeUsuario.set(llave, await permisosDe(s.usuario_id, s.organizacion_id).catch(() => null));
+    const permisos = permisosDeUsuario.get(llave);
+    if (!permisos) continue;
+    if (!s.marcas) {
+      await consulta("update push_suscripcion set marcas = $2::jsonb where id = $1", [s.id, JSON.stringify(await marcasActuales(s.organizacion_id))]);
+      continue;
+    }
+    // Un tipo que todavía no tenía marca arranca desde ahora.
+    const marcas: Marcas = { ...await marcasActuales(s.organizacion_id), ...s.marcas };
+    const items = await pendientesIa(s.organizacion_id, (p) => tienePermiso(permisos, p), marcas);
+    if (!items.length) continue;
+    const derivados = items.filter(esDerivacion);
+    if (derivados.length && await enviarA(s, armar(derivados))) n++;
+    // Lo que no es derivación tampoco se vuelve a mirar en este equipo.
+    const nuevas: Marcas = { ...s.marcas };
+    for (const a of items) nuevas[a.tipo] = Math.max(Number(nuevas[a.tipo] ?? 0), a.marca);
+    await consulta("update push_suscripcion set marcas = $2::jsonb where id = $1", [s.id, JSON.stringify(nuevas)]);
+  }
+  return n;
+}
+
+async function vueltaGeneral(): Promise<{ usuarios: number; avisos: number }> {
   const filas = await consulta<Parameters<typeof prefsDe>[0] & { usuario_id: string; organizacion_id: string; listo: boolean; avisado: Marcas | null; push_avisado: Marcas | null }>(`
     select s.usuario_id, s.organizacion_id,
            (coalesce(p.vistazo_ts, '-infinity') < now() - interval '45 seconds'
@@ -173,14 +244,10 @@ export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }
     const items = await pendientesIa(f.organizacion_id, puede, marcas);
     if (!items.length) continue;
     // Sólo los tipos que eligió en Mis avisos; los demás quedan como avisados igual.
-    // Un equipo «sólo derivaciones» recibe lo derivado aunque en Mis avisos ese tipo no abra la ventana.
+    // Sólo los tipos que eligió en Mis avisos (los equipos «sólo derivaciones» van aparte: vueltaDerivaciones).
     const tipos = prefsDe(f).ventana;
     const elegidos = items.filter((a) => tipos[a.tipo]);
-    const derivados = items.filter(esDerivacion);
-    const enviados = await mandar(f.usuario_id, f.organizacion_id, (solo) => {
-      const estos = solo ? derivados : elegidos;
-      return estos.length ? armar(estos) : null;
-    });
+    const enviados = elegidos.length ? await mandar(f.usuario_id, f.organizacion_id, armar(elegidos)) : 0;
     if (enviados) avisos++;
     const nuevas: Marcas = {};
     for (const a of items) nuevas[a.tipo] = Math.max(nuevas[a.tipo] ?? 0, a.marca);
