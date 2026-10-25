@@ -638,3 +638,23 @@ create table if not exists producto_dato_web (
 create index if not exists producto_dato_web_producto on producto_dato_web (producto_id);
 alter table producto_dato_web enable row level security;
 select erp_politica_org('producto_dato_web');
+
+-- Corregir a la IA (Fer, 25/10): una persona dice qué hizo mal la IA en una respuesta que mandó (pregunta o mensaje
+-- de Mercado Libre, WhatsApp); la IA propone qué cambiar (los datos técnicos del producto o una regla) y la persona lo
+-- graba (lib/correccion-ia.ts). Queda el registro de cada corrección.
+create table if not exists ia_correccion (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  origen           text not null check (origen in ('pregunta', 'mensaje', 'whatsapp')),
+  origen_id        text not null,
+  producto_id      bigint references producto(id) on delete set null,
+  correccion       text not null,
+  propuesta        jsonb,
+  estado           text not null default 'propuesta' check (estado in ('propuesta', 'grabada')),
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  grabado_ts       timestamptz
+);
+create index if not exists ia_correccion_origen on ia_correccion (organizacion_id, origen, origen_id);
+alter table ia_correccion enable row level security;
+select erp_politica_org('ia_correccion');

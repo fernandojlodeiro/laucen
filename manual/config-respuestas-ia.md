@@ -28,6 +28,7 @@ Lo que sí es de cada cuenta es la **firma** del final de cada respuesta (por ej
 ## Criterios
 
 - Las reglas valen **por encima** de las instrucciones de siempre de la IA.
+- **"Corregir a la IA"** (debajo de cada respuesta que mandó la IA, en [Preguntas y mensajes](/ventas/preguntas) y en [WhatsApp](/ventas/mensajes)) puede sumar acá un renglón nuevo, después de mostrarlo y con el **"Grabar"** de quien corrige.
 - En Mercado Libre la IA sabe **por qué cuenta entró** la pregunta o el mensaje (el nombre del canal, como figura en [Canales](/config/canales)). Así una regla puede valer para una sola cuenta, nombrándola: por ejemplo, «en la cuenta «ML PUNTO», si preguntan dónde retirar, contestá que la dirección está en la factura; en cualquier otra cuenta, que trabajamos sólo con Mercado Envíos». En WhatsApp no hay cuenta de Mercado Libre: esas reglas no se aplican.
 - Se aplican desde la próxima respuesta que proponga o mande la IA; lo que ya estaba propuesto queda como estaba.
 - Hasta 5000 letras.

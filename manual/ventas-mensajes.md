@@ -61,6 +61,9 @@ Contestar desde el teléfono sin la marca no cambia nada: la IA sigue atendiendo
 2. Atendé al cliente (apagá la IA del chat si hace falta).
 3. En el caso, apretá **"Resolver"**, escribí cómo se resolvió (opcional) y **"Listo"**.
 
+### Corregir a la IA
+Debajo de cada mensaje que mandó la IA está **"Corregir a la IA"**: escribís qué estuvo mal y cuál es lo correcto, **"Ver qué va a cambiar"** muestra cómo quedan los datos técnicos del producto del que se hablaba y/o una regla nueva para la IA de la empresa, y **"Grabar"** lo deja. No le manda nada al cliente. Igual que en [Preguntas y mensajes](/ventas/preguntas).
+
 ### Enseñarle cosas a la IA
 En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escribí en **Lo que sabe para los clientes** lo que tiene que saber: envíos y plazos, formas de pago, horarios, si hacen factura A, garantía, preguntas frecuentes. Grabá y probalo en **Probar la IA**.
 

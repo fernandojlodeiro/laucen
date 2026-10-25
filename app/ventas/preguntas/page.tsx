@@ -19,6 +19,7 @@ import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { nombrePlan } from "@/lib/mercadolibre/buscar-publicaciones";
 import type { Hallazgo } from "@/lib/datos-internet";
 import DatosInternet, { cuentaDatosInternet } from "@/app/componentes/DatosInternet";
+import CorregirIa from "@/app/componentes/CorregirIa";
 import CajaRespuesta from "./CajaRespuesta";
 import BotonesRespuesta from "./BotonesRespuesta";
 import PreguntasAnteriores from "./PreguntasAnteriores";
@@ -246,7 +247,7 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
           <p className="mt-1 text-[11px] text-[#5C6B76]">
             {q.respondida_auto ? "Respondió la IA sola" : <>Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_por && q.respondida_con_ia ? " con la IA" : ""}</>}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
           </p>
-          {(q.respondida_auto || q.respondida_con_ia) && <Internet h={q.ia_internet} />}
+          {(q.respondida_auto || q.respondida_con_ia) && <><Internet h={q.ia_internet} /><div className="mt-1"><CorregirIa origen="pregunta" id={q.id} /></div></>}
         </section>
       ))}
     </div>
@@ -343,6 +344,7 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
               <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>
               {m.texto && Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <div className="text-[10px] text-[#5C6B76]">+ {m.adjuntos.length} adjunto{m.adjuntos.length === 1 ? "" : "s"}</div>}
               <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de_vendedor ? (m.auto ? "Respondió la IA sola" : m.usuario ? `Respondió ${m.usuario}${m.con_ia ? " con la IA" : ""}` : "Respondió alguien desde Mercado Libre") : "Comprador"} · {fechaHora(m.fecha)}</div>
+              {m.de_vendedor && (m.auto || m.con_ia) && m.texto && <div className="mt-1 text-right"><CorregirIa origen="mensaje" id={m.id} /></div>}
             </div>
           </div>
         ))}

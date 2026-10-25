@@ -121,6 +121,19 @@ Qué hace con eso:
 - En la tarjeta de la pregunta (y en la conversación) se ve **🌐 La IA buscó en internet**, con qué tan seguro era, el dato y las fuentes.
 - Si la búsqueda no se pudo hacer (una falla del servicio), la respuesta queda para una persona, como cuando falta un dato.
 
+### Corregir a la IA
+
+Debajo de cada respuesta que mandó la IA (sola, o una persona sin cambiarle nada) está el botón **"Corregir a la IA"**:
+
+1. Tocalo y escribí qué estuvo mal: qué dijo y cuál es lo correcto (por ejemplo, «No tiene Zigbee: sólo Wi-Fi y Bluetooth» o «Nunca ofrezcas envío en el día»).
+2. Apretá **"Ver qué va a cambiar"**. La IA propone, sin grabar nada todavía:
+   - si es un dato del producto: cómo quedan los **Datos técnicos para la IA** de ese producto (corrige o saca el renglón equivocado y suma lo correcto; un renglón «[Internet…]» que se corrige o confirma queda sin esa marca);
+   - si es un criterio general: un renglón nuevo para las [Respuestas de la IA](/config/respuestas-ia) de la empresa, que vale para todas las respuestas;
+   - o las dos cosas.
+3. Si está bien, **"Grabar"**. Si no, **"Cambiar lo que escribí"** o **"Cancelar"**.
+
+Desde ahí la IA ya no repite el error. No le manda nada al cliente: si hace falta corregirle la respuesta, se le escribe aparte. Si mientras tanto alguien cambió los datos técnicos de ese producto, no se pisan: hay que volver a pedir la corrección. En una pregunta de una publicación que no está vinculada a un producto, o un mensaje de una compra que no está en Laucen, sólo se puede agregar una regla.
+
 ### Derivar a una persona (mensajes de posventa)
 
 La IA le avisa al comprador que **deriva su caso a una persona del equipo** cuando:

@@ -11,6 +11,7 @@ import { FILTROS, type ChatAbierto, type FiltroBandeja, type FotoBandeja, type M
 import { accionEnviar, accionIa, accionNotas, accionResolverCaso } from "./acciones";
 import Llave from "./Llave";
 import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
+import CorregirIa from "@/app/componentes/CorregirIa";
 
 const CADA = 5000, CADA_SIN_ABRIR = 10000;
 const SUAVE = "text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]";
@@ -244,6 +245,7 @@ function Globo({ m, nombreIa }: { m: MensajeVista; nombreIa: string }) {
           <span>{horaLarga(m.ts)}</span>{nuestro && estado}
         </div>
         {m.estado === "fallido" && <div className="text-[10px] text-[#C03420] font-semibold">NO ENTREGADO{m.motivo ? `: ${m.motivo}` : ""}</div>}
+        {m.clase === "ia" && m.texto && <div className="mt-1 text-right"><CorregirIa origen="whatsapp" id={String(m.id)} /></div>}
       </div>
     </div>
   );
