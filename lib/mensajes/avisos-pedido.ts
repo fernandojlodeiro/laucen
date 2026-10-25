@@ -51,7 +51,7 @@ export async function avisarPorWhatsapp(org: string, pedidoId: number, tipo: Tip
   const { credencialDeOrg, chatDe, guardarMensaje } = await import("@/lib/mensajes/chats");
   const cred = await credencialDeOrg(org);
   if (!cred) return { estado: "pendiente", detalle: "No hay una línea de WhatsApp conectada." };
-  const { enviarTexto, enviarPlantilla, estadoPlantilla, crearPlantilla } = await import("@/lib/mensajes/meta");
+  const { enviarTexto, enviarPlantilla, estadoPlantilla } = await import("@/lib/mensajes/meta");
   const { tiendaParaPedido } = await import("@/lib/correo/mails");
   const t = await tiendaParaPedido(org, pedidoId);
   const link = t && p.codigo ? await urlTienda(t, `/pedido/${p.codigo}`) : null;
@@ -69,7 +69,8 @@ export async function avisarPorWhatsapp(org: string, pedidoId: number, tipo: Tip
     let estado: string | null;
     try {
       estado = await estadoPlantilla(cred.wabaId, cred.token, NOMBRE_PLANTILLA[tipo]);
-      if (!estado) { await crearPlantilla(cred.wabaId, cred.token, plantillaAviso(tipo, base)); estado = "PENDING"; }
+      // Nunca se manda sola: se manda a Meta desde Configuración › Plantillas de WhatsApp (Fer, 25/10).
+      if (!estado) return { estado: "pendiente", detalle: "La plantilla de este aviso todavía no se mandó a Meta (Configuración › Plantillas de WhatsApp)." };
     } catch (e) {
       console.error("[aviso WhatsApp] plantilla", tipo, e instanceof Error ? e.message : e);
       return { estado: "pendiente", detalle: "No se pudo consultar la plantilla en Meta: se reintenta." };

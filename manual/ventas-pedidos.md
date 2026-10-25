@@ -271,7 +271,7 @@ Cuando una factura queda autorizada, le llega sola por WhatsApp al cliente si:
 - el cliente tiene **WhatsApp** cargado en su ficha y la casilla **"Enviarle la factura por WhatsApp"** tildada ([Clientes](/ventas/clientes)), y
 - el pedido **no es una venta de Mercado Libre**, o lo es pero el cliente nos escribió por WhatsApp por esa compra (la factura de una venta de Mercado Libre va a Mercado Libre).
 
-Dentro de las 24 horas del último mensaje del cliente le llega el PDF. Pasadas las 24 horas, WhatsApp sólo deja mandar un mensaje con **plantilla**: le llega «Hola …, te enviamos la Factura B … de tu compra» con el botón **"Ver la factura"**, que abre el PDF. La plantilla la pide Laucen sola a Meta la primera vez; hasta que Meta la aprueba, la factura queda pendiente y sale sola cuando se aprueba (se reintenta durante 3 días).
+Dentro de las 24 horas del último mensaje del cliente le llega el PDF. Pasadas las 24 horas, WhatsApp sólo deja mandar un mensaje con **plantilla**: le llega «Hola …, te enviamos la Factura B … de tu compra» con el botón **"Ver la factura"**, que abre el PDF. La plantilla se manda a Meta desde [Plantillas de WhatsApp](/config/plantillas-whatsapp); hasta que Meta la aprueba, la factura queda pendiente y sale sola cuando se aprueba (se reintenta durante 3 días).
 
 En el bloque «Facturación» del pedido, al lado de cada factura dice **"WhatsApp: enviada el … (a …)"**, o pendiente o el error con el motivo. El botón **"Mandar por WhatsApp"** (**"Reenviar por WhatsApp"** si ya salió; queda siempre) la manda en el momento, como PDF (por ejemplo, si el cliente la pide de nuevo o si se tildó la casilla después). Hace falta una línea de WhatsApp conectada ([WhatsApp](/ventas/mensajes)). El envío queda también en el chat del cliente.
 
