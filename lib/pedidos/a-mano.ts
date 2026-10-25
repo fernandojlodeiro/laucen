@@ -26,7 +26,9 @@ export type PedidoAMano = {
   /** null = consumidor final. */
   clienteId: number | null;
   /** Por variación o por SKU. Precio null = el de la lista. */
-  lineas: { variacionId?: number | null; sku?: string | null; cantidad: number; precio?: number | null; descuentoPct?: number | null }[];
+  lineas: { variacionId?: number | null; sku?: string | null; cantidad: number; precio?: number | null; descuentoPct?: number | null;
+    /** «Otro concepto»: sin producto, con su texto y su precio (obligatorios). */
+    concepto?: { titulo: string } | null }[];
   pago: PagoAMano;
   medio: string | null;
   entrega: "retiro" | "envio";
@@ -46,7 +48,10 @@ export function validarPedidoAMano(p: PedidoAMano): void {
   if (!p.lineas.length) throw new ErrorErp("Agregá al menos un producto.");
   p.lineas.forEach((l, i) => {
     const n = i + 1;
-    if (!l.variacionId && !l.sku) throw new ErrorErp(`Línea ${n}: falta el producto.`);
+    if (l.concepto) {
+      if (!l.concepto.titulo.trim()) throw new ErrorErp(`Línea ${n}: escribí qué es el concepto.`);
+      if (l.precio == null) throw new ErrorErp(`Línea ${n}: falta el precio del concepto.`);
+    } else if (!l.variacionId && !l.sku) throw new ErrorErp(`Línea ${n}: falta el producto.`);
     if (!Number.isInteger(l.cantidad) || l.cantidad <= 0) throw new ErrorErp(`Línea ${n}: la cantidad tiene que ser un entero mayor que cero.`);
     if (l.precio != null && !(l.precio >= 0)) throw new ErrorErp(`Línea ${n}: el precio no es válido.`);
   });
@@ -80,8 +85,9 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
   if (p.presupuesto && canal.tipo !== "local") throw new ErrorErp("Los presupuestos se cargan sólo en el canal local.");
   if (p.clienteId && !(await una("select 1 from cliente where id = $1 and organizacion_id = $2", [p.clienteId, org]))) throw new ErrorErp("El cliente no existe.");
   const lineas: LineaEntrada[] = p.lineas.map((l) => ({
-    variacion_id: l.variacionId ?? null, sku: l.variacionId ? null : l.sku ?? null, cantidad: l.cantidad,
+    variacion_id: l.concepto ? null : l.variacionId ?? null, sku: l.concepto || l.variacionId ? null : l.sku ?? null, cantidad: l.cantidad,
     precio_unitario: l.precio ?? null, descuento_pct: l.descuentoPct || null,
+    ...(l.concepto ? { concepto: true, titulo: l.concepto.titulo.trim() } : {}),
   }));
   if (p.presupuesto) {
     const pr = await crearPedido(org, {

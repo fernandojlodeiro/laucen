@@ -64,3 +64,39 @@ test("pedido a mano: precio de lista con descuento extra, precio escrito con des
 
   await assert.rejects(m.pedidos.crearPedido(org, { canalId: canal, lineas: [{ variacion_id: v, cantidad: 1, descuento_pct: 120 }] }, "x"), /descuento/);
 });
+
+test("pedido a mano: «Otro concepto» sin producto, no es «sin vincular», suma al total y sobrevive a la edición", async () => {
+  const org = `test-${randomUUID()}`;
+  await q("insert into organizaciones (id, nombre) values ($1, $2)", [org, `Test ${org}`]);
+  await q("insert into tipo_cambio (organizacion_id, fecha, venta, origen) values ($1, current_date - 1, 1000, 'test')", [org]);
+  await id("insert into deposito (organizacion_id, nombre) values ($1, 'Propio') returning id", [org]);
+  const lista = await id("insert into lista_precios (organizacion_id, nombre) values ($1, 'Local') returning id", [org]);
+  const canal = await id("insert into canal (organizacion_id, nombre, tipo, lista_precios_id) values ($1, 'Local', 'local', $2) returning id", [org, lista]);
+  const p = await id("insert into producto (organizacion_id, sku_base, titulo) values ($1, 'CON-1', 'Producto') returning id", [org]);
+  const v = await id("select id from variacion where producto_id = $1 and es_default", [p]);
+  await m.precios.guardarPrecio(org, { listaId: lista, variacionId: v, importe: 1000, moneda: "ARS" });
+  const { crearPedidoAMano } = await import("@/lib/pedidos/a-mano");
+  const { editarPedido } = await import("@/lib/pedidos/editar");
+
+  const r = await crearPedidoAMano(org, "usuario-prueba", {
+    canalId: canal, clienteId: null, pago: "a_convenir", medio: null, entrega: "retiro",
+    lineas: [{ variacionId: v, cantidad: 1 }, { cantidad: 1, precio: 5000, concepto: { titulo: "Envío a domicilio" } }],
+  });
+  assert.equal(r.totalArs, 6000);
+  const ls = await q<{ variacion_id: string | null; titulo: string; concepto: boolean }>(
+    "select variacion_id, titulo, datos_externos ? 'concepto' concepto from pedido_linea where pedido_id = $1 order by orden", [r.pedidoId]);
+  assert.deepEqual(ls.map((l) => [l.variacion_id == null, l.titulo, l.concepto]), [[false, "Producto", false], [true, "Envío a domicilio", true]]);
+  const [ped] = await q<{ sin_vincular: boolean }>("select sin_vincular from pedido where id = $1", [r.pedidoId]);
+  assert.equal(ped.sin_vincular, false);
+
+  await assert.rejects(crearPedidoAMano(org, "x", { canalId: canal, clienteId: null, pago: "a_convenir", medio: null, entrega: "retiro",
+    lineas: [{ cantidad: 1, precio: 100, concepto: { titulo: "  " } }] }), /concepto/);
+
+  await editarPedido(org, r.pedidoId, "usuario-prueba", {
+    clienteId: null, moneda: null, listaId: null, entrega: "retiro", direccion: null, costoEnvio: null, notas: null, vigencia: null,
+    lineas: [{ variacion_id: v, cantidad: 1 }, { concepto: true, titulo: "Envío a domicilio", cantidad: 1, precio_unitario: 7000 }],
+  });
+  const [t] = await q<{ total_ars: string; sin_vincular: boolean }>("select total_ars, sin_vincular from pedido where id = $1", [r.pedidoId]);
+  assert.equal(Number(t.total_ars), 8000);
+  assert.equal(t.sin_vincular, false);
+});

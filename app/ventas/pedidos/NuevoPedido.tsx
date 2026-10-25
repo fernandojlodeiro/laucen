@@ -24,6 +24,8 @@ type Canal = { id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string }
 /** Hoy + 7, en hora argentina (la vigencia de entrada de un presupuesto). */
 const enUnaSemana = () => { const d = new Date(Date.now() + 7 * 86_400_000); return d.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }); };
 type Linea = { clave: number; variacion: number; sku: string; titulo: string; sugerido: number | null; disponible: number; version: number;
+  /** «Otro concepto» (Fer, 25/10): sin producto; el texto y el precio los escribe quien carga. */
+  concepto?: boolean;
   /** Al editar: lo que ya tenía la línea (hasta que se reprecie). */
   cantidad?: number; precio?: number | null; descuento?: number | null };
 
@@ -295,10 +297,10 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   /** Cambió el canal o el cliente: la lista de precios puede ser otra. Los
    *  precios de las líneas vuelven al de la lista nueva. */
   const reprecio = async (nuevoCanal: number, nuevoCliente: number | null, o: { listaId?: number | null; moneda?: "ARS" | "USD" } = {}) => {
-    const r = await preciosPedido(nuevoCanal, nuevoCliente, lineas.map((l) => l.variacion),
+    const r = await preciosPedido(nuevoCanal, nuevoCliente, lineas.filter((l) => !l.concepto).map((l) => l.variacion),
       { listaId: o.listaId !== undefined ? o.listaId : listaId, moneda: o.moneda ?? moneda });
     setMoneda(r.moneda);
-    setLineas((ls) => ls.map((l) => ({ ...l, sugerido: r.precios[l.variacion] ?? null, precio: undefined, version: l.version + 1 })));
+    setLineas((ls) => ls.map((l) => (l.concepto ? l : { ...l, sugerido: r.precios[l.variacion] ?? null, precio: undefined, version: l.version + 1 })));
     bProducto.limpiar();
   };
 
@@ -309,6 +311,11 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
     setMarcado(0);
     // El cursor va a la cantidad del producto recién sumado.
     setTimeout(() => irA(`l_${clave}_cantidad`), 30);
+  };
+  const agregarConcepto = () => {
+    const clave = proxima.current++;
+    setLineas((ls) => [...ls, { clave, variacion: 0, concepto: true, sku: "", titulo: "", sugerido: null, disponible: 1, version: 0 }]);
+    setTimeout(() => irA(`l_${clave}_titulo`), 30);
   };
   /** ¿El precio escrito no es el de la lista? (se ve en otro color) */
   const distintoDeLista = (l: Linea) => {
@@ -482,10 +489,15 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                       <input type="hidden" name="linea" value={l.clave} />
                       <input type="hidden" name={`l_${l.clave}_variacion`} value={l.variacion} />
                       <input type="hidden" name={`l_${l.clave}_sugerido`} value={l.sugerido ?? ""} />
-                      {l.sku}
+                      {l.concepto && <input type="hidden" name={`l_${l.clave}_concepto`} value="1" />}
+                      {l.concepto ? <span className="font-sans text-[#5C6B76]">Concepto</span> : l.sku}
                     </td>
-                    <td className="py-1.5 px-2">{l.titulo}
-                      {l.disponible <= 0 && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
+                    <td className="py-1.5 px-2">
+                      {l.concepto
+                        ? <label><span className="sr-only">Qué es el concepto</span>
+                            <input name={`l_${l.clave}_titulo`} defaultValue={l.titulo} required maxLength={200} placeholder="Ej.: Envío a domicilio, Servicio técnico" className={`${CAMPO} w-full min-w-48`} /></label>
+                        : l.titulo}
+                      {!l.concepto && l.disponible <= 0 && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
                       {(() => {
                         // Sin precio (vacío o cero): aviso en rojo, nada más (Fer, 7/10).
                         const escrito = Object.hasOwn(preciosEscritos, l.clave) ? preciosEscritos[l.clave] : (l.precio !== undefined ? l.precio : l.sugerido);
@@ -516,6 +528,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
           </div>
         )}
         <div className="relative">
+          <button type="button" className={`${SUAVE} mb-2`} onClick={agregarConcepto}>+ Otro concepto</button>
           <CuadroBusqueda id="buscar-producto" b={bProducto as ReturnType<typeof usarBusqueda<unknown>>} placeholder="SKU, título o código de barras"
             alEnter={() => { const p = bProducto.hallados[marcado] ?? bProducto.hallados[0]; if (p) agregar(p); }}
             alFlecha={(paso) => setMarcado((m) => Math.min(Math.max(m + paso, 0), Math.max(bProducto.hallados.length - 1, 0)))} />
