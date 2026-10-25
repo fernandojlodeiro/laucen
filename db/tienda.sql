@@ -356,3 +356,16 @@ create table if not exists tienda_feed_producto (
 );
 alter table tienda_feed_producto enable row level security;
 select erp_politica_org('tienda_feed_producto');
+
+-- El catálogo calculado de cada tienda (app/tienda/[slug]/catalogo.ts, catalogoGuardado): las páginas leen
+-- esto al instante y uno solo lo recalcula en segundo plano cuando tiene más de 90 segundos.
+create table if not exists tienda_catalogo (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  lista_id         bigint not null,
+  moneda           text not null,
+  filas            jsonb not null,
+  calculado_ts     timestamptz not null default now(),
+  primary key (canal_id, lista_id, moneda)
+);
+alter table tienda_catalogo enable row level security;

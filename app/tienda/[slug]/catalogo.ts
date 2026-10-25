@@ -4,7 +4,7 @@
 // planes de cuotas y el envío gratis. Sólo lectura; lo que cambia algo está en
 // acciones.ts.
 //
-// El catálogo entero se calcula una vez y se guarda 60 segundos (por canal):
+// El catálogo entero se calcula aparte y queda guardado en la base (ver catalogoGuardado):
 // los listados, la portada, las sugerencias del buscador y el menú de
 // categorías filtran ese mismo arreglo en memoria. La ficha del producto, el
 // carrito y el checkout NO usan esa copia: cotizan en vivo.
@@ -12,9 +12,10 @@
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { after } from "next/server";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { consulta, una } from "@/lib/erp/base";
+import { consulta, una, enTransaccion } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca } from "@/lib/tienda/dominios-tienda";
@@ -106,14 +107,57 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
   }));
 }
 
+// El catálogo calculado queda guardado en la base (tienda_catalogo; Fer/Cowork, 25/10): calcularlo lleva
+// ~20 s (precio, promo web y stock de cada variación) y, cuando la copia de 60 s vencía, cada visita lo
+// recalculaba a la vez; las consultas se apilaban, la página tardaba un minuto y Google Ads daba el
+// anuncio por «Destino no operativo». Ahora las páginas leen siempre lo guardado (al instante) y lo
+// recalcula UNO solo, después de contestar, cuando tiene más de 90 segundos (un candado de la base
+// impide que corran dos a la vez). Sólo la primera vez, sin nada guardado, se espera el cálculo.
+const VIEJO_SEG = 90;
+
+async function recalcularCatalogo(org: string, canalId: number, listaId: number, moneda: string): Promise<ProductoBase[] | null> {
+  return enTransaccion(async (c) => {
+    const lock = await c.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(hashtext('tienda_catalogo'), $1::int) ok", [canalId]);
+    if (!lock.rows[0].ok) return null; // ya lo está calculando otro
+    const filas = await leerCatalogo(org, canalId, listaId, moneda);
+    await c.query(`insert into tienda_catalogo (organizacion_id, canal_id, lista_id, moneda, filas, calculado_ts) values ($1, $2, $3, $4, $5::jsonb, now())
+                   on conflict (canal_id, lista_id, moneda) do update set filas = excluded.filas, calculado_ts = now()`,
+      [org, canalId, listaId, moneda, JSON.stringify(filas)]);
+    return filas;
+  });
+}
+
+async function catalogoGuardado(org: string, canalId: number, listaId: number, moneda: string): Promise<ProductoBase[]> {
+  const g = await una<{ filas: ProductoBase[]; viejo: boolean }>(
+    `select filas, calculado_ts < now() - make_interval(secs => $4) viejo from tienda_catalogo where canal_id = $1 and lista_id = $2 and moneda = $3`,
+    [canalId, listaId, moneda, VIEJO_SEG]);
+  if (g) {
+    if (g.viejo) {
+      try { after(() => recalcularCatalogo(org, canalId, listaId, moneda).then(() => undefined).catch((e) => console.error("[tienda] catálogo", e))); }
+      catch { /* fuera de un pedido web: queda la copia */ }
+    }
+    return g.filas;
+  }
+  // Nada guardado todavía: lo calcula este pedido; si ya lo está calculando otro, se espera ese resultado
+  // (calcularlo también acá es justo lo que apilaba las consultas).
+  const r = await recalcularCatalogo(org, canalId, listaId, moneda);
+  if (r) return r;
+  for (let i = 0; i < 25; i++) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    const otro = await una<{ filas: ProductoBase[] }>("select filas from tienda_catalogo where canal_id = $1 and lista_id = $2 and moneda = $3", [canalId, listaId, moneda]);
+    if (otro) return otro.filas;
+  }
+  return [];
+}
+
 /** Todo lo que vende la tienda (los sin stock se sacan si la tienda los oculta). */
 export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   if (!t.listaId) return [];
   const todos = await unstable_cache(
-    () => leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda),
+    () => catalogoGuardado(t.organizacionId, t.canalId, t.listaId!, t.moneda),
     // Cambia la versión cuando cambia la consulta (la copia guardada no se renueva sola).
-    ["tienda-catalogo", "v5", String(t.canalId), String(t.listaId), t.moneda],
-    { revalidate: 60, tags: [`tienda-${t.canalId}`] },
+    ["tienda-catalogo", "v6", String(t.canalId), String(t.listaId), t.moneda],
+    { revalidate: 30, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;
 });
