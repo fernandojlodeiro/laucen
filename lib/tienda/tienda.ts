@@ -11,7 +11,6 @@ export type ConfigTienda = {
   whatsapp?: string;            // número en formato internacional, sin +: 5493511234567
   whatsapp_token?: never;       // las credenciales de WhatsApp van en la tabla de credenciales, no acá
   email?: string; direccion?: string; horario?: string;
-  sin_stock?: "ocultar" | "mostrar";
   // Colores de la tienda (app/tienda/[slug]/tema.ts): cada uno es una variable
   // CSS; vacío = el de siempre. `color` es el viejo "color de la marca" (ya no se usa).
   color_marca?: string;         // franja del encabezado

@@ -46,8 +46,8 @@ create table if not exists precio_web_pendiente (
   desde            timestamptz not null default clock_timestamp()
 );
 alter table precio_web_pendiente enable row level security;
--- Prioridad (Fer, 25/10): 0 = lo que se ve (variación y producto activos, o ya en la tabla) y todo aviso de un
--- cambio real; 1 = lo demás de un «todo» (archivados), que se hace después; 9 = falló el cálculo, se reintenta al final.
+-- Prioridad: 0 = lo normal (todo aviso y lo activo de un «todo»; lo inactivo no entra); 9 = falló el cálculo,
+-- se reintenta al final sin trabar al resto.
 alter table precio_web_pendiente add column if not exists prioridad smallint not null default 0;
 create index if not exists precio_web_pendiente_orden on precio_web_pendiente (prioridad, desde);
 create table if not exists precio_web_todo (
@@ -127,11 +127,14 @@ returns void language plpgsql as $$
 declare t record;
 begin
   for t in select organizacion_id, desde from precio_web_todo for update skip locked loop
+    -- Sólo lo activo (y lo que todavía está en la tabla, para sacarlo). Lo inactivo no se calcula (Fer, 25/10):
+    -- no se vende en ningún lado; cuando se activa, el aviso del producto lo calcula en el momento.
     insert into precio_web_pendiente (variacion_id, organizacion_id, prioridad)
-    select v.id, v.organizacion_id,
-           case when (v.estado = 'activa' and p.estado = 'activo') or exists (select 1 from precio_web pw where pw.variacion_id = v.id) then 0 else 1 end
-      from variacion v join producto p on p.id = v.producto_id where v.organizacion_id = t.organizacion_id
-    on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = least(precio_web_pendiente.prioridad, excluded.prioridad);
+    select v.id, v.organizacion_id, 0
+      from variacion v join producto p on p.id = v.producto_id
+     where v.organizacion_id = t.organizacion_id
+       and ((v.estado = 'activa' and p.estado = 'activo') or exists (select 1 from precio_web pw where pw.variacion_id = v.id))
+    on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = 0;
     -- Las filas de variaciones que ya no existen se van con el cascade; las de canales que dejaron de ser web, acá.
     delete from precio_web pw where pw.organizacion_id = t.organizacion_id
        and not exists (select 1 from precio_web_canales(t.organizacion_id) x where x.canal_id = pw.canal_id);

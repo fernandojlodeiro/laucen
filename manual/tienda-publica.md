@@ -49,7 +49,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
 - Cuotas y descuento contado: con el esquema de [Cuotas y descuentos](/config/tienda/financiacion) prendido, debajo del precio va el plan más largo que le toca a su precio y "$ … con transferencia" (u otros medios con descuento).
-- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado con el recuadro verde "N% OFF" a su derecha, el precio grande ("Desde" si las variaciones tienen distinto precio), las cuotas ("6 cuotas sin interés de $ …"), el precio contado en un recuadro verde suave ("$ … con transferencia o débito"), "Hasta 12 cuotas" en los caros y "Promo web $ …" (azul) en los baratos con stock (con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), **"Llega gratis"** en verde si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
+- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado con el recuadro verde "N% OFF" a su derecha, el precio grande ("Desde" si las variaciones tienen distinto precio), las cuotas ("6 cuotas sin interés de $ …"), el precio contado en un recuadro verde suave ("$ … con transferencia o débito"), "Hasta 12 cuotas" en los caros y "Promo web $ …" (azul) en los baratos con stock (con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), **"Llega gratis"** en verde si el precio llega al envío gratis y "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.
 
@@ -57,7 +57,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 
 - Galería de fotos (las de la variación elegida primero) y, si el producto tiene video (pestaña Fotos de su ficha en el [catálogo](/catalogo/productos)), el video después de la primera foto: en la compu se reproduce solo y sin sonido al elegirlo; en el celular, al deslizar hasta él.
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
-- La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!", "Sin stock"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
+- La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
 - "Medios de pago" con las cuotas y los descuentos por medio; con el esquema de [Cuotas y descuentos](/config/tienda/financiacion), el recuadro "Precio según cómo pagues" (cada forma de pago con su precio y su % OFF). (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
 - Abajo: **Productos relacionados** (de la misma categoría, con stock), **Características del producto** y **Descripción**.
 
@@ -144,13 +144,13 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 - **Precio cero**: una variación con precio cero o sin precio en la lista del canal nunca se muestra ni se puede comprar en la tienda, aunque esté publicada y tenga stock. Aparece sola apenas se le carga un precio.
 - **La web es un canal más**: un producto se ve en la tienda sólo si está **publicado en ese canal web** (el interruptor "Publicado en Web minorista" de la pestaña Publicaciones de su ficha en [Productos](/catalogo/productos)). Además tiene que estar **activo**, tener alguna **variación activa** y esa variación tiene que tener **precio en la lista de precios del canal**. Sin precio en esa lista, no aparece aunque esté publicado.
 - El precio que se muestra en los listados es el **más bajo** de sus variaciones ("Desde" si varían).
-- **Productos sin stock**: se muestran como "Sin stock" o se ocultan, según lo que diga [Tienda web](/config/tienda).
+- **Reglas fijas de la web**: jamás aparece un producto inactivo, sin precio o sin stock — ni en los listados, ni en la ficha abierta por link directo (da "no encontrado"), ni en los catálogos de Google y Meta. No hay configuración que lo cambie.
 - **Stock** = el disponible del canal de la tienda (la suma de sus depósitos activos).
 - **"Ofertas"** = productos cuyo precio de venta es menor que el de lista.
 - **"Más vendidos"**: por unidades vendidas en todos los pedidos (salvo cancelados y devueltos). La etiqueta "Más vendido" la llevan los 10 que más vendieron, con un mínimo de 3 unidades.
 - **"Novedades"**: los productos más nuevos con stock.
 - **Categorías**: sólo las que tienen productos en la tienda (contando sus subcategorías). Elegir una categoría incluye sus subcategorías.
-- **Buscador**: busca todas las palabras en el título, la marca o los SKU, sin importar acentos ni mayúsculas. Ordenando por "Más relevantes", primero los títulos que empiezan con lo buscado, después los que lo contienen, y con stock antes que sin stock.
+- **Buscador**: busca todas las palabras en el título, la marca o los SKU, sin importar acentos ni mayúsculas. Ordenando por "Más relevantes", primero los títulos que empiezan con lo buscado, después los que lo contienen.
 - **Cucardas**: las vigentes hoy del producto y las de su categoría (y categorías de más arriba). Además:
   - **"Última unidad"** (roja) cuando queda una sola en stock para la tienda.
   - **Automáticas**: a un producto sin cucarda cargada y que no es "Más vendido" le toca, a uno de cada tres más o menos, **"Oferta imperdible"** (sólo si tiene descuento) o **"Recomendado"**. Sale sola del número del producto, así que siempre es la misma para el mismo producto. Ninguna automática dice algo que no sea cierto (nada de "últimas N" o "más vendido" inventados). Para que un producto lleve otra, cargale una cucarda en [Cucardas](/catalogo/cucardas): la cargada reemplaza a la automática.
@@ -237,7 +237,7 @@ En [Pedidos](/ventas/pedidos), en el canal de la tienda.
 Cuando la veas acreditada, abrí el pedido y apretá "Confirmar pago de $ …".
 
 **¿Por qué un producto no aparece en la tienda?**
-Puede estar inactivo, no tener precio en la lista de precios del canal de la tienda, o estar sin stock con la tienda configurada para ocultar los sin stock.
+Puede estar inactivo, no tener precio en la lista de precios del canal de la tienda, o estar sin stock.
 
 **¿Por qué el precio de la tienda es distinto al de Mercado Libre?**
 Porque la tienda usa la lista de precios de su propio canal (ver [Canales](/config/canales)).

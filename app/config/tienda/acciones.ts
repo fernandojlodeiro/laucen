@@ -23,7 +23,7 @@ export async function accionCrearTienda() {
     if (await slugOcupado(slug, 0)) slug = `tienda-${s.org.id.slice(0, 6).toLowerCase().replace(/[^a-z0-9]/g, "")}`;
     await consulta(`insert into canal (organizacion_id, nombre, tipo, lista_precios_id, estado, config)
                     values ($1, 'Tienda web', 'web_minorista', $2, 'pausado', $3::jsonb)`,
-      [s.org.id, lista?.id ?? null, JSON.stringify({ nombre: s.org.nombre ?? "Tienda web", slug, sin_stock: "mostrar" })]);
+      [s.org.id, lista?.id ?? null, JSON.stringify({ nombre: s.org.nombre ?? "Tienda web", slug })]);
     revalidatePath(VOLVER);
     return lista ? "Tienda creada (pausada). Completá los datos y activala en Canales." : "Tienda creada (pausada). No encontré la lista \"Web minorista\": elegí una en Canales.";
   });
@@ -37,7 +37,7 @@ async function slugOcupado(slug: string, canalId: number) {
 }
 
 const CLAVES = ["nombre", "slug", "color_marca", "color_marca_texto", "color_boton", "color_verde", "color_fondo", "logo", "banner", "banner_2", "banner_3", "bajada",
-  "devoluciones", "garantia", "sobre_nosotros", "whatsapp", "email", "direccion", "horario", "sin_stock"] as const;
+  "devoluciones", "garantia", "sobre_nosotros", "whatsapp", "email", "direccion", "horario"] as const;
 
 export async function accionGuardarTienda(fd: FormData) {
   const s = await entrarErp("tienda_config");
@@ -62,7 +62,6 @@ export async function accionGuardarTienda(fd: FormData) {
     }
     if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) throw new ErrorErp("El mail no parece válido.");
     for (const k of ["logo", "banner", "banner_2", "banner_3"] as const) if (v[k] && !/^https:\/\//.test(v[k]!)) v[k] = null;
-    v.sin_stock = v.sin_stock === "ocultar" ? "ocultar" : "mostrar";
 
     // Se mezcla en config: las claves vacías se sacan y las demás (token,
     // sincronizar_stock, etc.) quedan como estaban.

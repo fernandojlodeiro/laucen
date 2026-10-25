@@ -81,7 +81,7 @@ export async function accionGuardarFeed(fd: FormData) {
     await canalDeLaOrg(s.org.id, canal);
     const bandas = String(fd.get("bandas") ?? "").split(/[\s;/]+/).map((x) => Number(x.replace(/\./g, "").replace(",", "."))).filter((n) => n > 0);
     if (String(fd.get("bandas") ?? "").trim() && !bandas.length) throw new ErrorErp("Las bandas de precio son montos separados por espacio (ej. 33.000 300.000).");
-    const valor = { bandas: [...new Set(bandas)].sort((a, b) => a - b).slice(0, 6), sin_stock: fd.get("sin_stock") === "agotado" ? "agotado" : "no_va" };
+    const valor = { bandas: [...new Set(bandas)].sort((a, b) => a - b).slice(0, 6) };
     await consulta(`update canal set config = jsonb_set(coalesce(config, '{}'::jsonb), '{publicidad_feed}', $3::jsonb) where id = $1 and organizacion_id = $2`,
       [canal, s.org.id, JSON.stringify(valor)]);
     revalidatePath(BASE);

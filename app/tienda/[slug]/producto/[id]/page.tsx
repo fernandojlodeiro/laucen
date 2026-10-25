@@ -52,8 +52,10 @@ async function ficha(t: Tienda, productoId: number) {
       from variacion v cross join lateral (select * from precio_de($2, v.id, $5)) pr
      where v.producto_id = $1 and v.organizacion_id = $2 and v.estado = 'activa'
        and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
+       -- Reglas de la web, sin excepción (Fer, 25/10): sin stock no se muestra, tampoco por link directo.
+       and stock_disponible_canal($2, v.id, $3) > 0
      order by v.orden, v.id`, [productoId, org, t.canalId, t.moneda, t.listaId]) : [];
-  if (!filas.length) return null; // ninguna variación con precio: no se vende
+  if (!filas.length) return null; // ninguna variación activa con precio y stock: no está en la web
   const ids = filas.map((f) => f.id);
   const [atributos, fotosProducto, fotosVariacion, caracteristicas, cucardas] = await Promise.all([
     consulta<{ variacion_id: number; nombre: string; valor: string }>(

@@ -26,7 +26,7 @@ Menú **Configuración › Tienda web › Publicidad**. Si hay más de una tiend
   - **TikTok**, con su interruptor: **ID del píxel de TikTok** (letras y números).
   - **Con transferencia o efectivo, la venta cuenta al hacer el pedido** (tildado de entrada).
   - **Mandar el mail y el teléfono del comprador con la compra**.
-- **Catálogos de productos**: la dirección del catálogo de cada plataforma en cada dominio, **cuántos productos salen** y cuántos quedan afuera y por qué (sin stock, sin foto, excluidos), las **bandas de precio** y qué hacer con **los productos sin stock**.
+- **Catálogos de productos**: la dirección del catálogo de cada plataforma en cada dominio, **cuántos productos salen** y cuántos quedan afuera y por qué (sin stock, sin foto, excluidos), y las **bandas de precio**. Los productos sin stock nunca van.
 - **Grupos de campaña por categoría**: el grupo de cada categoría (por ejemplo «notebooks», «impresoras_3d», «componentes»).
 - **No van al catálogo**: las categorías y los productos que no se anuncian.
 
@@ -66,7 +66,7 @@ En **No van al catálogo**, **"+ Agregar"**: una categoría (con sus subcategor�
 - **El valor de la compra** es lo que se cobró de productos (con los descuentos), sin el envío; el envío va aparte.
 - **Mail y teléfono del comprador** (si está tildado): Google y TikTok los usan cifrados para reconocer ventas que si no se pierden.
 - **Cada dominio mide lo suyo**: las etiquetas de un dominio sólo están en las páginas de ese dominio.
-- **Qué entra al catálogo**: una fila por variación publicada en la tienda, activa y con precio; sin foto no va; sin stock, según la configuración (de entrada no va). Lo excluido no va.
+- **Qué entra al catálogo**: una fila por variación publicada en la tienda, activa y con precio; sin foto no va; sin stock nunca va. Lo excluido no va.
 - **El precio en el catálogo**:
   - **Google**: sólo el precio que paga el comprador en la ficha (el precio grande), sin el tachado. Google controla que un precio tachado se haya cobrado de verdad y si no lo puede comprobar desaprueba el producto. El mismo precio va en los datos de la ficha que lee Google.
   - **Meta y TikTok**: el tachado como precio y el precio grande como precio con descuento, así el anuncio muestra la rebaja.
