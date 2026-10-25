@@ -13,8 +13,9 @@
 --   - precio_web_procesar lo recalcula cada 10 segundos (pg_cron), de a lotes, uno solo a la vez.
 --   - Un precio depende también de la FECHA (un precio cargado para mañana, el dólar del día): a las 00:00
 --     (hora de la base) se recalcula todo. No es un parche: es parte de la cuenta.
---   - Control: cada 10 minutos se comparan 300 filas al azar contra la cuenta en vivo y cada noche todas.
---     Una diferencia se corrige en el acto y queda anotada (precio_web_diferencia) para encontrar la causa.
+--   - Control: cada 10 minutos se comparan 300 filas al azar contra la cuenta en vivo, y una vez por día
+--     (la primera, apenas se llena la tabla) todas. Una diferencia se corrige en el acto y queda anotada
+--     (precio_web_diferencia) para encontrar la causa.
 --   - precio_web_dependencias_sin_aviso() recorre las funciones del precio y lista toda tabla que lean sin
 --     disparador: el control la corre y la prueba automática no deja pasar una dependencia nueva sin aviso.
 
@@ -316,19 +317,39 @@ begin
     end loop;
   end if;
   sin := precio_web_dependencias_sin_aviso();
+  -- Una tabla del precio sin aviso (se volvió a crear, se sumó una dependencia nueva): mientras no se
+  -- arregle, cada control recalcula todo, así nada queda con un precio viejo más de 10 minutos.
+  if sin <> '{}' then perform precio_web_todo_todas(); end if;
   insert into precio_web_control (tipo, revisadas, diferencias, faltantes, sobrantes, sin_aviso)
   values (case when p_muestra is null then 'completo' else 'muestra' end, rev, dif, falt, sobr, nullif(sin, '{}'));
   return dif + falt;
 end $$;
 
--- ── pg_cron: procesar cada 10 s, controlar cada 10 min, todo a las 00:00 y control completo a las 01:00 ──
+-- El control de cada 10 minutos: completo si no hubo uno completo en el último día (el primero corre
+-- apenas se crea la tabla, después una vez por día); si no, 300 filas al azar.
+create or replace function public.precio_web_controlar_auto()
+returns int language plpgsql as $$
+begin
+  -- Mientras se está llenando por primera vez (o recalculando todo) no se controla: faltan filas a propósito.
+  if exists (select 1 from precio_web_todo) or (select count(*) from precio_web_pendiente) > 50 then return 0; end if;
+  if not exists (select 1 from precio_web_control where tipo = 'completo' and ts > now() - interval '1 day') then
+    return precio_web_controlar(null);
+  end if;
+  return precio_web_controlar(300);
+end $$;
+
+-- La primera vez (tabla vacía) se llena entera.
+insert into precio_web_todo (organizacion_id)
+select distinct organizacion_id from canal where tipo = 'web_minorista' and not exists (select 1 from precio_web)
+on conflict (organizacion_id) do nothing;
+
+-- ── pg_cron: procesar cada 10 s, controlar cada 10 min y recalcular todo a las 00:00 (por la fecha) ──
 do $$
 declare
   trabajos text[][] := array[
     ['precio-web-procesar', '10 seconds', 'select public.precio_web_procesar(500)'],
-    ['precio-web-control', '*/10 * * * *', 'select public.precio_web_controlar(300)'],
-    ['precio-web-dia', '0 0 * * *', 'select public.precio_web_todo_todas()'],
-    ['precio-web-control-noche', '0 1 * * *', 'select public.precio_web_controlar(null)']];
+    ['precio-web-control', '*/10 * * * *', 'select public.precio_web_controlar_auto()'],
+    ['precio-web-dia', '0 0 * * *', 'select public.precio_web_todo_todas()']];
   i int; j record;
 begin
   if to_regclass('cron.job') is null then return; end if;
