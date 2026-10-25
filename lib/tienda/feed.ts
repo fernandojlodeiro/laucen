@@ -17,6 +17,7 @@
 // Lo que no sale y por qué se cuenta (Configuración › Tienda web › Publicidad): sin stock (o va como
 // "out of stock", según la configuración), sin foto o excluido (por categoría o producto).
 
+import { precioWebListo } from "@/lib/tienda/precio-web";
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { consulta } from "@/lib/erp/base";
 import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
@@ -60,6 +61,8 @@ type Fila = {
 export async function catalogoPublicidad(t: Tienda, base: string, plataforma: Plataforma): Promise<Catalogo> {
   if (!t.listaId) return { xml: envolver(t, base, ""), salen: 0, afuera: { sin_stock: 0, sin_foto: 0, excluido: 0 } };
   const org = t.organizacionId;
+  // Los precios ya calculados (precio_web) si la tabla está lista; si no, la cuenta en vivo (dan lo mismo).
+  const tabla = await precioWebListo(t.canalId, t.listaId);
   const [filas, familias, reglas, conf] = await Promise.all([
     consulta<Fila>(`
       select v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo, p.descripcion, p.marca, p.modelo, p.condicion,
@@ -67,10 +70,11 @@ export async function catalogoPublicidad(t: Tienda, base: string, plataforma: Pl
              coalesce((select array_agg(url order by orden, id) from (select url, orden, id from variacion_foto where variacion_id = v.id order by orden, id limit 10) x),
                       (select array_agg(url order by orden, id) from (select url, orden, id from producto_foto where producto_id = p.id order by orden, id limit 10) y)) fotos,
              case when $4 = 'USD' then pr.lista_usd else pr.lista_ars end lista, case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
-             greatest(stock_disponible_canal($1, v.id, $2), 0)::int disponible,
+             pr.disp::int disponible,
              exists (select 1 from tienda_feed_producto x where x.canal_id = $2 and x.producto_id = p.id) excluido_producto
         from variacion v join producto p on p.id = v.producto_id
-        cross join lateral (select * from precio_de($1, v.id, $3)) pr
+        ${tabla ? "join precio_web pr on pr.canal_id = $2 and pr.lista_id = $3 and pr.variacion_id = v.id"
+          : "cross join lateral (select *, greatest(stock_disponible_canal($1, v.id, $2), 0) disp from precio_de($1, v.id, $3)) pr"}
        where v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$2")}
          and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
        order by p.id, v.orden, v.id`, [org, t.canalId, t.listaId, t.moneda]),

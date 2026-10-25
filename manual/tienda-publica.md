@@ -169,6 +169,9 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
   3. El **descuento o recargo del medio de pago**, sobre lo que quedó.
   4. El **envío**, según el método y la provincia; gratis si los productos llegan al "Gratis desde" del método o si una regla bonifica el envío.
 - Los descuentos quedan **ya aplicados en el precio de cada línea** del pedido (por eso en la página del pedido dice "ya está aplicado en los precios").
+- **De dónde salen los precios de los listados**: el precio de cada producto (venta, tachado, % OFF, promo web y stock) queda calculado y guardado, así los listados, la portada y los catálogos de Google y Meta abren al instante con cualquier cantidad de productos. Se recalcula solo, en segundos, cada vez que cambia algo que lo mueve: su precio, su stock (o el de los componentes de un kit), el producto, sus publicaciones de Mercado Libre, la lista de precios, el dólar, las comisiones y cargos de Mercado Libre, las reglas de tachado, las categorías o los depósitos. A la medianoche se recalcula todo (por los precios con fecha y el dólar del día).
+- **Lo que se cobra siempre se calcula en el momento**: la ficha del producto, el carrito, el checkout y el pedido no usan lo guardado, hacen la cuenta en vivo.
+- **Control**: cada 10 minutos se compara una muestra de lo guardado contra la cuenta en vivo, y una vez por día todo. Si algo no coincide, se corrige en el acto y queda anotado para encontrar la causa.
 
 ### Al confirmar la compra
 
