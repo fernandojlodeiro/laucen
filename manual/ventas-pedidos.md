@@ -182,6 +182,8 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 1. En **"Operación"**, apretá el botón del estado siguiente (por ejemplo **"Preparado"**, **"Despachado"**, **"Entregado"**).
 2. Para **"Despachado"** podés escribir en **"Seguimiento / nota"** el número de seguimiento (por ejemplo "OCA 1234567890"); queda en el historial y se usa en el mensaje de WhatsApp.
 
+- En los pedidos de la tienda web, **"Preparado"** (si retira) y **"Despachado"** le avisan al cliente: por mail y, si eligió WhatsApp al comprar, también por WhatsApp. Lo dice debajo de los botones. Ver [Correo](/config/correo).
+
 ### Cancelar un pedido
 
 1. En **"Operación"**, apretá **"Cancelar pedido"**. Pregunta "¿Cancelar el pedido?" y dice qué más va a pasar. Confirmá con **"Sí"**.

@@ -186,19 +186,34 @@ export async function alAutorizarMail(org: string, comprobanteId: number): Promi
   }
 }
 
-/** Lo que dejó la cola de cambios de estado (correo_cola): hasta 20 por vuelta. */
+/** Lo que dejó la cola de cambios de estado (correo_cola): hasta 20 por vuelta. Cada aviso sale por mail y,
+ *  si el cliente eligió WhatsApp, también por WhatsApp (lib/mensajes/avisos-pedido.ts); cada canal con sus
+ *  reintentos: el mail hasta 5, el WhatsApp cada 10 minutos durante 3 días (plantilla en aprobación). */
 export async function procesarCola(org: string | null, hastaMs: number): Promise<{ enviados: number; fallidos: number }> {
-  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar"; nota: string | null }>(`
-    select id::int, organizacion_id, pedido_id::int, tipo, nota from correo_cola
-     where hecho_ts is null and intentos < 5 and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
+  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar"; nota: string | null;
+    falta_mail: boolean; falta_wa: boolean }>(`
+    select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa from correo_cola
+     where (${SQL_FALTA_MAIL} or ${SQL_FALTA_WA}) and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
   let enviados = 0, fallidos = 0;
+  const { avisarPorWhatsapp } = await import("@/lib/mensajes/avisos-pedido");
   for (const f of filas) {
     if (Date.now() > hastaMs) break;
-    const r = await mailPedido(f.organizacion_id, f.pedido_id, f.tipo, f.nota).catch((e) => ({ ok: false, motivo: e instanceof Error ? e.message : String(e) }) as Resultado);
-    // Sin mail del cliente no hay nada que reintentar; sin configurar, se reintenta después (hasta 5).
-    const terminado = r.ok || r.motivo === "sin_mail" || r.motivo === "dominio_sin_correo" || r.motivo === "mail_invalido";
-    await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 then now() end where id = $1`, [f.id, terminado]);
-    if (r.ok) enviados++; else if (!terminado) fallidos++;
+    if (f.falta_mail) {
+      const r = await mailPedido(f.organizacion_id, f.pedido_id, f.tipo, f.nota).catch((e) => ({ ok: false, motivo: e instanceof Error ? e.message : String(e) }) as Resultado);
+      // Sin mail del cliente no hay nada que reintentar; sin configurar, se reintenta después (hasta 5).
+      const terminado = r.ok || r.motivo === "sin_mail" || r.motivo === "dominio_sin_correo" || r.motivo === "mail_invalido";
+      await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 then now() end where id = $1`, [f.id, terminado]);
+      if (r.ok) enviados++; else if (!terminado) fallidos++;
+    }
+    if (f.falta_wa) {
+      const w = await avisarPorWhatsapp(f.organizacion_id, f.pedido_id, f.tipo, f.nota)
+        .catch((e) => ({ estado: "pendiente" as const, detalle: e instanceof Error ? e.message : String(e) }));
+      await consulta(`update correo_cola set wa_intentos = wa_intentos + 1, wa_intento_ts = now(), wa_estado = $2, wa_detalle = $3,
+                             wa_hecho_ts = case when $2 <> 'pendiente' then now() end where id = $1`, [f.id, w.estado, w.detalle.slice(0, 300)]);
+    }
   }
   return { enviados, fallidos };
 }
+
+const SQL_FALTA_MAIL = "(hecho_ts is null and intentos < 5)";
+const SQL_FALTA_WA = "(wa_hecho_ts is null and wa_intentos < 300 and creado_ts > now() - interval '3 days' and (wa_intento_ts is null or wa_intento_ts < now() - interval '10 minutes'))";

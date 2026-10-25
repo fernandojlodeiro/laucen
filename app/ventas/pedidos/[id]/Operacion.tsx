@@ -339,6 +339,13 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             )}
           </div>
         )}
+        {/* Los avisos que dispara el estado (correo_cola → mail y WhatsApp; sólo pedidos de la tienda web). */}
+        {p.canal_tipo === "web_minorista" && siguientes.some((x) => x.estado === "despachado" || (x.estado === "preparado" && p.retiro)) && (
+          <p className="text-[11px] text-[#5C6B76]">
+            {siguientes.some((x) => x.estado === "preparado") && p.retiro ? "«Preparado» le avisa al cliente que ya puede retirarlo" : "«Despachado» le avisa al cliente que va en camino (con la nota de seguimiento)"}:
+            {" "}por mail y, si eligió WhatsApp al comprar, también por WhatsApp.
+          </p>
+        )}
         {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado. Al confirmar el pago pasa a «A preparar» y entra en picking.</p>}
         {/* A cuenta corriente sin crédito suficiente: no entra en picking (lib/administracion/credito.ts). */}
         {frenoCc && (
