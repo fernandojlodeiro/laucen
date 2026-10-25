@@ -33,6 +33,7 @@ import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolib
 import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/drive-ddjj";
 import { leerFacturasDelDrive, organizacionesParaLeerFacturas } from "@/lib/compras/drive-facturas";
+import { renovarTokensInstagram } from "@/lib/mensajes/instagram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -100,6 +101,8 @@ export async function GET(req: Request) {
   } catch (e) {
     informe.cambios_stock_error = e instanceof Error ? e.message : String(e);
   }
+  // Los tokens de Instagram duran 60 días: de noche se renuevan los que vencen en menos de 20 (lib/mensajes/instagram.ts).
+  if (enVentanaBarrida()) informe.instagram = await renovarTokensInstagram().catch((e) => (e instanceof Error ? e.message : String(e)));
   // Mercado Libre: la cola de salida (hasta ~45 s) y, de noche, la barrida.
   // Van en paralelo con las importaciones: son pedidos a ML, no a la base.
   const cola = await hayPendientes();

@@ -34,11 +34,11 @@ export const MODELO_TIENDA = "claude-sonnet-5-5";
 const PRECIO = { entrada: 2, salida: 10, escrituraCache: 2.5, lecturaCache: 0.2 };
 const MAX_VUELTAS = 6;
 
-const SISTEMA = `Sos la persona que atiende los mensajes de los clientes de una tienda argentina (venta online y por Mercado Libre). Tu nombre, el de la tienda y lo que sabés de ella te llegan en el contexto de abajo. Le escribís a clientes y a gente interesada, casi siempre por WhatsApp.
+const SISTEMA = `Sos la persona que atiende los mensajes de los clientes de una tienda argentina (venta online y por Mercado Libre). Tu nombre, el de la tienda y lo que sabés de ella te llegan en el contexto de abajo. Le escribís a clientes y a gente interesada, por WhatsApp o por mensaje directo de Instagram.
 
 Cómo escribís:
 - Castellano rioplatense ("vos", "tenés", "fijate"), cálido y corto, como se escribe por WhatsApp: una o dos frases, tres como mucho. Sin títulos ni listas largas; si hace falta enumerar, pocos renglones cortos con guiones.
-- Formato de WhatsApp: *negrita* con un asterisco, sin markdown de enlaces (el link va pegado tal cual).
+- Formato de WhatsApp: *negrita* con un asterisco, sin markdown de enlaces (el link va pegado tal cual). Por Instagram, texto sin asteriscos ni formato, hasta 1.000 caracteres.
 - Precios con formato argentino ($ 12.345). Siempre aclarás que el precio puede cambiar y que lo que vale es el de la tienda al comprar.
 - Nunca digas que sos una inteligencia artificial salvo que te lo pregunten directamente; si te lo preguntan, decí la verdad.
 
@@ -158,8 +158,8 @@ async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promis
     lineas.push("- Esta organización todavía no tiene tienda web: no hay catálogo para consultar.");
   }
   const cli = chat.clienteId ? await una<{ nombre: string }>("select nombre from cliente where id = $1", [chat.clienteId]) : null;
-  if (!cli && chat.canal === "whatsapp") lineas.push("- Todavía no sabemos si es cliente. Si habla de una compra, un pedido o una factura, preguntale con amabilidad si ya nos compró y pedile su DNI o CUIT y su nombre y apellido (o el mail con el que compró), y usá identificar_cliente.");
-  lineas.push(`- Le escribís a ${cli ? `${cli.nombre} (cliente cargado)` : chat.nombre || "alguien que todavía no es cliente"}${chat.canal === "whatsapp" ? ` por WhatsApp (${telefonoLindo(chat.externo)})` : " (es una prueba desde el panel)"}.`);
+  if (!cli && (chat.canal === "whatsapp" || chat.canal === "instagram")) lineas.push("- Todavía no sabemos si es cliente. Si habla de una compra, un pedido o una factura, preguntale con amabilidad si ya nos compró y pedile su DNI o CUIT y su nombre y apellido (o el mail con el que compró), y usá identificar_cliente.");
+  lineas.push(`- Le escribís a ${cli ? `${cli.nombre} (cliente cargado)` : chat.nombre || "alguien que todavía no es cliente"}${chat.canal === "whatsapp" ? ` por WhatsApp (${telefonoLindo(chat.externo)})` : chat.canal === "instagram" ? " por Instagram (mensaje directo; no sabemos su teléfono)" : " (es una prueba desde el panel)"}.`);
   const casos = await casosAbiertos(chat.organizacionId, chat.id);
   lineas.push(casos.length ? `- Casos abiertos de este chat (esperando a una persona): ${casos.map((k) => `#${k.id} ${k.asunto}`).join("; ")}.` : "- No hay casos abiertos en este chat.");
   // Las reglas de la empresa para la IA (Configuración › Respuestas de la IA): las mismas que preguntas y mensajes de ML.
@@ -355,6 +355,19 @@ export async function contestar(org: string, chatId: number, encargo?: string): 
 export async function mandar(org: string, chat: Chat, texto: string, extra: {
   clase: "ia" | "operador"; usuarioId?: string; herramientas?: unknown; tokensIn?: number; tokensOut?: number; usd?: number;
 }): Promise<{ ok: boolean; motivo?: string }> {
+  if (chat.canal === "instagram") {
+    // Instagram (lib/mensajes/instagram.ts): sale con el token de la cuenta conectada; el id del mensaje evita duplicarlo
+    // cuando vuelve como eco.
+    const { cuentaDeOrg, enviarInstagram } = await import("./instagram");
+    const cuenta = await cuentaDeOrg(org);
+    if (!cuenta) {
+      await guardarMensaje({ org, chatId: chat.id, texto, ...extra, estado: "fallido", motivo: "No hay un Instagram conectado." });
+      return { ok: false, motivo: "No hay un Instagram conectado." };
+    }
+    const r = await enviarInstagram(cuenta, chat.externo, texto);
+    await guardarMensaje({ org, chatId: chat.id, texto, ...extra, wamid: r.ok && r.mid ? `ig:${r.mid}` : null, estado: r.ok ? "enviado" : "fallido", motivo: r.ok ? null : r.motivo });
+    return r.ok ? { ok: true } : { ok: false, motivo: r.motivo };
+  }
   if (chat.canal === "prueba") {
     await guardarMensaje({ org, chatId: chat.id, texto, ...extra });
     return { ok: true };

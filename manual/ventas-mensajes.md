@@ -53,7 +53,7 @@ La pantalla se actualiza sola cada pocos segundos.
 
 **Probar la IA**: un chat con aspecto de WhatsApp donde vos sos el cliente. Contesta igual que por WhatsApp, pero no se manda nada. Debajo de cada respuesta muestra lo que costó. **"Empezar de nuevo"** borra la prueba (pregunta Sí/No).
 
-**Configuración**: el número conectado (**"Conectar WhatsApp"**, **"Volver a conectar"**, **"Desconectar"**), el interruptor de la IA para todos los chats, y la ficha de la IA: Nombre, Tope por mes (US$), Respuestas por hora y chat, Espera (segundos), Marca del teléfono y Lo que sabe para los clientes. Se edita con el lápiz y se graba con **"Grabar"**.
+**Configuración**: el número de WhatsApp conectado (**"Conectar WhatsApp"**, **"Volver a conectar"**, **"Desconectar"**), la cuenta de **Instagram** (**"Conectar Instagram"**, **"Volver a conectar"**, **"Desconectar"**), el interruptor de la IA para todos los chats, y la ficha de la IA: Nombre, Tope por mes (US$), Respuestas por hora y chat, Espera (segundos), Marca del teléfono y Lo que sabe para los clientes. Se edita con el lápiz y se graba con **"Grabar"**.
 
 ## Cómo se hace
 
@@ -63,6 +63,16 @@ La pantalla se actualiza sola cada pocos segundos.
 3. Te pide escanear un código con la app WhatsApp Business del teléfono: escanealo.
 4. Volvés a Laucen con el aviso "¡WhatsApp conectado!". Desde ese momento los mensajes nuevos llegan a la bandeja y los contesta la IA.
 5. Si en Meta quedó permiso sobre más de un número (por ejemplo, porque la cuenta de Meta también tiene el número de otro negocio), Laucen no conecta ninguno solo: muestra **"¿Qué número conectás a Laucen?"** con cada número y su botón **"Conectar este número"**. Un número cuya cuenta de WhatsApp ya usa otro sistema aparece como **"Ya lo usa otro sistema"** y no se puede conectar: conectarlo le cortaría los mensajes a ese sistema (hay que pasarlo a una cuenta de WhatsApp propia en Meta).
+
+### Conectar el Instagram del negocio
+1. La cuenta de Instagram tiene que ser **profesional** (de empresa o de creador; se cambia en la app de Instagram, en Configuración › Tipo de cuenta).
+2. En [Configuración](/ventas/mensajes/configuracion), recuadro **Instagram**, apretá **"Conectar Instagram"**.
+3. Se abre Instagram: entrá con la cuenta del negocio y aceptá los permisos de mensajes.
+4. Volvés a Laucen con el aviso "¡Instagram conectado!". Desde ese momento los mensajes directos llegan a la bandeja con el ícono 📷 y los contesta la IA, con las mismas reglas que WhatsApp (sólo se le puede escribir dentro de las 24 horas desde su último mensaje).
+
+Lo que se conteste desde la app de Instagram también aparece en la conversación. El permiso de Instagram dura 60 días y Laucen lo renueva solo.
+
+**«La app de Instagram de Laucen»** (sólo la ve el dueño del sistema, en la misma pantalla): el identificador y la clave secreta de la app de Meta por la que entran los mensajes de Instagram, y las direcciones y la clave de verificación para cargar en esa app. Mientras no esté cargada, el botón dice «Conectar Instagram (próximamente)».
 
 ### Contestar vos un chat
 1. Abrí el chat.

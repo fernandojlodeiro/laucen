@@ -68,3 +68,34 @@ export async function accionElegirNumero(fd: FormData) {
   revalidatePath("/ventas/mensajes", "layout");
   redirect(`${VOLVER}?wa=${r}${r === "conectado" ? "" : `&alta=${alta}`}`);
 }
+
+// ── Instagram (Fer, 25/10; lib/mensajes/instagram.ts) ────────────────
+
+/** La app de Meta de Instagram de Laucen (id y clave secreta): sólo el dueño del sistema. La clave no se vuelve a
+ *  mostrar; vacía, queda la que estaba. */
+export async function accionGuardarAppInstagram(fd: FormData) {
+  await entrarErp("mensajes_config");
+  const { sosVos } = await import("@/lib/admin");
+  await intentar(`${VOLVER}?editar=ig`, async () => {
+    if (!(await sosVos())) throw new ErrorErp("Esto lo carga sólo el dueño del sistema.");
+    const appId = (texto(fd, "app_id") ?? "").replace(/\s/g, "");
+    if (!/^\d{6,25}$/.test(appId)) throw new ErrorErp("El identificador de la app de Instagram son sólo números (lo da Meta en la app, «Instagram» › «Configuración de la API»).");
+    const secreto = (texto(fd, "app_secret") ?? "").trim();
+    if (secreto && !/^[0-9a-f]{20,64}$/i.test(secreto)) throw new ErrorErp("La clave secreta de la app no tiene la forma de las de Meta (letras de la a a la f y números).");
+    const { guardarAppInstagram, appInstagram } = await import("@/lib/mensajes/instagram");
+    await guardarAppInstagram(appId, secreto || null);
+    if (!(await appInstagram())?.appSecret) throw new ErrorErp("Falta la clave secreta de la app.");
+    revalidatePath(VOLVER);
+    return { ir: `${VOLVER}?ok=${encodeURIComponent("Listo: la app de Instagram quedó cargada.")}` };
+  });
+}
+
+export async function accionDesconectarInstagram() {
+  const s = await entrarErp("mensajes_config");
+  await intentar(VOLVER, async () => {
+    const { desconectar } = await import("@/lib/mensajes/instagram");
+    await desconectar(s.org.id);
+    revalidatePath(VOLVER);
+    return "Listo: Instagram desconectado. Laucen ya no recibe ni contesta sus mensajes.";
+  });
+}

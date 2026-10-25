@@ -1,5 +1,5 @@
-// Ventas › WhatsApp › Configuración: el número conectado (alta embebida de
-// Meta con coexistencia: sigue andando en el teléfono), el interruptor de la
+// Ventas › Mensajes › Configuración: el número de WhatsApp conectado (alta embebida de
+// Meta con coexistencia: sigue andando en el teléfono), la cuenta de Instagram (Fer, 25/10), el interruptor de la
 // IA para todos los chats y su ficha (nombre, lo que sabe para los clientes,
 // tope de gasto, límite por hora, marca del teléfono y espera). Abre en
 // vista; se edita con el lápiz.
@@ -13,12 +13,28 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionElegirNumero, accionGuardarMensajes, accionIaGeneral } from "./acciones";
+import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionIaGeneral } from "./acciones";
+import { appInstagram, claveDeVerificacion, cuentaDeOrg, hayAppInstagram } from "@/lib/mensajes/instagram";
+import { sosVos } from "@/lib/admin";
+import { urlPanel } from "@/lib/tienda/dominios";
 import { pendienteDe } from "@/lib/mensajes/alta";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; ok?: string; error?: string; wa?: string; alta?: string };
+type SP = { editar?: string; ok?: string; error?: string; wa?: string; alta?: string; ig?: string };
+
+const VUELTA_IG: Record<string, { ok: boolean; texto: string }> = {
+  ok: { ok: true, texto: "¡Instagram conectado! Desde ahora los mensajes directos llegan a Mensajes y los contesta la IA." },
+  cancelado: { ok: false, texto: "Se canceló la conexión con Instagram antes de terminar." },
+  rechazo: { ok: false, texto: "Instagram no dio el permiso. Probá de nuevo y aceptá todos los pasos." },
+  estado: { ok: false, texto: "La conexión tardó demasiado o vino de otro lado. Empezala de nuevo." },
+  canje: { ok: false, texto: "Instagram no terminó de dar el permiso. Probá de nuevo en un rato." },
+  cuenta: { ok: false, texto: "Instagram dio el permiso pero no dijo qué cuenta es. Probá de nuevo." },
+  suscribir: { ok: false, texto: "Se conectó, pero Instagram no aceptó mandar los mensajes a Laucen. Revisá que la cuenta sea profesional y probá de nuevo." },
+  otra_org: { ok: false, texto: "Esa cuenta de Instagram ya está conectada a otra organización." },
+  sinpermiso: { ok: false, texto: "Tu rol no puede conectar Instagram." },
+  sinapp: { ok: false, texto: "Falta cargar la app de Meta de Instagram (abajo, en «La app de Instagram de Laucen»)." },
+};
 const VOLVER = "/ventas/mensajes/configuracion";
 const AYUDA = "block text-[11px] text-[#5C6B76] mt-0.5";
 
@@ -43,13 +59,16 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const [c, gasto, cred] = await Promise.all([configMensajes(s.org.id), gastoMensajesDelMes(s.org.id), credencialDeOrg(s.org.id)]);
   const editando = editandoFicha(sp);
-  const vuelta = sp.wa ? VUELTA[sp.wa] : null;
+  const vuelta = sp.wa ? VUELTA[sp.wa] : sp.ig ? VUELTA_IG[sp.ig] : null;
+  const [ig, appIg, esDueno] = await Promise.all([cuentaDeOrg(s.org.id), appInstagram(), sosVos()]);
+  const verifyIg = esDueno ? await claveDeVerificacion() : null;
+  const editandoIg = sp.editar === "ig" && esDueno;
   const lista = hayAppDeMeta();
   // Meta dio permiso sobre varios números (bitácora #868): se elige cuál conectar.
   const pendiente = sp.alta ? await pendienteDe(s.org.id, Number(sp.alta) || 0) : null;
 
   return (
-    <Pantalla titulo="WhatsApp" subtitulo="El número conectado y la IA que contesta los mensajes" ancho="max-w-4xl">
+    <Pantalla titulo="Mensajes" subtitulo="El WhatsApp y el Instagram conectados, y la IA que contesta los mensajes" ancho="max-w-4xl">
       <Avisos sp={sp} />
       {vuelta && <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${vuelta.ok ? "bg-[#E8F5EE] text-[#167655]" : "bg-[#FDF0E6] text-[#8a6100]"}`}>{vuelta.texto}</p>}
       <PestanasMensajes org={s.org.id} permisos={s.permisos} superadmin={s.superadmin} activa="config" />
@@ -79,7 +98,7 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
       <div className={`${CAJA} mb-4 text-xs space-y-2`}>
         {cred ? (
           <>
-            <p><b>{cred.numero || cred.phoneNumberId}</b>{cred.nombre ? ` · ${cred.nombre}` : ""} — conectado{cred.coexistencia ? " con coexistencia: sigue andando en el teléfono, y lo que contesten desde ahí también aparece en Chats" : " sólo a Laucen"}.</p>
+            <p><b>{cred.numero || cred.phoneNumberId}</b>{cred.nombre ? ` · ${cred.nombre}` : ""} — conectado{cred.coexistencia ? " con coexistencia: sigue andando en el teléfono, y lo que contesten desde ahí también aparece en Mensajes" : " sólo a Laucen"}.</p>
             <div className="flex flex-wrap gap-2 items-center">
               <a href="/api/whatsapp/conectar/ir" className={SUAVE}>Volver a conectar</a>
               <details className="inline-block">
@@ -100,6 +119,61 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
           </>
         )}
       </div>
+
+      <TituloSeccion titulo="Instagram" />
+      <div className={`${CAJA} mb-4 text-xs space-y-2`}>
+        {ig ? (
+          <>
+            <p><b>{ig.usuario ? `@${ig.usuario}` : ig.igUserId}</b> — conectado: los mensajes directos llegan a Mensajes y los contesta la IA.{ig.expiraEl ? ` El permiso se renueva solo (vence el ${new Date(ig.expiraEl).toLocaleDateString("es-AR")} si no).` : ""}</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <a href="/api/instagram/conectar/ir" className={SUAVE}>Volver a conectar</a>
+              <details className="inline-block">
+                <summary className={`${BORRAR} list-none cursor-pointer inline-block`}>Desconectar</summary>
+                <form action={accionDesconectarInstagram} className="inline-flex items-center gap-2 ml-2">
+                  <span>¿Desconectar? Laucen deja de recibir y contestar los mensajes de Instagram.</span>
+                  <button className={BORRAR}>Sí</button>
+                </form>
+              </details>
+            </div>
+          </>
+        ) : (
+          <>
+            <p>Todavía no hay una cuenta de Instagram conectada. Al conectar se abre Instagram: entrás con la cuenta del negocio (tiene que ser una cuenta <b>profesional</b>, de empresa o de creador) y das permiso a los mensajes. Desde ahí los mensajes directos llegan a Mensajes, junto con WhatsApp y Mercado Libre, y los contesta la misma IA.</p>
+            {hayAppInstagram(appIg)
+              ? <a href="/api/instagram/conectar/ir" className={`${PRIMARIO} inline-block`}>Conectar Instagram</a>
+              : <span className={`${PRIMARIO} inline-block opacity-40 cursor-not-allowed`} title="Falta cargar la app de Instagram de Laucen">Conectar Instagram (próximamente)</span>}
+          </>
+        )}
+      </div>
+
+      {esDueno && (
+        <>
+          <TituloSeccion titulo="La app de Instagram de Laucen">
+            <BotonesFicha editando={editandoIg} ver={VOLVER} editar={`${VOLVER}?editar=ig`} form="app-ig" />
+          </TituloSeccion>
+          <div className={`${CAJA} mb-4 text-xs space-y-2`}>
+            <p className="text-[11px] text-[#5C6B76]">Es la app de Meta («Instagram API con inicio de sesión de Instagram») por la que entran los mensajes de Instagram de todas las organizaciones. Sólo la ve el dueño del sistema. En la app de Meta, en Instagram › «Configurar webhooks» y «Configurar el inicio de sesión»:</p>
+            <ul className="text-[11px] grid gap-1">
+              <li>Dirección de devolución (callback) de los webhooks: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/instagram/webhook`}</code></li>
+              <li>Clave de verificación: <code className="bg-[#F7F9FB] px-1">{verifyIg}</code> · campo a suscribir: <code className="bg-[#F7F9FB] px-1">messages</code></li>
+              <li>URL de redireccionamiento de OAuth: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/instagram/conectar/callback`}</code></li>
+            </ul>
+            {editandoIg ? (
+              <form id="app-ig" action={accionGuardarAppInstagram} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label><span className={ETIQUETA}>Identificador de la app de Instagram</span>
+                  <input name="app_id" defaultValue={appIg?.appId ?? ""} inputMode="numeric" autoFocus className={`${CAMPO} w-full font-mono`} /></label>
+                <label><span className={ETIQUETA}>Clave secreta de la app de Instagram</span>
+                  <input name="app_secret" type="password" autoComplete="off" placeholder={appIg?.appSecret ? "Cargada (vacío: queda la que está)" : ""} className={`${CAMPO} w-full font-mono`} /></label>
+              </form>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Dato etiqueta="Identificador de la app de Instagram">{appIg?.appId || null}</Dato>
+                <Dato etiqueta="Clave secreta de la app de Instagram">{appIg?.appSecret ? "Cargada" : null}</Dato>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <TituloSeccion titulo="La IA que contesta">
         <BotonesFicha editando={editando} ver={VOLVER} editar={`${VOLVER}?editar=ficha`} />
@@ -143,7 +217,7 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
         </form>
       )}
       <div className="text-[11px] text-[#5C6B76] mt-4 space-y-1">
-        <p>La IA contesta siempre; lo que no sabe resolver (un reclamo, una devolución, un precio especial, o si piden hablar con una persona) lo deja <b>En espera</b> en Chats y sigue atendiendo lo demás. Desde el panel o desde el teléfono, cualquiera puede contestar; para que la IA no se meta, se apaga el interruptor del chat (o se escribe desde el teléfono un mensaje que empiece con la marca).</p>
+        <p>La IA contesta siempre; lo que no sabe resolver (un reclamo, una devolución, un precio especial, o si piden hablar con una persona) lo deja <b>En espera</b> en la bandeja de Mensajes y sigue atendiendo lo demás. Desde el panel o desde el teléfono, cualquiera puede contestar; para que la IA no se meta, se apaga el interruptor del chat (o se escribe desde el teléfono un mensaje que empiece con la marca).</p>
       </div>
     </Pantalla>
   );

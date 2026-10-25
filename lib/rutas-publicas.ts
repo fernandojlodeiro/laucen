@@ -44,6 +44,8 @@ export const RUTAS_PUBLICAS = [
   "/api/catalogo",
   // Los avisos de WhatsApp (Meta): se verifican con la firma de la app.
   "/api/whatsapp/webhook",
+  // Los mensajes directos de Instagram: se verifican con la firma de la app de Meta de Instagram.
+  "/api/instagram/webhook",
   // El PDF de una factura por su enlace con código al azar (el documento y el botón de WhatsApp, lib/facturacion/envio.ts):
   // sin esto, WhatsApp bajaba la pantalla de ingreso en vez del PDF (Fer, 25/10).
   "/api/factura",

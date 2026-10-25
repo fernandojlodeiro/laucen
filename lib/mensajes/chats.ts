@@ -5,7 +5,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ultimos10 } from "./reglas";
 
-export type Canal = "whatsapp" | "prueba";
+export type Canal = "whatsapp" | "prueba" | "instagram";
 
 export type Credencial = {
   id: number; organizacionId: string; phoneNumberId: string; wabaId: string; numero: string; nombre: string;

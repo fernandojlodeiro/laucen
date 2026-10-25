@@ -123,3 +123,41 @@ create table if not exists wa_alta_pendiente (
   creado_ts        timestamptz not null default now()
 );
 alter table wa_alta_pendiente enable row level security;
+
+-- Instagram (Fer, 25/10, como en CadaMes): los mensajes directos de la cuenta de Instagram del negocio entran a la misma
+-- bandeja (canal 'instagram' de chat; `externo` es el id de Instagram de la persona) y los contesta la misma IA.
+-- La app de Meta de Laucen para Instagram («Instagram API con inicio de sesión de Instagram»): su id, su clave secreta y
+-- la clave con la que Meta verifica la dirección de los avisos. Una sola fila (es de Laucen, no de cada organización);
+-- la carga el dueño del sistema en Ventas › Mensajes › Configuración. Termina en _credencial: el asistente no la lee.
+create table if not exists ig_app_credencial (
+  id            int primary key check (id = 1),
+  app_id        text not null,
+  app_secret    text not null,
+  verify_token  text not null,
+  actualizado_ts timestamptz not null default now()
+);
+alter table ig_app_credencial enable row level security;
+
+-- La cuenta de Instagram conectada de cada organización (con su propio inicio de sesión de Instagram). El token dura
+-- 60 días y se renueva solo (lib/mensajes/instagram.ts).
+create table if not exists ig_credencial (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  ig_user_id       text not null unique,
+  usuario          text not null default '',
+  token            text not null,
+  expira_el        timestamptz,
+  estado           text not null default 'activo' check (estado in ('activo', 'desconectado')),
+  conectado_ts     timestamptz not null default now()
+);
+create index if not exists ig_credencial_org on ig_credencial (organizacion_id);
+alter table ig_credencial enable row level security;
+
+-- El canal 'instagram' en los chats.
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'chat_canal_check' and pg_get_constraintdef(oid) not like '%instagram%') then
+    alter table chat drop constraint chat_canal_check;
+    alter table chat add constraint chat_canal_check check (canal in ('whatsapp', 'prueba', 'instagram'));
+  end if;
+end $$;
