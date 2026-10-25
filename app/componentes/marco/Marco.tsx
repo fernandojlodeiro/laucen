@@ -133,7 +133,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       )}
 
       {/* Celular: accesos directos + menú completo */}
-      <MenuCelular menu={menu} accesos={accesos} />
+      <MenuCelular menu={menu} accesos={accesos} contadores={avisos.contadores} />
     </div>
   );
 }

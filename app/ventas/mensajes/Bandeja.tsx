@@ -1,20 +1,26 @@
 "use client";
-// La carpeta de mensajes, tipo WhatsApp Web (copiada de la Bandeja de
-// CadaMes): a la izquierda los chats, del más nuevo al más viejo, con
-// pestañas (Todos · Sin responder · En espera · Con persona) y buscador; a la
-// derecha el chat abierto. Pregunta al servidor cada 5 segundos con un chat
-// abierto (10 sin abrir) y sólo baja todo si algo cambió.
+// La bandeja de Mensajes, tipo WhatsApp Web (como la Bandeja de CadaMes; Fer, 25/10): todas las conversaciones de los
+// clientes —WhatsApp, Instagram, mensajes y preguntas de Mercado Libre, reclamos— en una lista, la más nueva primero,
+// con pestañas por lo que hay que hacer (En espera · Sin responder · Todos · Con persona) y botoncitos por canal; a la
+// derecha, la conversación abierta. Pregunta al servidor cada 5 segundos con una conversación abierta (10 sin abrir)
+// y sólo baja todo si algo cambió.
+//
+// En el celular, como la app de WhatsApp: la lista, y al tocar una conversación ésta tapa la pantalla (entre la franja
+// de arriba y la barra de abajo) con la flecha para volver. Es la misma pantalla, que se acomoda al ancho.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { FILTROS, type ChatAbierto, type FiltroBandeja, type FotoBandeja, type MensajeVista } from "@/lib/mensajes/bandeja-tipos";
-import { accionEnviar, accionIa, accionNotas, accionResolverCaso } from "./acciones";
+import {
+  FILTROS, ORIGENES, ICONO_ORIGEN, NOMBRE_ORIGEN,
+  type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
+} from "@/lib/mensajes/bandeja-tipos";
+import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionProponerBandeja, accionResolverCaso } from "./acciones";
 import Llave from "./Llave";
 import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
 import CorregirIa from "@/app/componentes/CorregirIa";
 
 const CADA = 5000, CADA_SIN_ABRIR = 10000;
-const SUAVE = "text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]";
+const SUAVE = "text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F] disabled:opacity-50";
 const PRIMARIO = "text-xs font-bold rounded-lg px-3 py-2 bg-[#167655] text-white disabled:opacity-50";
 
 const hora = (ts: string) => {
@@ -24,21 +30,25 @@ const hora = (ts: string) => {
 };
 const horaLarga = (ts: string) => new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 
-export default function Bandeja({ inicial, filtroInicial, abiertoInicial }: { inicial: FotoBandeja; filtroInicial: FiltroBandeja; abiertoInicial: number | null }) {
+export default function Bandeja({ inicial, filtroInicial, origenInicial, abiertoInicial }: {
+  inicial: FotoBandeja; filtroInicial: FiltroBandeja; origenInicial: FiltroOrigen; abiertoInicial: string | null;
+}) {
   const [foto, setFoto] = useState(inicial);
   const [filtro, setFiltro] = useState<FiltroBandeja>(filtroInicial);
-  const [abierto, setAbierto] = useState<number | null>(inicial.abierto?.id ?? abiertoInicial);
+  const [origen, setOrigen] = useState<FiltroOrigen>(origenInicial);
+  const [abierto, setAbierto] = useState<string | null>(inicial.abierto?.clave ?? abiertoInicial);
   const [busca, setBusca] = useState("");
   const [cortado, setCortado] = useState(false);
   const fallos = useRef(0);
-  const ahora = useRef({ filtro, abierto, sello: foto.sello, busca });
-  useEffect(() => { ahora.current = { filtro, abierto, sello: foto.sello, busca }; });
+  const ahora = useRef({ filtro, origen, abierto, sello: foto.sello, busca });
+  useEffect(() => { ahora.current = { filtro, origen, abierto, sello: foto.sello, busca }; });
 
   const traer = useCallback(async (deCero = false) => {
     const a = ahora.current;
     const url = new URL("/api/mensajes", window.location.origin);
     url.searchParams.set("filtro", a.filtro);
-    if (a.abierto) url.searchParams.set("con", String(a.abierto));
+    url.searchParams.set("origen", a.origen);
+    if (a.abierto) url.searchParams.set("con", a.abierto);
     if (a.busca) url.searchParams.set("q", a.busca);
     if (!deCero) url.searchParams.set("sello", a.sello);
     try {
@@ -62,64 +72,81 @@ export default function Bandeja({ inicial, filtroInicial, abiertoInicial }: { in
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (abierto) url.searchParams.set("con", String(abierto)); else url.searchParams.delete("con");
-    if (filtro === "todos") url.searchParams.delete("filtro"); else url.searchParams.set("filtro", filtro);
+    if (abierto) url.searchParams.set("con", abierto); else url.searchParams.delete("con");
+    if (filtro === "en_espera") url.searchParams.delete("filtro"); else url.searchParams.set("filtro", filtro);
+    if (origen === "todos") url.searchParams.delete("origen"); else url.searchParams.set("origen", origen);
     window.history.replaceState(null, "", url);
-  }, [abierto, filtro]);
+  }, [abierto, filtro, origen]);
 
-  useEffect(() => { const t = setTimeout(() => void traer(true), 300); return () => clearTimeout(t); }, [busca, filtro, abierto, traer]);
+  useEffect(() => { const t = setTimeout(() => void traer(true), 300); return () => clearTimeout(t); }, [busca, filtro, origen, abierto, traer]);
 
-  const sinResponder = foto.cuantos.sin_responder;
+  const origenes = ORIGENES.filter((o) => o.clave === "todos" || o.clave === origen || foto.porOrigen[o.clave] > 0);
 
   return (
     <div className="md:h-[calc(100dvh-13rem)] md:min-h-[480px] md:flex md:gap-3">
       {/* ── La lista ── */}
-      <section aria-label="Chats" className={`${abierto ? "hidden md:flex" : "flex"} flex-col min-h-0 md:w-[22rem] md:shrink-0 bg-white border border-[#E3E9F0] rounded-xl overflow-hidden`}>
+      <section aria-label="Conversaciones" className={`${abierto ? "hidden md:flex" : "flex"} flex-col min-h-0 md:w-[24rem] md:shrink-0 bg-white border border-[#E3E9F0] rounded-xl overflow-hidden`}>
         <header className="px-3 pt-3 pb-2 border-b border-[#F0F3F8]">
           <p className="text-xs text-[#5C6B76]">
             {!foto.conectado && <span className="text-[#8a6100]">WhatsApp sin conectar. </span>}
-            {foto.filas.length === 0 && filtro === "todos" ? "Todavía sin chats." : sinResponder > 0 ? `${sinResponder} sin responder.` : "Todo respondido."}
-            {" "}{foto.iaActiva ? `${foto.nombreIa} está atendiendo.` : `${foto.nombreIa} está apagada.`}
+            {foto.cuantos.en_espera > 0 ? <b className="text-[#8a6100]">{foto.cuantos.en_espera} en espera de una persona. </b> : "Nada en espera. "}
+            {foto.iaActiva ? `${foto.nombreIa} está atendiendo.` : `${foto.nombreIa} está apagada.`}
           </p>
           <label className="relative block mt-2">
-            <span className="sr-only">Buscar un chat</span>
-            <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre o teléfono…"
-              className="w-full border border-[#E3E9F0] rounded-lg pl-3 pr-8 py-1.5 text-xs" />
+            <span className="sr-only">Buscar una conversación</span>
+            <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre, teléfono, producto…"
+              className="w-full border border-[#E3E9F0] rounded-lg pl-3 pr-8 py-2 text-sm md:text-xs" />
             {busca && <button type="button" aria-label="Borrar" onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#5C6B76] text-sm">×</button>}
           </label>
           <div className="flex items-end gap-0.5 mt-2 shadow-[inset_0_-1px_0_#D5DDE5] overflow-x-auto" role="tablist">
             {FILTROS.map((f) => (
-              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => setFiltro(f.clave)}
-                className={`shrink-0 rounded-t-lg border px-2 py-1 text-[11px] font-semibold ${filtro === f.clave
+              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => setFiltro(f.clave)} title={f.ayuda}
+                className={`shrink-0 rounded-t-lg border px-2 py-1.5 text-xs md:text-[11px] font-semibold ${filtro === f.clave
                   ? "bg-white border-[#D5DDE5] border-b-white shadow-[inset_0_2px_0_#16577F] text-[#16577F]"
                   : "bg-gradient-to-b from-[#FBFCFD] to-[#E4E9EE] border-[#D5DDE5] text-[#5C6B76]"}`}>
                 {f.texto} ({foto.cuantos[f.clave]})
               </button>
             ))}
           </div>
+          {origenes.length > 2 && (
+            <div className="flex gap-1 mt-2 overflow-x-auto pb-0.5" aria-label="Por canal">
+              {origenes.map((o) => (
+                <button key={o.clave} type="button" onClick={() => setOrigen(o.clave)} aria-pressed={origen === o.clave}
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${origen === o.clave ? "bg-[#16577F] border-[#16577F] text-white" : "bg-white border-[#D5DDE5] text-[#5C6B76]"}`}>
+                  {o.icono ? `${o.icono} ` : ""}{o.texto} ({foto.porOrigen[o.clave]})
+                </button>
+              ))}
+            </div>
+          )}
         </header>
         {cortado && <p className="text-xs bg-[#FDF0E6] text-[#8a6100] px-3 py-2">Se cortó la conexión: puede haber mensajes nuevos que no estás viendo.</p>}
         <div className="flex-1 overflow-y-auto">
-          {foto.filas.length === 0 && <p className="text-xs text-[#5C6B76] p-4">{filtro === "todos" ? "Cuando un cliente escriba al WhatsApp, el chat aparece acá." : "No hay chats en esta pestaña."}</p>}
+          {foto.filas.length === 0 && (
+            <p className="text-xs text-[#5C6B76] p-4">
+              {filtro === "en_espera" ? "No hay nada esperando a una persona. 🎉" : filtro === "todos" ? "Cuando un cliente escriba, la conversación aparece acá." : "No hay conversaciones en esta pestaña."}
+            </p>
+          )}
           {foto.filas.map((f) => (
-            <button key={f.id} type="button" onClick={() => setAbierto(f.id)}
-              className={`w-full text-left px-3 py-2 border-b border-[#F0F3F8] flex gap-2 items-start ${f.id === abierto ? "bg-[#EAF4EF]" : "hover:bg-[#F7F9FB]"}`}>
-              <span className="mt-0.5 h-8 w-8 shrink-0 rounded-full bg-[#DCEFE6] text-[#167655] grid place-items-center text-xs font-bold">
-                {f.canal === "prueba" ? "🧪" : (f.nombre.trim()[0] ?? "?").toUpperCase()}
+            <button key={f.clave} type="button" onClick={() => setAbierto(f.clave)}
+              className={`w-full text-left px-3 py-2.5 md:py-2 border-b border-[#F0F3F8] flex gap-2 items-start ${f.clave === abierto ? "bg-[#EAF4EF]" : "hover:bg-[#F7F9FB]"}`}>
+              <span className="mt-0.5 h-10 w-10 md:h-8 md:w-8 shrink-0 rounded-full bg-[#DCEFE6] text-[#167655] grid place-items-center text-sm md:text-xs font-bold relative" title={NOMBRE_ORIGEN[f.origen]}>
+                {(f.nombre.replace(/^Pregunta: /, "").trim()[0] ?? "?").toUpperCase()}
+                <span className="absolute -bottom-1 -right-1 text-[11px] leading-none" aria-hidden>{ICONO_ORIGEN[f.origen]}</span>
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-2">
-                  <span className={`truncate text-xs ${f.sinResponder ? "font-bold" : "font-semibold"}`}>{f.nombre}</span>
+                  <span className={`truncate text-sm md:text-xs ${f.sinResponder ? "font-bold" : "font-semibold"}`}>{f.nombre}</span>
                   <span className="ml-auto shrink-0 text-[10px] text-[#5C6B76]">{hora(f.ultimoTs)}</span>
                 </span>
+                {f.detalle && <span className="block truncate text-[10px] text-[#8A97A3]">{f.detalle}</span>}
                 <span className="flex items-center gap-1">
-                  <span className={`truncate text-[11px] ${f.sinResponder ? "text-[#12212B]" : "text-[#5C6B76]"}`}>
-                    {f.ultimoClase === "ia" ? "🤖 " : f.ultimoClase === "operador" || f.ultimoClase === "desde_el_telefono" ? "✓ " : ""}{f.ultimo}
+                  <span className={`truncate text-xs md:text-[11px] ${f.sinResponder ? "text-[#12212B]" : "text-[#5C6B76]"}`}>
+                    {f.ultimoClase === "ia" ? "🤖 " : f.ultimoClase === "operador" || f.ultimoClase === "desde_el_telefono" ? "✓ " : f.ultimoClase === "ml" ? "ML: " : ""}{f.ultimo}
                   </span>
                   <span className="ml-auto flex shrink-0 gap-1">
-                    {f.casos > 0 && <span className="rounded-full bg-[#FDF0E6] text-[#8a6100] text-[10px] font-bold px-1.5">En espera</span>}
-                    {f.atiendePersona && <span className="rounded-full bg-[#EEF3F8] text-[#16577F] text-[10px] font-bold px-1.5">Persona</span>}
-                    {f.sinResponder && <span className="h-2 w-2 rounded-full bg-[#25D366] self-center" aria-label="Sin responder" />}
+                    {f.enEspera && <span className="rounded-full bg-[#FFC94D] text-[#3A2A00] text-[10px] font-bold px-1.5">👤 En espera</span>}
+                    {!f.enEspera && f.atiendePersona && f.origen !== "reclamo" && <span className="rounded-full bg-[#EEF3F8] text-[#16577F] text-[10px] font-bold px-1.5">Persona</span>}
+                    {f.sinResponder && <span className="h-2.5 w-2.5 rounded-full bg-[#25D366] self-center" aria-label="Sin responder" />}
                   </span>
                 </span>
               </span>
@@ -128,17 +155,19 @@ export default function Bandeja({ inicial, filtroInicial, abiertoInicial }: { in
         </div>
       </section>
 
-      {/* ── El chat ── */}
-      <section aria-label="El chat" className={`${abierto ? "flex" : "hidden md:flex"} flex-col min-h-0 flex-1 bg-white border border-[#E3E9F0] rounded-xl overflow-hidden h-[calc(100dvh-10rem)] md:h-auto`}>
-        {foto.abierto && foto.abierto.id === abierto ? (
-          <Conversacion key={foto.abierto.id} chat={foto.abierto} nombreIa={foto.nombreIa} iaActiva={foto.iaActiva}
+      {/* ── La conversación: en el celular tapa la pantalla, entre la franja de arriba y la barra de abajo ── */}
+      <section aria-label="La conversación"
+        className={`${abierto ? "flex fixed inset-x-0 top-12 bottom-16 z-40 md:static md:z-auto" : "hidden md:flex"} flex-col min-h-0 flex-1 bg-white md:border border-[#E3E9F0] md:rounded-xl overflow-hidden`}>
+        {foto.abierto && foto.abierto.clave === abierto ? (
+          <Conversacion key={foto.abierto.clave} chat={foto.abierto} nombreIa={foto.nombreIa} iaActiva={foto.iaActiva}
             alVolver={() => setAbierto(null)} alCambiar={() => traer(true)} />
         ) : (
           <div className="grid place-items-center h-full text-center px-8">
             <div>
               <div className="text-4xl">💬</div>
-              <p className="text-sm font-semibold mt-3">{abierto ? "Cargando…" : "Elegí un chat"}</p>
-              {!abierto && <p className="text-xs text-[#5C6B76] mt-1 max-w-xs">A la izquierda están todos, del más nuevo al más viejo.</p>}
+              <p className="text-sm font-semibold mt-3">{abierto ? "Cargando…" : "Elegí una conversación"}</p>
+              {abierto && <button type="button" onClick={() => setAbierto(null)} className={`${SUAVE} mt-3 md:hidden`}>← Volver a la lista</button>}
+              {!abierto && <p className="text-xs text-[#5C6B76] mt-1 max-w-xs">A la izquierda están todas: WhatsApp, Mercado Libre, preguntas y reclamos, la más nueva primero.</p>}
             </div>
           </div>
         )}
@@ -150,82 +179,118 @@ export default function Bandeja({ inicial, filtroInicial, abiertoInicial }: { in
 function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
   chat: ChatAbierto; nombreIa: string; iaActiva: boolean; alVolver: () => void; alCambiar: () => void;
 }) {
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(chat.escribir.sugerencia ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [mandando, setMandando] = useState(false);
-  const [notas, setNotas] = useState(chat.notas);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [trabajando, setTrabajando] = useState<"" | "enviar" | "proponer">("");
+  const [notas, setNotas] = useState(chat.notas ?? "");
   const [verNotas, setVerNotas] = useState(false);
+  const [verMas, setVerMas] = useState(false);
   const fondo = useRef<HTMLDivElement>(null);
   const caja = useRef<HTMLTextAreaElement>(null);
   const cuantos = chat.mensajes.length;
+  // Una propuesta nueva de la IA (llegó con el refresco) entra a la caja si no estabas escribiendo otra cosa.
+  const ultimaSugerencia = useRef(chat.escribir.sugerencia);
+  useEffect(() => {
+    const s = chat.escribir.sugerencia;
+    if (s && s !== ultimaSugerencia.current) setTexto((t) => (t.trim() === "" || t === ultimaSugerencia.current ? s : t));
+    ultimaSugerencia.current = s;
+  }, [chat.escribir.sugerencia]);
 
   useEffect(() => { fondo.current?.scrollTo({ top: fondo.current.scrollHeight }); }, [cuantos]);
   useLayoutEffect(() => {
     const t = caja.current; if (!t) return;
     t.style.height = "auto";
-    t.style.height = `${Math.min(t.scrollHeight + 2, 140)}px`;
-    t.style.overflowY = t.scrollHeight + 2 > 140 ? "auto" : "hidden";
+    t.style.height = `${Math.min(t.scrollHeight + 2, 160)}px`;
+    t.style.overflowY = t.scrollHeight + 2 > 160 ? "auto" : "hidden";
   }, [texto]);
 
   async function enviar() {
-    if (!texto.trim() || mandando) return;
-    setMandando(true); setError(null);
-    const r = await accionEnviar(chat.id, texto);
-    setMandando(false);
-    if (r.ok) { setTexto(""); alCambiar(); } else setError(r.error);
+    if (!texto.trim() || trabajando) return;
+    setTrabajando("enviar"); setError(null); setAviso(null);
+    const r = await accionEnviarBandeja(chat.clave, texto);
+    setTrabajando("");
+    if (r.ok) { setTexto(""); ultimaSugerencia.current = null; if ("aviso" in r && r.aviso) setAviso(r.aviso); alCambiar(); } else setError(r.error);
+  }
+  async function proponer() {
+    setTrabajando("proponer"); setError(null); setAviso(null);
+    const r = await accionProponerBandeja(chat.clave);
+    setTrabajando("");
+    if (r.ok && r.texto) { setTexto(r.texto); ultimaSugerencia.current = r.texto; } else if (!r.ok) setError(r.error);
+    alCambiar();
   }
   async function ia(prender: boolean) {
     setError(null);
-    const r = await accionIa(chat.id, prender);
+    const r = await accionIaBandeja(chat.clave, prender);
     if (!r.ok) setError(r.error);
     alCambiar();
   }
 
-  const iaPrendida = !chat.atiendePersona;
+  const largo = texto.trim().length;
+  const pasado = chat.escribir.tope != null && largo > chat.escribir.tope;
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-[#E3E9F0] bg-[#F7F9FB]">
-        <button type="button" onClick={alVolver} className={`${SUAVE} md:hidden`} aria-label="Volver a la lista">←</button>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold truncate">
-            {chat.clienteId ? <Link href={`/ventas/clientes/${chat.clienteId}`} className="text-[#16577F] hover:underline">{chat.nombre}</Link> : chat.nombre}
-          </div>
-          <div className="text-[11px] text-[#5C6B76]">{chat.telefono}{!chat.clienteId && chat.canal === "whatsapp" ? " · no es cliente cargado" : ""}</div>
-        </div>
-        <button type="button" onClick={() => setVerNotas(!verNotas)} className={SUAVE}>📝 Notas</button>
-        <button type="button" role="switch" aria-checked={iaPrendida} onClick={() => ia(!iaPrendida)}
-          className="flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 bg-white border border-[#E3E9F0]"
-          title={iaPrendida ? `Lo atiende ${nombreIa}. Apagala para atenderlo vos.` : `Lo atiende una persona. Prendela para que conteste ${nombreIa}.`}>
-          <Llave prendido={iaPrendida} />
-          <span className="font-semibold">{nombreIa}</span>
+      <header className="flex items-center gap-2 px-2 md:px-3 py-2 border-b border-[#E3E9F0] bg-[#F7F9FB]">
+        <button type="button" onClick={alVolver} className="md:hidden text-xl px-2 py-1 text-[#16577F]" aria-label="Volver a la lista">←</button>
+        <button type="button" onClick={() => setVerMas(!verMas)} className="min-w-0 flex-1 text-left" aria-expanded={verMas} title="Ver los datos y los enlaces">
+          <div className="text-sm font-bold truncate">{chat.nombre}</div>
+          <div className="text-[11px] text-[#5C6B76] truncate">{ICONO_ORIGEN[chat.origen]} {chat.detalle}</div>
         </button>
+        {chat.notas != null && <button type="button" onClick={() => setVerNotas(!verNotas)} className={SUAVE} title="Notas internas">📝<span className="hidden md:inline"> Notas</span></button>}
+        {chat.ia && (
+          <button type="button" role="switch" aria-checked={chat.ia.prendida} onClick={() => ia(!chat.ia!.prendida)}
+            className="flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 bg-white border border-[#E3E9F0]"
+            title={chat.ia.prendida ? `Contesta la IA. Apagala para atenderlo vos.` : `Lo atiende una persona. Prendela para que conteste la IA.`}>
+            <Llave prendido={chat.ia.prendida} />
+            <span className="font-semibold">{chat.origen === "ml" ? "IA" : nombreIa}</span>
+          </button>
+        )}
       </header>
-      {!iaActiva && <p className="text-[11px] bg-[#FDF0E6] text-[#8a6100] px-3 py-1.5">{nombreIa} está apagada para todos los chats (Configuración).</p>}
-      {verNotas && (
-        <div className="px-3 py-2 border-b border-[#E3E9F0] bg-[#FFFDF5]">
-          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} placeholder="Notas internas de este chat (el cliente no las ve)…"
-            className="w-full border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs" />
-          <button type="button" className={`${SUAVE} mt-1`} onClick={async () => { await accionNotas(chat.id, notas); setVerNotas(false); alCambiar(); }}>Grabar</button>
+      {(verMas || chat.enlaces.length > 0) && (
+        <div className={`${verMas ? "flex" : "hidden md:flex"} flex-wrap gap-x-3 gap-y-1 px-3 py-1.5 border-b border-[#E3E9F0] text-[11px]`}>
+          {chat.enlaces.map((e) => e.afuera
+            ? <a key={e.href} href={e.href} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{e.texto} ↗</a>
+            : <Link key={e.href} href={e.href} className="text-[#16577F] hover:underline">{e.texto}</Link>)}
+          {chat.enlaces.length === 0 && <span className="text-[#5C6B76]">Sin datos para enlazar.</span>}
         </div>
       )}
-      {chat.casos.map((k) => <Caso key={k.id} chatId={chat.id} caso={k} alCambiar={alCambiar} />)}
+      {chat.ia && !iaActiva && chat.origen !== "ml" && <p className="text-[11px] bg-[#FDF0E6] text-[#8a6100] px-3 py-1.5">{nombreIa} está apagada para todos los chats (Configuración).</p>}
+      {verNotas && chat.notas != null && (
+        <div className="px-3 py-2 border-b border-[#E3E9F0] bg-[#FFFDF5]">
+          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} placeholder="Notas internas de esta conversación (el cliente no las ve)…"
+            className="w-full border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs" />
+          <button type="button" className={`${SUAVE} mt-1`} onClick={async () => { await accionNotas(Number(chat.clave.slice(2)), notas); setVerNotas(false); alCambiar(); }}>Grabar</button>
+        </div>
+      )}
+      {chat.casos.map((k) => <Caso key={`${k.id}-${k.asunto}`} clave={chat.clave} caso={k} alCambiar={alCambiar} />)}
 
       <div ref={fondo} className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 bg-[#EFEAE2]">
         {chat.mensajes.map((m) => <Globo key={m.id} m={m} nombreIa={nombreIa} />)}
       </div>
 
       <footer className="border-t border-[#E3E9F0] p-2 bg-[#F7F9FB]">
+        {chat.aviso && <p className="text-[11px] text-[#8a6100] mb-1">{chat.aviso}</p>}
         {error && <p className="text-xs text-[#C03420] mb-1">{error}</p>}
-        {!chat.ventanaAbierta ? (
-          <p className="text-xs text-[#5C6B76] px-1 py-2">Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp no deja escribirle desde acá. Escribile desde el teléfono; cuando conteste, seguís desde acá.</p>
+        {aviso && <p className="text-xs text-[#167655] mb-1">{aviso}</p>}
+        {!chat.escribir.puede ? (
+          <p className="text-xs text-[#5C6B76] px-1 py-2">{chat.escribir.porQueNo}</p>
         ) : (
-          <div className="flex items-end gap-2">
-            <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void enviar(); } }}
-              placeholder={iaPrendida ? `Escribí un mensaje (${nombreIa} sigue atendiendo; apagala si lo tomás vos). Con # buscás una publicación…` : "Escribí un mensaje. Con # buscás una publicación…"}
-              className="w-full resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-xs bg-white overflow-hidden" />
-            <button type="button" onClick={enviar} disabled={mandando || !texto.trim()} className={PRIMARIO}>{mandando ? "Mandando…" : "Enviar"}</button>
-          </div>
+          <>
+            <div className="flex items-end gap-2">
+              <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1} canalId={chat.escribir.canalId ?? undefined}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(min-width: 768px)").matches) { e.preventDefault(); void enviar(); } }}
+                placeholder={chat.ia?.prendida ? "Escribí un mensaje (la IA sigue atendiendo; apagala si lo tomás vos). Con # buscás una publicación…" : "Escribí un mensaje. Con # buscás una publicación…"}
+                className="w-full resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-sm md:text-xs bg-white overflow-hidden" />
+              <button type="button" onClick={enviar} disabled={!!trabajando || !texto.trim() || pasado} className={PRIMARIO}>{trabajando === "enviar" ? "Mandando…" : "Enviar"}</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {chat.escribir.proponer && (
+                <button type="button" onClick={proponer} disabled={!!trabajando} className={SUAVE}>{trabajando === "proponer" ? "Proponiendo…" : "Proponer con IA"}</button>
+              )}
+              {chat.escribir.tope != null && <span className={`text-[10px] ${pasado ? "text-[#C03420] font-bold" : "text-[#5C6B76]"}`}>{largo}/{chat.escribir.tope}</span>}
+              {chat.escribir.ayuda && <span className="text-[10px] text-[#5C6B76]">{chat.escribir.ayuda}</span>}
+            </div>
+          </>
         )}
       </footer>
     </>
@@ -234,41 +299,41 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
 
 function Globo({ m, nombreIa }: { m: MensajeVista; nombreIa: string }) {
   const nuestro = m.clase !== "entrante";
-  const quien = m.clase === "ia" ? `🤖 ${nombreIa}` : m.clase === "operador" ? (m.quien ?? "Panel") : m.clase === "desde_el_telefono" ? "📱 Desde el teléfono" : null;
+  const quien = m.clase === "ia" ? `🤖 ${nombreIa}` : m.clase === "operador" ? (m.quien ?? "Panel") : m.clase === "desde_el_telefono" ? (m.quien ?? "📱 Desde el teléfono") : m.clase === "ml" ? "Mercado Libre" : null;
   const estado = m.estado === "leido" ? <span className="text-[#34B7F1]">✓✓</span> : m.estado === "entregado" ? "✓✓" : m.estado === "enviado" ? "✓" : null;
   return (
-    <div className={`flex ${nuestro ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs shadow-sm ${nuestro ? "bg-[#D9FDD3]" : "bg-white"}`}>
+    <div className={`flex ${m.clase === "ml" ? "justify-center" : nuestro ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[85%] md:max-w-[80%] rounded-lg px-2.5 py-1.5 text-sm md:text-xs shadow-sm ${m.clase === "ml" ? "bg-[#FFF6D6]" : nuestro ? "bg-[#D9FDD3]" : "bg-white"}`}>
         {quien && <div className="text-[10px] font-bold text-[#167655] mb-0.5">{quien}</div>}
         <div className="whitespace-pre-wrap break-words">{m.texto}</div>
         <div className="mt-0.5 flex justify-end gap-1 text-[10px] text-[#5C6B76]">
           <span>{horaLarga(m.ts)}</span>{nuestro && estado}
         </div>
         {m.estado === "fallido" && <div className="text-[10px] text-[#C03420] font-semibold">NO ENTREGADO{m.motivo ? `: ${m.motivo}` : ""}</div>}
-        {m.clase === "ia" && m.texto && <div className="mt-1 text-right"><CorregirIa origen="whatsapp" id={String(m.id)} /></div>}
+        {m.corregir && m.texto && <div className="mt-1 text-right"><CorregirIa origen={m.corregir.origen} id={m.corregir.id} /></div>}
       </div>
     </div>
   );
 }
 
-function Caso({ chatId, caso, alCambiar }: { chatId: number; caso: ChatAbierto["casos"][number]; alCambiar: () => void }) {
+function Caso({ clave, caso, alCambiar }: { clave: string; caso: ChatAbierto["casos"][number]; alCambiar: () => void }) {
   const [abierto, setAbierto] = useState(false);
   const [como, setComo] = useState("");
   return (
     <div className="px-3 py-2 border-b border-[#F2D9B8] bg-[#FDF6EC] text-xs">
       <div className="flex items-start gap-2">
-        <span>⏳</span>
+        <span>👤</span>
         <div className="flex-1 min-w-0">
           <div className="font-bold">En espera: {caso.asunto}</div>
           {caso.motivo && <div className="text-[11px] text-[#5C6B76]">{caso.motivo}</div>}
-          <div className="text-[10px] text-[#5C6B76]">Desde {horaLarga(caso.abiertoTs)}{caso.asignado ? ` · lo tiene ${caso.asignado}` : ""}</div>
+          {caso.abiertoTs && <div className="text-[10px] text-[#5C6B76]">Desde {horaLarga(caso.abiertoTs)}{caso.asignado ? ` · lo tiene ${caso.asignado}` : ""}</div>}
         </div>
-        {!abierto && <button type="button" className={SUAVE} onClick={() => setAbierto(true)}>Resolver</button>}
+        {caso.resolver && !abierto && <button type="button" className={SUAVE} onClick={() => setAbierto(true)}>Resolver</button>}
       </div>
       {abierto && (
         <div className="mt-2 flex gap-2">
           <input value={como} onChange={(e) => setComo(e.target.value)} placeholder="Cómo se resolvió (opcional)" className="flex-1 border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white" />
-          <button type="button" className={PRIMARIO} onClick={async () => { await accionResolverCaso(chatId, caso.id, como); alCambiar(); }}>Listo</button>
+          <button type="button" className={PRIMARIO} onClick={async () => { await accionResolverCaso(Number(clave.slice(2)), caso.id, como); alCambiar(); }}>Listo</button>
           <button type="button" className={SUAVE} onClick={() => setAbierto(false)}>Cancelar</button>
         </div>
       )}

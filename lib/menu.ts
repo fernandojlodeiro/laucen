@@ -44,7 +44,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
       { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
-      { texto: "WhatsApp", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "🟢" },
+      { texto: "Mensajes", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "💬" },
       { texto: "Reclamos y devoluciones", href: "/ventas/reclamos", permiso: "reclamos_ver", icono: "↩️" },
       { texto: "Publicidad en Mercado Libre", href: "/ventas/publicidad", permiso: "publicidad_ver", icono: "📣" },
     ],
@@ -185,10 +185,11 @@ export const MENU: SeccionMenu[] = [
  *  "Menú", que abre el árbol completo). Las sesiones que llenen pantallas de
  *  celular (picking, recepción) cambian esta lista. */
 export const ACCESOS_CELULAR: (ItemMenu & { href: string })[] = [
+  // Primero, contestar (Fer, 25/10): lleva el número de lo que espera a una persona.
+  { texto: "Mensajes", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "💬" },
   { texto: "Pedidos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
   { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
   { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
-  { texto: "Stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
 ];
 
 /** El menú que ve esta persona: sin las secciones de Fer si no es Fer, sin

@@ -91,5 +91,5 @@ Si el navegador dice que las notificaciones están bloqueadas: tocá el candado 
 ## Relacionado
 
 - [Preguntas y mensajes](/ventas/preguntas)
-- [WhatsApp](/ventas/mensajes)
+- [Mensajes](/ventas/mensajes)
 - [Pedidos](/ventas/pedidos)

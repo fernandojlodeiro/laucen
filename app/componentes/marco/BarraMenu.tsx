@@ -9,6 +9,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ItemMenu, SeccionMenu } from "@/lib/menu";
+import type { Contador } from "@/lib/avisos-tipos";
+
+/** Lo que espera a una persona (Fer, 25/10): el número amarillo del botón «Mensajes» de la barra del celular. Lo
+ *  mismo que «En espera» de la bandeja: WhatsApp en espera, mensajes de ML derivados y reclamos para atender. */
+const enEspera = (cs: Contador[]) => cs.reduce((t, c) => t + (c.clave === "whatsapp" || c.clave === "reclamos" ? c.n ?? 0 : c.clave === "mensajes" ? c.persona ?? 0 : 0), 0);
 
 const activa = (ruta: string, href?: string) => !!href && (ruta === href || ruta.startsWith(`${href}/`));
 
@@ -67,10 +72,17 @@ function Opcion({ item, ruta }: { item: ItemMenu; ruta: string }) {
   );
 }
 
-export function MenuCelular({ menu, accesos }: { menu: SeccionMenu[]; accesos: (ItemMenu & { href: string })[] }) {
+export function MenuCelular({ menu, accesos, contadores = [] }: { menu: SeccionMenu[]; accesos: (ItemMenu & { href: string })[]; contadores?: Contador[] }) {
   const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
+  const [espera, setEspera] = useState(() => enEspera(contadores));
   useEffect(() => setAbierto(false), [ruta]);
+  // Los contadores al día los publica el vigía de avisos (app/componentes/marco/AvisosVivos.tsx).
+  useEffect(() => {
+    const cambio = (e: Event) => setEspera(enEspera((e as CustomEvent<Contador[]>).detail));
+    window.addEventListener("laucen-contadores", cambio);
+    return () => window.removeEventListener("laucen-contadores", cambio);
+  }, []);
 
   return (
     <>
@@ -117,7 +129,11 @@ export function MenuCelular({ menu, accesos }: { menu: SeccionMenu[]; accesos: (
         {accesos.slice(0, 4).map((a) => (
           <Link key={a.href} href={a.href}
             className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${activa(ruta, a.href) ? "text-[#16577F] font-bold" : "text-[#5C6B76]"}`}>
-            <span className="text-lg leading-none">{a.icono}</span>{a.texto}
+            <span className="relative text-lg leading-none">{a.icono}
+              {a.href === "/ventas/mensajes" && espera > 0 && (
+                <span className="absolute -top-1.5 -right-3 min-w-4 h-4 px-1 rounded-full bg-[#FFC94D] text-[#3A2A00] text-[10px] font-bold leading-4 text-center" aria-label={`${espera} esperan a una persona`}>{espera}</span>
+              )}
+            </span>{a.texto}
           </Link>
         ))}
         {Array.from({ length: Math.max(0, 4 - accesos.length) }, (_, i) => <span key={i} />)}

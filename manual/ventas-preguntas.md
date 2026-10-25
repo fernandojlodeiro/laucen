@@ -9,6 +9,8 @@ resumen: Las preguntas de los compradores en las publicaciones de Mercado Libre 
 
 ## Para qué sirve
 
+Las preguntas y los mensajes de Mercado Libre también entran a la bandeja de [Mensajes](/ventas/mensajes), junto con WhatsApp y los reclamos, para contestar todo desde un solo lugar (y desde el celular). Acá queda todo el historial y el interruptor de la respuesta automática.
+
 Junta en una sola bandeja, de **todas las cuentas de Mercado Libre**:
 
 - **Preguntas**: lo que preguntan los interesados en una publicación antes de comprar.

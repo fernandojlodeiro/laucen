@@ -142,7 +142,8 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
       titulo: `${esTipoReclamo(r.tipo) ? TIPOS_RECLAMO[r.tipo] : "Reclamo"} ${r.id}${r.canal ? ` en ${r.canal}` : r.origen === "web" ? " de la web" : r.origen === "local" ? " del local" : ""}`,
       detalle: [r.motivo, r.cliente, r.pedido_id ? `Pedido ${r.pedido_id}` : null].filter(Boolean).join(" · "),
       texto: r.texto ?? "", motivo: r.vence ? `Hay que responder antes del ${r.vence}.` : "Está esperando que lo atiendas.",
-      propuesta: null, href: `/ventas/reclamos/${r.id}`,
+      // Se atiende en la bandeja de Mensajes (Fer, 25/10); las acciones de ML, desde ahí a su ficha.
+      propuesta: null, href: `/ventas/mensajes?con=r:${r.id}`,
     })),
     ...pedidos.map((p): AvisoIa => ({
       tipo: "pedidos", id: p.id, marca: Number(p.id), titulo: `Pedido nuevo ${p.id}${p.canal ? ` en ${p.canal}` : ""}`,
@@ -151,17 +152,17 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
     })),
     ...preguntas.map((q): AvisoIa => ({
       tipo: "preguntas", id: q.id, marca: Number(q.marca), titulo: `Pregunta${q.cuenta ? ` en ${q.cuenta}` : ""}`,
-      detalle: q.titulo ?? "", texto: q.texto, motivo: MOTIVO[q.ia_estado] ?? "", propuesta: q.sugerencia, href: "/ventas/preguntas",
+      detalle: q.titulo ?? "", texto: q.texto, motivo: MOTIVO[q.ia_estado] ?? "", propuesta: q.sugerencia, href: `/ventas/mensajes?con=p:${q.id}`,
     })),
     ...mensajes.map((m): AvisoIa => ({
       tipo: "mensajes", id: m.pack_id, marca: Number(m.marca), titulo: `Mensaje${m.cuenta ? ` en ${m.cuenta}` : ""}`,
       detalle: m.pedido_id ? `Pedido ${m.pedido_id}` : "", texto: m.texto ?? "(adjunto)", motivo: MOTIVO[m.ia_estado] ?? "",
-      propuesta: m.sugerencia, href: `/ventas/preguntas?ver=mensajes&pack=${encodeURIComponent(m.pack_id)}`, derivada: m.ia_estado === "derivar",
+      propuesta: m.sugerencia, href: `/ventas/mensajes?con=m:${encodeURIComponent(m.pack_id)}`, derivada: m.ia_estado === "derivar",
     })),
     ...casos.map((k): AvisoIa => ({
       tipo: "whatsapp", id: k.id, marca: Number(k.id), titulo: `WhatsApp de ${k.nombre}`, detalle: k.asunto,
       texto: k.texto ?? "", motivo: k.motivo || "La IA lo dejó en espera para una persona.", propuesta: null,
-      href: `/ventas/mensajes?filtro=en_espera&con=${k.chat_id}`,
+      href: `/ventas/mensajes?con=c:${k.chat_id}`,
     })),
     ...facturas.map((f): AvisoIa => ({
       tipo: "facturas", id: f.id, marca: Number(f.marca), titulo: `Factura retenida: pedido ${f.id}${f.canal ? ` en ${f.canal}` : ""}`,

@@ -40,7 +40,7 @@ Una franja azul fija abajo de todo, siempre visible:
   - **"Reclamos"** → [Reclamos y devoluciones](/ventas/reclamos): los reclamos para atender (los de Mercado Libre que esperan tu respuesta y los de la web o el local que siguen abiertos).
   - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
   - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
-  - **"WhatsApp"** → [WhatsApp](/ventas/mensajes?filtro=en_espera) con el filtro En espera: los chats que la IA dejó para una persona.
+  - **"WhatsApp"** → [Mensajes](/ventas/mensajes) en la pestaña En espera: los chats que la IA dejó para una persona.
   - **"Pedidos"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes: los pedidos a preparar. Cuenta los nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
   - **"Facturas"** (permiso Facturación) → [Pedidos](/ventas/pedidos?estado=retenidas) con el filtro «Con la factura retenida»: los pedidos que no se facturaron solos porque el comprador pidió algo para la factura que no está claro, o que piden cambiar una factura ya hecha.
   - Cuando un contador es mayor que cero, el número se resalta en blanco. Si entró algo que **todavía no viste**, se resalta en **amarillo** hasta que entrás a esa pantalla.
@@ -114,7 +114,7 @@ Busca a la vez en **todos los datos del sistema**: lo que escribas, si está en 
   - **Proveedores** (permiso Proveedores): N.º, nombre, razón social, CUIT, país, mail, teléfonos y sus aclaraciones, contacto, domicilio (calle, localidad, provincia, código postal), condiciones de pago y notas. Lleva a su fila en [Proveedores](/compras/proveedores).
   - **Preguntas de Mercado Libre** (permiso Preguntas y mensajes): la pregunta, la respuesta, la respuesta que había propuesto la IA, el número de comprador y la publicación (código, título, SKU). Lleva a [Preguntas y mensajes](/ventas/preguntas).
   - **Mensajes de Mercado Libre** (mismo permiso): el texto de cada mensaje de posventa, el pack, el pedido y los datos del cliente. Muestra el último mensaje que coincide y lleva a esa conversación.
-  - **WhatsApp** (permiso del módulo de mensajes): nombre y teléfono del chat, sus notas, el texto de cada mensaje, los casos (asunto, motivo, resolución) y los datos del cliente. Lleva a ese chat en [WhatsApp](/ventas/mensajes).
+  - **WhatsApp** (permiso del módulo de mensajes): nombre y teléfono del chat, sus notas, el texto de cada mensaje, los casos (asunto, motivo, resolución) y los datos del cliente. Lleva a ese chat en [Mensajes](/ventas/mensajes).
   - **Reclamos y devoluciones** (permiso Reclamos): número, número en Mercado Libre, orden, comprador, motivo, resolución, número y tracking de la devolución, notas, el texto de cada mensaje del reclamo, el pedido y el cliente.
   - **Envíos** (permiso Envíos): número, número externo, tracking, transportista, quién recibe, método, logística, la dirección de entrega dato por dato y el pedido.
   - **Facturas emitidas** (permiso Facturación): número (como "00002-00000123" o sólo el número), documento del receptor, su nombre y domicilio, CAE, observaciones, la descripción de cada línea, el pedido y el cliente. Lleva a la factura.

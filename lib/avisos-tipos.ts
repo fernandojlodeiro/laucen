@@ -51,5 +51,6 @@ export function esPantallaDe(clave: ClaveContador, ruta: string, ver: string | n
     case "preguntas": return ruta === "/ventas/preguntas" && ver !== "mensajes";
     case "mensajes": return ruta === "/ventas/preguntas" && ver === "mensajes";
     case "whatsapp": return ruta === "/ventas/mensajes";
+    // La bandeja de Mensajes junta todo (Fer, 25/10): los avisos de derivaciones se ven ahí.
   }
 }

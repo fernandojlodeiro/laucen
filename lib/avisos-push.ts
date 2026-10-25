@@ -149,8 +149,7 @@ function armar(items: AvisoIa[]): Aviso {
     return {
       titulo: `${items.length} casos esperan a una persona`,
       texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.texto}`.slice(0, 90)).join("\n"),
-      url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera"
-        : items.every((a) => a.tipo === "reclamos") ? "/ventas/reclamos" : "/ventas/preguntas?ver=mensajes",
+      url: "/ventas/mensajes",
     };
   }
   return {

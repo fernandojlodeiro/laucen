@@ -15,7 +15,7 @@ Para enterarte en el celular, aunque no tengas Laucen abierto, de lo que **esper
 - un WhatsApp que la IA dejó en espera;
 - un reclamo para atender.
 
-Nada más: ni pedidos ni preguntas. Tocando el aviso se abre esa conversación para contestar. No hace falta bajar nada de ninguna tienda de apps: Laucen queda en el celular con su ícono, como una app.
+Nada más: ni pedidos ni preguntas. Tocando el aviso se abre esa conversación en [Mensajes](/ventas/mensajes) para contestar ahí mismo (con **←** volvés a la lista). En la barra de abajo del celular, el primer botón, **💬 Mensajes**, lleva el número en amarillo de lo que espera a una persona. No hace falta bajar nada de ninguna tienda de apps: Laucen queda en el celular con su ícono, como una app.
 
 Cada persona lo hace en su propio celular, entrando con **su** usuario.
 
@@ -67,5 +67,5 @@ Hacé los pasos de nuevo en el celular nuevo. El viejo podés apagarlo en «Tus 
 
 - [Mis avisos](/config/avisos)
 - [Preguntas y mensajes](/ventas/preguntas)
-- [WhatsApp](/ventas/mensajes)
+- [Mensajes](/ventas/mensajes)
 - [Reclamos y devoluciones](/ventas/reclamos)

@@ -9,6 +9,8 @@ resumen: Los reclamos de Mercado Libre (entran solos, con su plazo para responde
 
 ## Para qué sirve
 
+Los mensajes con el comprador de un reclamo también se ven y se contestan en la bandeja de [Mensajes](/ventas/mensajes), junto con WhatsApp y Mercado Libre (los reclamos para atender quedan ahí «En espera»). Las acciones (devolver la plata, aceptar la devolución, pedir mediación) se hacen desde la ficha del reclamo.
+
 Junta todos los **reclamos y devoluciones** de las ventas:
 
 - Los de **Mercado Libre** entran solos, con el **plazo para responder** y los botones de lo que Mercado Libre te deja hacer en ese momento (mandar un mensaje, devolver la plata, aceptar la devolución, pedir mediación). Cada botón es un clic tuyo que sale por la cola de Mercado Libre: **nada se contesta solo**.
