@@ -97,13 +97,15 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
          from ${tabla} where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, org]);
     const sb = filas.length ? await supabaseServer() : null;
     return Promise.all(filas.map(async (c) => ({
-      ...c, url: (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
+      // Los que llegaron por WhatsApp quedaron allá: se ven por la ruta que se los pide a Meta.
+      ...c, url: c.ruta.startsWith("wa/") ? `/ventas/pedidos/${pid}/comprobante/${c.id}`
+        : (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
   };
   const [comprobantes, conformes] = await Promise.all([archivosDe("pedido_comprobante_pago"), archivosDe("pedido_conforme_retiro")]);
   const Archivos = ({ filas, borrar, titulo }: { filas: typeof comprobantes; borrar: (fd: FormData) => Promise<void>; titulo: string }) => filas.map((c) => (
     <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E9F0] bg-white px-2 py-1">
       {c.url ? <a href={c.url} target="_blank" rel="noopener" className="text-[#16577F] underline">{c.nombre ?? titulo}</a> : <span>{c.nombre ?? titulo}</span>}
-      <span className="text-[#5C6B76]">· {fechaHora(c.creado)}</span>
+      <span className="text-[#5C6B76]">· {fechaHora(c.creado)}{c.ruta.startsWith("wa/") ? " · llegó por WhatsApp" : ""}</span>
       <TachoConfirmar accion={borrar} campos={{ pedido_id: String(pid), id: String(c.id) }} pregunta="¿Borrar?" />
     </span>
   ));
