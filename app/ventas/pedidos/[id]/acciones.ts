@@ -13,6 +13,7 @@ import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { refacturar, liberarFactura, LARGO_LEYENDA, sqlFacturaVigente } from "@/lib/facturacion/revision";
 import { cambiarClientePedido } from "@/lib/pedidos/cliente";
+import { conciliarComprobante, confirmarCandidato, descartarCandidatos } from "@/lib/pagos/comprobante";
 import { tienePermiso } from "@/lib/permisos";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
@@ -341,17 +342,17 @@ export async function accionFacturaMail(fd: FormData) {
 // (la firma de quien retira y su DNI; Fer, 25/10). Son dos cosas distintas, cada una con su tabla.
 const ARCHIVOS = { pago: "pedido_comprobante_pago", retiro: "pedido_conforme_retiro" } as const;
 
-async function guardarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS): Promise<{ motivo?: string }> {
+async function guardarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS): Promise<{ motivo?: string; id?: number }> {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
   try {
     if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
     const ruta = texto(fd, "ruta");
     if (!ruta || !ruta.startsWith(`${s.org.id}/`)) throw new ErrorErp("No llegó bien el archivo. Probá de nuevo.");
-    await consulta(`insert into ${ARCHIVOS[clase]} (organizacion_id, pedido_id, ruta, nombre, tipo, subido_por) values ($1, $2, $3, $4, $5, $6)`,
+    const r = await una<{ id: number }>(`insert into ${ARCHIVOS[clase]} (organizacion_id, pedido_id, ruta, nombre, tipo, subido_por) values ($1, $2, $3, $4, $5, $6) returning id::int`,
       [s.org.id, pid, ruta, texto(fd, "nombre"), texto(fd, "tipo"), s.usuario.id]);
     revalidatePath(`/ventas/pedidos/${pid}`);
-    return {};
+    return { id: r!.id };
   } catch (e) {
     return { motivo: motivoErp(e) };
   }
@@ -371,7 +372,64 @@ async function borrarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS) {
   });
 }
 
-export async function guardarComprobantePago(fd: FormData) { return guardarArchivo(fd, "pago"); }
+/** El comprobante de pago: se guarda y se concilia en el momento con Mercado Pago (lib/pagos/comprobante.ts):
+ *  si cierra, el pago queda registrado solo; si no, queda a confirmar o se vuelve a buscar solo. */
+export async function guardarComprobantePago(fd: FormData): Promise<{ motivo?: string; ok?: string }> {
+  const g = await guardarArchivo(fd, "pago");
+  if (g.motivo || !g.id) return g;
+  const s = await entrarErp("pedidos_ver");
+  try {
+    const ruta = texto(fd, "ruta")!;
+    const { data } = await (await supabaseServer()).storage.from("comprobantes").download(ruta);
+    const archivo = data ? { datos: Buffer.from(await data.arrayBuffer()), tipo: texto(fd, "tipo") ?? data.type } : undefined;
+    const v = await conciliarComprobante(s.org.id, g.id, s.usuario.id, archivo);
+    revalidatePath(`/ventas/pedidos/${id(fd, "pedido_id")}`);
+    return { ok: v.estado === "conciliado" ? `Pago registrado: ${v.detalle}` : v.detalle };
+  } catch (e) {
+    console.error("[comprobante] conciliar", e);
+    return { ok: "Comprobante guardado. No se pudo revisar ahora: se vuelve a intentar solo." };
+  }
+}
+
+/** «Buscar de nuevo» en Mercado Pago. */
+export async function accionConciliarComprobante(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    await perteneceAlPedido(s.org.id, pid, id(fd, "id"));
+    const v = await conciliarComprobante(s.org.id, id(fd, "id"), s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return v.estado === "conciliado" ? `Pago registrado: ${v.detalle}` : v.detalle;
+  });
+}
+
+/** «Sí, es de este cliente»: registra el pago con la transferencia elegida. */
+export async function accionConfirmarTransferencia(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    await perteneceAlPedido(s.org.id, pid, id(fd, "id"));
+    const r = await confirmarCandidato(s.org.id, id(fd, "id"), texto(fd, "movimiento") ?? "", s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return r;
+  });
+}
+
+/** «No»: ninguna de las transferencias propuestas es de este cliente. */
+export async function accionDescartarTransferencias(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    await perteneceAlPedido(s.org.id, pid, id(fd, "id"));
+    await descartarCandidatos(s.org.id, id(fd, "id"));
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return "Anotado: no es de este cliente.";
+  });
+}
+
+async function perteneceAlPedido(org: string, pid: number, cid: number) {
+  if (!(await una("select 1 from pedido_comprobante_pago where id = $1 and organizacion_id = $2 and pedido_id = $3", [cid, org, pid]))) throw new ErrorErp("El comprobante no existe.");
+}
 export async function accionBorrarComprobantePago(fd: FormData) { return borrarArchivo(fd, "pago"); }
 /** El conforme de retiro (Fer, 25/10): subir la firma de quien retira cumple la función de «Cliente presente:
  *  retira» si el pedido ya está preparado y no hay que elegir con qué pagó. Con varias fotos, al terminar la última. */

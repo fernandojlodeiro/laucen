@@ -1,7 +1,8 @@
 // Tareas periódicas del ERP: pg_cron de Supabase lo revisa cada 2 minutos pero
 // sólo lo llama (?clave=, tabla erp_llave) si hay algo pendiente de verdad, y
 // como red de seguridad cada media hora (Fer, 3/10). Hoy: facturación automática (pedidos que
-// llegaron al estado elegido) y reintento de comprobantes con error; ventas
+// llegaron al estado elegido) y reintento de comprobantes con error; comprobantes de pago cuya
+// transferencia todavía no aparecía en Mercado Pago; ventas
 // facturadas a cuenta corriente; asientos contables que falten; e
 // importaciones que siguen solas en segundo plano; la cola de salida a
 // Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna
@@ -24,6 +25,7 @@ import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
+import { reintentarComprobantes } from "@/lib/pagos/comprobante";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
 import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
@@ -51,6 +53,8 @@ export async function GET(req: Request) {
       refacturacion: await revisarFacturadas(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
       // Facturas por WhatsApp que quedaron pendientes (plantilla en aprobación, sin línea…).
       whatsapp: await reintentarFacturasWhatsapp(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
+      // Comprobantes de pago cuya transferencia todavía no aparecía en Mercado Pago (lib/pagos/comprobante.ts).
+      comprobantes: await reintentarComprobantes(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
     };
   }
   // Administración: sólo las organizaciones que ya usan algo de ella (o facturan).

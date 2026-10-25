@@ -24,7 +24,7 @@ export default function SubirArchivo({ orgId, pedidoId, clase }: { orgId: string
     const archivos = [...(lista ?? [])];
     if (!archivos.length) return;
     if (archivos.some((f) => !f.type.startsWith("image/") && f.type !== "application/pdf")) { setEstado("Tienen que ser fotos o PDF."); return; }
-    setEstado("Subiendo…");
+    setEstado(clase === "pago" ? "Subiendo y buscando el pago en Mercado Pago…" : "Subiendo…");
     let motivo: string | null = null, ok: string | null = null;
     for (const [i, f] of archivos.entries()) {
       const r = await subirArchivo("comprobantes", orgId, f, `pedidos/${pedidoId}${c.carpeta}`);
@@ -47,7 +47,7 @@ export default function SubirArchivo({ orgId, pedidoId, clase }: { orgId: string
   return (
     <span className="inline-flex items-center gap-2">
       <input ref={archivo} type="file" multiple={clase === "retiro"} accept="image/*,application/pdf" className="hidden" onChange={(e) => subir(e.target.files)} />
-      <button type="button" className={SUAVE} disabled={estado === "Subiendo…"} onClick={() => archivo.current?.click()}>{c.texto}</button>
+      <button type="button" className={SUAVE} disabled={!!estado?.startsWith("Subiendo")} onClick={() => archivo.current?.click()}>{c.texto}</button>
       {estado && <span className="text-xs text-[#5C6B76]">{estado}</span>}
     </span>
   );

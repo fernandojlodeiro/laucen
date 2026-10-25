@@ -14,7 +14,7 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto, accionBorrarComprobantePago, accionBorrarConformeRetiro } from "./acciones";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto, accionBorrarComprobantePago, accionBorrarConformeRetiro, accionConciliarComprobante, accionConfirmarTransferencia, accionDescartarTransferencias } from "./acciones";
 import SubirArchivo from "./SubirArchivo";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { supabaseServer } from "@/lib/supabase";
@@ -66,6 +66,9 @@ const SIGUIENTES: Partial<Record<EstadoPedido, { estado: EstadoPedido; texto: st
   preparado: [{ estado: "despachado", texto: "Despachado", nota: true }, { estado: "entregado", texto: "Entregado" }],
   despachado: [{ estado: "entregado", texto: "Entregado" }],
 };
+const ESTADO_CONCILIACION: Record<string, string> = {
+  conciliado: "Pago encontrado", a_confirmar: "A confirmar", sin_encontrar: "Todavía no aparece", no_coincide: "No coincide", no_es: "No es un comprobante",
+};
 const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
 
 export default async function Operacion({ org, pid, sp }: { org: string; pid: number; sp: { ok?: string; error?: string; b?: string } }) {
@@ -88,8 +91,10 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
   // Los comprobantes de pago y el conforme de retiro, con un link firmado por una hora (el bucket es privado).
   const archivosDe = async (tabla: "pedido_comprobante_pago" | "pedido_conforme_retiro") => {
-    const filas = await consulta<{ id: number; ruta: string; nombre: string | null; creado: Date }>(
-      `select id::int, ruta, nombre, creado_ts creado from ${tabla} where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, org]);
+    const filas = await consulta<{ id: number; ruta: string; nombre: string | null; creado: Date; estado: string | null; detalle: string | null;
+      candidatos: { id: string; monto: number; fecha: string | null; nombre: string | null; documento: string | null; desdeBanco: boolean }[] | null }>(
+      `select id::int, ruta, nombre, creado_ts creado, ${tabla === "pedido_comprobante_pago" ? "estado, detalle, candidatos" : "null estado, null detalle, null candidatos"}
+         from ${tabla} where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, org]);
     const sb = filas.length ? await supabaseServer() : null;
     return Promise.all(filas.map(async (c) => ({
       ...c, url: (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
@@ -258,10 +263,48 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         )}
         {/* El comprobante de pago: mientras el cobro no está registrado (después, los que lleguen por mail o WhatsApp). */}
         {(pagoPendiente || comprobantes.length > 0) && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {pagoPendiente && <SubirArchivo orgId={org} pedidoId={pid} clase="pago" />}
-            {comprobantes.length > 0 && <span className="text-[#5C6B76]">Comprobante de pago:</span>}
-            <Archivos filas={comprobantes} borrar={accionBorrarComprobantePago} titulo="Comprobante" />
+          <div className="grid gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              {pagoPendiente && <SubirArchivo orgId={org} pedidoId={pid} clase="pago" />}
+              {comprobantes.length > 0 && <span className="text-[#5C6B76]">Comprobante de pago:</span>}
+              <Archivos filas={comprobantes} borrar={accionBorrarComprobantePago} titulo="Comprobante" />
+            </div>
+            {/* Cómo quedó la conciliación con Mercado Pago de cada comprobante (lib/pagos/comprobante.ts). */}
+            {comprobantes.filter((c) => c.estado).map((c) => (
+              <div key={c.id} className={`rounded-lg border px-3 py-2 grid gap-2 ${c.estado === "conciliado" ? "border-[#BFE3CC] bg-[#EEF7F1]" : c.estado === "a_confirmar" ? "border-[#F2D27A] bg-[#FFF8E5]" : "border-[#E3E9F0] bg-[#FAFBFC]"}`}>
+                <span>
+                  <Estado texto={ESTADO_CONCILIACION[c.estado!] ?? c.estado!} tono={c.estado === "conciliado" ? "verde" : c.estado === "a_confirmar" ? "amarillo" : c.estado === "no_coincide" || c.estado === "no_es" ? "rojo" : "gris"} />
+                  {c.detalle && <span className="ml-2">{c.detalle}</span>}
+                </span>
+                {c.estado === "a_confirmar" && pagoPendiente && (c.candidatos ?? []).map((m) => (
+                  <div key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-[#E3E9F0] px-2 py-1.5">
+                    <span>
+                      <b className="tabular-nums">{formatear(m.monto, "ARS")}</b>
+                      {m.fecha && <> · {fechaHora(new Date(m.fecha))}</>}
+                      {" · "}{m.nombre ?? "sin nombre"}{m.documento && <span className="text-[#5C6B76]"> ({m.documento})</span>}
+                      <span className="text-[#5C6B76]"> · {m.desdeBanco ? "desde un banco" : "desde Mercado Pago"} · operación {m.id}</span>
+                    </span>
+                    <span className="font-semibold">¿Es de este cliente?</span>
+                    <form action={accionConfirmarTransferencia}>
+                      <input type="hidden" name="pedido_id" value={pid} /><input type="hidden" name="id" value={c.id} /><input type="hidden" name="movimiento" value={m.id} />
+                      <BotonEnviar clase={VERDE} corriendo="Registrando…">Sí</BotonEnviar>
+                    </form>
+                  </div>
+                ))}
+                {c.estado === "a_confirmar" && pagoPendiente && (
+                  <form action={accionDescartarTransferencias}>
+                    <input type="hidden" name="pedido_id" value={pid} /><input type="hidden" name="id" value={c.id} />
+                    <BotonEnviar clase={SUAVE} corriendo="Un momento…">{(c.candidatos ?? []).length > 1 ? "No es ninguna" : "No"}</BotonEnviar>
+                  </form>
+                )}
+                {pagoPendiente && ["sin_encontrar", "no_coincide"].includes(c.estado!) && (
+                  <form action={accionConciliarComprobante}>
+                    <input type="hidden" name="pedido_id" value={pid} /><input type="hidden" name="id" value={c.id} />
+                    <BotonEnviar clase={SUAVE} corriendo="Buscando…">Buscar de nuevo en Mercado Pago</BotonEnviar>
+                  </form>
+                )}
+              </div>
+            ))}
           </div>
         )}
         {BloqueConforme}

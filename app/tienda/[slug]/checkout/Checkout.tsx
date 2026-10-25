@@ -7,6 +7,7 @@
 // limpia si la compra da error.
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { preconnect, preload } from "react-dom";
 import type { Medio } from "@/lib/tienda/checkout";
 import type { MetodoEnvio, Resumen } from "../resumen";
 import { CONDICIONES_IVA, PROVINCIAS, precio, sinDireccion } from "../comun";
@@ -59,6 +60,9 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
 }) {
   const [metodo, setMetodo] = useState(eleccion.metodoEnvioId);
   const [medio, setMedio] = useState(eleccion.medio);
+  // Con tarjeta (Payway), el formulario de pago se va bajando mientras completa los datos: al confirmar ya
+  // está en el navegador y la pasarela abre en el acto (Fer, 25/10: tardaba en abrir).
+  if (medio?.startsWith("payway")) { preconnect("https://live.decidir.com"); preload("https://live.decidir.com/static/v2.5/decidir.js", { as: "script" }); }
   const [cuotas, setCuotas] = useState(1);
   const conDebito = medios.some((x) => x.tipo === "payway_debito");
   // El resumen chico de cada medio, siempre a la vista.

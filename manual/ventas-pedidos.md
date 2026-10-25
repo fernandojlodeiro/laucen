@@ -116,7 +116,12 @@ El lápiz abre el mismo formulario del alta con los datos cargados: cliente, mon
 
 **Comprobante de pago y conforme de retiro**, dos botones distintos:
 
-- **"📎 Subir comprobante de pago"**: sólo mientras el cobro **no está registrado** (pago pendiente, a cobrar o a convenir). Foto o PDF. Lo subido queda como "Comprobante de pago:" con su link y su tacho, aunque después el pago se confirme.
+- **"📎 Subir comprobante de pago"**: sólo mientras el cobro **no está registrado** (pago pendiente, a cobrar o a convenir). Foto o PDF. Lo subido queda como "Comprobante de pago:" con su link y su tacho, aunque después el pago se confirme. **Al subirlo, Laucen lo lee y busca la transferencia en la cuenta de Mercado Pago del canal** (dice "Subiendo y buscando el pago en Mercado Pago…"):
+  - **Transferencia desde Mercado Pago**: el comprobante trae el número de operación. Si esa operación entró a la cuenta, está aprobada, no la usó otro pedido y es por el total del pedido, **el pago queda registrado solo** ("Pago encontrado", en verde).
+  - **Desde un banco**: se buscan las transferencias del **importe exacto** del día del comprobante. Si hay una sola y el nombre (o el CUIT/DNI) de quien transfirió coincide con el cliente, el pago queda registrado solo.
+  - **Dudoso** ("A confirmar", en amarillo: el nombre no coincide, hay varias del mismo importe o el importe no es el del pedido): se muestra cada transferencia tal cual la informa Mercado Pago (importe, fecha y hora, nombre, si vino de un banco o de Mercado Pago, número de operación) con **"¿Es de este cliente?" · "Sí"**; y **"No"** (o **"No es ninguna"**). Con "Sí" el pago queda registrado.
+  - **"Todavía no aparece"**: la transferencia todavía no está en Mercado Pago. Se vuelve a buscar sola cada media hora durante tres días, o con **"Buscar de nuevo en Mercado Pago"**.
+  - El importe que se registra es siempre el que informa Mercado Pago, nunca el que dice el papel.
 - **"✍ Subir conforme de retiro"**: sólo cuando el pedido **no va por ningún transporte** (retira en el local; en Mercado Libre, las ventas que retiran). Es la firma de quien retira —el cliente o un comisionista— y, si hace falta, la foto de su DNI (por ejemplo, cuando pagó con tarjeta de crédito). Se pueden elegir varias fotos a la vez y quedan como "Conforme de retiro:". **Si el pedido ya está Preparado, subir el conforme cumple la función de "Cliente presente: retira"**: queda Entregado, se factura si falta (en Mercado Libre, además, se le avisa a ML). Si todavía falta cobrarlo, el conforme queda guardado y avisa que hay que elegir con qué pagó y tocar el botón verde.
 
 Los dos se guardan en un lugar privado: sólo los ven los usuarios del sistema.

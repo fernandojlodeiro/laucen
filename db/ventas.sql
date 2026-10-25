@@ -583,6 +583,14 @@ create table if not exists pedido_comprobante_pago (
 );
 create index if not exists pedido_comprobante_pago_pedido on pedido_comprobante_pago (pedido_id);
 alter table pedido_comprobante_pago enable row level security;
+-- La conciliación con Mercado Pago (lib/pagos/comprobante.ts): lo que leyó la IA, cómo quedó y, si quedó
+-- «a confirmar», las transferencias que se proponen. Sin estado = todavía no se intentó.
+alter table pedido_comprobante_pago add column if not exists lectura jsonb;
+alter table pedido_comprobante_pago add column if not exists estado text check (estado in ('conciliado', 'a_confirmar', 'sin_encontrar', 'no_coincide', 'no_es'));
+alter table pedido_comprobante_pago add column if not exists detalle text;
+alter table pedido_comprobante_pago add column if not exists candidatos jsonb;
+alter table pedido_comprobante_pago add column if not exists mp_pago_id text;
+alter table pedido_comprobante_pago add column if not exists revisado_ts timestamptz;
 
 -- El conforme de retiro (Fer, 25/10): la firma de quien retira en el local —el cliente o un comisionista— y,
 -- si hace falta, la foto de su DNI. Sólo queda guardado: no mueve nada del pedido. Mismo bucket privado
