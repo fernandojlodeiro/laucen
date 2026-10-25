@@ -37,7 +37,7 @@ Tiene tres pestañas:
 
 Arriba de la lista:
 - el buscador (nombre, teléfono, producto, número de pack…);
-- las pestañas **En espera** (lo que la IA derivó a una persona, las preguntas a las que le faltó un dato y los reclamos para atender; es la que abre primero), **Sin responder** (el último mensaje es del cliente), **Todos** y **Con persona** (la IA no contesta), cada una con su cuenta;
+- las pestañas **En espera** (lo que la IA derivó a una persona, las preguntas a las que le faltó un dato y los reclamos para atender; abre en esta si hay algo esperando, y si no en **Todos**), **Sin responder** (el último mensaje es del cliente), **Todos** y **Con persona** (la IA no contesta), cada una con su cuenta;
 - los botoncitos por canal, con cuántas hay de cada uno en la pestaña elegida: **Todo**, el logo de **WhatsApp**, el de **Instagram**, el de Mercado Libre con **Mensajes** (la charla con el comprador después de la venta) y con **Preguntas**, y **Reclamos**. Aparecen los canales que tienen algo.
 
 Cada persona ve los canales que su rol puede ver: WhatsApp con «Mensajes», Mercado Libre con «Preguntas y mensajes», reclamos con «Reclamos y devoluciones». Entran los mensajes de Mercado Libre de los últimos 60 días, las preguntas sin responder (y las respondidas de la última semana) y los reclamos abiertos (y los cerrados en los últimos 15 días); lo anterior se ve en [Preguntas y mensajes](/ventas/preguntas) y [Reclamos](/ventas/reclamos).

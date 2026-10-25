@@ -15,10 +15,16 @@ export const dynamic = "force-dynamic";
 export default async function Mensajes({ searchParams }: { searchParams: Promise<{ filtro?: string; origen?: string; con?: string }> }) {
   const s = await entrarErp("mensajes_ver");
   const sp = await searchParams;
-  const filtro = esFiltro(sp.filtro) ? sp.filtro : "en_espera";
   const origen = esFiltroOrigen(sp.origen) ? sp.origen : "todos";
   const con = sp.con ?? null;
-  const foto = await fotoBandeja(s.org.id, (p) => tienePermiso(s.permisos, p), filtro, origen, "", con);
+  const puede = (p: Parameters<typeof tienePermiso>[1]) => tienePermiso(s.permisos, p);
+  // Sin pestaña elegida: «En espera» si hay algo esperando a una persona; si no, «Todos» (Fer, 25/10).
+  let filtro = esFiltro(sp.filtro) ? sp.filtro : "en_espera";
+  let foto = await fotoBandeja(s.org.id, puede, filtro, origen, "", con);
+  if (!esFiltro(sp.filtro) && foto.cuantos.en_espera === 0) {
+    filtro = "todos";
+    foto = await fotoBandeja(s.org.id, puede, filtro, origen, "", con);
+  }
   return (
     <Pantalla titulo="Mensajes" subtitulo="Todo lo que escriben los clientes: WhatsApp, Mercado Libre (mensajes y preguntas) y reclamos. Contesta la IA; lo que deriva a una persona queda «En espera»" ancho="max-w-7xl">
       <PestanasMensajes org={s.org.id} permisos={s.permisos} superadmin={s.superadmin} activa="chats" />
