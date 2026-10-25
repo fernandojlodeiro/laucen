@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DIFUMINADO } from "./difuminado";
 
 export type Banner = { src: string; celular?: string | null; alt: string; href?: string | null };
 
@@ -43,7 +44,7 @@ export default function Banners({ banners }: { banners: Banner[] }) {
           </div>
         );
       })}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-10 bg-gradient-to-t from-[var(--fondo)] to-transparent lg:h-28" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-1/2" style={{ background: DIFUMINADO }} />
       {n > 1 && (
         <>
           <button type="button" aria-label="Anterior" onClick={() => setI((i - 1 + n) % n)} className={`${flecha} left-0 rounded-r-full`}>
@@ -52,7 +53,7 @@ export default function Banners({ banners }: { banners: Banner[] }) {
           <button type="button" aria-label="Siguiente" onClick={() => setI((i + 1) % n)} className={`${flecha} right-0 rounded-l-full`}>
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden><path d="m9 6 6 6-6 6" /></svg>
           </button>
-          <div className="absolute bottom-9 left-1/2 z-10 flex -translate-x-1/2 gap-2 lg:bottom-[100px]">
+          <div className="absolute bottom-[46%] left-1/2 z-10 flex -translate-x-1/2 gap-2">
             {banners.map((_, k) => (
               <button key={k} type="button" aria-label={`Ver banner ${k + 1}`} aria-current={k === i ? "true" : undefined} onClick={() => setI(k)}
                 className={`h-2 w-2 rounded-full ${k === i ? "bg-white" : "bg-white/50"} shadow`} />

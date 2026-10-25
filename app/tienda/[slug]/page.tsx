@@ -12,6 +12,7 @@ import { familiasFueraDe, idsDe } from "@/lib/tienda/portada";
 import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBase, type Tarjeta } from "./catalogo";
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
 import Banners from "./Banners";
+import { DIFUMINADO } from "./difuminado";
 import { bannersDeLaPortada } from "@/lib/tienda/banners";
 import Carrusel from "./Carrusel";
 import { headers } from "next/headers";
@@ -21,14 +22,15 @@ export const dynamic = "force-dynamic";
 
 const CANTIDAD = 12;
 
-// La primera fila de la portada sube sobre el pie del banner, en una caja blanca con su título
-// adentro (Fer, 25/10: que el banner y los productos queden unidos, sin hueco en el medio).
-const ENCIMA = `${CAJA} relative z-10 p-3 sm:p-5 !-mt-6 lg:!-mt-20`;
+// La primera fila de la portada sube sobre el pie del banner, que se funde con el fondo: el
+// título y el principio de las tarjetas quedan sobre el difuminado, a todo el ancho y sin caja
+// (Fer, 25/10: que el banner y los productos queden mezclados, sin hueco en el medio).
+const ENCIMA = "relative z-10 !-mt-10 lg:!-mt-28";
 
 function Fila({ titulo, ver, productos, t, encima }: { titulo: string; ver?: { texto: string; href: string }; productos: Tarjeta[]; t: Parameters<typeof TarjetaProducto>[0]["t"]; encima?: boolean }) {
   if (!productos.length) return null;
   return (
-    <section className={`space-y-3 ${encima ? ENCIMA : ""}`}>
+    <section className={encima ? `space-y-2 ${ENCIMA}` : "space-y-3"}>
       <div className="flex items-baseline gap-4">
         <h2 className="text-xl font-normal text-[var(--texto)] sm:text-[26px]">{titulo}</h2>
         {ver && <Link href={ver.href} className="text-sm text-[var(--boton)] hover:text-[var(--boton-hover)] sm:text-base">{ver.texto}</Link>}
@@ -115,13 +117,13 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
               </div>
               {c.logo && <img src={c.logo} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
             </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/5 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: DIFUMINADO }} />
           </div>
         )}
       </div>
 
       {!catalogo.length && (
-        <div className={`${ENCIMA} px-4 py-12 text-center text-[var(--texto-2)]`}>Pronto vas a encontrar productos acá.</div>
+        <div className={`${CAJA} ${ENCIMA} px-4 py-12 text-center text-[var(--texto-2)]`}>Pronto vas a encontrar productos acá.</div>
       )}
 
       <Fila t={t} titulo="Destacados" productos={de(destacados)} encima={primera === 0} />
