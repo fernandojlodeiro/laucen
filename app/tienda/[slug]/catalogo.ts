@@ -22,6 +22,7 @@ import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
 import { cuotasMpDe, financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
+import { precioWebListo } from "@/lib/tienda/precio-web";
 
 export const POR_PAGINA = 24;
 export const COLOR_POR_DEFECTO = "#3483FA";
@@ -61,7 +62,13 @@ export type ProductoBase = {
   texto: string;
 };
 
-async function leerCatalogo(org: string, canalId: number, listaId: number, moneda: string): Promise<ProductoBase[]> {
+/** `tabla`: los precios salen de precio_web (ya calculados, lib/tienda/precio-web.ts); si no, la cuenta en vivo.
+ *  Las dos dan lo mismo: cada fila de precio_web es precio_de / bono_web / stock_disponible_canal. */
+async function leerCatalogo(org: string, canalId: number, listaId: number, moneda: string, tabla: boolean): Promise<ProductoBase[]> {
+  const precio = tabla
+    ? `join precio_web pr on pr.canal_id = $2 and pr.lista_id = $3 and pr.variacion_id = v.id`
+    : `cross join lateral (select *, bono_web($1, v.id, $3, x.lista_ars) bono, greatest(stock_disponible_canal($1, v.id, $2), 0) disp
+                             from precio_de($1, v.id, $3) x) pr`;
   const filas = await consulta<{
     id: number; titulo: string; marca: string | null; familia_id: number | null; creado: string; variacion_id: number; variaciones: number;
     lista: string; venta: string; venta_max: string; descuento_pct: string; bono: string; video: string | null; stock: number; skus: string | null; sku_base: string; foto: string | null; vendidos: number;
@@ -70,10 +77,10 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
       select p.id producto_id, v.id variacion_id, v.orden, v.sku,
              case when $4 = 'USD' then pr.lista_usd else pr.lista_ars end lista,
              case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
-             pr.descuento_pct, bono_web($1, v.id, $3, pr.lista_ars) bono, greatest(stock_disponible_canal($1, v.id, $2), 0) disp
+             pr.descuento_pct, pr.bono, pr.disp
         from producto p
         join variacion v on v.producto_id = p.id and v.estado = 'activa'
-        cross join lateral (select * from precio_de($1, v.id, $3)) pr
+        ${precio}
        where p.organizacion_id = $1 and p.estado = 'activo'
          -- Sólo lo publicado en este canal web (la web es un canal más).
          and ${sqlPublicadoEnWeb("p", "$2")}
@@ -119,7 +126,7 @@ async function recalcularCatalogo(org: string, canalId: number, listaId: number,
   return enTransaccion(async (c) => {
     const lock = await c.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(hashtext('tienda_catalogo'), $1::int) ok", [canalId]);
     if (!lock.rows[0].ok) return null; // ya lo está calculando otro
-    const filas = await leerCatalogo(org, canalId, listaId, moneda);
+    const filas = await leerCatalogo(org, canalId, listaId, moneda, false);
     await c.query(`insert into tienda_catalogo (organizacion_id, canal_id, lista_id, moneda, filas, calculado_ts) values ($1, $2, $3, $4, $5::jsonb, now())
                    on conflict (canal_id, lista_id, moneda) do update set filas = excluded.filas, calculado_ts = now()`,
       [org, canalId, listaId, moneda, JSON.stringify(filas)]);
@@ -154,9 +161,13 @@ async function catalogoGuardado(org: string, canalId: number, listaId: number, m
 export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   if (!t.listaId) return [];
   const todos = await unstable_cache(
-    () => catalogoGuardado(t.organizacionId, t.canalId, t.listaId!, t.moneda),
+    // Con los precios ya calculados (precio_web) la consulta es instantánea; hasta que la tabla esté lista,
+    // el catálogo guardado de siempre.
+    async () => (await precioWebListo(t.canalId, t.listaId!))
+      ? leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda, true)
+      : catalogoGuardado(t.organizacionId, t.canalId, t.listaId!, t.moneda),
     // Cambia la versión cuando cambia la consulta (la copia guardada no se renueva sola).
-    ["tienda-catalogo", "v6", String(t.canalId), String(t.listaId), t.moneda],
+    ["tienda-catalogo", "v7", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 30, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;
