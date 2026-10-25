@@ -44,6 +44,9 @@ export const RUTAS_PUBLICAS = [
   "/api/catalogo",
   // Los avisos de WhatsApp (Meta): se verifican con la firma de la app.
   "/api/whatsapp/webhook",
+  // El PDF de una factura por su enlace con código al azar (el documento y el botón de WhatsApp, lib/facturacion/envio.ts):
+  // sin esto, WhatsApp bajaba la pantalla de ingreso en vez del PDF (Fer, 25/10).
+  "/api/factura",
   // Los avisos de Windows: los pide la base (pg_cron) con erp_llave; el portero del navegador es un archivo suelto.
   "/api/avisos/push",
   // La exportación de Mercado Pago: la pide la base (pg_net) con erp_llave; sólo lee de Mercado Pago.

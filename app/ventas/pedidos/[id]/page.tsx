@@ -422,11 +422,11 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                     <BotonEnviar clase={SUAVE} corriendo="Mandando…">{x.mail_salio ? "Reenviar por mail" : "Mandar por mail"}</BotonEnviar>
                   </form>
                 )}
-                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && x.wa_estado !== "enviado" && (
+                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && (
                   <form action={accionFacturaWhatsapp}>
                     <input type="hidden" name="pedido_id" value={pid} />
                     <input type="hidden" name="comprobante_id" value={x.id} />
-                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">Mandar por WhatsApp</BotonEnviar>
+                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">{x.wa_estado === "enviado" ? "Reenviar por WhatsApp" : "Mandar por WhatsApp"}</BotonEnviar>
                   </form>
                 )}
               </div>
