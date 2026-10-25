@@ -142,3 +142,44 @@ create table if not exists pub_lectura (
 create index if not exists pub_lectura_org on pub_lectura (organizacion_id, inicio_ts desc);
 alter table pub_lectura enable row level security;
 select erp_politica_org('pub_lectura');
+
+-- ── Embudo de publicidad (Fer, 25/10; como el de CadaMes) ──────────────────────────────────────────
+-- El gasto de los anuncios de afuera de Mercado Libre (Meta; después Google y TikTok), por anuncio y por día, leído de
+-- la plataforma (lib/publicidad/meta-ads.ts). La moneda es la de la cuenta publicitaria.
+create table if not exists anuncio_dia (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  plataforma       text not null check (plataforma in ('meta', 'google', 'tiktok')),
+  cuenta_id        text not null,
+  anuncio_id       text not null,
+  anuncio          text,
+  campana_id       text,
+  campana          text,
+  fecha            date not null,
+  gasto            numeric(16, 2) not null default 0,
+  moneda           text not null default 'ARS',
+  impresiones      bigint,
+  clics            bigint,
+  actualizado_ts   timestamptz not null default now(),
+  primary key (organizacion_id, plataforma, anuncio_id, fecha)
+);
+create index if not exists anuncio_dia_fecha on anuncio_dia (organizacion_id, fecha);
+alter table anuncio_dia enable row level security;
+
+-- La cuenta de anuncios de Meta conectada de cada organización («Conectar anuncios de Meta»: el inicio de sesión de
+-- Facebook para empresas con el permiso de leer anuncios). Termina en _credencial: el asistente no la lee.
+create table if not exists meta_ads_credencial (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  token            text not null,
+  cuentas          jsonb not null default '[]',
+  conectado_ts     timestamptz not null default now(),
+  lectura_ts       timestamptz,
+  lectura_estado   text,
+  estado           text not null default 'activo' check (estado in ('activo', 'desconectado'))
+);
+alter table meta_ads_credencial enable row level security;
+
+-- De qué anuncio vino cada uno: el pedido de la tienda web (los parámetros del link del anuncio, guardados al entrar a
+-- la tienda) y el chat de WhatsApp o Instagram (el anuncio que Meta pega al primer mensaje de quien escribió desde un
+-- anuncio «Enviar mensaje»). {plataforma, anuncio_id, campana, fuente, medio, ts}. Ver lib/publicidad/atribucion.ts.
+alter table pedido add column if not exists atribucion jsonb;
+alter table chat add column if not exists atribucion jsonb;

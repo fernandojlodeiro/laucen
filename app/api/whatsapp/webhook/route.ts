@@ -11,7 +11,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { enviarTexto, firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
 import { recibirComprobanteWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
-import { anotarEntrega, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
+import { anotarAnuncio, anotarEntrega, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { contestar } from "@/lib/mensajes/estela";
 import { conQuienHablaban, ecosDelCambio, esOrdenDeMando, loQueDijo, sinLaMarca } from "@/lib/mensajes/reglas";
@@ -34,6 +34,8 @@ type Mensaje = {
   audio?: { id?: string }; sticker?: unknown; location?: { name?: string; address?: string; latitude?: number; longitude?: number };
   button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
   reaction?: unknown;
+  /** El anuncio, cuando escribió desde un anuncio «Enviar mensaje» (sólo en el primer mensaje): lib/publicidad/atribucion.ts. */
+  referral?: unknown;
 };
 type Estado = { id?: string; status?: string; recipient_id?: string; errors?: { code?: number }[] };
 type Valor = {
@@ -118,6 +120,7 @@ export async function POST(req: NextRequest) {
         const chat = await chatDe(org, "whatsapp", tel, nombre);
         const id = await guardarMensaje({ org, chatId: chat.id, clase: "entrante", texto, wamid: m.id ?? null });
         if (id == null) continue; // Meta lo mandó dos veces
+        await anotarAnuncio(chat.id, m.referral);
         after(async () => {
           try {
             // Una foto o un PDF de un cliente con un pedido sin pagar: puede ser el comprobante de la transferencia

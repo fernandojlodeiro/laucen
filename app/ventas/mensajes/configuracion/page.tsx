@@ -16,6 +16,7 @@ import { PestanasMensajes } from "../comun";
 import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionIaGeneral } from "./acciones";
 import { appInstagram, claveDeVerificacion, cuentaDeOrg, hayAppInstagram } from "@/lib/mensajes/instagram";
 import { sosVos } from "@/lib/admin";
+import { datosAppMetaAnuncios } from "@/lib/publicidad/meta-ads";
 import { urlPanel } from "@/lib/tienda/dominios";
 import { pendienteDe } from "@/lib/mensajes/alta";
 
@@ -62,6 +63,7 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const vuelta = sp.wa ? VUELTA[sp.wa] : sp.ig ? VUELTA_IG[sp.ig] : null;
   const [ig, appIg, esDueno] = await Promise.all([cuentaDeOrg(s.org.id), appInstagram(), sosVos()]);
   const verifyIg = esDueno ? await claveDeVerificacion() : null;
+  const appFb = esDueno ? await datosAppMetaAnuncios() : null;
   const editandoIg = sp.editar === "ig" && esDueno;
   const lista = hayAppDeMeta();
   // Meta dio permiso sobre varios números (bitácora #868): se elige cuál conectar.
@@ -148,15 +150,16 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
 
       {esDueno && (
         <>
-          <TituloSeccion titulo="La app de Instagram de Laucen">
+          <TituloSeccion titulo="La app de Meta de Laucen">
             <BotonesFicha editando={editandoIg} ver={VOLVER} editar={`${VOLVER}?editar=ig`} form="app-ig" />
           </TituloSeccion>
           <div className={`${CAJA} mb-4 text-xs space-y-2`}>
-            <p className="text-[11px] text-[#5C6B76]">Es la app de Meta («Instagram API con inicio de sesión de Instagram») por la que entran los mensajes de Instagram de todas las organizaciones. Sólo la ve el dueño del sistema. En la app de Meta, en Instagram › «Configurar webhooks» y «Configurar el inicio de sesión»:</p>
+            <p className="text-[11px] text-[#5C6B76]">Es la app de Meta de Laucen: por ella entran los mensajes de Instagram («Instagram API con inicio de sesión de Instagram») y se leen los anuncios de Meta del embudo de publicidad («Inicio de sesión con Facebook para empresas», con una configuración con el permiso de leer anuncios). Sólo la ve el dueño del sistema. Lo que hay que cargar en la app de Meta:</p>
             <ul className="text-[11px] grid gap-1">
               <li>Dirección de devolución (callback) de los webhooks: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/instagram/webhook`}</code></li>
               <li>Clave de verificación: <code className="bg-[#F7F9FB] px-1">{verifyIg}</code> · campo a suscribir: <code className="bg-[#F7F9FB] px-1">messages</code></li>
-              <li>URL de redireccionamiento de OAuth: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/instagram/conectar/callback`}</code></li>
+              <li>URL de redireccionamiento de OAuth de Instagram: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/instagram/conectar/callback`}</code></li>
+              <li>URI de redireccionamiento de OAuth válido del inicio de sesión de Facebook (anuncios): <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/meta-ads/conectar/callback`}</code></li>
             </ul>
             {editandoIg ? (
               <form id="app-ig" action={accionGuardarAppInstagram} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -164,11 +167,20 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
                   <input name="app_id" defaultValue={appIg?.appId ?? ""} inputMode="numeric" autoFocus className={`${CAMPO} w-full font-mono`} /></label>
                 <label><span className={ETIQUETA}>Clave secreta de la app de Instagram</span>
                   <input name="app_secret" type="password" autoComplete="off" placeholder={appIg?.appSecret ? "Cargada (vacío: queda la que está)" : ""} className={`${CAMPO} w-full font-mono`} /></label>
+                <label><span className={ETIQUETA}>Identificador de la app (anuncios)</span>
+                  <input name="fb_app_id" defaultValue={appFb?.appId ?? ""} inputMode="numeric" className={`${CAMPO} w-full font-mono`} /></label>
+                <label><span className={ETIQUETA}>Clave secreta de la app (anuncios)</span>
+                  <input name="fb_app_secret" type="password" autoComplete="off" placeholder={appFb?.hayClave ? "Cargada (vacío: queda la que está)" : ""} className={`${CAMPO} w-full font-mono`} /></label>
+                <label><span className={ETIQUETA}>Configuración «Conectar anuncios»</span>
+                  <input name="ads_config_id" defaultValue={appFb?.configId ?? ""} inputMode="numeric" className={`${CAMPO} w-full font-mono`} /></label>
               </form>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Dato etiqueta="Identificador de la app de Instagram">{appIg?.appId || null}</Dato>
                 <Dato etiqueta="Clave secreta de la app de Instagram">{appIg?.appSecret ? "Cargada" : null}</Dato>
+                <Dato etiqueta="Identificador de la app (anuncios)">{appFb?.appId || null}</Dato>
+                <Dato etiqueta="Clave secreta de la app (anuncios)">{appFb?.hayClave ? "Cargada" : null}</Dato>
+                <Dato etiqueta="Configuración «Conectar anuncios»">{appFb?.configId || null}</Dato>
               </div>
             )}
           </div>

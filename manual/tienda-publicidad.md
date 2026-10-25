@@ -9,6 +9,8 @@ resumen: Google Ads, Meta (Facebook e Instagram) y TikTok en la tienda web. Por 
 
 ## Para qué sirve
 
+Además, cuando alguien entra a la tienda desde el link de un anuncio y compra, el pedido queda con el anuncio del que vino: se ve en el [Embudo de publicidad](/informes/embudo-publicidad).
+
 Para hacer publicidad de la tienda en **Google** (Búsqueda y Shopping), **Meta** (Facebook e Instagram) y **TikTok**, cada plataforma necesita dos cosas:
 
 - **Saber qué anuncio terminó en una venta.** La tienda le avisa cuando alguien mira un producto, lo agrega al carrito, empieza a pagar y compra, con el valor y el SKU de cada producto. Así la plataforma aprende a quién mostrarle los anuncios y te dice cuánto vendió cada campaña.

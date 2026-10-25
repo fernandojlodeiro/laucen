@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
-import { anotarEvento, chatDe, ganaLaEspera, guardarMensaje } from "@/lib/mensajes/chats";
+import { anotarAnuncio, anotarEvento, chatDe, ganaLaEspera, guardarMensaje } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { contestar } from "@/lib/mensajes/estela";
 import { appInstagram, cuentaDeId, firmaInstagramValida, mensajesDelAviso, perfil, type AvisoInstagram } from "@/lib/mensajes/instagram";
@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
         const nombre = await perfil(cuenta, m.persona).catch(() => "");
         if (nombre) { await chatDe(org, "instagram", m.persona, nombre); }
       }
+      if (m.referral) await anotarAnuncio(chat.id, m.referral);
+      if (!m.texto) continue; // sólo el anuncio (abrió la charla desde un anuncio)
       const wamid = m.mid ? `ig:${m.mid}` : null;
       if (m.eco) {
         // Lo que mandamos desde Laucen vuelve como eco con el mismo id: no se duplica. Lo demás lo escribieron en la app.

@@ -74,6 +74,14 @@ export async function chatDe(org: string, canal: Canal, externo: string, nombre 
   return r!;
 }
 
+/** Escribió desde un anuncio (Meta pega el anuncio al primer mensaje): queda en el chat, para el embudo de
+ *  publicidad. Gana el primero: después no se pisa. */
+export async function anotarAnuncio(chatId: number, referral: unknown): Promise<void> {
+  const { atribucionDeReferral } = await import("@/lib/publicidad/atribucion");
+  const a = atribucionDeReferral(referral);
+  if (a) await consulta("update chat set atribucion = $2::jsonb where id = $1 and atribucion is null", [chatId, JSON.stringify(a)]).catch(() => {});
+}
+
 // ── Mensajes ─────────────────────────────────────────────────────────
 export type Clase = "entrante" | "ia" | "operador" | "desde_el_telefono";
 export type NuevoMensaje = {

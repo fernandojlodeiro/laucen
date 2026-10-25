@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { DOMINIO_PANEL, REDIRIGEN_AL_PANEL, esDelPanel } from "@/lib/tienda/dominios";
 import { abreLaTienda, destinoDeHost } from "@/lib/tienda/dominios-tienda";
+import { aGalleta, atribucionDeParametros, DIAS_ORIGEN, GALLETA_ORIGEN } from "@/lib/publicidad/atribucion";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -72,7 +73,11 @@ async function aLaTienda(req: NextRequest, host: string): Promise<NextResponse |
     return NextResponse.redirect(limpia, 308);
   }
   if (ruta.startsWith("/tienda/")) return null;
-  return reescribir(req, `${base}${ruta === "/" ? "" : ruta}`);
+  const r = reescribir(req, `${base}${ruta === "/" ? "" : ruta}`);
+  // Llegó del link de un anuncio: se guarda de cuál, y queda en el pedido si compra (lib/publicidad/atribucion.ts).
+  const origen = atribucionDeParametros(req.nextUrl.searchParams);
+  if (origen) r.cookies.set(GALLETA_ORIGEN, aGalleta(origen), { maxAge: DIAS_ORIGEN * 86_400, path: "/", sameSite: "lax", httpOnly: true, secure: true });
+  return r;
 }
 
 function reescribir(req: NextRequest, ruta: string) {

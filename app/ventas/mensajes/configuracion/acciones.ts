@@ -84,7 +84,19 @@ export async function accionGuardarAppInstagram(fd: FormData) {
     if (secreto && !/^[0-9a-f]{20,64}$/i.test(secreto)) throw new ErrorErp("La clave secreta de la app no tiene la forma de las de Meta (letras de la a a la f y números).");
     const { guardarAppInstagram, appInstagram } = await import("@/lib/mensajes/instagram");
     await guardarAppInstagram(appId, secreto || null);
-    if (!(await appInstagram())?.appSecret) throw new ErrorErp("Falta la clave secreta de la app.");
+    if (!(await appInstagram())?.appSecret) throw new ErrorErp("Falta la clave secreta de la app de Instagram.");
+    // La misma app, para «Conectar anuncios de Meta» (embudo de publicidad): su identificador y clave propios y la
+    // configuración del inicio de sesión de Facebook para empresas. Opcionales: se pueden cargar después.
+    const fbId = (texto(fd, "fb_app_id") ?? "").replace(/\s/g, "");
+    const fbSecreto = (texto(fd, "fb_app_secret") ?? "").trim();
+    const configId = (texto(fd, "ads_config_id") ?? "").replace(/\s/g, "");
+    if (fbId && !/^\d{6,25}$/.test(fbId)) throw new ErrorErp("El identificador de la app son sólo números (Configuración › Básica de la app en Meta).");
+    if (fbSecreto && !/^[0-9a-f]{20,64}$/i.test(fbSecreto)) throw new ErrorErp("La clave secreta de la app no tiene la forma de las de Meta.");
+    if (configId && !/^\d{6,25}$/.test(configId)) throw new ErrorErp("El identificador de la configuración son sólo números (Inicio de sesión con Facebook para empresas › Configuraciones).");
+    if (fbId || configId) {
+      const { guardarAppMetaAnuncios } = await import("@/lib/publicidad/meta-ads");
+      await guardarAppMetaAnuncios({ appId: fbId, appSecret: fbSecreto || null, configId });
+    }
     revalidatePath(VOLVER);
     return { ir: `${VOLVER}?ok=${encodeURIComponent("Listo: la app de Instagram quedó cargada.")}` };
   });

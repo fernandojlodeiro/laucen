@@ -156,15 +156,24 @@ export type AvisoInstagram = {
   object?: string;
   entry?: { id?: string; messaging?: {
     sender?: { id?: string }; recipient?: { id?: string }; timestamp?: number;
-    message?: { mid?: string; text?: string; is_echo?: boolean; is_deleted?: boolean; attachments?: { type?: string }[] };
+    message?: { mid?: string; text?: string; is_echo?: boolean; is_deleted?: boolean; attachments?: { type?: string }[]; referral?: unknown };
+    /** El anuncio, cuando escribió desde un anuncio (va suelto o adentro del mensaje). */
+    referral?: unknown;
   }[] }[];
 };
 
-/** Cada mensaje del aviso, en limpio: de quién (la persona), a qué cuenta, si es un eco (lo mandó la cuenta) y el texto. Puro. */
-export function mensajesDelAviso(a: AvisoInstagram): { cuenta: string; persona: string; eco: boolean; mid: string | null; texto: string }[] {
-  const out: { cuenta: string; persona: string; eco: boolean; mid: string | null; texto: string }[] = [];
+export type MensajeInstagram = { cuenta: string; persona: string; eco: boolean; mid: string | null; texto: string; referral?: unknown };
+
+/** Cada mensaje del aviso, en limpio: de quién (la persona), a qué cuenta, si es un eco (lo mandó la cuenta), el texto y
+ *  el anuncio si vino de uno. Un aviso sólo de anuncio (abrió la charla desde un anuncio, sin mensaje) va con texto vacío. Puro. */
+export function mensajesDelAviso(a: AvisoInstagram): MensajeInstagram[] {
+  const out: MensajeInstagram[] = [];
   for (const e of a.entry ?? []) {
     for (const m of e.messaging ?? []) {
+      if (!m.message && m.referral && m.sender?.id && (m.recipient?.id ?? e.id)) {
+        out.push({ cuenta: (m.recipient?.id ?? e.id)!, persona: m.sender.id, eco: false, mid: null, texto: "", referral: m.referral });
+        continue;
+      }
       if (!m.message || m.message.is_deleted) continue;
       const eco = !!m.message.is_echo;
       const persona = eco ? m.recipient?.id : m.sender?.id;
@@ -174,7 +183,8 @@ export function mensajesDelAviso(a: AvisoInstagram): { cuenta: string; persona: 
       const texto = m.message.text?.trim()
         || (adj === "image" ? "📷 (mandó una foto)" : adj === "video" ? "🎬 (mandó un video)" : adj === "audio" ? "🎤 (mandó un audio)" : adj ? "(mandó un adjunto)" : "");
       if (!texto) continue;
-      out.push({ cuenta, persona, eco, mid: m.message.mid ?? null, texto });
+      const referral = m.referral ?? m.message.referral;
+      out.push({ cuenta, persona, eco, mid: m.message.mid ?? null, texto, ...(referral && !eco ? { referral } : {}) });
     }
   }
   return out;

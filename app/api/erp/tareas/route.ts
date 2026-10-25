@@ -34,6 +34,7 @@ import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupa
 import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/drive-ddjj";
 import { leerFacturasDelDrive, organizacionesParaLeerFacturas } from "@/lib/compras/drive-facturas";
 import { renovarTokensInstagram } from "@/lib/mensajes/instagram";
+import { anunciosMetaPendientes, leerAnunciosMeta } from "@/lib/publicidad/meta-ads";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -103,6 +104,11 @@ export async function GET(req: Request) {
   }
   // Los tokens de Instagram duran 60 días: de noche se renuevan los que vencen en menos de 20 (lib/mensajes/instagram.ts).
   if (enVentanaBarrida()) informe.instagram = await renovarTokensInstagram().catch((e) => (e instanceof Error ? e.message : String(e)));
+  // El gasto de los anuncios de Meta (embudo de publicidad): cada 3 horas, sólo lectura (lib/publicidad/meta-ads.ts).
+  for (const org of await anunciosMetaPendientes()) {
+    if (Date.now() - t0 > 30_000) break;
+    informe[`meta_ads_${org}`] = await leerAnunciosMeta(org).catch((e) => (e instanceof Error ? e.message : String(e)));
+  }
   // Mercado Libre: la cola de salida (hasta ~45 s) y, de noche, la barrida.
   // Van en paralelo con las importaciones: son pedidos a ML, no a la base.
   const cola = await hayPendientes();

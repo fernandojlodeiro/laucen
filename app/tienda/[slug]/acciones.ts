@@ -10,7 +10,8 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { COOKIE_EVENTOS, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
 import { redirect } from "next/navigation";
-import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { una, consulta, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { deGalleta, GALLETA_ORIGEN } from "@/lib/publicidad/atribucion";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { leerCarrito, sumarAlCarrito, fijarCantidad, vaciarCarrito } from "@/lib/tienda/carrito";
 import { comprar, cobrarConPayway, mediosActivos, type DatosCompra } from "@/lib/tienda/checkout";
@@ -182,6 +183,9 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);
+    // De qué anuncio vino (la galleta que dejó el middleware al entrar por el link del anuncio): embudo de publicidad.
+    const origen = deGalleta((await cookies()).get(GALLETA_ORIGEN)?.value);
+    if (origen) await consulta("update pedido set atribucion = $2::jsonb where id = $1 and atribucion is null", [r.pedidoId, JSON.stringify(origen)]).catch(() => {});
     // Sin refrescar la página: el navegador ya se va al pedido (o a pagar), y volver a dibujar el
     // checkout con el carrito vacío mostraba «el carrito está vacío» mientras tanto (Fer, 24/10).
     return { ir: r.ir };

@@ -161,3 +161,10 @@ begin
     alter table chat add constraint chat_canal_check check (canal in ('whatsapp', 'prueba', 'instagram'));
   end if;
 end $$;
+
+-- La misma app de Meta, para «Conectar anuncios de Meta» (embudo de publicidad, Fer 25/10): el identificador y la clave
+-- secreta de la app (no los de Instagram, que son otros) y la configuración del inicio de sesión de Facebook para
+-- empresas con el permiso de leer anuncios.
+alter table ig_app_credencial add column if not exists fb_app_id text;
+alter table ig_app_credencial add column if not exists fb_app_secret text;
+alter table ig_app_credencial add column if not exists ads_config_id text;
