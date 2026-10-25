@@ -164,3 +164,25 @@ test("el control no encuentra diferencias y ninguna tabla del precio queda sin a
   assert.ok((await q("select 1 from precio_web_diferencia where variacion_id = $1", [e.a.v])).length >= 1);
   await igualAlVivo(e.org);
 });
+
+test("primero lo que se ve, después lo archivado; un cambio real adelanta lo que estaba atrás", async () => {
+  const e = await escenario();
+  const arch = await id("insert into producto (organizacion_id, sku_base, titulo, estado) values ($1, $2, 'Viejo', 'archivado') returning id",
+    [e.org, `P-${randomUUID().slice(0, 8)}`]);
+  const varArch = await id("select id from variacion where producto_id = $1 and es_default", [arch]);
+  await q("delete from precio_web_pendiente where organizacion_id = $1", [e.org]);
+  await q("select precio_web_todo_de($1)", [e.org]);
+  await q("select precio_web_expandir_todo()");
+  const pr = new Map((await q<{ variacion_id: string; prioridad: number }>(
+    "select variacion_id, prioridad from precio_web_pendiente where organizacion_id = $1", [e.org])).map((x) => [Number(x.variacion_id), x.prioridad]));
+  assert.equal(pr.get(e.a.v), 0);
+  assert.equal(pr.get(e.kit.v), 0);
+  assert.equal(pr.get(varArch), 1, "lo archivado va después");
+  // Un cambio real sobre lo archivado lo pone adelante.
+  await q("update producto set titulo = 'Viejo 2' where id = $1", [arch]);
+  assert.equal((await q<{ prioridad: number }>("select prioridad from precio_web_pendiente where variacion_id = $1", [varArch]))[0].prioridad, 0);
+  // El trabajo de cada 10 segundos vacía la cola (de a 50, guardando tanda por tanda).
+  await q("call precio_web_procesar_continuo(30)");
+  assert.equal((await q("select 1 from precio_web_pendiente where organizacion_id = $1", [e.org])).length, 0);
+  await igualAlVivo(e.org);
+});

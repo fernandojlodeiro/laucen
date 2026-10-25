@@ -10,7 +10,8 @@
 --   - Cada tabla de la que depende un precio tiene un disparador que anota qué recalcular: la variación
 --     tocada (precio, stock, publicación, la variación o su producto, un kit) o «todo» cuando cambia algo
 --     general (lista de precios, dólar, comisiones o cargos de ML, reglas de tachado, familias, depósitos).
---   - precio_web_procesar lo recalcula cada 10 segundos (pg_cron), de a lotes, uno solo a la vez.
+--   - precio_web_procesar_continuo lo recalcula cada 10 segundos (pg_cron), de a 50 sin pausas, primero lo
+--     que se ve (activo o en la tabla) y después el resto; uno solo a la vez.
 --   - Un precio depende también de la FECHA (un precio cargado para mañana, el dólar del día): a las 00:00
 --     (hora de la base) se recalcula todo. No es un parche: es parte de la cuenta.
 --   - Control: cada 10 minutos se comparan 300 filas al azar contra la cuenta en vivo, y una vez por día
@@ -45,6 +46,10 @@ create table if not exists precio_web_pendiente (
   desde            timestamptz not null default clock_timestamp()
 );
 alter table precio_web_pendiente enable row level security;
+-- Prioridad (Fer, 25/10): 0 = lo que se ve (variación y producto activos, o ya en la tabla) y todo aviso de un
+-- cambio real; 1 = lo demás de un «todo» (archivados), que se hace después; 9 = falló el cálculo, se reintenta al final.
+alter table precio_web_pendiente add column if not exists prioridad smallint not null default 0;
+create index if not exists precio_web_pendiente_orden on precio_web_pendiente (prioridad, desde);
 create table if not exists precio_web_todo (
   organizacion_id  text primary key,
   desde            timestamptz not null default clock_timestamp()
@@ -114,29 +119,71 @@ begin
   delete from precio_web pw where pw.variacion_id = p_variacion and not exists (select 1 from precio_web_canales(p_org) x where x.canal_id = pw.canal_id);
 end $$;
 
--- Procesa la cola: primero los «todo» (encolan cada variación de la organización), después de a lotes.
--- Uno solo a la vez (candado); devuelve cuántas variaciones recalculó.
-create or replace function public.precio_web_procesar(p_limite int default 500)
-returns int language plpgsql as $$
-declare t record; f record; n int := 0;
+-- Un «todo» se reparte en la cola: primero (prioridad 0) lo que se ve —variación y producto activos, o que
+-- ya está en la tabla—; después (prioridad 1) todo lo demás de la organización (archivados). Un aviso que
+-- ya estaba en la cola con prioridad 0 la conserva.
+create or replace function public.precio_web_expandir_todo()
+returns void language plpgsql as $$
+declare t record;
 begin
-  if not pg_try_advisory_xact_lock(hashtext('precio_web_procesar')) then return 0; end if;
   for t in select organizacion_id, desde from precio_web_todo for update skip locked loop
-    insert into precio_web_pendiente (variacion_id, organizacion_id)
-    select v.id, v.organizacion_id from variacion v where v.organizacion_id = t.organizacion_id
-    on conflict (variacion_id) do update set desde = clock_timestamp();
-    -- Las filas de variaciones que ya no existen en la organización (se borraron) se van con el cascade;
-    -- las de canales que dejaron de ser web, acá.
+    insert into precio_web_pendiente (variacion_id, organizacion_id, prioridad)
+    select v.id, v.organizacion_id,
+           case when (v.estado = 'activa' and p.estado = 'activo') or exists (select 1 from precio_web pw where pw.variacion_id = v.id) then 0 else 1 end
+      from variacion v join producto p on p.id = v.producto_id where v.organizacion_id = t.organizacion_id
+    on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = least(precio_web_pendiente.prioridad, excluded.prioridad);
+    -- Las filas de variaciones que ya no existen se van con el cascade; las de canales que dejaron de ser web, acá.
     delete from precio_web pw where pw.organizacion_id = t.organizacion_id
        and not exists (select 1 from precio_web_canales(t.organizacion_id) x where x.canal_id = pw.canal_id);
     delete from precio_web_todo where organizacion_id = t.organizacion_id and desde = t.desde;
   end loop;
-  for f in select variacion_id, organizacion_id, desde from precio_web_pendiente order by desde limit p_limite for update skip locked loop
-    perform precio_web_actualizar(f.organizacion_id, f.variacion_id);
-    delete from precio_web_pendiente where variacion_id = f.variacion_id and desde = f.desde;
+end $$;
+
+-- Recalcula hasta p_limite de la cola, por prioridad y antigüedad. Si el cálculo de una variación falla, no
+-- traba la cola: queda al final (prioridad 9, se reintenta) y anotado en el registro del servidor; el control
+-- la marca igual si quedó distinta.
+create or replace function public.precio_web_procesar_lote(p_limite int)
+returns int language plpgsql as $$
+declare f record; n int := 0;
+begin
+  for f in select variacion_id, organizacion_id, desde from precio_web_pendiente order by prioridad, desde limit p_limite for update skip locked loop
+    begin
+      perform precio_web_actualizar(f.organizacion_id, f.variacion_id);
+      delete from precio_web_pendiente where variacion_id = f.variacion_id and desde = f.desde;
+    exception when others then
+      raise warning 'precio_web: no se pudo calcular la variación %: %', f.variacion_id, sqlerrm;
+      update precio_web_pendiente set prioridad = 9, desde = clock_timestamp() where variacion_id = f.variacion_id and desde = f.desde;
+    end;
     n := n + 1;
   end loop;
   return n;
+end $$;
+
+-- Procesa la cola de una vez (lo usan las pruebas y los arreglos a mano). Uno solo a la vez.
+create or replace function public.precio_web_procesar(p_limite int default 500)
+returns int language plpgsql as $$
+begin
+  if not pg_try_advisory_xact_lock(hashtext('precio_web_procesar')) then return 0; end if;
+  perform precio_web_expandir_todo();
+  return precio_web_procesar_lote(p_limite);
+end $$;
+
+-- El trabajo de cada 10 segundos (pg_cron): de a 50 y guardando tanda por tanda, sin pausas, hasta vaciar
+-- la cola o cumplir p_segundos. Tandas chicas a propósito: mientras una variación se recalcula, una venta
+-- que la toca espera a que termine su tanda, nunca más de un instante. Uno solo a la vez (candado).
+create or replace procedure public.precio_web_procesar_continuo(p_segundos int default 9)
+language plpgsql as $$
+declare inicio timestamptz := clock_timestamp(); n int;
+begin
+  if not pg_try_advisory_lock(hashtext('precio_web_procesar')) then return; end if;
+  perform precio_web_expandir_todo();
+  commit;
+  loop
+    n := precio_web_procesar_lote(50);
+    commit;
+    exit when n = 0 or clock_timestamp() - inicio > make_interval(secs => p_segundos);
+  end loop;
+  perform pg_advisory_unlock(hashtext('precio_web_procesar'));
 end $$;
 
 -- ── Los avisos (disparadores) ──
@@ -145,7 +192,7 @@ create or replace function public.precio_web_encolar(p_org text, p_variacion big
 returns void language sql as $$
   insert into precio_web_pendiente (variacion_id, organizacion_id) select p_variacion, p_org
    where p_variacion is not null and p_org is not null
-  on conflict (variacion_id) do update set desde = clock_timestamp()
+  on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = 0
 $$;
 
 -- Una variación y los kits que la usan (hasta 5 niveles, como stock_disponible_deposito).
@@ -155,14 +202,14 @@ returns void language sql as $$
     select p_variacion id, 0 nivel
     union select kc.variacion_kit_id, k.nivel + 1 from kit_componente kc join k on kc.variacion_componente_id = k.id where k.nivel < 6)
   insert into precio_web_pendiente (variacion_id, organizacion_id) select distinct id, p_org from k where id is not null and p_org is not null
-  on conflict (variacion_id) do update set desde = clock_timestamp()
+  on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = 0
 $$;
 
 -- Todas las variaciones de un producto (la comisión de ML sale de cualquier publicación del producto).
 create or replace function public.precio_web_encolar_producto(p_org text, p_producto bigint)
 returns void language sql as $$
   insert into precio_web_pendiente (variacion_id, organizacion_id) select v.id, v.organizacion_id from variacion v where v.producto_id = p_producto
-  on conflict (variacion_id) do update set desde = clock_timestamp()
+  on conflict (variacion_id) do update set desde = clock_timestamp(), prioridad = 0
 $$;
 
 create or replace function public.precio_web_todo_de(p_org text)
@@ -330,8 +377,14 @@ end $$;
 create or replace function public.precio_web_controlar_auto()
 returns int language plpgsql as $$
 begin
+  -- Red de seguridad: si algo espera en la cola hace más de 2 minutos (el trabajo de cada 10 segundos no está
+  -- corriendo), lo procesa el control.
+  if exists (select 1 from precio_web_pendiente where prioridad < 9 and desde < now() - interval '2 minutes') then
+    raise warning 'precio_web: la cola tenía cosas esperando hace más de 2 minutos; las procesa el control';
+    perform precio_web_procesar(5000);
+  end if;
   -- Mientras se está llenando por primera vez (o recalculando todo) no se controla: faltan filas a propósito.
-  if exists (select 1 from precio_web_todo) or (select count(*) from precio_web_pendiente) > 50 then return 0; end if;
+  if exists (select 1 from precio_web_todo) or (select count(*) from precio_web_pendiente where prioridad = 0) > 50 then return 0; end if;
   if not exists (select 1 from precio_web_control where tipo = 'completo' and ts > now() - interval '1 day') then
     return precio_web_controlar(null);
   end if;
@@ -347,7 +400,7 @@ on conflict (organizacion_id) do nothing;
 do $$
 declare
   trabajos text[][] := array[
-    ['precio-web-procesar', '10 seconds', 'select public.precio_web_procesar(500)'],
+    ['precio-web-procesar', '10 seconds', 'call public.precio_web_procesar_continuo(9)'],
     ['precio-web-control', '*/10 * * * *', 'select public.precio_web_controlar_auto()'],
     ['precio-web-dia', '0 0 * * *', 'select public.precio_web_todo_todas()']];
   i int; j record;
