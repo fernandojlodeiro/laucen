@@ -13,7 +13,9 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionIaGeneral } from "./acciones";
+import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionIaGeneral, accionRespuestaAuto } from "./acciones";
+import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
+import { tienePermiso } from "@/lib/permisos";
 import { appInstagram, claveDeVerificacion, cuentaDeOrg, hayAppInstagram } from "@/lib/mensajes/instagram";
 import { sosVos } from "@/lib/admin";
 import { datosAppMetaAnuncios } from "@/lib/publicidad/meta-ads";
@@ -65,6 +67,8 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const verifyIg = esDueno ? await claveDeVerificacion() : null;
   const appFb = esDueno ? await datosAppMetaAnuncios() : null;
   const editandoIg = sp.editar === "ig" && esDueno;
+  const verMl = s.superadmin || tienePermiso(s.permisos, "preguntas_ver");
+  const auto = verMl ? await respuestaAuto(s.org.id) : null;
   const lista = hayAppDeMeta();
   // Meta dio permiso sobre varios números (bitácora #868): se elige cuál conectar.
   const pendiente = sp.alta ? await pendienteDe(s.org.id, Number(sp.alta) || 0) : null;
@@ -183,6 +187,20 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
                 <Dato etiqueta="Configuración «Conectar anuncios»">{appFb?.configId || null}</Dato>
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {auto && (
+        <>
+          <TituloSeccion titulo="Mercado Libre" />
+          <div className={`${CAJA} mb-6 space-y-3`}>
+            <Interruptor accion={accionRespuestaAuto} campos={{ cual: "preguntas" }} prendido={auto.preguntas}
+              etiqueta={auto.preguntas ? "Prendido: la IA contesta sola las preguntas" : "Apagado: la IA sólo propone la respuesta de las preguntas; la mandás vos"}
+              ayuda="Para todas las cuentas de Mercado Libre." />
+            <Interruptor accion={accionRespuestaAuto} campos={{ cual: "mensajes" }} prendido={auto.mensajes}
+              etiqueta={auto.mensajes ? "Prendido: la IA contesta sola los mensajes (lo que deriva a una persona queda en espera)" : "Apagado: la IA sólo propone la respuesta de los mensajes; la mandás vos"}
+              ayuda="Los mensajes con el comprador después de la venta, de todas las cuentas. Cada conversación tiene además su propio interruptor." />
           </div>
         </>
       )}

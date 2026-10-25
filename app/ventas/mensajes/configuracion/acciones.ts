@@ -11,6 +11,7 @@ import { configMensajes, guardarConfigMensajes } from "@/lib/mensajes/config";
 import { revisarMarca } from "@/lib/mensajes/reglas";
 import { pendienteDe, terminarAlta } from "@/lib/mensajes/alta";
 import { redirect } from "next/navigation";
+import { guardarRespuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 
 const VOLVER = "/ventas/mensajes/configuracion";
 
@@ -109,5 +110,28 @@ export async function accionDesconectarInstagram() {
     await desconectar(s.org.id);
     revalidatePath(VOLVER);
     return "Listo: Instagram desconectado. Laucen ya no recibe ni contesta sus mensajes.";
+  });
+}
+
+/** Los interruptores "Responde sola la IA" (Fer, 5/10): uno para Preguntas y otro para Mensajes, generales de la
+ *  organización. Al prenderlo, lo pendiente se vuelve a proponer para que la IA lo pueda mandar sola (en el próximo
+ *  barrido, a los pocos minutos, o cuando entra algo nuevo). */
+export async function accionRespuestaAuto(fd: FormData) {
+  const s = await entrarErp("preguntas_ver");
+  const cual = texto(fd, "cual") === "mensajes" ? "mensajes" : "preguntas";
+  const prendido = fd.get("valor") === "1";
+  await intentar(VOLVER, async () => {
+    await guardarRespuestaAuto(s.org.id, cual, prendido);
+    if (prendido && cual === "preguntas") {
+      await consulta("update meli_pregunta set sugerencia = null, sugerencia_intento_ts = null where organizacion_id = $1 and estado = 'UNANSWERED'", [s.org.id]);
+    }
+    if (prendido && cual === "mensajes") {
+      await consulta(`update meli_conversacion set sugerencia = null, sugerencia_intento_ts = null
+                       where organizacion_id = $1 and sin_leer > 0 and pidio_persona_ts is null and derivada_ts is null`, [s.org.id]);
+    }
+    revalidatePath(VOLVER);
+    const que = cual === "mensajes" ? "los mensajes" : "las preguntas";
+    return prendido ? `Prendido: la IA contesta sola ${que}${cual === "mensajes" ? " (lo que deriva a una persona queda para vos)" : ""}.`
+      : `Apagado: la IA sólo propone la respuesta de ${que}; la mandás vos.`;
   });
 }

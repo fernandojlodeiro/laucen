@@ -14,7 +14,7 @@ Junta en una sola lista **todo lo vendido en cualquier canal**: Mercado Libre (t
 ## Cómo se llega
 
 - Menú **Ventas › Historial de ventas**.
-- Desde la ficha de un cliente (sección **Ventas**), desde una conversación de **Preguntas y mensajes** («Ver la venta»), desde una pregunta («Compras de este usuario») y desde un reclamo sin pedido («Ver la venta»).
+- Desde la ficha de un cliente (sección **Ventas**), desde una conversación de Mercado Libre en [Mensajes](/ventas/mensajes) («Ver la venta») y desde un reclamo sin pedido («Ver la venta»).
 
 ## Qué hay en la pantalla
 
@@ -43,5 +43,5 @@ Junta en una sola lista **todo lo vendido en cualquier canal**: Mercado Libre (t
 
 - [Pedidos y presupuestos](/ventas/pedidos)
 - [Clientes](/ventas/clientes)
-- [Preguntas y mensajes](/ventas/preguntas)
+- [Mercado Libre en Mensajes](/ventas/mensajes/internet)
 - [Reclamos y devoluciones](/ventas/reclamos)

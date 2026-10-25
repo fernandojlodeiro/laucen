@@ -66,6 +66,6 @@ Hacé los pasos de nuevo en el celular nuevo. El viejo podés apagarlo en «Tus 
 ## Relacionado
 
 - [Mis avisos](/config/avisos)
-- [Preguntas y mensajes](/ventas/preguntas)
+- [Mercado Libre en Mensajes](/ventas/mensajes/internet)
 - [Mensajes](/ventas/mensajes)
 - [Reclamos y devoluciones](/ventas/reclamos)

@@ -71,7 +71,7 @@ Si el navegador dice que las notificaciones están bloqueadas: tocá el candado 
 
 - **Equipos «sólo lo derivado»**: reciben lo derivado a una persona aunque ese tipo esté destildado arriba; nunca los pedidos, las preguntas ni los otros avisos. **Avisan siempre**, aunque tengas Laucen a la vista en otro equipo, salvo que estén silenciados o apagados en **«Tus equipos»**.
 - **«Tus equipos»** (debajo del recuadro de avisos): cada computadora o celular con los avisos activados, con su interruptor **«Avisos prendidos»** (apagado, no avisa nada), **«Sólo lo derivado a una persona»**, y **«Silenciar 1 hora»** / **«Silenciar hasta mañana 8 h»** (con **«Que vuelva a avisar ya»** para cortar el silencio). Se maneja desde cualquier equipo: por ejemplo, silenciar el celular desde la computadora. Al prender uno apagado arranca desde ese momento; al terminar un silencio, avisa lo que sigue esperando.
-- **El número de la barra de abajo se pinta de amarillo** cuando entró algo que todavía no viste, aunque tengas las dos opciones destildadas. Vuelve a blanco cuando entrás a esa pantalla (por ejemplo, a [Preguntas y mensajes](/ventas/preguntas) para las preguntas). Lo que ya viste y sigue pendiente queda en blanco. Al lado de **Mensajes**, **👤 N** en amarillo: las conversaciones que la IA derivó a una persona y esperan que alguien del equipo conteste (queda mientras esperan, las hayas visto o no).
+- **El número de la barra de abajo se pinta de amarillo** cuando entró algo que todavía no viste, aunque tengas las dos opciones destildadas. Vuelve a blanco cuando entrás a esa pantalla (por ejemplo, a [Mercado Libre en Mensajes](/ventas/mensajes/internet) para las preguntas). Lo que ya viste y sigue pendiente queda en blanco. Al lado de **Mensajes**, **👤 N** en amarillo: las conversaciones que la IA derivó a una persona y esperan que alguien del equipo conteste (queda mientras esperan, las hayas visto o no).
 - **Los contadores se actualizan solos**, cada pocos segundos, sin tener que cambiar de pantalla. Si estás mirando la pantalla de lo que entró (por ejemplo, la lista de preguntas), también se actualiza sola, salvo que estés escribiendo en un campo.
 - **Qué abre la ventana** (de los tipos tildados): un pedido nuevo a preparar; una pregunta o un mensaje de Mercado Libre sin responder en el que la IA dijo que **le falta un dato** o que **el cliente pide hablar con una persona**; y un chat de WhatsApp que la IA **dejó en espera** para una persona. Muestra lo que escribió el cliente, por qué no contestó la IA y lo que propone, con el botón **"Ir a responder"** (en un pedido: el cliente, el total, lo que compró y **"Ver el pedido"**).
 - Cada cosa abre la ventana **una sola vez**: al cerrarla (botón **"Cerrar"** o la tecla Esc) o al ir a responder, no vuelve a aparecer. Lo de un tipo destildado no abre la ventana ni se guarda para después.
@@ -90,6 +90,6 @@ Si el navegador dice que las notificaciones están bloqueadas: tocá el candado 
 
 ## Relacionado
 
-- [Preguntas y mensajes](/ventas/preguntas)
+- [Mercado Libre en Mensajes](/ventas/mensajes/internet)
 - [Mensajes](/ventas/mensajes)
 - [Pedidos](/ventas/pedidos)

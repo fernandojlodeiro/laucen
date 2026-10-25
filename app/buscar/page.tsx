@@ -573,14 +573,14 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       <Seccion titulo="Preguntas de Mercado Libre" filas={preguntas} clave={(r) => r.id} columnas={[
         { t: "Fecha", n: true, c: (r) => fechaHora(r.fecha) },
         { t: "Publicación", c: (r) => <span><span className="font-mono">{r.item_id ?? ""}</span>{r.publicacion && <span className="block text-[11px] text-[#5C6B76]">{corto(r.publicacion, 70)}</span>}</span> },
-        { t: "Pregunta", c: (r) => <Link href={url("/ventas/preguntas", { ver: r.estado === "ANSWERED" ? "respondidas" : null })} className={ENLACE}>{corto(r.texto)}</Link> },
+        { t: "Pregunta", c: (r) => <Link href={url("/ventas/mensajes", { filtro: "todos", con: `p:${r.id}` })} className={ENLACE}>{corto(r.texto)}</Link> },
         { t: "Respuesta", c: (r) => corto(r.respuesta) },
         { t: "Estado", c: (r) => <Estado texto={r.estado === "ANSWERED" ? "Respondida" : r.estado === "UNANSWERED" ? "Sin responder" : legible(r.estado?.toLowerCase())} tono={r.estado === "UNANSWERED" ? "amarillo" : "gris"} /> },
       ]} />
 
       <Seccion titulo="Mensajes de Mercado Libre" filas={convMl} clave={(r) => r.pack_id} columnas={[
         { t: "Último", n: true, c: (r) => fechaHora(r.ultimo_ts) },
-        { t: "Conversación", c: (r) => <Link href={url("/ventas/preguntas", { ver: "mensajes", pack: r.pack_id })} className={`font-semibold ${ENLACE}`}>{r.cliente ?? `Pack ${r.pack_id}`}</Link> },
+        { t: "Conversación", c: (r) => <Link href={url("/ventas/mensajes", { filtro: "todos", con: `m:${r.pack_id}` })} className={`font-semibold ${ENLACE}`}>{r.cliente ?? `Pack ${r.pack_id}`}</Link> },
         { t: "Cuenta", c: (r) => r.canal ?? "—" },
         { t: "Pedido", n: true, c: (r) => r.pedido_id ? <Link href={`/ventas/pedidos/${r.pedido_id}`} className={ENLACE}>{r.pedido_id}</Link> : "—" },
         { t: "Mensaje", c: (r) => corto(r.texto) },

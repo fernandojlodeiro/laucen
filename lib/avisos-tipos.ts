@@ -48,8 +48,8 @@ export function esPantallaDe(clave: ClaveContador, ruta: string, ver: string | n
     case "pedidos": return ruta === "/ventas/pedidos" && ver !== "facturas";
     // Facturas retenidas por la revisión antes de facturar (lib/facturacion/revision.ts).
     case "facturas": return ruta === "/ventas/pedidos" && ver === "facturas";
-    case "preguntas": return ruta === "/ventas/preguntas" && ver !== "mensajes";
-    case "mensajes": return ruta === "/ventas/preguntas" && ver === "mensajes";
+    case "preguntas":
+    case "mensajes":
     case "whatsapp": return ruta === "/ventas/mensajes";
     // La bandeja de Mensajes junta todo (Fer, 25/10): los avisos de derivaciones se ven ahí.
   }

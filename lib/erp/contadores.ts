@@ -27,7 +27,7 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
             from reclamo r where r.organizacion_id = $1 and ${SQL_RECLAMO_A_ATENDER}`,
   },
   {
-    clave: "mensajes", texto: "Mensajes", href: "/ventas/preguntas?ver=mensajes", permiso: "preguntas_ver",
+    clave: "mensajes", texto: "Mensajes", href: "/ventas/mensajes?filtro=sin_responder&origen=ml", permiso: "preguntas_ver",
     // Las conversaciones sin responder, no las sin leer (Fer, 22/10): abrirla no la descuenta, contestarla sí.
     // `persona`: las que la IA derivó a una persona y esperan que alguien del equipo conteste (en amarillo: Fer, 25/10).
     sql: `select count(*)::int n, floor(extract(epoch from max(c.ultimo_ts)) * 1000)::float8 marca,
@@ -35,7 +35,7 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
             from meli_conversacion c where c.organizacion_id = $1 and ${SQL_SIN_RESPONDER("c")}`,
   },
   {
-    clave: "preguntas", texto: "Preguntas", href: "/ventas/preguntas", permiso: "preguntas_ver",
+    clave: "preguntas", texto: "Preguntas", href: "/ventas/mensajes?filtro=sin_responder&origen=pregunta", permiso: "preguntas_ver",
     // El número de pregunta de Mercado Libre crece con cada pregunta nueva.
     sql: "select count(*)::int n, max(id)::float8 marca from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED'",
   },

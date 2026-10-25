@@ -23,7 +23,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 - Contador **"Pedidos"** de la barra de estado (abre la lista con el filtro Pendientes).
 - Tarjeta **"Pedidos abiertos"** del [Panel](/panel): cada renglón abre la lista filtrada por ese estado.
 - El [buscador global](/buscar): por Nº de pedido o por id externo (número de venta de Mercado Libre).
-- Desde la ficha de un cliente (su lista de pedidos), desde [Envíos](/ventas/envios), [Reclamos](/ventas/reclamos), [Preguntas y mensajes](/ventas/preguntas) y [Facturación](/administracion/facturacion): el número de pedido es un enlace a su ficha.
+- Desde la ficha de un cliente (su lista de pedidos), desde [Envíos](/ventas/envios), [Reclamos](/ventas/reclamos), [Mercado Libre en Mensajes](/ventas/mensajes/internet) y [Facturación](/administracion/facturacion): el número de pedido es un enlace a su ficha.
 - En la lista de [Clientes](/ventas/clientes), el número de la columna "Pedidos" abre esta lista filtrada por ese cliente.
 
 ## Qué hay en la pantalla

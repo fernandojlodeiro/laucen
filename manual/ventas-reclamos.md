@@ -192,7 +192,7 @@ No, sólo se ven en Laucen.
 
 - [Pedidos](/ventas/pedidos)
 - [Recepción](/deposito/recepcion)
-- [Preguntas y mensajes](/ventas/preguntas)
+- [Mercado Libre en Mensajes](/ventas/mensajes/internet)
 - [Cola de Mercado Libre](/config/canales/cola)
 - [Clientes](/ventas/clientes)
 - [Panel](/panel)

@@ -38,8 +38,8 @@ Una franja azul fija abajo de todo, siempre visible:
 - **"Dólar: $ …"**: el tipo de cambio oficial venta que rige hoy. Si pasás el mouse dice de qué fecha es y de dónde salió. Si no hay ninguno cargado dice **"sin cargar"** y es un enlace a [Tipo de cambio](/config/tipo-cambio).
 - **Contadores** (cada uno es un enlace):
   - **"Reclamos"** → [Reclamos y devoluciones](/ventas/reclamos): los reclamos para atender (los de Mercado Libre que esperan tu respuesta y los de la web o el local que siguen abiertos).
-  - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
-  - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
+  - **"Mensajes"** → [Mensajes](/ventas/mensajes) con los mensajes de Mercado Libre sin responder.
+  - **"Preguntas"** → [Mensajes](/ventas/mensajes) con las preguntas de Mercado Libre sin responder.
   - **"WhatsApp"** → [Mensajes](/ventas/mensajes) en la pestaña En espera: los chats que la IA dejó para una persona.
   - **"Pedidos"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes: los pedidos a preparar. Cuenta los nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
   - **"Facturas"** (permiso Facturación) → [Pedidos](/ventas/pedidos?estado=retenidas) con el filtro «Con la factura retenida»: los pedidos que no se facturaron solos porque el comprador pidió algo para la factura que no está claro, o que piden cambiar una factura ya hecha.
@@ -112,7 +112,7 @@ Busca a la vez en **todos los datos del sistema**: lo que escribas, si está en 
   - **Pedidos** (permiso Pedidos): Nº, número externo (el de Mercado Libre), notas, código de seguimiento, medio de pago, la dirección de envío, el título y SKU de cada línea, **todos los datos del cliente** (nombre, razón social, apodo, mail, CUIT, documento, teléfonos y sus aclaraciones, notas), los pagos (número y detalle) y el envío (tracking, transportista, quién recibe, dirección).
   - **Clientes** (permiso Clientes): N.º, nombre, nombre de pila, apellido, razón social, apodo de Mercado Libre, mail, CUIT, documento, teléfonos y sus aclaraciones, notas; **todas sus direcciones** (etiqueta, calle y número, piso/depto, localidad, provincia, código postal, país, quién recibe, su teléfono, referencia); su número de comprador en cada canal y el mail de su cuenta de la tienda web. Muestra el CUIT con guiones, los teléfonos y la localidad.
   - **Proveedores** (permiso Proveedores): N.º, nombre, razón social, CUIT, país, mail, teléfonos y sus aclaraciones, contacto, domicilio (calle, localidad, provincia, código postal), condiciones de pago y notas. Lleva a su fila en [Proveedores](/compras/proveedores).
-  - **Preguntas de Mercado Libre** (permiso Preguntas y mensajes): la pregunta, la respuesta, la respuesta que había propuesto la IA, el número de comprador y la publicación (código, título, SKU). Lleva a [Preguntas y mensajes](/ventas/preguntas).
+  - **Preguntas de Mercado Libre** (permiso Preguntas y mensajes): la pregunta, la respuesta, la respuesta que había propuesto la IA, el número de comprador y la publicación (código, título, SKU). Lleva a [Mercado Libre en Mensajes](/ventas/mensajes/internet).
   - **Mensajes de Mercado Libre** (mismo permiso): el texto de cada mensaje de posventa, el pack, el pedido y los datos del cliente. Muestra el último mensaje que coincide y lleva a esa conversación.
   - **WhatsApp** (permiso del módulo de mensajes): nombre y teléfono del chat, sus notas, el texto de cada mensaje, los casos (asunto, motivo, resolución) y los datos del cliente. Lleva a ese chat en [Mensajes](/ventas/mensajes).
   - **Reclamos y devoluciones** (permiso Reclamos): número, número en Mercado Libre, orden, comprador, motivo, resolución, número y tracking de la devolución, notas, el texto de cada mensaje del reclamo, el pedido y el cliente.
@@ -296,4 +296,4 @@ Fijate si está tildada "Comienza por" (busca sólo al principio) o si el produc
 - [Tipo de cambio](/config/tipo-cambio)
 - [Usuarios y roles](/config/usuarios)
 - [Pedidos](/ventas/pedidos)
-- [Preguntas y mensajes](/ventas/preguntas)
+- [Mercado Libre en Mensajes](/ventas/mensajes/internet)

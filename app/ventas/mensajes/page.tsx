@@ -9,8 +9,13 @@ import { fotoBandeja } from "@/lib/mensajes/bandeja";
 import { esFiltro, esFiltroOrigen } from "@/lib/mensajes/bandeja-tipos";
 import { PestanasMensajes } from "./comun";
 import Bandeja from "./Bandeja";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { SUAVE } from "@/app/botones";
+import { accionTraerPreguntas } from "./acciones-ml";
 
 export const dynamic = "force-dynamic";
+// La tarea de fondo de «Traer preguntas ahora» corre hasta este tope.
+export const maxDuration = 120;
 
 export default async function Mensajes({ searchParams }: { searchParams: Promise<{ filtro?: string; origen?: string; con?: string }> }) {
   const s = await entrarErp("mensajes_ver");
@@ -26,7 +31,8 @@ export default async function Mensajes({ searchParams }: { searchParams: Promise
     foto = await fotoBandeja(s.org.id, puede, filtro, origen, "", con);
   }
   return (
-    <Pantalla titulo="Mensajes" subtitulo="Todo lo que escriben los clientes: WhatsApp, Mercado Libre (mensajes y preguntas) y reclamos. Contesta la IA; lo que deriva a una persona queda «En espera»" ancho="max-w-7xl">
+    <Pantalla titulo="Mensajes" subtitulo="Todo lo que escriben los clientes: WhatsApp, Instagram, Mercado Libre (mensajes y preguntas) y reclamos. Contesta la IA; lo que deriva a una persona queda «En espera»" ancho="max-w-7xl"
+      acciones={puede("preguntas_ver") ? <BotonTarea accion={accionTraerPreguntas} tipo="preguntas-ml" clase={SUAVE} texto="Traer preguntas ahora" /> : undefined}>
       <PestanasMensajes org={s.org.id} permisos={s.permisos} superadmin={s.superadmin} activa="chats" />
       <Bandeja inicial={foto} filtroInicial={filtro} origenInicial={origen} abiertoInicial={con} />
     </Pantalla>

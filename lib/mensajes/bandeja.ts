@@ -19,7 +19,7 @@ import {
 
 type Puede = (p: PermisoKey) => boolean;
 
-/** Cuántos días para atrás entra cada canal en la lista (lo viejo se ve en la pantalla de cada uno). */
+/** Cuántos días para atrás entra cada canal en la lista; buscando, entra todo, lo viejo también. */
 const DIAS_ML = 60, DIAS_PREGUNTAS = 7, DIAS_RECLAMOS = 15;
 
 export async function selloDe(org: string): Promise<string> {
@@ -88,7 +88,7 @@ async function filasMl(org: string, q: string): Promise<FilaBandeja[]> {
       ${VENTA_DEL_PACK("c")}
       left join lateral (select texto, de_vendedor, auto, usuario_id from meli_mensaje m
                           where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1) u on true
-     where c.organizacion_id = $1 and c.ultimo_ts > now() - interval '${DIAS_ML} days'
+     where c.organizacion_id = $1 and (${q ? "true" : `c.ultimo_ts > now() - interval '${DIAS_ML} days'`})
        and ${sqlBusqueda("$2", ["cl.nombre", "mv.comprador", "mv.titulo", "c.pack_id"])}
      order by c.ultimo_ts desc limit 300`, [org, parametroBusqueda(q)]);
   return filas.map((f) => ({
@@ -113,7 +113,7 @@ async function filasPreguntas(org: string, q: string): Promise<FilaBandeja[]> {
       left join publicacion pu on pu.id = q.publicacion_id
       left join lateral (select titulo from meli_item m where m.organizacion_id = q.organizacion_id and m.item_id = q.item_id limit 1) mi on true
      where q.organizacion_id = $1 and q.estado in ('UNANSWERED', 'ANSWERED')
-       and (q.estado = 'UNANSWERED' or coalesce(q.respondida_ts, q.fecha) > now() - interval '${DIAS_PREGUNTAS} days')
+       and (${q ? "true" : `q.estado = 'UNANSWERED' or coalesce(q.respondida_ts, q.fecha) > now() - interval '${DIAS_PREGUNTAS} days'`})
        and ${sqlBusqueda("$2", ["q.texto", "mi.titulo", "q.item_id"])}
      order by coalesce(q.respondida_ts, q.fecha) desc limit 200`, [org, parametroBusqueda(q)]);
   return filas.map((f) => {
@@ -140,7 +140,7 @@ async function filasReclamos(org: string, q: string): Promise<FilaBandeja[]> {
       left join cliente cl on cl.id = r.cliente_id
       left join lateral (select texto, de, fecha from reclamo_mensaje m where m.reclamo_id = r.id and m.de <> 'interno' and m.texto <> ''
                           order by m.fecha desc limit 1) u on true
-     where r.organizacion_id = $1 and (r.estado <> 'resuelto' or r.fecha > now() - interval '${DIAS_RECLAMOS} days')
+     where r.organizacion_id = $1 and (${q ? "true" : `r.estado <> 'resuelto' or r.fecha > now() - interval '${DIAS_RECLAMOS} days'`})
        and ${sqlBusqueda("$2", ["cl.nombre", "r.motivo", "r.id_externo"])}
      order by greatest(r.fecha, coalesce(u.fecha, r.fecha)) desc limit 200`, [org, parametroBusqueda(q)]);
   return filas.map((f) => ({

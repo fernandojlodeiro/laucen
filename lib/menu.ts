@@ -43,7 +43,6 @@ export const MENU: SeccionMenu[] = [
       { texto: "Historial de ventas", href: "/ventas/historial", permiso: "pedidos_ver", icono: "📈" },
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
-      { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
       { texto: "Mensajes", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "💬" },
       { texto: "Reclamos y devoluciones", href: "/ventas/reclamos", permiso: "reclamos_ver", icono: "↩️" },
       { texto: "Publicidad en Mercado Libre", href: "/ventas/publicidad", permiso: "publicidad_ver", icono: "📣" },
