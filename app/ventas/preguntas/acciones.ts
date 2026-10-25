@@ -94,7 +94,8 @@ export async function accionProponerMensaje(fd: FormData) {
   await intentar(volverMensajes(p), async () => {
     const r = await sugerirMensaje(s.org.id, pack(fd));
     revalidatePath(VOLVER);
-    return r.estado === "persona" ? "La IA propuso una respuesta, pero el comprador pidió hablar con una persona: revisala vos."
+    return r.estado === "nada" ? "La IA ve que el último mensaje no necesita respuesta: la conversación ya no figura sin responder."
+      : r.estado === "persona" ? "La IA propuso una respuesta, pero el comprador pidió hablar con una persona: revisala vos."
       : "La IA propuso una respuesta: revisala antes de mandarla.";
   });
 }

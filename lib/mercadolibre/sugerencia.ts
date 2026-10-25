@@ -19,8 +19,9 @@ export function igualALaSugerencia(texto: string | null | undefined, sugerencia:
 
 /** Qué dice la IA de su propia respuesta: "ok" (se puede mandar sola),
  *  "persona" (el comprador pide hablar con una persona), "falta_dato" o, en los mensajes de posventa, "derivar"
- *  (Fer, 25/10: la IA le avisa al comprador que pasa el caso a una persona; ver lib/mercadolibre/mensajes.ts). */
-export type EstadoIa = "ok" | "persona" | "falta_dato" | "derivar";
+ *  (Fer, 25/10: la IA le avisa al comprador que pasa el caso a una persona) y "nada" (el último mensaje no necesita
+ *  respuesta: un «gracias»); ver lib/mercadolibre/mensajes.ts. */
+export type EstadoIa = "ok" | "persona" | "falta_dato" | "derivar" | "nada";
 
 export const FORMATO_IA = `Devolvé SOLO un JSON, sin nada antes ni después: {"estado": "...", "texto": "..."}.
 "texto" es la respuesta al comprador. "estado" es:
@@ -28,7 +29,7 @@ export const FORMATO_IA = `Devolvé SOLO un JSON, sin nada antes ni después: {"
 - "falta_dato" si para contestar bien hace falta un dato que no está en lo que te paso (en "texto" igual dejá una respuesta para que una persona la complete);
 - "ok" en cualquier otro caso.`;
 
-const ESTADOS: EstadoIa[] = ["ok", "persona", "falta_dato", "derivar"];
+const ESTADOS: EstadoIa[] = ["ok", "persona", "falta_dato", "derivar", "nada"];
 
 /** Lee lo que devolvió la IA. Si no vino en el formato pedido, se toma el
  *  texto entero como respuesta, pero no se manda sola ("falta_dato"). */
@@ -39,8 +40,8 @@ export function leerPropuesta(crudo: string): { estado: EstadoIa; texto: string 
     const o = JSON.parse(json) as { estado?: unknown; texto?: unknown };
     const texto = typeof o.texto === "string" ? o.texto.trim() : "";
     const estado = ESTADOS.includes(o.estado as EstadoIa) ? o.estado as EstadoIa : "falta_dato";
-    // Sin texto no hay nada que mandar solo (pero "pidió una persona" vale igual).
-    return { estado: estado === "ok" && !texto ? "falta_dato" : estado, texto };
+    // Sin texto no hay nada que mandar solo (pero "pidió una persona" y "no necesita respuesta" valen igual).
+    return { estado: estado === "ok" && !texto ? "falta_dato" : estado, texto: estado === "nada" ? "" : texto };
   } catch { /* no vino en JSON */ }
   return { estado: "falta_dato", texto: t.replace(/^"|"$/g, "") };
 }

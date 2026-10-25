@@ -3,7 +3,6 @@
 
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
-import DatosInternet from "@/app/componentes/DatosInternet";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
@@ -261,10 +260,6 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
           <ValorVista largo className={ALTO_NOTAS_IA}>{p.notas_ia}</ValorVista>
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_IA}</span>
         </div>
-        {/* Lo que la IA buscó en internet de este producto y nadie revisó (lib/datos-internet.ts). */}
-        <div className="col-span-2 sm:col-span-4 empty:hidden">
-          <DatosInternetDelProducto org={s.org.id} productoId={p.id} />
-        </div>
       </div>
       <AtributosMl p={p} attrsMl={attrsMl} />
       </>
@@ -357,7 +352,7 @@ const NUMEROS = "col-span-2 sm:col-span-4 flex flex-wrap gap-x-3 gap-y-2 items-s
 const UN_NUMERO = "w-28";
 /** Datos técnicos para la IA (Fer, 23/10): no se publican; los lee la IA al contestar sobre este producto. */
 const ETIQUETA_NOTAS_IA = "Datos técnicos para la IA";
-const AYUDA_NOTAS_IA = "No se publican en ningún lado. La IA los usa para contestar preguntas técnicas de este producto en Mercado Libre y WhatsApp (memoria, ampliaciones, discos, compatibilidad…).";
+const AYUDA_NOTAS_IA = "No se publican en ningún lado. La IA los usa para contestar preguntas técnicas de este producto en Mercado Libre y WhatsApp (memoria, ampliaciones, discos, compatibilidad…). Los renglones que empiezan con [Internet…] los agregó la IA al buscar en internet: si alguno está mal, corregilo o borralo.";
 const ALTO_NOTAS_IA = "h-32 !max-h-64 resize-y";
 /** El alto de la descripción larga, igual en vista y en edición (con desplazamiento si es más larga). */
 const ALTO_DESCRIPCION = "h-[32rem] !max-h-[32rem] resize-y";
@@ -1193,15 +1188,3 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   );
 }
 
-/** Los datos de internet sin revisar de este producto, con su título (nada si no hay). */
-async function DatosInternetDelProducto({ org, productoId }: { org: string; productoId: number }) {
-  const n = await consulta<{ n: number }>("select count(*)::int n from producto_dato_web where organizacion_id = $1 and producto_id = $2", [org, productoId]).catch(() => []);
-  if (!n[0]?.n) return null;
-  return (
-    <>
-      <span className={ETIQUETA}>Buscado en internet por la IA, sin revisar ({n[0].n})</span>
-      <p className="text-[10px] text-[#5C6B76] mb-1">La IA ya lo usa para contestar. Pasalo a los datos técnicos si está bien, o borralo.</p>
-      <DatosInternet org={org} productoId={productoId} volver={`/catalogo/productos/${productoId}`} />
-    </>
-  );
-}

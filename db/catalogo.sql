@@ -621,9 +621,9 @@ create unique index if not exists publicacion_canal_variacion_propia on publicac
 -- lado; cada producto (también cada kit) tiene los suyos.
 alter table producto add column if not exists notas_ia text;
 
--- Datos de internet (Fer, 25/10): lo que la IA de preguntas, mensajes o WhatsApp buscó en internet porque no estaba
--- en la ficha (lib/datos-internet.ts). Queda «sin revisar» y la IA lo usa las próximas veces sin volver a buscarlo;
--- una persona lo pasa a los datos técnicos del producto (y se borra de acá) o lo borra.
+-- Datos de internet (Fer, 25/10): cada dato que la IA de preguntas, mensajes o WhatsApp buscó en internet porque no
+-- estaba en la ficha (lib/datos-internet.ts). Lo encontrado pasa solo a los datos técnicos del producto (notas_ia);
+-- esto queda como registro (Preguntas y mensajes › Datos de internet) para encontrarlo y corregirlo.
 create table if not exists producto_dato_web (
   id               bigint generated always as identity primary key,
   organizacion_id  text not null references organizaciones(id) on delete cascade,

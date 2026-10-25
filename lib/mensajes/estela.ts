@@ -15,7 +15,7 @@
 import { reglasIaEmpresa } from "@/lib/canales/textos";
 import Anthropic from "@anthropic-ai/sdk";
 import { clienteClaude, hayClaude } from "@/lib/claude";
-import { AVISO_DERIVAR, ahoraYHorario, buscarEnInternet, guardarHallazgo, productoParaBuscar, SQL_DATOS_INTERNET } from "@/lib/datos-internet";
+import { AVISO_DERIVAR, ahoraYHorario, buscarEnInternet, guardarHallazgo, productoParaBuscar, REGLA_MARCAS } from "@/lib/datos-internet";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
@@ -44,7 +44,7 @@ Cómo escribís:
 
 De dónde sacás lo que decís:
 - Productos, precios y stock: SIEMPRE con buscar_productos / ver_producto. Nunca inventes un producto, un precio, un plazo ni una característica. Si no está o no hay stock, decilo y ofrecé lo parecido que haya.
-- Una característica técnica de un producto (compatibilidad, protocolos, conectividad, medidas, potencia…) que no está en ver_producto (ni en sus datos técnicos ni en lo ya buscado en internet): buscala con buscar_en_internet. Según la certeza:
+- Una característica técnica de un producto (compatibilidad, protocolos, conectividad, medidas, potencia…) que no está en ver_producto (ni en sus datos técnicos): buscala con buscar_en_internet. ${REGLA_MARCAS} Según la certeza (CERTEZA):
   · "seguro": contestá normal.
   · "duda": contestá y aclará en una frase que ese dato no figura en la ficha del producto y que lo buscaste en internet para responderle, con el link de la fuente. No digas que no lo podés garantizar.
   · "contradice": contá los dos datos con sus fuentes, pedí disculpas por no tener el dato exacto y derivá a una persona.
@@ -185,8 +185,7 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       const id = Number(e.producto);
       const p = (await catalogoDe(t)).find((x) => x.id === id);
       if (!p) return "Ese producto no está a la venta en la tienda.";
-      const det = await una<{ descripcion: string | null; notas_ia: string | null; internet: string | null }>(
-        `select pr.descripcion, pr.notas_ia, ${SQL_DATOS_INTERNET("pr")} internet from producto pr where pr.id = $1 and pr.organizacion_id = $2`, [id, org]).catch(() => null);
+      const det = await una<{ descripcion: string | null; notas_ia: string | null }>("select descripcion, notas_ia from producto where id = $1 and organizacion_id = $2", [id, org]).catch(() => null);
       const vars = await consulta<{ nombre: string | null; sku: string; venta: string; disp: number }>(`
         select coalesce((select string_agg(a.nombre || ': ' || a.valor, ', ' order by a.orden) from variacion_atributo a where a.variacion_id = v.id), nullif(v.titulo, ''), v.sku) nombre, v.sku,
                case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
@@ -198,7 +197,6 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
         `Link: ${await urlTienda(t, `/producto/${p.id}`)}`,
         ...vars.map((v) => `- ${v.nombre}: ${formatear(Number(v.venta), t.moneda)} — ${v.disp > 0 ? (v.disp <= 3 ? `quedan ${v.disp}` : "hay stock") : "sin stock"}`),
         det?.notas_ia ? `Datos técnicos (de la tienda; para preguntas técnicas mandan sobre la descripción): ${det.notas_ia.slice(0, 2000)}` : "",
-        det?.internet ? `Ya buscado en internet (usalo según su certeza, sin volver a buscar): ${det.internet.slice(0, 2000)}` : "",
         det?.descripcion ? `Descripción: ${det.descripcion.slice(0, 2500)}` : "",
       ].filter(Boolean).join("\n");
     }

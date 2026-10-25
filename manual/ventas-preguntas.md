@@ -30,7 +30,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
 - **"Mensajes (N)"** (y el contador de Mensajes de la barra de estado y del tablero de Mercado Libre): N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días, o la IA le avisó al comprador que derivaba su caso a una persona y todavía nadie del equipo le escribió. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
-- **"Datos de internet (N)"**: N = datos que la IA buscó en internet y nadie revisó todavía (ver «Cuando a la IA le falta un dato técnico»).
+- **"Datos de internet (N)"**: N = datos que la IA buscó en internet y agregó a las fichas de los productos (ver «Cuando a la IA le falta un dato técnico»).
 
 ### Pestaña Preguntas
 
@@ -48,12 +48,9 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 ### Pestaña Datos de internet
 
-La lista de lo que la IA buscó en internet porque no estaba en la ficha del producto, lo más nuevo primero: el producto (foto, SKU y título), **lo que encontró**, la **certeza** (Seguro, Con duda, No coinciden), lo que preguntaron (de dónde vino y cuándo) y las **fuentes** (las páginas de donde lo sacó; se abren en otra pestaña).
+La lista de lo que la IA buscó en internet porque no estaba en la ficha del producto y **agregó sola a sus datos técnicos**, lo más nuevo primero (de a 50, con el paginador abajo): el producto (foto, SKU y título), **lo que agregó**, la **certeza** (Seguro, Con duda, No coinciden), lo que preguntaron (de dónde vino y cuándo) y las **fuentes** (las páginas de donde lo sacó; se abren en otra pestaña).
 
-- **"Pasar a datos técnicos"**: suma el dato al final de los **Datos técnicos para la IA** del producto y lo saca de la lista.
-- **Tacho**: lo borra (pregunta «¿Borrar? Sí / No» en el mismo lugar). La IA deja de usarlo.
-
-Mientras está en la lista, **la IA ya lo usa** para contestar sobre ese producto, sin volver a buscarlo. Lo mismo se ve en la ficha de cada producto, debajo de sus datos técnicos.
+Sirve para encontrar lo que la IA agregó y corregirlo si está mal: el **lápiz** abre la ficha del producto en edición, donde se cambia o se borra el renglón en **Datos técnicos para la IA**.
 
 ### Pestaña Mensajes
 
@@ -120,7 +117,7 @@ Qué hace con eso:
 - **Preguntas**: **se contestan siempre**. Si no coinciden, menciona los dos datos y responde lo más útil posible; si no lo encontró, dice que no se logró conseguir ese dato.
 - **Mensajes de posventa**: con «seguro» o «con duda», contesta. Si no coinciden o no lo encontró, lo dice y **avisa que deriva el caso a una persona del equipo** (ver «Derivar a una persona»).
 - En Mercado Libre **nunca nombra la fuente** ni pone links de afuera (Mercado Libre no lo permite). En WhatsApp sí manda el link de la fuente.
-- Lo encontrado queda guardado en el producto, en **Datos de internet**, para no volver a buscarlo.
+- Lo encontrado se agrega solo a los **Datos técnicos para la IA** del producto, en un renglón que empieza con **[Internet]**, **[Internet, con duda]** o **[Internet, no coinciden]**, para no volver a buscarlo (y queda en la pestaña **Datos de internet**).
 - En la tarjeta de la pregunta (y en la conversación) se ve **🌐 La IA buscó en internet**, con qué tan seguro era, el dato y las fuentes.
 - Si la búsqueda no se pudo hacer (una falla del servicio), la respuesta queda para una persona, como cuando falta un dato.
 
@@ -131,7 +128,15 @@ La IA le avisa al comprador que **deriva su caso a una persona del equipo** cuan
 - tiene un problema o reclama (no le llegó, llegó roto, incompleto o distinto, no funciona, quiere devolverlo o cambiarlo, la factura está mal…) y la solución no está clarísima en los datos y en las reglas de la tienda: **ante la menor duda, deriva**;
 - buscó un dato técnico en internet y no lo encontró o las fuentes no coinciden.
 
-El aviso dice que una persona del equipo le va a responder **en breve** si es dentro del horario de atención, o **en el horario habitual de atención** si no. El horario es el de la tienda web (Configuración › Tienda web); si no está cargado, dice «en nuestro horario habitual de atención». Con el interruptor de mensajes prendido, ese aviso se manda solo; desde ahí **la IA no contesta más sola esa conversación**, que queda marcada **"Derivada a una persona"** y cuenta como sin responder hasta que alguien del equipo le escriba (desde Laucen o desde Mercado Libre). La ventana de avisos también lo muestra.
+En las **preguntas** nunca se deriva: Mercado Libre no deja seguir la charla en una pregunta, así que siempre se contestan.
+
+El aviso dice que una persona del equipo le va a responder **en breve** si es dentro del horario de atención, o **en el horario habitual de atención** si no. El horario es el de la tienda web (Configuración › Tienda web); si no está cargado, dice «en nuestro horario habitual de atención». Con el interruptor de mensajes prendido, ese aviso se manda solo; desde ahí **la IA no contesta más sola esa conversación**, que queda marcada **"Derivada a una persona"** y cuenta como sin responder hasta que alguien del equipo le escriba (desde Laucen o desde Mercado Libre). Además:
+- **Se abre la ventana de avisos** con esa conversación y el botón para ir a responder (si en [Mis avisos](/config/avisos) está prendida la ventana de Mensajes).
+- En la **barra de abajo**, al lado de **Mensajes**, aparece en amarillo **👤 N**: cuántas conversaciones derivadas esperan a una persona del equipo.
+
+### Mensajes que no necesitan respuesta
+
+Si el último mensaje del comprador no necesita respuesta (agradece, saluda o confirma: «gracias», «ok», «perfecto», un 👍) y no queda nada pendiente, la IA no le contesta y la conversación **deja de figurar sin responder**, con la marca **"El último mensaje no necesita respuesta (lo vio la IA)"**. Si el comprador vuelve a escribir, vuelve a contar. Si quedó algo pendiente (por ejemplo, la IA le avisó que lo derivaba y nadie le contestó todavía), sigue sin responder. En una conversación que ya estaba abierta, **"Proponer con IA"** hace que la IA lo revise en el momento.
 
 ## Criterios y reglas
 

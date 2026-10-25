@@ -4,8 +4,9 @@
 export type ClaveContador = "reclamos" | "mensajes" | "preguntas" | "whatsapp" | "pedidos" | "facturas";
 
 /** Un contador de la barra de estado. `marca` crece cuando entra algo nuevo;
- *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto). */
-export type Contador = { clave: ClaveContador; texto: string; n: number | null; href?: string; marca: number; nuevo: boolean };
+ *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto); `persona`: cuántas esperan a una persona
+ *  del equipo porque la IA las derivó (van aparte, en amarillo). */
+export type Contador = { clave: ClaveContador; texto: string; n: number | null; href?: string; marca: number; nuevo: boolean; persona?: number };
 
 /** Lo que la ventana muestra de prepo: un pedido nuevo, o algo que la IA no contestó. */
 export type AvisoIa = {

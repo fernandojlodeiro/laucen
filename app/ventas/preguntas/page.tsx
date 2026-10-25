@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
 // Las tareas de fondo de sus botones corren hasta este tope.
 export const maxDuration = 120;
 
-type SP = { ver?: string; canal?: string; pack?: string; ok?: string; error?: string };
+type SP = { ver?: string; canal?: string; pack?: string; ok?: string; error?: string; p?: string };
 
 /** "hace 5 min", "hace 3 h", "hace 2 días". */
 function haceCuanto(d: Date | string): string {
@@ -81,9 +81,9 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
       {ver === "internet" ? (
         <>
           <p className="text-[11px] text-[#5C6B76] mb-2">
-            Lo que la IA buscó en internet porque no estaba en la ficha del producto. Ya lo usa para contestar; revisalo y pasalo a los datos técnicos del producto, o borralo si está mal.
+            Lo que la IA buscó en internet porque no estaba en la ficha del producto. Lo agregó sola a los datos técnicos del producto; si algo está mal, el lápiz abre la ficha para corregirlo.
           </p>
-          <DatosInternet org={s.org.id} volver="/ventas/preguntas?ver=internet" />
+          <DatosInternet org={s.org.id} sp={sp} />
         </>
       ) : ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} canal={canal} auto={auto.mensajes} />
         : (
@@ -192,6 +192,7 @@ function Internet({ h }: { h: Hallazgo | null }) {
 function AvisoIa({ estado, auto, conversacion, derivada }: { estado: string | null; auto: boolean; conversacion?: boolean; derivada?: boolean }) {
   if (derivada) return <Estado texto="La IA le avisó que lo deriva a una persona: espera tu respuesta (la IA no contesta más sola)" tono="ambar" />;
   if (estado === "derivar") return <Estado texto="La IA propone derivarlo a una persona" tono="ambar" />;
+  if (estado === "nada") return <Estado texto="El último mensaje no necesita respuesta (lo vio la IA)" tono="gris" />;
   if (estado === "persona") return <Estado texto={conversacion ? "Pidió hablar con una persona: la IA no contesta más sola" : "Pide hablar con una persona"} tono="ambar" />;
   if (estado === "falta_dato" && auto) return <Estado texto="La IA no la mandó sola: le falta un dato" tono="ambar" />;
   return null;
@@ -346,7 +347,7 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
           </div>
         ))}
       </div>
-      {(sug?.pidio_persona || sug?.derivada || sug?.sugerencia) && (
+      {(sug?.pidio_persona || sug?.derivada || sug?.sugerencia || (sug?.ia_estado === "nada" && sug.sugerencia === "")) && (
         <div className="mb-2"><AvisoIa estado={sug.pidio_persona ? "persona" : sug.ia_estado} auto={auto} conversacion derivada={sug.derivada} /></div>
       )}
       {sug?.ia_internet && <div className="mb-2"><Internet h={sug.ia_internet} /></div>}

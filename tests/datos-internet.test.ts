@@ -28,3 +28,7 @@ test("leerPropuesta: «derivar» es un estado válido (mensajes de posventa)", (
   assert.deepEqual(leerPropuesta('{"estado": "derivar", "texto": "Estoy derivando tu caso a una persona del equipo."}'),
     { estado: "derivar", texto: "Estoy derivando tu caso a una persona del equipo." });
 });
+
+test("leerPropuesta: «nada» (un «gracias») no lleva texto", () => {
+  assert.deepEqual(leerPropuesta('{"estado": "nada", "texto": "De nada!"}'), { estado: "nada", texto: "" });
+});

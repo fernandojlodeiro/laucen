@@ -173,6 +173,9 @@ alter table meli_conversacion add column if not exists pidio_persona_ts timestam
 -- conversación espera respuesta hasta que una persona escriba.
 alter table meli_conversacion add column if not exists ia_internet jsonb;
 alter table meli_conversacion add column if not exists derivada_ts timestamptz;
+-- El último mensaje del comprador no necesita respuesta (agradece, confirma: Fer, 25/10): lo decide la IA al proponer.
+-- Mientras no escriba de nuevo, la conversación no cuenta como sin responder.
+alter table meli_conversacion add column if not exists no_responder_ts timestamptz;
 
 -- Las publicaciones de cada cuenta tal como están en ML (una fila por item
 -- y variación). Sirve para vincularlas con las variaciones de Laucen: las

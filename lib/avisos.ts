@@ -16,6 +16,7 @@ import { TIPOS_RECLAMO, esTipoReclamo } from "@/lib/reclamos";
 import type { PermisoKey } from "@/lib/permisos";
 import { cadaMinValido, TIPOS_AVISO, VENTANA_TODO, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
 import { sqlPedidoPendiente } from "@/lib/pedidos";
+import { SQL_DERIVADA_ESPERA } from "@/lib/mercadolibre/sql-mensajes";
 import { formatear, type Moneda } from "@/lib/moneda";
 
 export type Marcas = Record<string, number>;
@@ -78,7 +79,7 @@ const TIPOS: TipoAviso[] = TIPOS_AVISO;
 const MOTIVO: Record<string, string> = {
   falta_dato: "A la IA le falta un dato para contestar.",
   persona: "El cliente pide hablar con una persona.",
-  derivar: "La IA le avisó al comprador que una persona del equipo le va a responder.",
+  derivar: "La IA le avisó al comprador que lo deriva a una persona: espera tu respuesta.",
 };
 
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
@@ -112,13 +113,16 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
          and floor(extract(epoch from q.sugerencia_ts) * 1000) > $2::float8
        order by q.sugerencia_ts limit 10`, [org, desde("preguntas")]).catch(() => []) : [],
     puede("preguntas_ver") ? consulta<{ pack_id: string; marca: number; ia_estado: string; sugerencia: string | null; cuenta: string | null; pedido_id: string | null; texto: string | null }>(`
-      select v.pack_id, floor(extract(epoch from v.sugerencia_ts) * 1000)::float8 marca, v.ia_estado, v.sugerencia, c.nombre cuenta, v.pedido_id::text,
-             (select m.texto from meli_mensaje m where m.organizacion_id = v.organizacion_id and m.pack_id = v.pack_id and not m.de_vendedor
-               order by m.fecha desc limit 1) texto
-        from meli_conversacion v left join canal c on c.id = v.canal_id
-       where v.organizacion_id = $1 and ((v.sin_leer > 0 and v.ia_estado in ('falta_dato', 'persona')) or v.derivada_ts is not null)
-         and floor(extract(epoch from v.sugerencia_ts) * 1000) > $2::float8
-       order by v.sugerencia_ts limit 10`, [org, desde("mensajes")]).catch(() => []) : [],
+      select x.* from (
+        -- Una derivada a una persona que espera respuesta se avisa desde que la IA le avisó al comprador (Fer, 25/10).
+        select v.pack_id, floor(extract(epoch from case when ${SQL_DERIVADA_ESPERA("v")} then greatest(v.sugerencia_ts, v.derivada_ts) else v.sugerencia_ts end) * 1000)::float8 marca,
+               case when ${SQL_DERIVADA_ESPERA("v")} then 'derivar' else v.ia_estado end ia_estado, v.sugerencia, c.nombre cuenta, v.pedido_id::text,
+               (select m.texto from meli_mensaje m where m.organizacion_id = v.organizacion_id and m.pack_id = v.pack_id and not m.de_vendedor
+                 order by m.fecha desc limit 1) texto
+          from meli_conversacion v left join canal c on c.id = v.canal_id
+         where v.organizacion_id = $1 and ((v.sin_leer > 0 and v.ia_estado in ('falta_dato', 'persona')) or ${SQL_DERIVADA_ESPERA("v")})) x
+       where x.marca > $2::float8
+       order by x.marca limit 10`, [org, desde("mensajes")]).catch(() => []) : [],
     puede("mensajes_ver") ? consulta<{ id: string; chat_id: string; asunto: string; motivo: string; nombre: string; texto: string | null }>(`
       select k.id::text, k.chat_id::text, k.asunto, k.motivo, coalesce(nullif(ch.nombre, ''), ch.externo) nombre,
              (select m.texto from chat_mensaje m where m.chat_id = k.chat_id and m.clase = 'entrante' order by m.id desc limit 1) texto

@@ -40,7 +40,7 @@ export function ContadoresEstado({ inicial }: { inicial: Contador[] }) {
 function UnContador({ c }: { c: Contador }) {
   if (c.n === null) return <span className="opacity-50" title="Próximamente">{c.texto}: —</span>;
   const marca = c.nuevo ? "bg-[#FFC94D] text-[#3A2A00] rounded px-1" : c.n > 0 ? "bg-white text-[#16577F] rounded px-1" : "";
-  const cuerpo = <>{c.texto}: <b className={marca}>{c.n}</b></>;
+  const cuerpo = <>{c.texto}: <b className={marca}>{c.n}</b>{c.persona ? <b className="ml-1 bg-[#FFC94D] text-[#3A2A00] rounded px-1" title={`${c.persona} esperan a una persona del equipo (la IA las derivó)`}>👤 {c.persona}</b> : null}</>;
   const ayuda = c.nuevo ? "Entró algo que todavía no viste" : undefined;
   return c.href ? <Link href={c.href} className="hover:underline" title={ayuda}>{cuerpo}</Link> : <span title={ayuda}>{cuerpo}</span>;
 }

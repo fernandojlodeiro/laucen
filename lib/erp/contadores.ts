@@ -6,13 +6,13 @@
 
 import { una } from "@/lib/erp/base";
 import { sqlPedidoPendiente } from "@/lib/pedidos";
-import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
+import { SQL_DERIVADA_ESPERA, SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
 import type { ClaveContador, Contador } from "@/lib/avisos-tipos";
 import type { PermisoKey } from "@/lib/permisos";
 
 export type { Contador };
 
-type Cuenta = { n: number; marca: number | null };
+type Cuenta = { n: number; marca: number | null; persona?: number | null };
 
 // Para atender: lo que Mercado Libre espera que respondas, y los de la web o el local sin tocar (como el resumen de lib/reclamos).
 export const SQL_RECLAMO_A_ATENDER = "r.estado <> 'resuelto' and (r.espera_respuesta or (r.origen <> 'mercadolibre' and r.estado = 'abierto'))";
@@ -29,7 +29,9 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
   {
     clave: "mensajes", texto: "Mensajes", href: "/ventas/preguntas?ver=mensajes", permiso: "preguntas_ver",
     // Las conversaciones sin responder, no las sin leer (Fer, 22/10): abrirla no la descuenta, contestarla sí.
-    sql: `select count(*)::int n, floor(extract(epoch from max(c.ultimo_ts)) * 1000)::float8 marca
+    // `persona`: las que la IA derivó a una persona y esperan que alguien del equipo conteste (en amarillo: Fer, 25/10).
+    sql: `select count(*)::int n, floor(extract(epoch from max(c.ultimo_ts)) * 1000)::float8 marca,
+                 count(*) filter (where ${SQL_DERIVADA_ESPERA("c")})::int persona
             from meli_conversacion c where c.organizacion_id = $1 and ${SQL_SIN_RESPONDER("c")}`,
   },
   {
@@ -61,7 +63,7 @@ export async function contadoresEstado(org: string, puede: (p: PermisoKey) => bo
     const r = cuentas[i];
     const marca = Number(r?.marca ?? 0);
     const n = r?.n ?? 0;
-    return { clave: c.clave, texto: c.texto, href: c.href, n, marca, nuevo: n > 0 && marca > Number(visto[c.clave] ?? 0) };
+    return { clave: c.clave, texto: c.texto, href: c.href, n, marca, nuevo: n > 0 && marca > Number(visto[c.clave] ?? 0), ...(r?.persona ? { persona: r.persona } : {}) };
   });
 }
 

@@ -1,9 +1,11 @@
 // Lo que comparten la pantalla de mensajes, la barra de estado y el tablero de Mercado Libre.
 
 /** ¿La conversación espera respuesta? El último mensaje es del comprador, de los últimos 15 días (Fer, 22/10:
- *  se cuentan las sin responder, no las sin leer); o la IA le avisó que derivaba el caso a una persona y ninguna
- *  persona escribió después (Fer, 25/10). `c`: el alias de meli_conversacion. */
-export const SQL_SIN_RESPONDER = (c: string) => `(${c}.ultimo_ts > now() - interval '15 days' and (coalesce((select not m.de_vendedor from meli_mensaje m
+ *  se cuentan las sin responder, no las sin leer), salvo que la IA haya visto que no necesita respuesta (un
+ *  «gracias»: Fer, 25/10); o la IA le avisó que derivaba el caso a una persona y ninguna persona escribió después.
+ *  `c`: el alias de meli_conversacion. */
+export const SQL_SIN_RESPONDER = (c: string) => `(${c}.ultimo_ts > now() - interval '15 days' and (coalesce((select not m.de_vendedor
+    and (${c}.no_responder_ts is null or ${c}.no_responder_ts < m.fecha) from meli_mensaje m
   where m.organizacion_id = ${c}.organizacion_id and m.pack_id = ${c}.pack_id order by m.fecha desc limit 1), false)
   or ${SQL_DERIVADA_ESPERA(c)}))`;
 
