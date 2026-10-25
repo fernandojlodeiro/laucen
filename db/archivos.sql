@@ -50,3 +50,43 @@ begin
       using (bucket_id = 'videos' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
   end if;
 end $$;
+
+-- Videos de la tienda (Fer, 24/10): el video de cada producto que se ve en la ficha de la tienda.
+-- Público (lo mira cualquiera), hasta 200 MB, bajo "<organizacion_id>/…" como los demás.
+do $$
+begin
+  if not exists (select 1 from pg_namespace where nspname = 'storage') then return; end if;
+  insert into storage.buckets (id, name, public, file_size_limit) values ('videos_tienda', 'videos_tienda', true, 209715200) on conflict (id) do nothing;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos tienda insertar') then
+    create policy "erp videos tienda insertar" on storage.objects for insert to authenticated
+      with check (bucket_id = 'videos_tienda' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos tienda leer') then
+    create policy "erp videos tienda leer" on storage.objects for select to authenticated
+      using (bucket_id = 'videos_tienda' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos tienda borrar') then
+    create policy "erp videos tienda borrar" on storage.objects for delete to authenticated
+      using (bucket_id = 'videos_tienda' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+end $$;
+
+-- Comprobantes de pago de los pedidos (Fer, 24/10): los que sube un operador (y, más adelante, los que
+-- lleguen por mail o WhatsApp). Privado, hasta 20 MB; se ven con un link firmado.
+do $$
+begin
+  if not exists (select 1 from pg_namespace where nspname = 'storage') then return; end if;
+  insert into storage.buckets (id, name, public, file_size_limit) values ('comprobantes', 'comprobantes', false, 20971520) on conflict (id) do nothing;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp comprobantes insertar') then
+    create policy "erp comprobantes insertar" on storage.objects for insert to authenticated
+      with check (bucket_id = 'comprobantes' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp comprobantes leer') then
+    create policy "erp comprobantes leer" on storage.objects for select to authenticated
+      using (bucket_id = 'comprobantes' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp comprobantes borrar') then
+    create policy "erp comprobantes borrar" on storage.objects for delete to authenticated
+      using (bucket_id = 'comprobantes' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+end $$;

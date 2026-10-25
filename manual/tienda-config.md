@@ -31,7 +31,7 @@ Con tienda, una caja de datos que no se editan acá:
 - **Dirección de la tienda**: el enlace a la tienda pública: su dominio principal si ya anda (con certificado), ej. https://daitom.com.ar; si no, laucen.com/tienda/slug. Si el dominio principal todavía no tiene certificado, avisa que la dirección pasa a ser ésa cuando lo tenga.
 - **Estado**: "Activa: toma pedidos" o "Pausada: no toma pedidos", con el enlace "Cambiarlo en Canales".
 - **Lista de precios** (en rojo "Sin lista" si no tiene), con el enlace "Cambiarla en Configuración → Canales".
-- **Feed para Meta (Facebook / Instagram)**: la dirección del feed ("…/feed.xml"), para cargar en Meta Commerce Manager como fuente de datos programada.
+- **Feed para Meta (Facebook / Instagram)**: la dirección del feed ("…/feed.xml"). Los catálogos de Google, Meta y TikTok (y la medición de ventas) están en [Publicidad](/config/tienda/publicidad).
 - **Vende el stock de**: los depósitos del canal (en rojo "Ningún depósito: elegilos en Canales").
 
 Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lápiz arriba a la derecha** (con una sola tienda, al lado del título de la pantalla; con varias, en el título de cada una); en edición aparecen **"Grabar"** y **"Cancelar"**. Campos:
@@ -48,8 +48,9 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
 
 Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
-- **Dominio** (se toca para abrirlo), **Tipo** ("Principal" o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
+- **Dominio** (se toca para abrirlo), **Tipo** ("Principal", "Otra marca: <nombre>" con su logo y su interruptor **"Para Google es <dominio principal>"**, o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
 - Al final de cada fila, **"Verificar"** (vuelve a preguntarle a Vercel; no aparece si ya anda) y el tacho ("¿Borrar?" Sí / No).
+- En cada dominio que no es el principal, un **lápiz** a la derecha: abre debajo de la fila sus datos para cambiarlo (que redirija, y a cuál, o que sea otra marca, con sus datos); **"Grabar"** y **"Cancelar"** quedan en el lugar del lápiz.
 - Si falta la llave de Vercel, arriba de la tabla: "Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté."
 
 ### Métodos de envío
@@ -64,9 +65,9 @@ Al editar una fila (lápiz): Nombre, Tipo, **Costo $**, **Gratis desde $** (vac�
 
 ### Medios de pago
 
-Una tabla con los cinco medios, siempre los mismos (no se agregan ni se borran): **Mercado Pago**, **Tarjeta (Payway)**, **Transferencia bancaria**, **Efectivo**, **Cuenta corriente / a convenir**. Columnas: **Medio** (con su ayuda), **Activo** (interruptor Sí/No), **Descuento** ("—", el porcentaje, o "recargo N %"), **Instrucciones para el comprador**, **Orden**, y el lápiz.
+Una tabla con los cinco medios, siempre los mismos (no se agregan ni se borran): **Mercado Pago**, **Tarjeta (Payway)**, **Transferencia bancaria**, **Efectivo**, **Cuenta corriente / a convenir**. Columnas: **Medio** (con su ayuda), **Activo** (interruptor Sí/No), **Descuento** ("—", el porcentaje, o "recargo N %"), **Lo que ve el comprador** (el aviso del pago, las cuentas para transferir y las instrucciones), **Orden**, y el lápiz.
 
-Al editar (lápiz): **Nombre que ve el comprador**, **Descuento %**, **Orden** e **Instrucciones (lo que ve el comprador al elegirlo)**. Ayuda: "Descuento negativo = recargo (ej. -10 = 10 % más caro)." Botones **"Guardar"** y **"Cancelar"**.
+Al editar (lápiz): **Nombre que ve el comprador**, **Descuento %**, **Orden**, **Aviso en el pago** (lo que lee el comprador al elegirlo en el pago; vacío, el texto de fábrica), **Instrucciones** (en la página del pedido y, en transferencia, en el mail) y, en transferencia, **Cuentas para transferir**: un renglón por cuenta con banco o billetera, alias, CBU o CVU, titular y CUIT. Las cuentas van en el mail de "Recibimos tu pedido" y en la página del pedido, debajo del **total a transferir bien grande**, con el alias destacado. Ayuda: "Descuento negativo = recargo (ej. -10 = 10 % más caro)." Botones **"Guardar"** y **"Cancelar"**.
 
 Abajo, **Credenciales** ("Nunca se muestran enteras. Se cambian con el lápiz de cada una: escribí la nueva; un campo vacío deja la que estaba."):
 - **Mercado Pago**: **Access token de producción** y **Public key**. Se muestran sólo como "cargada" o "sin cargar". Al guardar el access token, en [Caja y bancos](/administracion/tesoreria) aparece sola la cuenta **"Mercado Pago — Tienda web"** (con su cuenta contable propia), si no estaba.
@@ -108,19 +109,43 @@ Errores típicos:
    - Si el dominio tiene correo, no toques sus registros MX.
 5. Esperá: el DNS tarda de minutos a unas horas en propagarse (si cambiaste los nameservers, hasta 24-48 horas). Apretá **"Verificar"** cada tanto.
 6. Cuando el estado dice **"Con certificado: anda"**, la tienda ya abre en ese dominio.
-7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige al principal"** → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige"** (a: el principal) → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+
+### Que Google tome una marca como un sitio aparte
+Cada dominio de otra marca muestra el mismo catálogo que el principal. De fábrica, sus páginas le dicen a Google que son las mismas del dominio principal (el «canonical»), para que no las tome como copias y junte todo en el principal: la marca se sigue viendo con su nombre, pero en Google aparece el principal. Para posicionar esa marca por separado, apagá su interruptor **"Para Google es <dominio principal>"** en **Dominios**.
+
+### Abrir la tienda con otra marca (otro nombre y logo)
+
+Sirve para vender lo mismo bajo dos nombres: un dominio de "otra marca" abre **la misma tienda** (los mismos productos, precios, stock, carrito y pedidos) pero con su propio **nombre, logo, colores de la franja, banners y mail**.
+
+1. En **Dominios**, **"Nuevo dominio"** → el dominio de la otra marca (ej. otramarca.com.ar) → **"Otra marca"**, escribí su nombre en **"Si es otra marca: su nombre"** → **"Crear"**, y cargá sus registros DNS como en un principal.
+2. Apretá el **lápiz** de esa fila y cargá el **logo** (sin logo se ve el nombre escrito), y si querés los **colores de la franja** (tildá "Propio"; sin tildar, los de la tienda), hasta tres **banners** propios (vacíos: se ven los de la tienda) y el **mail** (vacío: el de la tienda con el dominio de la marca, ej. hola@mitienda.com.ar visto desde otramarca.com.ar → hola@otramarca.com.ar). **"Grabar"**.
+3. El www de esa marca: **"Nuevo dominio"** → www.otramarca.com.ar → **"Redirige"**, y en **"Si redirige: a"** elegí otramarca.com.ar.
+
+Quien entra por ese dominio ve esa marca en todas las páginas (también en la pestaña del navegador), y sigue en ese dominio al pagar: la vuelta de Mercado Pago y el link de seguimiento del pedido van a ese dominio, y el WhatsApp que se le manda desde el pedido usa ese nombre. El nombre y el mail de la marca también salen en las páginas legales (términos, privacidad, arrepentimiento, sobre nosotros). Lo demás (textos de ayuda, devoluciones, garantía, WhatsApp de contacto, dirección, horario y los datos fiscales del pie) es el de la tienda.
+
+Para cambiar un dominio entre "redirige" y "otra marca", lápiz de la fila → elegí el tipo → **"Grabar"**. Al grabar, Laucen acomoda en Vercel las redirecciones de todos los dominios de la tienda.
 
 Errores típicos:
 - "Escribí un dominio válido, sin https:// (ej. mitienda.com.ar)."
 - "Ese dominio ya está cargado." / "Ese dominio ya lo usa otra organización."
 - "Ese dominio es del sistema: no se puede usar para una tienda." (laucen.com y los suyos).
 - "La tienda ya tiene dominio principal (…). Para cambiarlo, borralo primero."
-- "Primero cargá el dominio principal de la tienda: los demás redirigen a él."
+- "Primero cargá el dominio principal de la tienda: los demás redirigen a él o son otra marca."
+- "Poné el nombre de la marca (lo que ve el comprador en ese dominio)."
+- "Elegí a qué dominio redirige: el principal o el de otra marca."
+- "Hay dominios que redirigen a éste: cambialos primero (o dejalo como otra marca)."
 - "Ese dominio ya está conectado a otro proyecto de Vercel: hay que sacarlo de allá primero."
+
+### Protección contra bots
+En [Tienda web](/config/tienda), abajo de todo, **Protección contra bots**:
+- Siempre activo: el **pago (checkout)**, el **ingreso** a la cuenta y la **creación de cuenta** tienen un campo trampa que una persona no ve (si viene lleno, es un programa), un **tiempo mínimo** para completarlos (3 segundos en el pago) y un **tope de intentos por conexión** (en el pago, 15 por hora y 40 por día; al ingresar, 10 por hora y 40 por día; al crear la cuenta, 10 por hora y 30 por día). Quien se pasa ve "Hubo demasiados intentos desde esta conexión. Probá de nuevo en un rato."
+- **Frenados en los últimos 7 días**: cuántos intentos se cortaron y por qué.
+- **Cloudflare Turnstile** (opcional): se crean las claves en Cloudflare › Turnstile con los dominios de la tienda, se pegan la **clave del sitio** y la **clave secreta** y **"Grabar claves"**. La secreta no se vuelve a mostrar (vacía = queda la que estaba). Con Turnstile, los formularios suman la verificación de Cloudflare, que casi siempre es invisible. **"Apagar Turnstile"** la saca y quedan las otras protecciones. Si Cloudflare no contesta, el formulario sigue andando.
 
 ### Sacar un dominio
 
-Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras haya dominios que redirigen a él ("Primero borrá los dominios que redirigen a éste.").
+Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras la tienda tenga otros dominios ("Primero borrá los demás dominios de la tienda…"), ni uno de otra marca mientras haya dominios que redirigen a él ("Primero borrá o cambiá los dominios que redirigen a éste.").
 
 ### Ocultar los productos sin stock
 
@@ -152,7 +177,8 @@ En [Canales](/config/canales), lápiz del canal de la tienda → Estado "Pausado
 ### Poner un descuento por pagar con transferencia
 
 1. Lápiz de **Transferencia bancaria**.
-2. **Descuento %**: ej. 10. En **Instrucciones**, CBU, alias, titular y CUIT (es lo que ve el comprador).
+2. **Descuento %**: ej. 10. En **Cuentas para transferir**, cada cuenta (banco, alias, CBU o CVU, titular y CUIT).
+   Para ofrecer transferencia y efectivo juntos (efectivo sólo al retirar en el local): apagá **Efectivo**, llamá a la transferencia «Transferencia o efectivo» y explicalo en su **Aviso en el pago** y en sus **Instrucciones**.
 3. **"Guardar"**.
 
 Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
@@ -166,7 +192,7 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **Precios**: salen de la lista de precios del canal; un producto sin precio en esa lista no se vende en la tienda.
 - **Stock**: el disponible del canal (la suma de sus depósitos activos).
 - **Slug**: único entre todas las tiendas del sistema (de cualquier organización), porque las direcciones son de todos. Se guarda en minúsculas. Si no tiene slug, se usa el nombre del canal en minúsculas y con guiones.
-- **Dominios propios**: los carga cada organización en la sección Dominios; el sistema no trae ninguno fijo. **Uno principal por tienda** (abre la tienda) y los demás **redirigen** al principal (redirección permanente, conservando la página). En el dominio de una tienda todo abre la tienda (incluso /login), salvo lo que es de la API. Un dominio es de **una sola organización**: no puede estar en dos.
+- **Dominios propios**: los carga cada organización en la sección Dominios; el sistema no trae ninguno fijo. **Uno principal por tienda** (abre la tienda), los de **otra marca** (abren la misma tienda con su nombre, logo, colores, banners y mail) y los demás **redirigen** al principal o a una marca (redirección permanente, conservando la página). En el dominio de una tienda todo abre la tienda (incluso /login), salvo lo que es de la API. Un dominio es de **una sola organización**: no puede estar en dos.
 - **El dominio va con la tienda, no con el slug**: cambiar el slug no lo desconecta.
 - **Dominios del sistema**: el panel es **laucen.com**; laucen.com.ar y los www redirigen a laucen.com. No se pueden cargar como dominio de una tienda.
 - **Estados de un dominio**: "Sin conectar a Vercel" (todavía no se agregó: falta la llave o Vercel no respondió; se reintenta con "Verificar") → "Esperando DNS" (Vercel no ve los registros todavía) → "Verificado (falta el certificado)" → "Con certificado: anda" (abre con https).

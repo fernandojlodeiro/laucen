@@ -1,8 +1,8 @@
 // Ficha de producto (?v=<variación>), con el armado de los marketplaces:
 // galería con zoom a la izquierda; en el medio condición y vendidos, título,
 // precio, cuotas, variaciones y "Lo que tenés que saber"; a la derecha la caja
-// de compra (envío, stock, cantidad, "Comprar ahora" y "Agregar al carrito"),
-// el vendedor y los medios de pago. Abajo, relacionados, características y
+// de compra (envío, stock, cantidad, "Comprar ahora" y "Agregar al carrito")
+// y los medios de pago (sin caja de "vendedor": la tienda no es un marketplace). Abajo, relacionados, características y
 // descripción. El precio sale de precio_de (la función única), en vivo.
 
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
@@ -14,36 +14,46 @@ import { consulta, una } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { mediosActivos } from "@/lib/tienda/checkout";
 import { planesDe, planParaMostrar } from "@/lib/tienda/cuotas";
+import { cuotasMpDe, financiacionTienda, planDeEscala, planesDisponibles } from "@/lib/tienda/financiacion";
+import { contadoDe } from "@/lib/tienda/medios";
+import { tasasMpDe } from "@/lib/tienda/tasas-mp";
+import { condicionCatalogo, etiquetasDelHost, gtinValido, idCatalogo } from "@/lib/tienda/publicidad";
+import { urlTienda } from "@/lib/tienda/dominios-tienda";
+import { EventoPublicidad } from "../../Publicidad";
 import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
-  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, LineaCuotas, LINK, Migas, Monto, Precio, TarjetaProducto,
+  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, HastaCuotas, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
 } from "../../piezas";
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
 import Galeria from "./Galeria";
+import Cantidad from "./Cantidad";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string; id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; atributos: Record<string, string> };
+type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; sku: string | null; codigoBarras: string | null; atributos: Record<string, string> };
 
 async function ficha(t: Tienda, productoId: number) {
   const org = t.organizacionId;
-  const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null }>(`
-    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia
+  const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null;
+    condicion: string | null; codigo_barras: string | null; video_url: string | null }>(`
+    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia, p.condicion, p.codigo_barras, p.video_url
       from producto p left join familia f on f.id = p.familia_id
      where p.id = $1 and p.organizacion_id = $2 and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$3")}`, [productoId, org, t.canalId]);
   if (!p) return null;
-  const filas = t.listaId ? await consulta<{ id: number; titulo: string; orden: number; lista: string; venta: string; disponible: number }>(`
-    select v.id::int, titulo_variacion(v.id) titulo, v.orden,
+  const filas = t.listaId ? await consulta<{ id: number; titulo: string; orden: number; lista: string; venta: string; disponible: number; sku: string | null; codigo_barras: string | null }>(`
+    select v.id::int, titulo_variacion(v.id) titulo, v.orden, v.sku, v.codigo_barras,
            case when $4 = 'USD' then pr.lista_usd else pr.lista_ars end lista,
            case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
            greatest(stock_disponible_canal($2, v.id, $3), 0)::int disponible
       from variacion v cross join lateral (select * from precio_de($2, v.id, $5)) pr
      where v.producto_id = $1 and v.organizacion_id = $2 and v.estado = 'activa'
+       and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
      order by v.orden, v.id`, [productoId, org, t.canalId, t.moneda, t.listaId]) : [];
+  if (!filas.length) return null; // ninguna variación con precio: no se vende
   const ids = filas.map((f) => f.id);
   const [atributos, fotosProducto, fotosVariacion, caracteristicas, cucardas] = await Promise.all([
     consulta<{ variacion_id: number; nombre: string; valor: string }>(
@@ -55,7 +65,7 @@ async function ficha(t: Tienda, productoId: number) {
     cucardasDe(org, [productoId]),
   ]);
   const variaciones: Variacion[] = filas.map((f) => ({
-    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible,
+    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible, sku: f.sku, codigoBarras: f.codigo_barras,
     atributos: Object.fromEntries(atributos.filter((a) => a.variacion_id === f.id).map((a) => [a.nombre, a.valor])),
   }));
   // Nombres de atributo en orden de aparición, con sus valores en orden.
@@ -78,8 +88,11 @@ async function cargar(params: Props["params"]) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { f } = await cargar(params);
-  return { title: f.p.titulo, description: f.p.descripcion?.slice(0, 160) ?? undefined, openGraph: f.fotosProducto[0] ? { images: [f.fotosProducto[0]] } : undefined };
+  const { t, f } = await cargar(params);
+  // «Título | Daitom» (el template del layout) y la foto principal para cuando se comparte el link.
+  const nombre = nombreTienda(t), foto = f.fotosProducto[0] ?? f.fotosVariacion[0]?.url;
+  return { title: f.p.titulo, description: (f.p.descripcion?.trim() || `${f.p.titulo}. Comprá en ${nombre}.`).slice(0, 160),
+    openGraph: { title: `${f.p.titulo} | ${nombre}`, siteName: nombre, locale: "es_AR", type: "website", ...(foto ? { images: [foto] } : {}) } };
 }
 
 /** "+25 vendidos", como en los marketplaces (escalones), o el número exacto si son pocos. */
@@ -97,11 +110,12 @@ export default async function Producto({ params, searchParams }: Props) {
   const pedida = Number(sp.v);
   const v = variaciones.find((x) => x.id === pedida) ?? variaciones.find((x) => x.disponible > 0) ?? variaciones[0];
   const fotos = v ? [...f.fotosVariacion.filter((x) => x.variacion_id === v.id).map((x) => x.url), ...f.fotosProducto] : f.fotosProducto;
-  const [planes, envio, medios, catalogo, arbol, emisor, h] = await Promise.all([
-    v ? planesDe(t.organizacionId, v.id) : Promise.resolve([]),
-    envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t),
-    una<{ condicion_iva: string }>("select condicion_iva from emisor where organizacion_id = $1 and es_principal", [t.organizacionId]),
-    headers(),
+  // Con el esquema de cuotas y descuentos, todos sus planes; si no, los de su familia o producto.
+  const fin = financiacionTienda(t);
+  const tasasMp = await tasasMpDe(t);
+  const [planes, envio, medios, catalogo, arbol, h, contado] = await Promise.all([
+    !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesDisponibles(fin, { tasasMp })) : planesDe(t.organizacionId, v.id),
+    envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(), contadoDe(t),
   ]);
   const base = catalogo.find((x) => x.id === p.id);
   const relacionadosBase = p.familia_id
@@ -109,9 +123,9 @@ export default async function Producto({ params, searchParams }: Props) {
     : [];
   const [yo, relacionados] = await Promise.all([base ? aTarjetas(t, [base]) : Promise.resolve([]), aTarjetas(t, relacionadosBase)]);
   const masVendido = yo[0]?.masVendido ?? false;
-  const plan = planParaMostrar(planes);
+  const plan = fin.activo ? (v ? planDeEscala(fin, v.venta) : null) : planParaMostrar(planes);
+  const cuotasMp = fin.activo && v ? cuotasMpDe(fin, v.venta) : null;
   const enlace = (x: Variacion) => `${rutaTienda(t, `/producto/${p.id}`)}?v=${x.id}`;
-  const nombre = nombreTienda(t);
   const c = t.config;
   const vendidos = textoVendidos(base?.vendidos ?? 0);
   const plata = (n: number) => `$\u00a0${formatearNumero(n, "entero")}`;
@@ -143,8 +157,26 @@ export default async function Producto({ params, searchParams }: Props) {
   const gratis = v ? envioGratis(envio, v.venta) : false;
   const filaInfo = "flex gap-3 text-sm";
 
+  // Publicidad: "vio el producto" (si el dominio mide) y los datos del producto para los buscadores
+  // (schema.org), con el MISMO precio que va al catálogo de Google: el precio grande, sin el tachado.
+  const pub = await etiquetasDelHost(h.get("host"));
+  const urlFicha = v ? await urlTienda(t, `/producto/${p.id}?v=${v.id}`) : null;
+  const gtin = v ? gtinValido(v.codigoBarras) ?? gtinValido(p.codigo_barras) : null;
+  const datosGoogle = v && urlFicha ? {
+    "@context": "https://schema.org", "@type": "Product", name: v.titulo, sku: idCatalogo(v.sku, v.id),
+    image: fotos.slice(0, 10), description: (p.descripcion || v.titulo).slice(0, 5000),
+    ...(p.marca?.trim() ? { brand: { "@type": "Brand", name: p.marca.trim() } } : {}),
+    ...(gtin ? { gtin } : {}),
+    offers: { "@type": "Offer", url: urlFicha, priceCurrency: t.moneda, price: v.venta.toFixed(2),
+      availability: v.disponible > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: { new: "https://schema.org/NewCondition", used: "https://schema.org/UsedCondition", refurbished: "https://schema.org/RefurbishedCondition" }[condicionCatalogo(p.condicion)] },
+  } : null;
+
   return (
     <div className="space-y-3">
+      {datosGoogle && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datosGoogle).replace(/</g, "\\u003c") }} />}
+      {pub && v && <EventoPublicidad evento={{ tipo: "ver", moneda: t.moneda, valor: v.venta,
+        items: [{ id: idCatalogo(v.sku, v.id), nombre: v.titulo, precio: v.venta, cantidad: 1 }] }} />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         {volver && <><Link href={volver} className={LINK}>Volver al listado</Link><span className="text-[var(--linea)]" aria-hidden>|</span></>}
         <Migas t={t} partes={camino.map((id) => ({ nombre: arbol.nodos.get(id)?.nombre ?? "", href: rutaTienda(t, `/familia/${id}`) })).filter((x) => x.nombre)} />
@@ -154,7 +186,7 @@ export default async function Producto({ params, searchParams }: Props) {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="grid gap-6 p-4 sm:p-6 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <div className="md:hidden">{encabezado}</div>
-            <div><Galeria fotos={fotos} titulo={p.titulo} /></div>
+            <div><Galeria fotos={fotos} titulo={p.titulo} video={p.video_url} /></div>
 
             <div className="space-y-5">
               <AvisosUrl sp={sp} />
@@ -165,6 +197,8 @@ export default async function Producto({ params, searchParams }: Props) {
                   <div className="space-y-1">
                     <Precio lista={v.lista} venta={v.venta} moneda={t.moneda} grande />
                     <LineaCuotas plan={plan} venta={v.venta} moneda={t.moneda} className="text-base" />
+                    <LineaContado contado={contado ? { precio: Math.round(v.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null} moneda={t.moneda} className="mt-1 inline-block text-base" />
+                    {cuotasMp && <p><HastaCuotas cuotas={cuotasMp} /></p>}
                     <a href="#medios" className={`${LINK} inline-block text-sm`}>Ver los medios de pago</a>
                   </div>
 
@@ -263,9 +297,7 @@ export default async function Producto({ params, searchParams }: Props) {
                     <input type="hidden" name="variacion" value={v.id} />
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <label htmlFor="cantidad" className="text-[var(--texto)]">Cantidad:</label>
-                      <select id="cantidad" name="cantidad" defaultValue="1" className="rounded bg-transparent py-1 font-semibold text-[var(--texto)] outline-none focus:ring-1 focus:ring-[var(--boton)]">
-                        {Array.from({ length: Math.min(v.disponible, 30) }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? "1 unidad" : `${n} unidades`}</option>)}
-                      </select>
+                      <Cantidad key={v.id} disponible={v.disponible} />
                       <span className="text-[var(--texto-2)]">({v.disponible === 1 ? "1 disponible" : `${formatearNumero(v.disponible, "entero")} disponibles`})</span>
                     </div>
                     <div className="space-y-2">
@@ -289,29 +321,25 @@ export default async function Producto({ params, searchParams }: Props) {
               )}
             </div>
 
-            <div className="space-y-3 rounded-md border border-[var(--linea)] p-4 text-sm">
-              <p className="text-base text-[var(--texto)]">Información del vendedor</p>
-              <div className="flex items-center gap-3">
-                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-md border border-[var(--linea)] bg-white">
-                  {c.logo ? <img src={c.logo} alt="" className="h-full w-full object-contain p-1" /> : <IconoTienda clase="h-6 w-6 text-[var(--texto-2)]" />}
-                </span>
-                <div>
-                  <p className="font-semibold text-[var(--texto)]">{nombre}</p>
-                  {c.direccion && <p className="text-[var(--texto-2)]">{c.direccion}</p>}
-                </div>
-              </div>
-              {emisor?.condicion_iva === "responsable_inscripto" && <p className="text-[var(--texto-2)]">Hace factura A.</p>}
-              <Link href={rutaTienda(t, "/buscar")} className={LINK}>Ver más productos del vendedor</Link>
-            </div>
-
             <div id="medios" className="scroll-mt-4 space-y-3 rounded-md border border-[var(--linea)] p-4 text-sm">
               <p className="text-base text-[var(--texto)]">Medios de pago</p>
-              {planes.some((x) => x.cuotas > 1) && (
+              {fin.activo && v ? (
+                <PrecioSegunPago lista={v.lista} venta={v.venta} moneda={t.moneda} planes={planes} contado={contado} />
+              ) : planes.some((x) => x.cuotas > 1) && (
                 <ul className="space-y-1">
-                  {planes.filter((x) => x.cuotas > 1).map((x) => (
+                  {planes.filter((x) => x.cuotas > 1).map((x) => x.medio === "mercadopago" ? (
+                    // Por Mercado Pago: el interés lo cobra Mercado Pago; la cuota es de referencia.
+                    <li key={x.cuotas} className="text-[var(--texto)]">
+                      Hasta {x.cuotas} cuotas con Mercado Pago
+                      {v && x.referencia && <> desde <Monto n={Math.round(((v.venta * (1 + x.interes_pct / 100)) / x.cuotas) * 100) / 100} moneda={t.moneda} />
+                        <span className="text-[var(--texto-2)]"> (total aprox. <Monto n={Math.round(v.venta * (1 + x.interes_pct / 100) * 100) / 100} moneda={t.moneda} />)</span></>}
+                      <span className="block text-xs text-[var(--texto-2)]">{x.referencia ? "La cuota exacta depende de tu tarjeta. " : ""}También podés pagar en cuotas sin tarjeta con Mercado Pago.</span>
+                    </li>
+                  ) : (
                     <li key={x.cuotas} className={x.interes_pct === 0 ? "text-[var(--verde)]" : "text-[var(--texto)]"}>
                       {x.cuotas} cuotas {x.interes_pct === 0 ? "sin interés" : "con interés"}
                       {v && <> de <Monto n={Math.round(((v.venta * (1 + x.interes_pct / 100)) / x.cuotas) * 100) / 100} moneda={t.moneda} /></>}
+                      {v && x.interes_pct > 0 && <span className="text-[var(--texto-2)]"> (total <Monto n={Math.round(v.venta * (1 + x.interes_pct / 100) * 100) / 100} moneda={t.moneda} />)</span>}
                     </li>
                   ))}
                 </ul>

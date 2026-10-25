@@ -9,6 +9,8 @@ import { consulta, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero } from "@/lib/erp/acciones";
 import { configMensajes, guardarConfigMensajes } from "@/lib/mensajes/config";
 import { revisarMarca } from "@/lib/mensajes/reglas";
+import { pendienteDe, terminarAlta } from "@/lib/mensajes/alta";
+import { redirect } from "next/navigation";
 
 const VOLVER = "/ventas/mensajes/configuracion";
 
@@ -50,4 +52,19 @@ export async function accionDesconectar() {
     await consulta("update wa_credencial set estado = 'desconectado' where organizacion_id = $1", [s.org.id]);
     return "Listo: Laucen dejó de recibir y contestar los mensajes de ese número. En el teléfono sigue andando.";
   });
+}
+
+/** Conecta el número que eligió la persona entre los que vinieron en el permiso de Meta (lib/mensajes/alta.ts). */
+export async function accionElegirNumero(fd: FormData) {
+  const s = await entrarErp("mensajes_config");
+  const alta = Number(fd.get("alta")) || 0;
+  const telefono = String(fd.get("telefono") ?? "");
+  const p = await pendienteDe(s.org.id, alta);
+  if (!p) redirect(`${VOLVER}?wa=estado`);
+  const num = p.opciones.find((o) => o.id === telefono);
+  if (!num) redirect(`${VOLVER}?wa=elegir&alta=${alta}`);
+  const r = await terminarAlta(s.org.id, p.token, p.expira_el, num, p.coexistencia);
+  if (r === "conectado") await consulta("delete from wa_alta_pendiente where id = $1", [alta]);
+  revalidatePath("/ventas/mensajes", "layout");
+  redirect(`${VOLVER}?wa=${r}${r === "conectado" ? "" : `&alta=${alta}`}`);
 }

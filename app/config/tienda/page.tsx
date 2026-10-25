@@ -4,22 +4,25 @@
 // Configuración → Canales. Abre en vista; se edita con el lápiz (?editar=t<id>).
 // Abajo, los dominios propios de cada tienda (tienda_dominio, bitácora #281).
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { slugDe, type ConfigTienda } from "@/lib/tienda/tienda";
 import { urlPanel } from "@/lib/tienda/dominios";
-import { urlTiendaDe } from "@/lib/tienda/dominios-tienda";
+import { urlTiendaDe, type Marca } from "@/lib/tienda/dominios-tienda";
 import { hayLlaveVercel, type RegistroDns } from "@/lib/tienda/vercel";
 import { tienePermiso } from "@/lib/permisos";
-import { PRIMARIO, SUAVE } from "@/app/botones";
-import { entrarErp, Pantalla, Avisos, Estado, Dato, BotonesFicha, TituloSeccion, editandoFicha, CAMPO, ETIQUETA, CAJA,
+import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
+import { entrarErp, Pantalla, Avisos, Estado, Dato, BotonesFicha, TituloSeccion, editandoFicha, Lapiz, CAMPO, ETIQUETA, CAJA,
   CAJA_TABLA, TABLA, THEAD, TH, TR, TD } from "@/app/componentes/erp";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import { COLORES_POR_DEFECTO } from "@/app/tienda/[slug]/tema";
 import SubirImagen from "./SubirImagen";
 import { accionCrearTienda, accionGuardarTienda } from "./acciones";
-import { accionNuevoDominio, accionVerificarDominio, accionBorrarDominio } from "./dominios";
+import { Interruptor } from "@/app/radar/Piezas";
+import { accionNuevoDominio, accionVerificarDominio, accionBorrarDominio, accionGuardarDominio, accionCanonicalDominio } from "./dominios";
+import { accionGuardarTurnstile } from "./antibot";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +37,8 @@ const COLORES: { clave: "color_marca" | "color_marca_texto" | "color_boton" | "c
   { clave: "color_fondo", nombre: "Fondo de la página", ayuda: "Detrás de las tarjetas", defecto: COLORES_POR_DEFECTO.fondo },
 ];
 
-type Dominio = { id: number; canal_id: number; dominio: string; principal: boolean; estado: string; dns: RegistroDns[]; detalle: string | null; revisado: string | null };
+type Dominio = { id: number; canal_id: number; dominio: string; principal: boolean; canonical_principal: boolean | null; estado: string; dns: RegistroDns[]; detalle: string | null; revisado: string | null;
+  marca: Marca | null; redirige_a_id: number | null };
 
 const ESTADOS_DOMINIO: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
   sin_conectar: { texto: "Sin conectar a Vercel", tono: "gris" },
@@ -46,6 +50,36 @@ const ESTADOS_DOMINIO: Record<string, { texto: string; tono: "verde" | "amarillo
 const ESTADOS: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" }> = {
   activo: { texto: "Activa: toma pedidos", tono: "verde" }, pausado: { texto: "Pausada: no toma pedidos", tono: "amarillo" },
 };
+
+/** Los datos de una marca (dominio de "otra marca"): nombre, logo, colores de la franja, banners y mail. */
+function CamposMarca({ m, org }: { m: Marca | null; org: string }) {
+  const color = (k: "color_marca" | "color_marca_texto", nombre: string, defecto: string) => (
+    <div><span className={ETIQUETA}>{nombre}</span>
+      <label className="inline-flex items-center gap-2 text-xs">
+        <input type="checkbox" name={`marca_${k}_usar`} defaultChecked={!!m?.[k]} /> Propio:
+        <input type="color" name={`marca_${k}`} defaultValue={m?.[k] ?? defecto} className="h-7 w-12 rounded border border-[#E3E9F0] align-middle" />
+      </label>
+      <span className="block text-[11px] text-[#5C6B76]">Sin tildar, el de la tienda.</span></div>
+  );
+  return (
+    <>
+      <label><span className={ETIQUETA}>Nombre de la marca</span>
+        <input name="marca_nombre" defaultValue={m?.nombre ?? ""} placeholder="Tienda Virtual" className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Mail (vacío: el de la tienda con este dominio)</span>
+        <input name="marca_email" type="email" defaultValue={m?.email ?? ""} className={`${CAMPO} w-full`} /></label>
+      <div><span className={ETIQUETA}>Logo (sin logo: el nombre escrito)</span>
+        <SubirImagen name="marca_logo" valor={m?.logo ?? null} organizacionId={org} etiqueta="Logo" /></div>
+      {color("color_marca", "Color de la franja", COLORES_POR_DEFECTO.marca)}
+      {color("color_marca_texto", "Texto sobre la franja", COLORES_POR_DEFECTO.marcaTexto)}
+      <div><span className={ETIQUETA}>Banner (vacío: los de la tienda)</span>
+        <SubirImagen name="marca_banner" valor={m?.banner ?? null} organizacionId={org} etiqueta="Banner" alto="h-16" /></div>
+      <div><span className={ETIQUETA}>Banner 2</span>
+        <SubirImagen name="marca_banner_2" valor={m?.banner_2 ?? null} organizacionId={org} etiqueta="Banner 2" alto="h-16" /></div>
+      <div><span className={ETIQUETA}>Banner 3</span>
+        <SubirImagen name="marca_banner_3" valor={m?.banner_3 ?? null} organizacionId={org} etiqueta="Banner 3" alto="h-16" /></div>
+    </>
+  );
+}
 
 export default async function ConfigTiendaPantalla({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("tienda_config");
@@ -59,12 +93,19 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
      where c.organizacion_id = $1 and c.tipo = 'web_minorista' and c.estado <> 'archivado' order by c.id`, [s.org.id]);
 
   const dominios = await consulta<Dominio>(`
-    select id::int, canal_id::int, dominio, principal, estado, dns, detalle,
+    select id::int, canal_id::int, dominio, principal, estado, dns, detalle, marca, redirige_a_id::int, canonical_principal,
            to_char(revisado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') revisado
       from tienda_dominio where organizacion_id = $1 order by canal_id, principal desc, dominio`, [s.org.id]);
   const direcciones = new Map(await Promise.all(tiendas.map(async (t) =>
     [t.id, await urlTiendaDe(t.id, t.config?.slug || slugDe(t.nombre))] as const)));
   const puedeDominios = tienePermiso(s.permisos, "tienda_dominios");
+  // Antibot (lib/tienda/antibot.ts): intentos frenados en la semana y si hay Turnstile.
+  const [frenados, turnstile] = await Promise.all([
+    consulta<{ resultado: string; n: number }>(`select resultado, count(*)::int n from tienda_intento
+      where organizacion_id = $1 and creado_ts > now() - interval '7 days' and resultado <> 'ok' group by resultado order by 2 desc`, [s.org.id]),
+    consulta<{ site_key: string | null; hay_secreta: boolean }>("select site_key, secret_key is not null hay_secreta from tienda_antibot where organizacion_id = $1", [s.org.id]),
+  ]);
+  const ts = turnstile[0];
   const llave = hayLlaveVercel();
 
   const VOLVER = "/config/tienda";
@@ -105,7 +146,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarla en Configuración → Canales</Link></div>
               <div className="sm:col-span-2"><span className={ETIQUETA}>Feed para Meta (Facebook / Instagram)</span>
                 <a href={`${direccion}/feed.xml`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}/feed.xml ↗</a>
-                <span className="block text-[11px] text-[#5C6B76]">Cargalo en Meta Commerce Manager como fuente de datos programada.</span></div>
+                <span className="block text-[11px] text-[#5C6B76]">Los catálogos de Google, Meta y TikTok y la medición de ventas: <Link href="/config/tienda/publicidad" className="text-[#16577F] hover:underline">Publicidad</Link>.</span></div>
               <div><span className={ETIQUETA}>Vende el stock de</span>{t.depositos ?? <span className="text-[#C03420]">Ningún depósito: elegilos en Canales</span>}</div>
             </div>
 
@@ -119,15 +160,25 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                     <input type="hidden" name="canal_id" value={t.id} />
                     <label><span className={ETIQUETA}>Dominio</span>
                       <input name="dominio" required autoFocus placeholder="mitienda.com.ar" className={`${CAMPO} w-full font-mono`} /></label>
-                    <div><span className={ETIQUETA}>Tipo</span>
+                    <div className="sm:col-span-2"><span className={ETIQUETA}>Tipo</span>
                       <span className="flex flex-wrap gap-3 py-1.5">
                         <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="principal" defaultChecked={!principal} disabled={!!principal} /> Principal (abre la tienda)</label>
-                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="redirige" defaultChecked={!!principal} disabled={!principal} /> Redirige al principal</label>
+                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="marca" disabled={!principal} /> Otra marca (abre la tienda con otro nombre)</label>
+                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="redirige" defaultChecked={!!principal} disabled={!principal} /> Redirige</label>
                       </span></div>
+                    {principal && <>
+                      <label><span className={ETIQUETA}>Si redirige: a</span>
+                        <select name="redirige_a_id" defaultValue="" className={`${CAMPO} w-full font-mono`}>
+                          <option value="">{principal} (el principal)</option>
+                          {doms.filter((d) => d.marca?.nombre).map((d) => <option key={d.id} value={d.id}>{d.dominio} ({d.marca!.nombre})</option>)}
+                        </select></label>
+                      <label><span className={ETIQUETA}>Si es otra marca: su nombre</span>
+                        <input name="marca_nombre" placeholder="Tienda Virtual" className={`${CAMPO} w-full`} /></label>
+                    </>}
                     <div><BotonEnviar clase={PRIMARIO} corriendo="Conectando…">Crear</BotonEnviar></div>
                   </form>
                   <p className="text-[11px] text-[#5C6B76] mt-2">
-                    {principal ? <>Los demás dominios (www, otras marcas) redirigen a <b>{principal}</b>.</> : <>Primero el principal: es el que abre la tienda. Después, los que redirigen a él (www, otras marcas).</>}
+                    {principal ? <>Otra marca abre la misma tienda (productos, precios, stock y pedidos) con su nombre y su logo; el logo, los colores y los banners se cargan después con el lápiz. Los que redirigen (www) van al principal o a una marca.</> : <>Primero el principal: es el que abre la tienda. Después, las otras marcas y los que redirigen (www).</>}
                     {" "}Al crearlo, Laucen lo agrega en Vercel y te muestra los registros DNS que hay que cargar.
                   </p>
                 </AltaNueva>
@@ -147,10 +198,20 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                     <tbody>
                       {doms.map((d) => {
                         const e = ESTADOS_DOMINIO[d.estado] ?? { texto: d.estado, tono: "gris" as const };
-                        return (
-                          <tr key={d.id} className={TR}>
+                        const editandoDom = puedeDominios && !d.principal && editandoFicha(sp, `dom${d.id}`);
+                        const destino = doms.find((x) => x.id === d.redirige_a_id && (x.principal || x.marca?.nombre))?.dominio ?? principal;
+                        return (<Fragment key={d.id}>
+                          <tr className={TR}>
                             <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio} ↗</a></td>
-                            <td className={TD}>{d.principal ? "Principal" : <>Redirige a <span className="font-mono">{principal ?? "—"}</span></>}</td>
+                            <td className={TD}>{d.principal ? "Principal" : d.marca?.nombre
+                              ? <><span className="inline-flex items-center gap-1.5">Otra marca: <b>{d.marca.nombre}</b>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  {d.marca.logo && <img src={d.marca.logo} alt="" className="h-5 max-w-16 object-contain" />}</span>
+                                  <div className="mt-1">
+                                    <Interruptor accion={accionCanonicalDominio} prendido={d.canonical_principal ?? true} campos={{ id: String(d.id) }} compacto deshabilitado={!puedeDominios}
+                                      etiqueta={(d.canonical_principal ?? true) ? `Para Google es ${principal ?? "el principal"}` : "Para Google es un sitio aparte"} />
+                                  </div></>
+                              : <>Redirige a <span className="font-mono">{destino ?? "—"}</span></>}</td>
                             <td className={TD}><Estado texto={e.texto} tono={e.tono} />
                               {d.detalle && <span className="block text-[11px] text-[#C03420] mt-0.5">{d.detalle}</span>}</td>
                             <td className={TD}>
@@ -163,17 +224,41 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                               )}</td>
                             <td className={`${TD} whitespace-nowrap`}>{d.revisado ?? "—"}</td>
                             <td className={`${TD} whitespace-nowrap`}>
-                              {puedeDominios && (
+                              {puedeDominios && (editandoDom ? (
                                 <span className="flex items-center gap-1 justify-end">
+                                  <button type="submit" form={`dom-${d.id}`} className={VERDE}>Grabar</button>
+                                  <Link href={VOLVER} className={SUAVE} scroll={false}>Cancelar</Link>
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 justify-end">
+                                  {!d.principal && <Lapiz href={`${VOLVER}?editar=dom${d.id}`} etiqueta="Cambiar el dominio" />}
                                   {d.estado !== "con_certificado" && (
                                     <form action={accionVerificarDominio}><input type="hidden" name="id" value={d.id} />
                                       <BotonEnviar clase={SUAVE} corriendo="Verificando…">Verificar</BotonEnviar></form>
                                   )}
                                   <TachoConfirmar accion={accionBorrarDominio} campos={{ id: String(d.id) }} pregunta="¿Borrar?" />
                                 </span>
-                              )}</td>
+                              ))}</td>
                           </tr>
-                        );
+                          {editandoDom && (
+                            <tr className={TR}><td colSpan={6} className={`${TD} bg-[#F7F9FB]`}>
+                              <form id={`dom-${d.id}`} action={accionGuardarDominio} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start text-xs">
+                                <input type="hidden" name="id" value={d.id} />
+                                <div className="sm:col-span-3"><span className={ETIQUETA}>Tipo</span>
+                                  <span className="flex flex-wrap gap-3 py-1.5">
+                                    <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="marca" defaultChecked={!!d.marca?.nombre} /> Otra marca (abre la tienda con estos datos)</label>
+                                    <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="redirige" defaultChecked={!d.marca?.nombre} /> Redirige a</label>
+                                    <select name="redirige_a_id" defaultValue={d.redirige_a_id ?? ""} className={`${CAMPO} font-mono`}>
+                                      <option value="">{principal} (el principal)</option>
+                                      {doms.filter((x) => x.id !== d.id && x.marca?.nombre).map((x) => <option key={x.id} value={x.id}>{x.dominio} ({x.marca!.nombre})</option>)}
+                                    </select>
+                                  </span></div>
+                                <CamposMarca m={d.marca} org={s.org.id} />
+                              </form>
+                              <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre y logo (colores, banners y mail: los propios si los cargás; si no, los de la tienda, con el mail en este dominio); los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
+                            </td></tr>
+                          )}
+                        </Fragment>);
                       })}
                     </tbody>
                   </table>
@@ -266,6 +351,28 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
           </section>
         );
       })}
+
+      {tiendas.length > 0 && (
+        <section className="mb-6">
+          <TituloSeccion titulo="Protección contra bots" />
+          <div className={`${CAJA} text-xs space-y-3`}>
+            <p className="text-[#5C6B76]">El pago (checkout), el ingreso y la creación de cuenta tienen un campo trampa que una persona no ve, un tiempo mínimo para completarlos y un tope de intentos por conexión. Con las claves de Cloudflare Turnstile se suma su verificación (casi siempre invisible).</p>
+            <p><b>Frenados en los últimos 7 días:</b>{" "}
+              {frenados.length ? frenados.map((f) => `${f.n} ${({ trampa: "llenaron el campo trampa", muy_rapido: "demasiado rápidos", vencido: "página vencida", turnstile: "no pasaron Turnstile", tope_ip: "pasaron el tope por conexión" } as Record<string, string>)[f.resultado] ?? f.resultado}`).join(" · ") : "ninguno"}</p>
+            <form action={accionGuardarTurnstile} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <label><span className={ETIQUETA}>Turnstile: clave del sitio (Site Key)</span>
+                <input name="site_key" defaultValue={ts?.site_key ?? ""} className={`${CAMPO} w-full font-mono`} /></label>
+              <label><span className={ETIQUETA}>Clave secreta (Secret Key)</span>
+                <input name="secret_key" type="password" autoComplete="off" placeholder={ts?.hay_secreta ? "Cargada (vacío = no se cambia)" : "Sin cargar"} className={`${CAMPO} w-full font-mono`} /></label>
+              <span className="flex gap-2">
+                <BotonEnviar clase={PRIMARIO} corriendo="Grabando…">Grabar claves</BotonEnviar>
+                {ts?.site_key && <button name="quitar" value="1" className={SUAVE}>Apagar Turnstile</button>}
+              </span>
+            </form>
+            <p className="text-[11px] text-[#5C6B76]">Estado: {ts?.site_key && ts.hay_secreta ? <span className="text-[#167655] font-semibold">Turnstile prendido</span> : "sin Turnstile"}. Las claves se crean en Cloudflare › Turnstile, con los dominios de la tienda.</p>
+          </div>
+        </section>
+      )}
     </Pantalla>
   );
 }

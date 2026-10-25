@@ -27,6 +27,28 @@ export async function productosDe(org: string, canalId: number, lista: ListaPort
      where t.organizacion_id = $1 and t.canal_id = $2 and t.lista = $3 order by t.orden, t.id`, [org, canalId, lista]);
 }
 
+/** Las categorías que no salen en la portada (sus subcategorías tampoco). */
+export async function familiasFueraDe(canalId: number): Promise<number[]> {
+  const f = await consulta<{ familia_id: number }>("select familia_id::int from tienda_portada_familia where canal_id = $1", [canalId]);
+  return f.map((x) => x.familia_id);
+}
+
+export async function familiasFueraConNombre(org: string, canalId: number) {
+  return consulta<{ id: number; nombre: string }>(`
+    select f.id::int, f.nombre from tienda_portada_familia t join familia f on f.id = t.familia_id
+     where t.organizacion_id = $1 and t.canal_id = $2 order by f.nombre`, [org, canalId]);
+}
+
+export async function sacarFamilia(org: string, canalId: number, familiaId: number) {
+  await canalDeLaOrg(org, canalId);
+  if (!(await una("select 1 from familia where id = $1 and organizacion_id = $2", [familiaId, org]))) throw new ErrorErp("Elegí una categoría.");
+  await consulta("insert into tienda_portada_familia (organizacion_id, canal_id, familia_id) values ($1, $2, $3) on conflict do nothing", [org, canalId, familiaId]);
+}
+
+export async function devolverFamilia(org: string, canalId: number, familiaId: number) {
+  await consulta("delete from tienda_portada_familia where organizacion_id = $1 and canal_id = $2 and familia_id = $3", [org, canalId, familiaId]);
+}
+
 /** Los ids elegidos, en orden (para la portada). */
 export async function idsDe(canalId: number, lista: ListaPortada): Promise<number[]> {
   const f = await consulta<{ producto_id: number }>("select producto_id::int from tienda_portada_producto where canal_id = $1 and lista = $2 order by orden, id", [canalId, lista]);

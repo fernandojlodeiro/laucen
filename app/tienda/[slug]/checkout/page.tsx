@@ -4,7 +4,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { consulta, una, motivoErp } from "@/lib/erp/base";
 import { leerCarrito } from "@/lib/tienda/carrito";
@@ -15,6 +15,10 @@ import { abierta, cargarTienda } from "../catalogo";
 import { Aviso, BOTON, TITULO } from "../piezas";
 import { metodosEnvio, resumir, type Resumen } from "../resumen";
 import Checkout, { type Precarga } from "./Checkout";
+import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
+import { etiquetasDelHost, idCatalogo } from "@/lib/tienda/publicidad";
+import { financiacionTienda, planesDisponibles } from "@/lib/tienda/financiacion";
+import { EventoPublicidad } from "../Publicidad";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Finalizar compra" };
@@ -33,6 +37,7 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
   }
 
   const cuenta = await cuentaActual(t);
+  const fin = financiacionTienda(t);
   const [medios, metodos] = await Promise.all([mediosActivos(t), metodosEnvio(t)]);
   const mediosVisibles = medios.filter((m) => m.tipo !== "cuenta_corriente" || cuenta?.cuentaCorriente);
 
@@ -71,6 +76,11 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
   }
   if (resumen && !resumen.lineas.length) redirect(rutaTienda(t, "/carrito"));
 
+  // Publicidad: "empezó a pagar" con lo que hay en el carrito (si el dominio mide).
+  const pub = resumen && await etiquetasDelHost((await headers()).get("host"));
+  const skus = pub ? new Map((await consulta<{ id: number; sku: string | null }>(
+    "select id::int, sku from variacion where organizacion_id = $1 and id = any($2::bigint[])", [t.organizacionId, resumen!.lineas.map((l) => l.variacionId)])).map((x) => [x.id, x.sku])) : null;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -78,9 +88,16 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
         {!cuenta && <Link href={`${rutaTienda(t, "/cuenta")}?volver=checkout`} className="text-sm text-[var(--boton)] hover:text-[var(--boton-hover)]">¿Ya tenés cuenta? Ingresá</Link>}
       </div>
       {error && <Aviso tipo="error">{error}</Aviso>}
+      {resumen && skus && <EventoPublicidad evento={{
+        tipo: "checkout", moneda: t.moneda, valor: Math.round(resumen.lineas.reduce((s, l) => s + l.subtotal, 0) * 100) / 100,
+        items: resumen.lineas.map((l) => ({ id: idCatalogo(skus.get(l.variacionId), l.variacionId), nombre: l.titulo, precio: Math.round((l.subtotal / l.cantidad) * 100) / 100, cantidad: l.cantidad })),
+      }} />}
       {resumen && (
         <Checkout slug={t.slug} medios={mediosVisibles} metodos={metodos} inicial={resumen} precarga={precarga}
-          eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }} />
+          antibot={{ marca: await marcaDeTiempo(), siteKey: await turnstileDe(t.organizacionId) }}
+          eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }}
+          planesCredito={fin.activo ? planesDisponibles(fin, { medio: "payway" }) : []}
+          hastaCuotasMp={fin.activo ? planesDisponibles(fin, { medio: "mercadopago" }).at(-1)?.cuotas ?? null : null} />
       )}
     </div>
   );

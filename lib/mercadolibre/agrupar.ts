@@ -92,10 +92,10 @@ export async function comprobarAgrupado(cuenta: CuentaMl, madre: ItemMadre, plan
 type Pub = { id: number; item_id: string; up: string; catalogo: boolean; tipo: string | null; tags: unknown; terms: unknown; precio: number | null; vendidos: number; catalogo_prod: string | null;
   /** Lo vendido entre todas las publicaciones de su producto de ML (con ventas, la vieja no se elimina). */
   ventas_up: number };
-type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; umbral: number; pubs: Pub[] };
+export type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; umbral: number; pubs: Pub[] };
 
 /** Los productos de la cuenta con algún plan en otro producto de ML que el de la madre (con o sin ventas). */
-async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
+export async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
   const filas = await consulta<Pub & { variacion: number; sku: string; madre_up: string; disp: number; umbral: number }>(`
     with x as (
       select p.id::int, p.variacion_id::int variacion, v.sku, p.id_externo item_id, p.datos_externos ->> 'user_product_id' up,
@@ -139,7 +139,7 @@ export type ResultadoAgrupar = { productos: number; altas: number; loteId: numbe
  *  la madre se crea copiando la madre, al precio de la publicación vieja, en su misma campaña y, si la vieja tenía
  *  gemela de catálogo, también en el catálogo. También si la vieja tiene ventas (Fer, 22/10): se crea la agrupada y
  *  la vieja queda (no se elimina). Un lote que espera el clic de Fer. */
-export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number; saltar?: Set<string>; saltarSku?: Set<string> } = {}): Promise<ResultadoAgrupar> {
+export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number; saltar?: Set<string>; saltarSku?: Set<string>; soloSku?: Set<string> } = {}): Promise<ResultadoAgrupar> {
   const hasta = opts.hasta ?? Date.now() + 240_000;
   const cuenta = await cuentaDelCanal(org, canal);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("La cuenta de Mercado Libre no está conectada.");
@@ -155,7 +155,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
   const max = opts.max ?? 20;
   const propia = await campanaPropiaDe(org, canal);
   for (const g of grupos) {
-    if (opts.saltarSku?.has(g.sku)) continue;
+    if (opts.saltarSku?.has(g.sku) || (opts.soloSku && !opts.soloSku.has(g.sku))) continue;
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
     const viejas = g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && !enMadre.has(plan(p)) && !enCola.has(`agrupar:${g.sku}:${plan(p)}`));
     if (!viejas.length) continue;
@@ -220,9 +220,9 @@ export type ResultadoCierre = { cerrar: number; loteId: number | null };
 /** El cierre de las viejas: cada publicación (y su gemela de catálogo) que está en otro producto que el de la madre,
  *  sin ventas en ese producto (las que tienen ventas quedan, Fer 22/10), cuyo plan ya está en el producto de la
  *  madre. Un lote que espera el clic de Fer. */
-export async function prepararCierreAgrupados(org: string, canal: number, usuarioId: string | null, saltarSku?: Set<string>): Promise<ResultadoCierre> {
+export async function prepararCierreAgrupados(org: string, canal: number, usuarioId: string | null, saltarSku?: Set<string>, soloSku?: Set<string>): Promise<ResultadoCierre> {
   const nombre = (await una<{ nombre: string }>("select nombre from canal where id = $1", [canal]))?.nombre ?? "la cuenta";
-  const grupos = (await gruposSeparados(org, canal)).filter((g) => !saltarSku?.has(g.sku));
+  const grupos = (await gruposSeparados(org, canal)).filter((g) => !saltarSku?.has(g.sku) && (!soloSku || soloSku.has(g.sku)));
   const cambios: CambioMl[] = [];
   for (const g of grupos) {
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));

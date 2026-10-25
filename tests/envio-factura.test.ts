@@ -31,3 +31,8 @@ test("plantillaFactura: utilidad, dos variables en el texto y botón con el enla
   const botones = (p.components[1] as { buttons: { url: string }[] }).buttons;
   assert.equal(botones[0].url, "https://laucen.com/api/factura/{{1}}");
 });
+
+test("el enlace del PDF no pide login (si no, WhatsApp baja la pantalla de ingreso)", async () => {
+  const { esRutaPublica } = await import("@/lib/rutas-publicas");
+  assert.ok(esRutaPublica("/api/factura/0123456789abcdef0123456789abcdef0123"));
+});

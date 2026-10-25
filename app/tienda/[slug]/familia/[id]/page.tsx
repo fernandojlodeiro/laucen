@@ -3,7 +3,7 @@
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { rutaTienda } from "@/lib/tienda/tienda";
+import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
 import { cargarTienda, familiaConCamino } from "../../catalogo";
 import { leerFiltros, Listado, Migas } from "../../piezas";
 
@@ -21,8 +21,9 @@ async function cargar(params: Props["params"]) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { f } = await cargar(params);
-  return { title: f.nombre, description: f.descripcion ?? undefined };
+  const { t, f } = await cargar(params);
+  const nombre = nombreTienda(t);
+  return { title: f.nombre, description: f.descripcion ?? `${f.nombre} en ${nombre}.`, openGraph: { title: `${f.nombre} | ${nombre}`, siteName: nombre, locale: "es_AR", type: "website" } };
 }
 
 export default async function Familia({ params, searchParams }: Props) {

@@ -8,6 +8,7 @@
 // `pedido_pago_confirmado` para que la facturación automática lo facture si
 // ya llegó al estado en que se factura (facturarPendientes).
 
+import { after } from "next/server";
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { cambiarEstado } from "@/lib/pedidos";
@@ -55,6 +56,13 @@ async function confirmarPagoEn(c: PoolClient, org: string, pedidoId: number, d: 
 
 /** Le avisa a ML el stock nuevo de los productos de un pedido (tras reservar o vender). */
 export async function avisarStockMl(org: string, pedidoId: number) {
+  // Después de contestar (Fer, 25/10: la pasarela de Payway tardaba en abrir): actualizar el stock en
+  // Mercado Libre puede llevar varios segundos y el comprador no tiene por qué esperarlo. Fuera de un
+  // pedido web (un proceso suelto, una prueba), en el momento.
+  try { after(() => sincronizarDelPedido(org, pedidoId)); } catch { await sincronizarDelPedido(org, pedidoId); }
+}
+
+async function sincronizarDelPedido(org: string, pedidoId: number) {
   const vars = await consulta<{ v: number }>("select distinct variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [pedidoId]);
   if (vars.length) await sincronizarStockMl(org, vars.map((x) => x.v)).catch((e) => console.error("[tienda] stock a ML", e));
 }

@@ -48,3 +48,12 @@ test("una medida en cero («0 mA») no se manda: ML la rechaza al crear", () => 
   assert.ok(ids.includes("VOLTAGE"));
 });
 
+
+test("completar datos: lee del rechazo qué características faltan", async () => {
+  const { atributosFaltantes } = await import("@/lib/mercadolibre/completar-datos");
+  assert.deepEqual(atributosFaltantes("error item.attributes.missing_required: The attributes [MODEL] are required for category MLA12812"), ["MODEL"]);
+  assert.deepEqual(atributosFaltantes("The attributes [DEVICE_PART_NUMBER, VOLTAGE] are required"), ["DEVICE_PART_NUMBER", "VOLTAGE"]);
+  assert.deepEqual(atributosFaltantes("error item.attribute.missing.seller.package.dimensions: The attributes [seller_package_height, …] are all"),
+    ["SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WEIGHT"]);
+  assert.deepEqual(atributosFaltantes("error item.family_name.length_invalid"), []);
+});

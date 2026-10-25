@@ -21,6 +21,8 @@ export const RUTAS_PUBLICAS = [
   // Ventas de ML de los últimos 12 meses (sólo lee de ML, escribe ml_venta); la llama pg_cron con meli_llave.
   "/api/meli/ventas",
   "/api/erp/tareas",
+  // Los avisos por mail de los pedidos de la tienda: la llama pg_cron con erp_llave.
+  "/api/correo/cola",
   // La llama la base (pg_net) al cambiar el stock; se autentica con erp_llave.
   "/api/erp/stock",
   // La tienda web es pública (sus compradores no son usuarios del sistema).
@@ -42,6 +44,9 @@ export const RUTAS_PUBLICAS = [
   "/api/catalogo",
   // Los avisos de WhatsApp (Meta): se verifican con la firma de la app.
   "/api/whatsapp/webhook",
+  // El PDF de una factura por su enlace con código al azar (el documento y el botón de WhatsApp, lib/facturacion/envio.ts):
+  // sin esto, WhatsApp bajaba la pantalla de ingreso en vez del PDF (Fer, 25/10).
+  "/api/factura",
   // Los avisos de Windows: los pide la base (pg_cron) con erp_llave; el portero del navegador es un archivo suelto.
   "/api/avisos/push",
   // La exportación de Mercado Pago: la pide la base (pg_net) con erp_llave; sólo lee de Mercado Pago.

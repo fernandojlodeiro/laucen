@@ -1,7 +1,6 @@
 // Mandarle la factura al cliente (pedido de Fer, 13/10). Por WhatsApp, al número
 // confirmado de su ficha (cliente.whatsapp) y si la casilla «Enviarle la factura
-// por WhatsApp» está tildada. Por mail todavía no: falta configurar el correo
-// (la casilla ya está en la ficha).
+// por WhatsApp» está tildada. Por mail, la casilla «Factura por mail»: lib/correo/mails.ts.
 // - Una venta de Mercado Libre no se manda por WhatsApp (la factura va a ML),
 //   salvo que el cliente nos haya escrito por WhatsApp por esa compra.
 // - Dentro de las 24 h del último mensaje del cliente va el PDF; fuera, la
@@ -135,7 +134,13 @@ export async function enviarFacturaWhatsapp(org: string, id: number, o: { manual
 export async function alAutorizarWhatsapp(org: string, id: number): Promise<void> {
   try {
     const d = await datosDe(org, id);
-    if (!d || !correspondeWhatsapp(d).ok) return;
+    if (!d) return;
+    if (!correspondeWhatsapp(d).ok) {
+      // La quería por WhatsApp y no hay número (Fer, 25/10: no llegó y la ficha no decía por qué): queda dicho en el pedido.
+      if (!d.whatsapp && d.factura_por_whatsapp !== false && !TIPOS_CBTE[d.tipo_cbte]?.nc && d.canal_tipo !== "mercadolibre")
+        await anotar(org, id, "sin_numero", "No salió: el cliente no tiene WhatsApp cargado en su ficha.");
+      return;
+    }
     await enviarFacturaWhatsapp(org, id);
   } catch (e) {
     console.error("[factura por WhatsApp]", id, e instanceof Error ? e.message : e);

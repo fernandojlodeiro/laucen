@@ -7,7 +7,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { DOMINIO_PANEL, REDIRIGEN_AL_PANEL, esDelPanel } from "@/lib/tienda/dominios";
-import { destinoDeHost } from "@/lib/tienda/dominios-tienda";
+import { abreLaTienda, destinoDeHost } from "@/lib/tienda/dominios-tienda";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -60,8 +60,8 @@ async function aLaTienda(req: NextRequest, host: string): Promise<NextResponse |
     return null;
   });
   // Desconocido: la página "dominio no configurado" (nunca el panel).
-  if (!destino || (!destino.principal && !destino.redirigeA)) return reescribir(req, "/dominio-no-configurado");
-  // Un dominio secundario redirige al principal (por si Vercel no lo hizo ya).
+  if (!destino || (!abreLaTienda(destino) && !destino.redirigeA)) return reescribir(req, "/dominio-no-configurado");
+  // Un dominio secundario redirige al principal o a su marca (por si Vercel no lo hizo ya).
   if (destino.redirigeA) return NextResponse.redirect(new URL(ruta + req.nextUrl.search, `https://${destino.redirigeA}`), 308);
   const base = `/tienda/${destino.slug}`;
   // Los links internos de la tienda son /tienda/<slug>/…: en su dominio se

@@ -4,15 +4,17 @@
 // comprador. Toda la lógica de negocio está en lib/tienda/*; acá se lee el
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
+import { controlarBot } from "@/lib/tienda/antibot";
 import { sucursalesOca } from "@/lib/oca/envios";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { COOKIE_EVENTOS, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
 import { redirect } from "next/navigation";
 import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { leerCarrito, sumarAlCarrito, fijarCantidad, vaciarCarrito } from "@/lib/tienda/carrito";
 import { comprar, cobrarConPayway, mediosActivos, type DatosCompra } from "@/lib/tienda/checkout";
-import { cuentaActual, crearCuentaDesdePedido, ingresar, cerrarSesion } from "@/lib/tienda/cuentas";
+import { cuentaActual, crearCuentaDesdePedido, ingresar, cerrarSesion, pedirRegistro, pedirRecuperacion, cambiarClave } from "@/lib/tienda/cuentas";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, cargarTienda } from "./catalogo";
@@ -29,11 +31,21 @@ const refrescar = (t: Tienda) => revalidatePath(rutaTienda(t), "layout");
 /** Variación vendible en esta tienda: de la organización, activa, con producto activo y precio en la lista. */
 async function vendible(t: Tienda, variacionId: number) {
   if (!t.listaId || !variacionId) return null;
-  return una<{ disponible: number }>(`
-    select greatest(stock_disponible_canal($1, v.id, $3), 0)::int disponible
+  return una<{ disponible: number; sku: string | null; titulo: string; venta: string }>(`
+    select greatest(stock_disponible_canal($1, v.id, $3), 0)::int disponible, v.sku, titulo_variacion(v.id) titulo,
+           case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end venta
       from variacion v join producto p on p.id = v.producto_id
+      cross join lateral (select * from precio_de($1, v.id, $4)) pr
      where v.id = $2 and v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo'
-       and exists (select 1 from precio_de($1, v.id, $4))`, [t.organizacionId, variacionId, t.canalId, t.listaId]);
+       and coalesce(case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0`,
+    [t.organizacionId, variacionId, t.canalId, t.listaId, t.moneda]);
+}
+
+/** Deja un evento de publicidad para la página siguiente (cookie que lee EventosDeNavegacion), si el
+ *  dominio mide alguna plataforma. */
+async function anotarEvento(e: Evento) {
+  if (!(await etiquetasDelHost((await headers()).get("host")))) return;
+  (await cookies()).set(COOKIE_EVENTOS, JSON.stringify([e]), { path: "/", maxAge: 300, sameSite: "lax", secure: true, httpOnly: false });
 }
 
 // ── Carrito ──────────────────────────────────────────────
@@ -52,6 +64,8 @@ export async function agregarAlCarrito(fd: FormData) {
       throw new ErrorErp(v.disponible === 1 ? "Queda 1 sola unidad." : `Quedan ${v.disponible} unidades${ya ? ` y ya tenés ${ya} en el carrito` : ""}.`);
     }
     await sumarAlCarrito(t.slug, variacionId, cantidad);
+    await anotarEvento({ tipo: "carrito", moneda: t.moneda, valor: Math.round(Number(v.venta) * cantidad * 100) / 100,
+      items: [{ id: idCatalogo(v.sku, variacionId), nombre: v.titulo, precio: Number(v.venta), cantidad }] });
     refrescar(t);
     // "Comprar ahora" va directo a finalizar la compra; "Agregar al carrito", al carrito.
     return { ir: rutaTienda(t, fd.get("ir") === "checkout" ? "/checkout" : "/carrito") };
@@ -74,13 +88,17 @@ export async function guardarCodigoPostal(fd: FormData) {
   refrescar(t);
 }
 
+/** + / − / Eliminar del carrito: sin navegar (sólo se vuelve a dibujar el carrito), así la pantalla no
+ *  salta (Fer, 25/10: con cada + se iba al pie y volvía). Si falla, vuelve con el error. */
 export async function cambiarCantidad(fd: FormData) {
   const t = await tiendaDe(fd);
-  await intentar(rutaTienda(t, "/carrito"), async () => {
+  try {
     const cantidad = Math.min(999, Math.max(0, Math.trunc(Number(fd.get("cantidad"))) || 0));
     await fijarCantidad(t.slug, id(fd, "variacion"), cantidad);
     refrescar(t);
-  });
+  } catch (e) {
+    redirect(`${rutaTienda(t, "/carrito")}?error=${encodeURIComponent(motivoErp(e))}`);
+  }
 }
 
 // ── Checkout ─────────────────────────────────────────────
@@ -93,7 +111,8 @@ export async function cotizarAccion(slug: string, e: Eleccion): Promise<{ resume
     const provincia = typeof e.provincia === "string" ? e.provincia.slice(0, 60) : null;
     const metodoEnvioId = Number.isInteger(e.metodoEnvioId) ? e.metodoEnvioId : null;
     const codigoPostal = typeof e.codigoPostal === "string" ? e.codigoPostal.slice(0, 10) : null;
-    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal }) };
+    const cuotas = Math.min(24, Math.max(1, Math.trunc(Number(e.cuotas)) || 1));
+    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal, cuotas }) };
   } catch (err) {
     return { error: motivoErp(err) };
   }
@@ -110,12 +129,13 @@ export async function sucursalesOcaAccion(slug: string, cp: string): Promise<{ i
   }
 }
 
-const MEDIOS = ["mercadopago", "payway", "transferencia", "efectivo", "cuenta_corriente"] as const;
+const MEDIOS = ["mercadopago", "payway", "payway_debito", "transferencia", "efectivo", "cuenta_corriente"] as const;
 
 /** Confirma la compra: crea el pedido (comprar), vacía el carrito y dice a dónde seguir. */
 export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { error: string }> {
   try {
     const t = await tiendaDe(fd);
+    await controlarBot(t, "checkout", fd);
     const carrito = await leerCarrito(t.slug);
     const cuenta = await cuentaActual(t);
     const medio = MEDIOS.find((m) => m === fd.get("medio"));
@@ -127,6 +147,16 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     if (!metodo) throw new ErrorErp("Elegí cómo lo recibís.");
     const doc = (texto(fd, "documento") ?? "").replace(/\D/g, "");
     const esCuit = doc.length === 11;
+    // «Necesito factura A»: razón social, CUIT, condición frente al IVA y la provincia del domicilio fiscal
+    // (convenio multilateral); calle, localidad y código postal, opcionales.
+    const facturaA = fd.get("factura_a") === "1";
+    const fiscal = facturaA ? { calle: texto(fd, "fiscal_calle") ?? "", localidad: texto(fd, "fiscal_localidad") ?? "", provincia: texto(fd, "fiscal_provincia") ?? "", codigo_postal: texto(fd, "fiscal_cp") ?? "" } : null;
+    if (facturaA) {
+      if (!esCuit) throw new ErrorErp("Para la factura A poné el CUIT: 11 números, sin guiones.");
+      if (!texto(fd, "razon_social")) throw new ErrorErp("Para la factura A poné la razón social.");
+      if (!["responsable_inscripto", "monotributo", "exento"].includes(texto(fd, "condicion_iva") ?? "")) throw new ErrorErp("Para la factura A elegí la condición frente al IVA.");
+      if (!fiscal?.provincia) throw new ErrorErp("Para la factura A elegí la provincia del domicilio fiscal.");
+    }
     const conDireccion = !sinDireccion(metodo.tipo);
     const condicion = texto(fd, "condicion_iva");
     const datos: DatosCompra = {
@@ -136,6 +166,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         documento: doc || null, cuit: esCuit ? doc : null,
         razon_social: esCuit ? texto(fd, "razon_social") : null,
         condicion_iva: esCuit && condicion && CONDICIONES_IVA.some(([k]) => k === condicion) ? condicion : null,
+        fiscal, facturaPorMail: fd.get("factura_mail") === "1", facturaPorWhatsapp: fd.get("factura_whatsapp") === "1",
       },
       entrega: {
         metodoEnvioId: metodo.id,
@@ -146,11 +177,13 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         sucursalOca: metodo.tipo === "oca_sucursal" ? texto(fd, "sucursal_oca") : null,
       },
       medio,
+      cuotas: Math.min(24, Math.max(1, Math.trunc(Number(fd.get("cuotas"))) || 1)),
       notas: texto(fd, "notas"),
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);
-    refrescar(t);
+    // Sin refrescar la página: el navegador ya se va al pedido (o a pagar), y volver a dibujar el
+    // checkout con el carrito vacío mostraba «el carrito está vacío» mientras tanto (Fer, 24/10).
     return { ir: r.ir };
   } catch (err) {
     return { error: motivoErp(err) };
@@ -194,6 +227,7 @@ export async function crearCuenta(fd: FormData) {
   const t = await tiendaDe(fd);
   const codigo = String(fd.get("codigo") ?? "");
   await intentar(rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`), async () => {
+    await controlarBot(t, "crear_cuenta", fd);
     await crearCuentaDesdePedido(t, codigo, String(fd.get("clave") ?? ""));
     refrescar(t);
     return "¡Listo! Ya tenés tu cuenta: la próxima compra es más rápida.";
@@ -206,9 +240,44 @@ export async function ingresarAccion(fd: FormData) {
   await intentar(rutaTienda(t, `/cuenta${volver ? "?volver=checkout" : ""}`), async () => {
     const email = texto(fd, "email"), clave = String(fd.get("clave") ?? "");
     if (!email || !clave) throw new ErrorErp("Completá tu mail y tu contraseña.");
+    await controlarBot(t, "ingresar", fd);
     await ingresar(t, email, clave);
     refrescar(t);
     return volver ? { ir: volver } : undefined;
+  });
+}
+
+/** «Crear cuenta» sin haber comprado (Fer, 25/10): manda el mail para confirmar. */
+export async function registroAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  await intentar(rutaTienda(t, "/cuenta?modo=crear"), async () => {
+    await controlarBot(t, "registro", fd);
+    const email = texto(fd, "email") ?? "";
+    await pedirRegistro(t, texto(fd, "nombre") ?? "", email, String(fd.get("clave") ?? ""));
+    return { ir: rutaTienda(t, `/cuenta?modo=revisa&mail=${encodeURIComponent(email.trim().toLowerCase())}`) };
+  });
+}
+
+/** «Olvidé mi contraseña»: manda el link si el mail tiene cuenta (la pantalla dice lo mismo siempre). */
+export async function recuperarAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  await intentar(rutaTienda(t, "/cuenta?modo=olvide"), async () => {
+    await controlarBot(t, "recuperar", fd);
+    const email = texto(fd, "email") ?? "";
+    await pedirRecuperacion(t, email);
+    return { ir: rutaTienda(t, `/cuenta?modo=revisa&mail=${encodeURIComponent(email.trim().toLowerCase())}&para=clave`) };
+  });
+}
+
+/** La contraseña nueva, desde el link del mail. */
+export async function cambiarClaveAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  const codigo = String(fd.get("c") ?? "");
+  await intentar(rutaTienda(t, `/cuenta/clave?c=${encodeURIComponent(codigo)}`), async () => {
+    if (String(fd.get("clave") ?? "") !== String(fd.get("repetir") ?? "")) throw new ErrorErp("Las dos contraseñas no coinciden.");
+    await cambiarClave(t, codigo, String(fd.get("clave") ?? ""));
+    refrescar(t);
+    return { ir: `${rutaTienda(t, "/cuenta")}?ok=${encodeURIComponent("Listo: cambiaste tu contraseña.")}` };
   });
 }
 

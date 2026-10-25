@@ -312,6 +312,8 @@ Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla e
 - Un producto viejo se elimina sólo cuando **todos** sus planes ya están en el producto de la madre.
 - **«Frenar»** para todas las cuentas: no sale ninguna tanda más (lo que ya estaba en la cola termina de salir). Volver a apretar «Agrupar todo en tandas» sigue desde donde quedó.
 
+**Completar los datos que faltan.** Cuando Mercado Libre no acepta la copia porque a la publicación base le falta una característica que hoy exige (modelo, número de parte, código de barras, medidas y peso del paquete…), Laucen busca ese dato en la ficha del producto o en otra publicación del mismo producto, y prepara un lote que se la carga a la publicación base. El lote sale con tu clic, en la misma pestaña. Cuando salió, el agrupado vuelve a correr solo, únicamente para esos productos. Si lo que falta es el código de barras y el producto no lo tiene en ningún lado, se le carga a la publicación base el motivo «El producto no tiene código registrado», que Mercado Libre acepta en lugar del código. Los demás que no tienen el dato en ningún lado quedan en la lista de no aceptados: se completa el dato en el producto y se vuelve a pedir.
+
 También se puede pedir un lote suelto de agrupar, de eliminar los viejos o de revisar títulos: lo arma Laucen de fondo y queda en la misma pestaña esperando tu clic.
 
 En Mercado Libre, dentro de una cuenta, la Clásica, la Premium y los planes de cuotas (3x, 9x, 12x) **comparten el stock** (y el código de Full) sólo si están en **el mismo producto** de Mercado Libre. Si quedan en productos distintos, cada uno muestra su propio stock y un comprador puede llevarse más de lo que hay.

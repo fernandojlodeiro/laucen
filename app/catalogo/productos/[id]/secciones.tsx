@@ -21,11 +21,12 @@ import {
 } from "@/app/componentes/erp";
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
-  accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
+  accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto, accionBorrarVideo,
   accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb, accionNoPublicable,
 } from "../acciones";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
+import SubirVideo from "../SubirVideo";
 import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import FamiliaConLupa from "@/app/catalogo/productos/FamiliaConLupa";
@@ -723,6 +724,7 @@ function TiraFotos({ p, seccion, fotos, de }: { p: Producto; seccion: string; fo
 export async function SeccionFotos({ s, p, seccion }: Props) {
   const fotos = await consulta<Foto>(
     "select id::int, url, producto_id::int dueno from producto_foto where producto_id = $2 and organizacion_id = $1 order by orden, id", [s.org.id, p.id]);
+  const video = (await consulta<{ video_url: string | null }>("select video_url from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]))[0];
   const conVariaciones = p.tipo === "con_variaciones";
   const variaciones = conVariaciones ? await variacionesDe(s.org.id, p.id) : [];
   const deVariaciones = conVariaciones ? await consulta<Foto>(`
@@ -737,6 +739,18 @@ export async function SeccionFotos({ s, p, seccion }: Props) {
         </div>
         {fotos.length ? <TiraFotos p={p} seccion={seccion} fotos={fotos} de="producto" />
           : <p className="text-xs text-[#5C6B76]">Todavía no hay fotos. La primera es la principal.</p>}
+      </section>
+      <section className={CAJA}>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-sm font-bold">Video del producto</h2>
+          <SubirVideo orgId={s.org.id} productoId={p.id} hay={!!video?.video_url} />
+        </div>
+        {video?.video_url ? (
+          <div className="flex flex-wrap items-start gap-3">
+            <video src={video.video_url} controls muted playsInline preload="metadata" className="h-48 max-w-full rounded-lg bg-black" />
+            <TachoConfirmar accion={accionBorrarVideo} campos={ocultos(p, seccion)} pregunta="¿Borrar el video?" />
+          </div>
+        ) : <p className="text-xs text-[#5C6B76]">Sin video. Se ve en la ficha de la tienda, después de la primera foto (hasta 200 MB).</p>}
       </section>
       {variaciones.map((v) => {
         const propias = deVariaciones.filter((f) => f.dueno === v.id);

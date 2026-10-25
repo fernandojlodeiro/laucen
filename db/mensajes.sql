@@ -110,3 +110,16 @@ create table if not exists wa_evento (
 );
 create index if not exists wa_evento_ts on wa_evento (ts desc);
 alter table wa_evento enable row level security;
+
+-- El permiso de Meta mientras la persona elige qué número conectar (bitácora #868: con varias cuentas o
+-- números en el permiso, se elige en pantalla). Vence en una hora; se borra al usarlo.
+create table if not exists wa_alta_pendiente (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  token            text not null,
+  expira_el        timestamptz,
+  coexistencia     boolean not null default true,
+  opciones         jsonb not null default '[]',
+  creado_ts        timestamptz not null default now()
+);
+alter table wa_alta_pendiente enable row level security;

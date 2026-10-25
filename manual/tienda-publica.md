@@ -2,7 +2,7 @@
 titulo: La tienda que ve el cliente
 menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
-rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id]
+rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/cuenta/clave, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto], /tienda/[slug]/categorias
 permiso: todos
 resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
@@ -29,7 +29,7 @@ Cada compra crea un **pedido** en [Pedidos](/ventas/pedidos), en el canal de la 
 - **"Enviar a …"**: muestra la localidad del comprador con cuenta, o el código postal que cargó; si no, "Ingresá tu código postal".
 - El menú de **categorías** (hasta tres niveles), y los atajos **Ofertas**, **Más vendidos** y **Ayuda**.
 - **"Ingresá"** (o "Hola, <nombre>" si tiene cuenta), **"Mis compras"** y el **carrito** con la cantidad de unidades.
-- En el celular, un menú con Inicio, Ofertas, Más vendidos, Mis compras, Carrito y Ayuda.
+- En el celular, sin logo ni nombre (como en los grandes marketplaces): el **buscador** ocupa la franja, con un menú (Inicio, Ofertas, Más vendidos, Mis compras, Carrito y Ayuda) y el carrito.
 - Si la tienda está pausada, un cartel arriba: "La tienda no está tomando pedidos en este momento."
 - Si hay WhatsApp cargado, un botón verde flotante abajo a la derecha.
 
@@ -40,37 +40,40 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 ### Portada
 
 - Los **banners** que pasan solos (si no hay ninguno, una franja con el nombre, la bajada y "Ver todos los productos").
-- Cinco **atajos**: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
-- Carruseles: **Destacados** (primero; los elegís vos en [Portada de la tienda](/config/tienda/portada)), **Ofertas**, **Más vendidos** (ventas de todos los canales), **Novedades** (los últimos cargados, o los que elijas), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
+- Carruseles: **Destacados** (primero, justo debajo de los banners) y **Novedades** (los que elijas, o los últimos cargados), los dos en [Portada de la tienda](/config/tienda/portada); después **Ofertas**, **Más vendidos** (ventas de todos los canales), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos. Las categorías marcadas en Portada de la tienda como "no salen en la portada" quedan afuera de las filas que se arman solas y de la grilla.
+- Al pie, cinco **atajos** chicos: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
 
 ### Listados (buscar, categoría, ofertas, más vendidos)
 
 - Título, migas ("Inicio › Categoría › Subcategoría") y la cantidad de resultados.
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
-- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado, el precio grande con el recuadro verde "N% OFF" si hay descuento ("Desde" si las variaciones tienen distinto precio), las cuotas ("Mismo precio en 6 cuotas de $ …" si son sin interés), la pastilla verde **"Llega gratis"** si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
+- Cuotas y descuento contado: con el esquema de [Cuotas y descuentos](/config/tienda/financiacion) prendido, debajo del precio va el plan más largo que le toca a su precio y "$ … con transferencia" (u otros medios con descuento).
+- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado con el recuadro verde "N% OFF" a su derecha, el precio grande ("Desde" si las variaciones tienen distinto precio), las cuotas ("6 cuotas sin interés de $ …"), el precio contado en un recuadro verde suave ("$ … con transferencia o débito"), "Hasta 12 cuotas" en los caros y "Promo web $ …" (azul) en los baratos con stock (con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), **"Llega gratis"** en verde si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.
 
 ### Ficha de producto
 
-- Galería de fotos (las de la variación elegida primero).
+- Galería de fotos (las de la variación elegida primero) y, si el producto tiene video (pestaña Fotos de su ficha en el [catálogo](/catalogo/productos)), el video después de la primera foto: en la compu se reproduce solo y sin sonido al elegirlo; en el celular, al deslizar hasta él.
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
 - La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!", "Sin stock"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
-- "Información del vendedor" (con "Hace factura A." si la empresa es Responsable inscripto) y "Medios de pago" con las cuotas y los descuentos por medio.
+- "Medios de pago" con las cuotas y los descuentos por medio; con el esquema de [Cuotas y descuentos](/config/tienda/financiacion), el recuadro "Precio según cómo pagues" (cada forma de pago con su precio y su % OFF). (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
 - Abajo: **Productos relacionados** (de la misma categoría, con stock), **Características del producto** y **Descripción**.
 
 ### Carrito
 
-Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el + se apaga cuando no hay más stock), "N disponibles" y el precio. Una barra de "Sumá $ … más para tener envío gratis" o "¡Tu compra tiene envío gratis!". A la derecha, **"Resumen de compra"**: productos, descuentos que ya aplican, envío ("Se calcula en el paso siguiente"), total y **"Continuar compra"**. Avisa si no alcanza el stock o si algún producto ya no está disponible.
+Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el + se apaga cuando no hay más stock), "N disponibles" y el precio. Una barra de "Sumá $ … más para tener envío gratis" o "¡Tu compra tiene envío gratis!". A la derecha, **"Resumen de compra"**: productos, descuentos que ya aplican, envío ("Se calcula en el paso siguiente"), total y **"Finalizar compra"**. Abajo de los productos, el botón **"Seguir comprando más productos"**. Avisa si no alcanza el stock o si algún producto ya no está disponible. Al llegar (después de «Agregar al carrito») la pantalla abre arriba de todo, y el − / + / Eliminar no la mueven.
 
 ### Finalizar compra (checkout)
 
 Una sola página con tres bloques y el resumen al costado:
 
-1. **Tus datos**: Nombre y apellido, Mail, Teléfono, DNI o CUIT; si es un CUIT, Razón social y Condición frente al IVA (para factura A).
+1. **Tus datos**: Nombre y apellido, Mail, **WhatsApp** y DNI o CUIT. Cada campo obligatorio dice **«obligatorio»** chiquito en ámbar a la derecha. El interruptor **«Necesito factura A»** (como en Mercado Libre) cambia el DNI por los datos fiscales: Razón social, CUIT, Condición frente al IVA (responsable inscripto, monotributo o exento) y Provincia del domicilio fiscal (obligatorios; la provincia viene en Córdoba), y calle, localidad y código postal (opcionales). Abajo, **«Prefiero recibir la factura por»** Mail y WhatsApp, las dos tildadas de entrada (en verde: «Podés tildar las dos»).
 2. **Entrega**: los métodos de envío activos, cada uno con su costo ("Gratis", "A convenir", "Según provincia"…); los que piden dirección muestran Calle, Número, Piso / depto, Localidad, Provincia, Código postal y Referencia para el envío. Los de OCA se cotizan con el código postal ("Según código postal" mientras no esté) y muestran en cuántos días hábiles llega; con **OCA a sucursal** aparece **"Sucursal de OCA donde lo retirás"** con las sucursales de ese código postal. Andreani aparece como "Próximamente".
-3. **Medio de pago**: los medios activos, con su descuento y su explicación.
+3. **Medio de pago**: los medios activos en el orden de Medios de pago (con el esquema de cuotas: Transferencia o efectivo, Tarjeta de débito, Tarjeta de crédito y Mercado Pago), cada uno con su descuento y un resumen chico siempre a la vista (qué incluye). Al elegir uno, su explicación; con Tarjeta de crédito, **«¿En cuántas cuotas?»**: una fila por opción con la cuota grande, el total y «Sin interés», como en Mercado Libre. En el pago con tarjeta sólo se ofrecen las que corresponden: con débito, tarjetas de débito; en cuotas, Visa o Mastercard de crédito (con otra, en cuotas por Mercado Pago); en un pago con crédito, las de crédito.
+   Al confirmar, un cartel **«¡Listo, recibimos tu pedido!»** dice adónde lo llevamos (al sitio seguro de Mercado Pago, al pago con tarjeta de Payway o a su pedido) y que no cierre la página.
+   **Los avisos de la compra** (mails del pedido, factura) van al mail que escribió el comprador, aunque el cliente ya existiera con otro mail (por ejemplo, una empresa que se encuentra por su CUIT).
 4. **Notas** (opcional).
 
 El resumen se recalcula solo al cambiar envío, medio o provincia. Botón **"Confirmar compra"** ("Al confirmar se crea tu pedido y te mostramos cómo seguir."). Arriba, "¿Ya tenés cuenta? Ingresá".
@@ -86,7 +89,12 @@ La abre el link del pedido (por su código, sin necesidad de cuenta):
 
 ### Mi cuenta
 
-Sin sesión: **"Ingresá tu mail y contraseña"** con **"Ingresar"** (y "Seguir sin cuenta" si venía del checkout). Con sesión: "Hola, <nombre>", **"Salir"** y **Mis pedidos** (número, fecha, unidades, total y estado; cada uno lleva a su página).
+Sin sesión: **"Ingresá tu mail y contraseña"** con **"Ingresar"**, **"Olvidé mi contraseña"** y **"Crear cuenta"** (y "Seguir sin cuenta" si venía del checkout).
+
+- **"Crear cuenta"** (sin haber comprado): **"Nombre y apellido"**, **"Mail"** y **"Contraseña (8 caracteres o más)"** → **"Crear cuenta"**. Dice **"Revisá tu mail"**: le llega «Confirmá tu mail para crear tu cuenta en …» con el botón **"Confirmar mi mail"** (vale 24 horas). Al tocarlo se crea la cuenta (atada al cliente que ya tenga ese mail, o a uno nuevo), queda adentro y le llega el mail de bienvenida. Sin confirmar no se crea nada.
+- **"Olvidé mi contraseña"**: el mail de la cuenta → **"Mandarme el link"**. Le llega «Cambiá tu contraseña de …» con **"Elegir una contraseña nueva"** (vale una hora y se usa una vez): la nueva dos veces → **"Guardar y entrar"**.
+- Si alguien pide crear una cuenta con un mail que ya tiene cuenta, le llega el mail para cambiar la contraseña. La pantalla dice siempre lo mismo, tenga o no cuenta ese mail (así nadie averigua qué mails están registrados).
+- Los dos formularios tienen el control antibot y un tope por hora y por día (mandan mails). Con sesión: "Hola, <nombre>", **"Salir"** y **Mis pedidos** (número, fecha, unidades, total y estado; cada uno lleva a su página).
 
 ### Ayuda
 
@@ -110,7 +118,7 @@ Los datos del vendedor salen de la **razón social principal** (ver [Razones soc
 
 1. Busca el producto con el buscador o por categorías.
 2. En la ficha elige la variante y la cantidad y toca **"Comprar ahora"** (va directo a finalizar) o **"Agregar al carrito"**.
-3. En el carrito toca **"Continuar compra"**.
+3. En el carrito toca **"Finalizar compra"**.
 4. Completa sus datos, cómo lo recibe y cómo paga, y toca **"Confirmar compra"**. No hace falta tener cuenta.
 5. Según el medio: Mercado Pago lo lleva a pagar ahí; Payway le pide la tarjeta en la página del pedido; transferencia y efectivo le muestran las instrucciones.
 6. Queda en la página de su pedido, con el número y el estado. Ahí puede crear su cuenta en un clic.
@@ -120,6 +128,7 @@ Los datos del vendedor salen de la **razón social principal** (ver [Razones soc
 1. Abrí [Pedidos](/ventas/pedidos) y filtrá por el canal de la tienda.
 2. El pedido aparece con el número que vio el cliente (#N), sus líneas, el envío y el medio de pago.
 3. Si pagó por **transferencia**, cuando la veas acreditada apretá en el pedido **"Confirmar pago de $ …"**: pasa a pagado.
+   Si el cliente te mandó el comprobante, guardalo en el pedido con **"📎 Subir comprobante de pago"** (foto o PDF, hasta 20 MB; el botón aparece sólo mientras el cobro no está registrado): Laucen lo lee, busca la transferencia en Mercado Pago y, si cierra, registra el pago solo (ver [Pedidos](/ventas/pedidos)); queda en la operación del pedido, como "Comprobante de pago:", con un link para verlo y un tacho para borrarlo. Se guarda en un lugar privado: sólo lo ven los usuarios del sistema.
 4. Si es **efectivo al retirar**, ya entró en picking; al entregarlo se usa **"Cliente presente: retira y paga"** (cobra, entrega y factura).
 
 ### El cliente dice que pagó con Mercado Pago pero el pedido sigue pendiente
@@ -131,7 +140,8 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 - **La pestaña del navegador dice siempre el nombre de la tienda** (por ejemplo "Daitom") en todas sus páginas, con su logo como ícono. Sale de [Tienda web](/config/tienda): el nombre de la tienda (si está vacío, el del canal) y el logo; cada tienda muestra el suyo.
 ### Qué productos se muestran
 
-- **Publicación automática**: en la Web minorista, una variación se publica sola apenas tiene precio de lista y stock en el canal (salvo que alguien la haya apagado a mano en la ficha del producto).
+- **Publicación automática**: en la Web minorista, una variación se publica sola apenas tiene precio de lista (mayor que cero) y stock en el canal (salvo que alguien la haya apagado a mano en la ficha del producto).
+- **Precio cero**: una variación con precio cero o sin precio en la lista del canal nunca se muestra ni se puede comprar en la tienda, aunque esté publicada y tenga stock. Aparece sola apenas se le carga un precio.
 - **La web es un canal más**: un producto se ve en la tienda sólo si está **publicado en ese canal web** (el interruptor "Publicado en Web minorista" de la pestaña Publicaciones de su ficha en [Productos](/catalogo/productos)). Además tiene que estar **activo**, tener alguna **variación activa** y esa variación tiene que tener **precio en la lista de precios del canal**. Sin precio en esa lista, no aparece aunque esté publicado.
 - El precio que se muestra en los listados es el **más bajo** de sus variaciones ("Desde" si varían).
 - **Productos sin stock**: se muestran como "Sin stock" o se ocultan, según lo que diga [Tienda web](/config/tienda).
@@ -164,7 +174,8 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 
 - Se vuelve a calcular todo con los precios y el stock **del momento**. Si no alcanza el stock: "No alcanza el stock: … Ajustá las cantidades."
 - Hace falta nombre y un mail válido; con un método que no es retiro ni a convenir, calle, localidad y provincia.
-- Un **DNI o CUIT de 11 dígitos** se toma como CUIT (y permite cargar razón social y condición frente al IVA para factura A).
+- Un **DNI o CUIT de 11 dígitos** se toma como CUIT. Con «Necesito factura A», los datos fiscales quedan en el cliente (y el domicilio fiscal como su dirección «Fiscal»; la de entrega, como «Envío»).
+- **El WhatsApp** del comprador queda como su WhatsApp en la ficha del cliente, y lo que tildó en «Prefiero recibir la factura por» como sus casillas «Factura por mail» y «Enviarle la factura por WhatsApp»: la factura le llega por donde eligió (por WhatsApp, cuando el WhatsApp de la tienda esté conectado).
 - Se crea el **pedido** en el canal de la tienda, en estado **nuevo**, con un **código** de seguimiento secreto (el de la dirección de la página del pedido). Si el comprador tiene cuenta, el pedido queda en su cliente; si no, se crea o se reconoce el cliente con sus datos.
 - Se vacía el carrito.
 - **Según el medio de pago**:
@@ -191,7 +202,25 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 
 - El código postal de "Enviar a …" se guarda en el navegador un año y precarga el del checkout.
 - La página del pedido no aparece en buscadores.
-- Feed para Meta (Facebook/Instagram): la tienda publica su catálogo en …/feed.xml (ver [Tienda web](/config/tienda)).
+- Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/publicidad).
+
+### En el celular
+- **El encabezado** (buscador, menú y carrito) queda pegado arriba: se esconde al bajar por la página y vuelve ni bien se sube un poco, como en Mercado Libre. «Enviar a…» va en un solo renglón chico.
+- **La barra de abajo**, fija: **Inicio**, **Categorías** (la lista de categorías con sus subcategorías), **Ofertas**, **Carrito** (con la cantidad) y **Mi cuenta**. En la compu no está: todo eso va en el encabezado.
+
+### Las tarjetas de producto
+- El título ocupa hasta **tres renglones** (para que se vea el modelo).
+- Un producto con **video** (pestaña Fotos de su ficha): en el celular, el video arranca solo y sin sonido en la tarjeta cuando queda bien a la vista, y se frena al salir; en la compu, al pasar el mouse. Hasta entonces se ve la foto con un ▶ chico. Con ahorro de datos o «menos movimiento» en el teléfono, sólo la foto.
+- El «% OFF» va a la derecha del precio tachado; si en el celular no entra en un renglón, va «47%» arriba de «OFF», centrado en un cuadradito.
+- **Promo web $ …** (cucarda azul): en los productos de menos de $ 33.000 con stock suficiente, lo que se les descuenta del cargo fijo de Mercado Libre (ver [Cuotas y descuentos](/config/tienda/financiacion)).
+
+### La tienda ante los buscadores (Google)
+- **Cada página con su título**: la ficha de un producto se llama «<título del producto> | <marca>», una categoría «<categoría> | <marca>»; la portada, el nombre de la marca. La marca es la del dominio por donde se entró. Al compartir el link de una ficha sale su foto principal.
+- **robots.txt** propio en cada dominio: los buscadores recorren todo lo público, y no el carrito, el pago, la cuenta, los pedidos ni las búsquedas. Apunta al sitemap del mismo dominio.
+- **sitemap.xml** en cada dominio: la portada, las categorías con productos y las fichas de los productos publicados con stock, con su fecha de última modificación (más Ayuda y Sobre nosotros). En un dominio de otra marca que le dice a Google que es el principal (ver [Tienda web](/config/tienda)), sale vacío.
+- **Canonical**: cada página le dice a Google cuál es su dirección «oficial»: ella misma en el dominio principal; en uno de otra marca, la misma página en el principal (se puede apagar por dominio).
+- **Página no encontrada**: cualquier dirección que no existe muestra la página de la tienda («No encontramos esta página», con «Ir a la tienda» y «Ver todos los productos»), con la marca del dominio. Nunca la del sistema.
+- **Datos para Google**: la portada dice quién es la tienda (nombre, dirección, logo) y cómo se busca en ella; cada ficha, el producto con su precio (ver [Publicidad](/config/tienda/publicidad)).
 
 ## Preguntas frecuentes
 

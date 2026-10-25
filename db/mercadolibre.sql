@@ -409,7 +409,9 @@ declare
      or exists (select 1 from public.ml_consulta where estado = 'pendiente')
      or exists (select 1 from public.ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes'))
      or exists (select 1 from public.ml_agrupado_auto a where a.estado = 'andando' and a.proxima_ts <= now()
-                   and not exists (select 1 from public.ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando')))
+                   and not exists (select 1 from public.ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando'))
+                   and not exists (select 1 from public.ml_cola q join public.ml_lote l on l.id = q.lote_id
+                                    where q.canal_id = a.canal_id and l.descripcion like 'Completar datos de %' and q.estado in ('preparado', 'pendiente', 'enviando')))
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
@@ -723,7 +725,7 @@ create table if not exists ml_preparacion (
   id               bigint generated always as identity primary key,
   organizacion_id  text not null references organizaciones(id) on delete cascade,
   canal_id         bigint not null references canal(id) on delete cascade,
-  tipo             text not null check (tipo in ('agrupar', 'cierre_agrupados', 'titulos')),
+  tipo             text not null check (tipo in ('agrupar', 'cierre_agrupados', 'titulos', 'completar')),
   max              int,
   motivo           text,
   pedido_por       text,
@@ -757,6 +759,12 @@ create table if not exists ml_agrupado_auto (
   terminado_ts     timestamptz,
   primary key (organizacion_id, canal_id)
 );
+-- Una vuelta sólo para algunos SKU, después de que salga el lote que completa datos en sus madres (completar-datos.ts).
+alter table ml_agrupado_auto add column if not exists solo_skus text[];
+alter table ml_agrupado_auto add column if not exists espera_lote bigint;
+-- La tabla ya existía con el check viejo: se agrega 'completar'.
+alter table ml_preparacion drop constraint if exists ml_preparacion_tipo_check;
+alter table ml_preparacion add constraint ml_preparacion_tipo_check check (tipo in ('agrupar', 'cierre_agrupados', 'titulos', 'completar'));
 alter table ml_agrupado_auto enable row level security;
 select erp_politica_org('ml_agrupado_auto');
 
