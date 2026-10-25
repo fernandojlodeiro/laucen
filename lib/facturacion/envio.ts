@@ -87,7 +87,7 @@ export async function enviarFacturaWhatsapp(org: string, id: number, o: { manual
     await anotar(org, id, "pendiente", "Esperando que se conecte una línea de WhatsApp.");
     return "Pendiente: no hay línea de WhatsApp conectada.";
   }
-  const { enviarDocumento, enviarPlantilla, estadoPlantilla, crearPlantilla } = await import("@/lib/mensajes/meta");
+  const { enviarDocumento, enviarPlantilla, estadoPlantilla } = await import("@/lib/mensajes/meta");
   const cuenta = { token: cred.token, phoneNumberId: cred.phoneNumberId };
   const nombreCbte = `${TIPOS_CBTE[d.tipo_cbte]?.nombre ?? "Factura"} ${numero(d.punto_venta, d.numero)}`;
   const { token, url } = await enlaceFactura(org, id);
@@ -102,7 +102,8 @@ export async function enviarFacturaWhatsapp(org: string, id: number, o: { manual
     let estado: string | null;
     try {
       estado = await estadoPlantilla(cred.wabaId, cred.token, PLANTILLA_FACTURA);
-      if (!estado) { await crearPlantilla(cred.wabaId, cred.token, plantillaFactura(urlPanel())); estado = "PENDING"; }
+      // Nunca se manda sola: se manda a Meta desde Configuración › Plantillas de WhatsApp (Fer, 25/10).
+      if (!estado) estado = "SIN_MANDAR";
     } catch (e) {
       const motivo = `No se pudo consultar la plantilla de WhatsApp: ${e instanceof Error ? e.message : String(e)}`;
       await anotar(org, id, "pendiente", motivo);
@@ -111,6 +112,7 @@ export async function enviarFacturaWhatsapp(org: string, id: number, o: { manual
     }
     if (estado !== "APPROVED") {
       const motivo = estado === "REJECTED" ? "Meta rechazó la plantilla de la factura: se manda cuando el cliente escriba (dentro de las 24 h)."
+        : estado === "SIN_MANDAR" ? "La plantilla de la factura todavía no se mandó a Meta (Configuración › Plantillas de WhatsApp)."
         : "La plantilla de la factura está en aprobación en Meta: sale sola cuando la aprueben.";
       await anotar(org, id, estado === "REJECTED" ? "error" : "pendiente", motivo);
       if (o.manual) throw new ErrorErp(motivo);
