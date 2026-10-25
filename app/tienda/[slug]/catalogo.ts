@@ -39,7 +39,10 @@ export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
 
 export const abierta = (t: Tienda) => t.estado === "activo";
 /** Las reglas de la web, que no se rompen nunca (Fer, 25/10): un producto se muestra sólo si está activo
- *  (eso ya lo filtra la consulta), tiene precio y tiene stock. Sin opción que las apague. */
+ *  (eso ya lo filtra la consulta), tiene precio y tiene stock. Sin opción que las apague.
+ *  Lo que viene (Fer, 25/10, todavía no existe): una preventa, donde el "stock" de un producto no es el
+ *  disponible sino la mercadería en viaje, entregada a los X días (como ML deja publicar con demora).
+ *  Cuando se haga, entra acá como otra fuente de stock — la ficha, el feed y precio_web cuentan igual. */
 export const vendibleEnLaWeb = (p: { venta: number; stock: number }) => p.venta > 0 && p.stock > 0;
 export const whatsappDe = (t: Tienda) => (t.config.whatsapp ?? "").replace(/\D/g, "") || null;
 export const linkWhatsapp = (t: Tienda, texto: string) => {
