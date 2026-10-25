@@ -409,10 +409,13 @@ create or replace function public.comision_clasica_ml(p_variacion bigint, p_defe
 returns numeric language plpgsql stable as $$
 declare r numeric;
 begin
+  -- La comisión vigente de la categoría se busca directo por su clave (categoria_id, desde): la vista
+  -- ml_costos_comisiones_vigente recorría la tabla entera en cada llamada y esta función se llama por cada
+  -- variación del catálogo de la tienda (25/10: 30 ms por variación, el listado tardaba un minuto).
   select c.clasica_pct into r
     from publicacion pu join variacion v on v.id = pu.variacion_id
     join variacion v2 on v2.producto_id = v.producto_id and v2.id = p_variacion
-    join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa
+    cross join lateral (select m.clasica_pct from ml_costos_comisiones m where m.categoria_id = pu.categoria_externa order by m.desde desc limit 1) c
    where pu.id_externo is not null and pu.categoria_externa is not null and c.clasica_pct is not null
    order by (pu.variacion_id = p_variacion) desc, (pu.tipo_publicacion = 'gold_special') desc, (pu.estado = 'activa') desc, pu.id desc
    limit 1;
