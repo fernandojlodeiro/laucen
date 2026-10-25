@@ -216,6 +216,37 @@ export async function estadoPlantilla(wabaId: string, token: string, nombre: str
   return fila?.status ?? null;
 }
 
+export type PlantillaMeta = { id: string; nombre: string; estado: string; categoria: string | null; idioma: string | null; motivoRechazo: string | null; cuerpo: string | null };
+
+/** Todas las plantillas de la cuenta, con su estado (Configuración › Plantillas de WhatsApp). */
+export async function listarPlantillas(wabaId: string, token: string): Promise<PlantillaMeta[]> {
+  const out: PlantillaMeta[] = [];
+  let url: string | null = `${GRAPH}/${wabaId}/message_templates?fields=id,name,status,category,language,rejected_reason,components&limit=100`;
+  for (let i = 0; url && i < 10; i++) {
+    const r = await pedir(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) { console.error("[wa-plantillas]", wabaId, motivoCrudo(r)); throw new Error(motivoCrudo(r)); }
+    for (const x of (r.data?.data ?? []) as { id?: string; name?: string; status?: string; category?: string; language?: string; rejected_reason?: string; components?: { type?: string; text?: string }[] }[]) {
+      out.push({
+        id: String(x.id ?? ""), nombre: x.name ?? "", estado: x.status ?? "", categoria: x.category ?? null, idioma: x.language ?? null,
+        motivoRechazo: x.rejected_reason && x.rejected_reason !== "NONE" ? x.rejected_reason : null,
+        cuerpo: x.components?.find((c) => c.type === "BODY")?.text ?? null,
+      });
+    }
+    url = ((r.data?.paging as { next?: string } | undefined)?.next) ?? null;
+  }
+  return out;
+}
+
+/** Cambia el texto de una plantilla rechazada o pausada y la vuelve a mandar a revisión. */
+export async function editarPlantilla(token: string, id: string, plantilla: Record<string, unknown>): Promise<void> {
+  const r = await pedir(`${GRAPH}/${id}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ components: plantilla.components, category: plantilla.category }),
+  });
+  if (!r.ok) { console.error("[wa-plantilla]", id, motivoCrudo(r)); throw new Error(motivoCrudo(r)); }
+}
+
 /** Pide a Meta que apruebe una plantilla nueva (categoría «utilidad»). */
 export async function crearPlantilla(wabaId: string, token: string, plantilla: Record<string, unknown>): Promise<void> {
   const r = await pedir(`${GRAPH}/${wabaId}/message_templates`, {
