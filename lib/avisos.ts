@@ -78,6 +78,7 @@ const TIPOS: TipoAviso[] = TIPOS_AVISO;
 const MOTIVO: Record<string, string> = {
   falta_dato: "A la IA le falta un dato para contestar.",
   persona: "El cliente pide hablar con una persona.",
+  derivar: "La IA le avisó al comprador que una persona del equipo le va a responder.",
 };
 
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
@@ -115,7 +116,7 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
              (select m.texto from meli_mensaje m where m.organizacion_id = v.organizacion_id and m.pack_id = v.pack_id and not m.de_vendedor
                order by m.fecha desc limit 1) texto
         from meli_conversacion v left join canal c on c.id = v.canal_id
-       where v.organizacion_id = $1 and v.sin_leer > 0 and v.ia_estado in ('falta_dato', 'persona')
+       where v.organizacion_id = $1 and ((v.sin_leer > 0 and v.ia_estado in ('falta_dato', 'persona')) or v.derivada_ts is not null)
          and floor(extract(epoch from v.sugerencia_ts) * 1000) > $2::float8
        order by v.sugerencia_ts limit 10`, [org, desde("mensajes")]).catch(() => []) : [],
     puede("mensajes_ver") ? consulta<{ id: string; chat_id: string; asunto: string; motivo: string; nombre: string; texto: string | null }>(`

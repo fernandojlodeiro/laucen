@@ -11,11 +11,14 @@ import Pestanas from "@/app/componentes/Pestanas";
 import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { SQL_SIN_RESPONDER, importarConversacion } from "@/lib/mercadolibre/mensajes";
+import { SQL_DERIVADA_ESPERA } from "@/lib/mercadolibre/sql-mensajes";
 import { cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { Interruptor } from "@/app/radar/Piezas";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { nombrePlan } from "@/lib/mercadolibre/buscar-publicaciones";
+import type { Hallazgo } from "@/lib/datos-internet";
+import DatosInternet, { cuentaDatosInternet } from "@/app/componentes/DatosInternet";
 import CajaRespuesta from "./CajaRespuesta";
 import BotonesRespuesta from "./BotonesRespuesta";
 import PreguntasAnteriores from "./PreguntasAnteriores";
@@ -44,7 +47,7 @@ function haceCuanto(d: Date | string): string {
 export default async function PreguntasYMensajes({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("preguntas_ver");
   const sp = await searchParams;
-  const ver = sp.ver === "mensajes" ? "mensajes" : sp.ver === "respondidas" ? "respondidas" : "preguntas";
+  const ver = sp.ver === "mensajes" ? "mensajes" : sp.ver === "respondidas" ? "respondidas" : sp.ver === "internet" ? "internet" : "preguntas";
   // ?canal= viene del tablero de Mercado Libre: sólo las de esa cuenta.
   const canal = Number(sp.canal) || null;
   const cuentas = await consulta<{ pendientes: number; respondidas: number; sin_responder: number }>(`
@@ -53,6 +56,7 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
            (select count(*) from meli_conversacion c where c.organizacion_id = $1 and ${SQL_SIN_RESPONDER("c")} and ($2::bigint is null or c.canal_id = $2))::int sin_responder`, [s.org.id, canal]);
   const { pendientes, respondidas, sin_responder } = cuentas[0] ?? { pendientes: 0, respondidas: 0, sin_responder: 0 };
   const auto = await respuestaAuto(s.org.id);
+  const internet = await cuentaDatosInternet(s.org.id);
   const cual = ver === "mensajes" ? "mensajes" : "preguntas";
 
   return (
@@ -60,9 +64,9 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
       acciones={(
         <div className="flex flex-wrap items-center gap-3">
           {/* Uno para preguntas y otro para mensajes, generales (todas las cuentas). */}
-          <Interruptor accion={accionRespuestaAuto} campos={{ cual }} prendido={auto[cual]}
-            etiqueta={cual === "mensajes" ? "La IA contesta sola los mensajes" : "La IA contesta sola las preguntas"} />
-          {ver !== "mensajes" && (
+          {ver !== "internet" && <Interruptor accion={accionRespuestaAuto} campos={{ cual }} prendido={auto[cual]}
+            etiqueta={cual === "mensajes" ? "La IA contesta sola los mensajes" : "La IA contesta sola las preguntas"} />}
+          {ver !== "mensajes" && ver !== "internet" && (
             <BotonTarea accion={accionTraerPreguntas} tipo="preguntas-ml" clase={SUAVE} texto="Traer preguntas ahora" />
           )}
         </div>
@@ -72,8 +76,16 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
       <Pestanas items={[
         { href: url("/ventas/preguntas", { canal }), texto: "Preguntas", activa: ver !== "mensajes", cuenta: pendientes },
         { href: url("/ventas/preguntas", { ver: "mensajes", canal }), texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_responder },
+        { href: url("/ventas/preguntas", { ver: "internet", canal }), texto: "Datos de internet", activa: ver === "internet", cuenta: internet },
       ]} />
-      {ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} canal={canal} auto={auto.mensajes} />
+      {ver === "internet" ? (
+        <>
+          <p className="text-[11px] text-[#5C6B76] mb-2">
+            Lo que la IA buscó en internet porque no estaba en la ficha del producto. Ya lo usa para contestar; revisalo y pasalo a los datos técnicos del producto, o borralo si está mal.
+          </p>
+          <DatosInternet org={s.org.id} volver="/ventas/preguntas?ver=internet" />
+        </>
+      ) : ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} canal={canal} auto={auto.mensajes} />
         : (
           <>
             <Pestanas chica className="mb-3" items={[
@@ -91,7 +103,7 @@ type Pregunta = {
   id: string; canal: string | null; firma: string | null; item_id: string; titulo: string | null; foto: string | null; permalink: string | null;
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
-  ia_estado: string | null; respondida_auto: boolean;
+  ia_estado: string | null; respondida_auto: boolean; ia_internet: Hallazgo | null;
   canal_id: number | null; comprador_id: string | null; compras: number; ultima_compra: Date | null; cliente_id: number | null;
   tipo: string | null; tags: unknown; terms: unknown; anteriores: number;
 };
@@ -105,7 +117,7 @@ const DE_PREGUNTA = `
   select q.id::text, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, q.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.foto, mi.permalink, q.texto, q.fecha, q.sugerencia,
          (pu.id is not null) vinculada,
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
-         q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto,
+         q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto, q.ia_internet,
          q.canal_id::int, q.comprador_id::text, mi.tipo, mi.tags, mi.terms,
          -- Otras preguntas del mismo comprador (en cualquier cuenta): «Ver preguntas anteriores».
          case when q.comprador_id is null then 0 else (select count(*) from meli_pregunta x where x.organizacion_id = q.organizacion_id and x.comprador_id = q.comprador_id and x.id <> q.id)::int end anteriores,
@@ -159,8 +171,27 @@ function EsCliente({ q }: { q: Pregunta }) {
   );
 }
 
+const CERTEZA: Record<string, string> = {
+  seguro: "lo encontró seguro", duda: "con alguna duda (avisó que lo buscó en internet)", contradice: "las fuentes no coinciden",
+  no_encontrado: "no lo encontró", no_aplica: "no era un dato del producto: no buscó",
+};
+
+/** Lo que la IA buscó en internet porque le faltaba un dato (lib/datos-internet.ts), con las páginas de donde lo sacó. */
+function Internet({ h }: { h: Hallazgo | null }) {
+  if (!h) return null;
+  return (
+    <p className="mt-1 text-[11px] text-[#5C6B76]">
+      🌐 La IA buscó en internet: {CERTEZA[h.certeza] ?? h.certeza}{h.error ? ` (falló la búsqueda: queda para una persona)` : ""}
+      {h.dato && <>. «{h.dato}»</>}
+      {h.fuentes?.map((f, i) => <span key={f}> · <a href={f} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">fuente {i + 1} ↗</a></span>)}
+    </p>
+  );
+}
+
 /** Por qué la IA no la mandó sola (con el interruptor prendido) o qué hay que mirar. */
-function AvisoIa({ estado, auto, conversacion }: { estado: string | null; auto: boolean; conversacion?: boolean }) {
+function AvisoIa({ estado, auto, conversacion, derivada }: { estado: string | null; auto: boolean; conversacion?: boolean; derivada?: boolean }) {
+  if (derivada) return <Estado texto="La IA le avisó que lo deriva a una persona: espera tu respuesta (la IA no contesta más sola)" tono="ambar" />;
+  if (estado === "derivar") return <Estado texto="La IA propone derivarlo a una persona" tono="ambar" />;
   if (estado === "persona") return <Estado texto={conversacion ? "Pidió hablar con una persona: la IA no contesta más sola" : "Pide hablar con una persona"} tono="ambar" />;
   if (estado === "falta_dato" && auto) return <Estado texto="La IA no la mandó sola: le falta un dato" tono="ambar" />;
   return null;
@@ -179,7 +210,7 @@ async function SinResponder({ org, canal, auto }: { org: string; canal: number |
           </div>
           <p className="mt-2 text-sm rounded-lg bg-[#FAFBFC] border border-[#E3E9F0] px-3 py-2">{q.texto}</p>
           {q.anteriores > 0 && <PreguntasAnteriores preguntaId={q.id} cantidad={q.anteriores} />}
-          {q.sugerencia && <div className="mt-2"><AvisoIa estado={q.ia_estado} auto={auto} /></div>}
+          {q.sugerencia && <div className="mt-2"><AvisoIa estado={q.ia_estado} auto={auto} /><Internet h={q.ia_internet} /></div>}
           <form action={accionResponder} className="mt-2 space-y-2">
             <input type="hidden" name="id" value={q.id} />
             <label className="block">
@@ -214,6 +245,7 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
           <p className="mt-1 text-[11px] text-[#5C6B76]">
             {q.respondida_auto ? "Respondió la IA sola" : <>Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_por && q.respondida_con_ia ? " con la IA" : ""}</>}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
           </p>
+          {(q.respondida_auto || q.respondida_con_ia) && <Internet h={q.ia_internet} />}
         </section>
       ))}
     </div>
@@ -232,10 +264,10 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
   if (pack) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
   const conversaciones = await consulta<{
     pack_id: string; canal: string | null; canal_id: number | null; firma: string | null; pedido_id: number | null; cliente: string | null; sin_leer: number; ultimo_ts: Date | null; ultimo: string | null;
-    pidio_persona: boolean; sin_responder: boolean;
+    pidio_persona: boolean; sin_responder: boolean; derivada: boolean;
   }>(`
     select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, (c.pidio_persona_ts is not null) pidio_persona,
-           ${SQL_SIN_RESPONDER("c")} sin_responder,
+           ${SQL_SIN_RESPONDER("c")} sin_responder, ${SQL_DERIVADA_ESPERA("c")} derivada,
            (select m.texto from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1) ultimo
       from meli_conversacion c
       left join canal ca on ca.id = c.canal_id
@@ -246,7 +278,7 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
      limit 100`, [org, canal]);
   const elegida = pack ? conversaciones.find((c) => c.pack_id === pack)
     ?? await una<(typeof conversaciones)[number]>(`
-      select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona, ${SQL_SIN_RESPONDER("c")} sin_responder
+      select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona, ${SQL_SIN_RESPONDER("c")} sin_responder, ${SQL_DERIVADA_ESPERA("c")} derivada
         from meli_conversacion c left join canal ca on ca.id = c.canal_id left join pedido p on p.id = c.pedido_id left join cliente cl on cl.id = p.cliente_id
        where c.organizacion_id = $1 and c.pack_id = $2`, [org, pack]) : null;
 
@@ -260,7 +292,7 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
             <div className="flex items-center justify-between gap-2">
               <span className={`truncate ${c.sin_leer ? "font-bold" : "font-semibold"}`}>{c.cliente ?? `Pack ${c.pack_id}`}</span>
               <span className="flex gap-1">
-                {c.pidio_persona && <Estado texto="Pidió una persona" tono="ambar" />}
+                {c.derivada ? <Estado texto="Derivada a una persona" tono="ambar" /> : c.pidio_persona && <Estado texto="Pidió una persona" tono="ambar" />}
                 {c.sin_responder && <Estado texto="Sin responder" tono="amarillo" />}
                 {c.sin_leer > 0 && <Estado texto={`${c.sin_leer} sin leer`} tono="azul" />}
               </span>
@@ -281,8 +313,9 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
   const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[]; usuario: string | null; con_ia: boolean; auto: boolean }>(
     `select m.id, m.de_vendedor, m.texto, m.fecha, m.adjuntos, u.nombre usuario, m.con_ia, m.auto from meli_mensaje m left join usuarios u on u.id = m.usuario_id
       where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, conv.pack_id]);
-  const sug = await una<{ sugerencia: string | null; ia_estado: string | null; pidio_persona: boolean }>(
-    "select sugerencia, ia_estado, (pidio_persona_ts is not null) pidio_persona from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, conv.pack_id]);
+  const sug = await una<{ sugerencia: string | null; ia_estado: string | null; pidio_persona: boolean; derivada: boolean; ia_internet: Hallazgo | null }>(
+    `select sugerencia, ia_estado, (pidio_persona_ts is not null) pidio_persona, ${SQL_DERIVADA_ESPERA("c")} derivada, ia_internet
+       from meli_conversacion c where organizacion_id = $1 and pack_id = $2`, [org, conv.pack_id]);
   // La venta de ML de esta conversación (también las anteriores, sin pedido en Laucen): su detalle con artículos, envío y reclamos.
   const venta = await una<{ id: number }>(
     "select id::int from ml_venta where organizacion_id = $1 and (pack_id = $2::bigint or order_id = $2::bigint) order by id limit 1", [org, conv.pack_id]).catch(() => null);
@@ -313,9 +346,10 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
           </div>
         ))}
       </div>
-      {(sug?.pidio_persona || sug?.sugerencia) && (
-        <div className="mb-2"><AvisoIa estado={sug.pidio_persona ? "persona" : sug.ia_estado} auto={auto} conversacion /></div>
+      {(sug?.pidio_persona || sug?.derivada || sug?.sugerencia) && (
+        <div className="mb-2"><AvisoIa estado={sug.pidio_persona ? "persona" : sug.ia_estado} auto={auto} conversacion derivada={sug.derivada} /></div>
       )}
+      {sug?.ia_internet && <div className="mb-2"><Internet h={sug.ia_internet} /></div>}
       <form action={accionEnviarMensaje} className="space-y-2">
         <input type="hidden" name="pack" value={conv.pack_id} />
         <label className="block">

@@ -123,11 +123,11 @@ export async function accionRespuestaAuto(fd: FormData) {
     }
     if (prendido && cual === "mensajes") {
       await consulta(`update meli_conversacion set sugerencia = null, sugerencia_intento_ts = null
-                       where organizacion_id = $1 and sin_leer > 0 and pidio_persona_ts is null`, [s.org.id]);
+                       where organizacion_id = $1 and sin_leer > 0 and pidio_persona_ts is null and derivada_ts is null`, [s.org.id]);
     }
     revalidatePath(VOLVER);
     const que = cual === "mensajes" ? "los mensajes" : "las preguntas";
-    return prendido ? `Prendido: la IA contesta sola ${que} (lo que no sabe, o si piden una persona, queda para vos).`
+    return prendido ? `Prendido: la IA contesta sola ${que}${cual === "mensajes" ? " (lo que deriva a una persona queda para vos)" : ""}.`
       : `Apagado: la IA sólo propone la respuesta de ${que}; la mandás vos.`;
   });
 }

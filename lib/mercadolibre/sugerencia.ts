@@ -18,8 +18,9 @@ export function igualALaSugerencia(texto: string | null | undefined, sugerencia:
 // conversación) o falta un dato para contestar. Eso queda para una persona.
 
 /** Qué dice la IA de su propia respuesta: "ok" (se puede mandar sola),
- *  "persona" (el comprador pide hablar con una persona) o "falta_dato". */
-export type EstadoIa = "ok" | "persona" | "falta_dato";
+ *  "persona" (el comprador pide hablar con una persona), "falta_dato" o, en los mensajes de posventa, "derivar"
+ *  (Fer, 25/10: la IA le avisa al comprador que pasa el caso a una persona; ver lib/mercadolibre/mensajes.ts). */
+export type EstadoIa = "ok" | "persona" | "falta_dato" | "derivar";
 
 export const FORMATO_IA = `Devolvé SOLO un JSON, sin nada antes ni después: {"estado": "...", "texto": "..."}.
 "texto" es la respuesta al comprador. "estado" es:
@@ -27,7 +28,7 @@ export const FORMATO_IA = `Devolvé SOLO un JSON, sin nada antes ni después: {"
 - "falta_dato" si para contestar bien hace falta un dato que no está en lo que te paso (en "texto" igual dejá una respuesta para que una persona la complete);
 - "ok" en cualquier otro caso.`;
 
-const ESTADOS: EstadoIa[] = ["ok", "persona", "falta_dato"];
+const ESTADOS: EstadoIa[] = ["ok", "persona", "falta_dato", "derivar"];
 
 /** Lee lo que devolvió la IA. Si no vino en el formato pedido, se toma el
  *  texto entero como respuesta, pero no se manda sola ("falta_dato"). */

@@ -118,6 +118,8 @@ alter table meli_pregunta add column if not exists sugerencia_intento_ts timesta
 -- persona, 'falta_dato') y si la respuesta la mandó la IA sola (interruptor de Preguntas prendido).
 alter table meli_pregunta add column if not exists ia_estado text;
 alter table meli_pregunta add column if not exists respondida_auto boolean not null default false;
+-- Búsqueda en internet (Fer, 25/10): lo que la IA buscó porque le faltaba un dato técnico (certeza, dato, fuentes).
+alter table meli_pregunta add column if not exists ia_internet jsonb;
 create index if not exists meli_pregunta_pendientes on meli_pregunta (organizacion_id, fecha) where estado = 'UNANSWERED';
 alter table meli_pregunta enable row level security;
 select erp_politica_org('meli_pregunta');
@@ -166,6 +168,11 @@ alter table meli_conversacion add column if not exists sugerencia_intento_ts tim
 -- desde cuándo el comprador pidió hablar con una persona: desde ahí la IA no contesta más sola esa conversación.
 alter table meli_conversacion add column if not exists ia_estado text;
 alter table meli_conversacion add column if not exists pidio_persona_ts timestamptz;
+-- Búsqueda en internet (Fer, 25/10): lo que la IA buscó porque le faltaba un dato técnico (certeza, dato, fuentes),
+-- y desde cuándo la IA le avisó al comprador que derivaba el caso a una persona: desde ahí no contesta más sola y la
+-- conversación espera respuesta hasta que una persona escriba.
+alter table meli_conversacion add column if not exists ia_internet jsonb;
+alter table meli_conversacion add column if not exists derivada_ts timestamptz;
 
 -- Las publicaciones de cada cuenta tal como están en ML (una fila por item
 -- y variación). Sirve para vincularlas con las variaciones de Laucen: las

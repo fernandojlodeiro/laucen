@@ -502,3 +502,21 @@ create unique index if not exists publicacion_canal_variacion_propia on publicac
 -- producto (slots de memoria libres, si es ampliable, bahía para otro disco…). No se publica en ningún
 -- lado; cada producto (también cada kit) tiene los suyos.
 alter table producto add column if not exists notas_ia text;
+
+-- Datos de internet (Fer, 25/10): lo que la IA de preguntas, mensajes o WhatsApp buscó en internet porque no estaba
+-- en la ficha (lib/datos-internet.ts). Queda «sin revisar» y la IA lo usa las próximas veces sin volver a buscarlo;
+-- una persona lo pasa a los datos técnicos del producto (y se borra de acá) o lo borra.
+create table if not exists producto_dato_web (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  producto_id      bigint not null references producto(id) on delete cascade,
+  pregunta         text not null,
+  dato             text not null,
+  certeza          text not null check (certeza in ('seguro', 'duda', 'contradice')),
+  fuentes          text[] not null default '{}',
+  origen           text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists producto_dato_web_producto on producto_dato_web (producto_id);
+alter table producto_dato_web enable row level security;
+select erp_politica_org('producto_dato_web');

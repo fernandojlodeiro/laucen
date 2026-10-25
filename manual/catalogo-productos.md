@@ -99,6 +99,7 @@ Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz 
 - **IVA**: 21 %, 10,5 %, 27 %, 5 %, 2,5 % o 0 %. "Los precios se cargan con IVA; al facturar se discrimina con esta alícuota."
 - **Descripción larga**, a todo lo ancho y bien alta (si el texto es más largo, se desplaza adentro del cuadro; en edición, el cuadro se puede estirar desde la esquina de abajo).
 - **Datos técnicos para la IA**: lo que la tienda sabe del equipo y no siempre está en la descripción (por ejemplo, cuántos slots de memoria libres tiene, si la memoria viene soldada, hasta cuánto se amplía, si admite un segundo disco). No se publica en ningún lado: la IA lo usa para contestar preguntas técnicas de ese producto en Mercado Libre (preguntas y mensajes después de la compra) y en WhatsApp, y manda sobre lo que diga la descripción. Cada producto tiene los suyos, también los kits (un equipo con más memoria es otro producto y lleva sus propios datos).
+- **Buscado en internet por la IA, sin revisar (N)**: aparece debajo de los datos técnicos cuando la IA tuvo que buscar en internet una característica de este producto que no estaba en la ficha (ver [Preguntas y mensajes](/ventas/preguntas)). Cada dato muestra lo que encontró, qué tan seguro es, lo que preguntaron y las fuentes. La IA ya lo usa para contestar; **"Pasar a datos técnicos"** lo suma al final de los datos técnicos, y el tacho lo borra.
 
 Debajo, en modo vista, un desplegable **Atributos de Mercado Libre** con la categoría de ML y los atributos que trajo la publicación. Es sólo para mirar.
 

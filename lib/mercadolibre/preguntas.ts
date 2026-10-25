@@ -2,12 +2,15 @@
 // (notificación "questions" o barrido), la IA propone la respuesta con la
 // ficha, el stock y los tiempos de envío, y el operador la aprueba o la
 // cambia antes de mandarla. Con el interruptor de Preguntas prendido (Fer,
-// 5/10), lo que la IA puede contestar sola lo manda sola.
+// 5/10), lo que la IA puede contestar sola lo manda sola. Si le falta un dato
+// técnico, lo busca en internet y contesta igual (Fer, 25/10: el 100 % de las
+// preguntas se responde; lib/datos-internet.ts).
 
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
+import { buscarEnInternet, guardarHallazgo, hallazgoParaIa, productoParaBuscar, SQL_DATOS_INTERNET, type Hallazgo } from "@/lib/datos-internet";
 import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import type { ItemMl } from "@/lib/mercadolibre/publicaciones";
@@ -66,7 +69,7 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
   let laucen: Record<string, unknown> | null = null;
   if (publicacionId) {
     laucen = await una(`
-      select titulo_variacion(p.variacion_id) titulo, pr.descripcion, pr.notas_ia datos_tecnicos, pr.marca, pr.peso_g, pr.largo_cm, pr.ancho_cm, pr.alto_cm,
+      select pr.id::int producto_id, titulo_variacion(p.variacion_id) titulo, pr.descripcion, pr.notas_ia datos_tecnicos, ${SQL_DATOS_INTERNET("pr")} datos_de_internet, pr.marca, pr.peso_g, pr.largo_cm, pr.ancho_cm, pr.alto_cm,
              greatest(stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id), 0) disponible,
              (select string_agg(a.nombre || ': ' || a.valor, '; ') from producto_atributo a where a.producto_id = pr.id) atributos
         from publicacion p join variacion v on v.id = p.variacion_id join producto pr on pr.id = v.producto_id
@@ -89,9 +92,24 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
 
 const INSTRUCCIONES = `Sos quien atiende las preguntas de una tienda argentina en Mercado Libre. Escribí la respuesta a la pregunta del comprador, en castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empezando con "Hola" y terminando con un saludo corto ("Saludos!").
 Reglas de Mercado Libre que no se pueden romper: nada de teléfonos, mails, direcciones, redes sociales ni nombres de otras tiendas; no invitar a comprar por fuera de ML. Links: sólo los de publicaciones nuestras de Mercado Libre que figuren en DATOS.productos_pedidos, nunca otros.
-Usá SOLO los datos que te paso (publicación, ficha y stock). Para una pregunta técnica (memoria, ampliaciones, discos, compatibilidad, etc.), mirá primero ficha_laucen.datos_tecnicos: es lo que la tienda sabe del equipo y manda sobre lo demás. Si el dato no está, no lo inventes: decí que lo consultás o sugerí ver la descripción. Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
+Usá SOLO los datos que te paso (publicación, ficha y stock). Para una pregunta técnica (memoria, ampliaciones, discos, compatibilidad, etc.), mirá primero ficha_laucen.datos_tecnicos: es lo que la tienda sabe del equipo y manda sobre lo demás. Después, ficha_laucen.datos_de_internet: lo que ya se buscó en internet, cada uno con su certeza (usalo con las reglas de CERTEZA de abajo). Si el dato no está en ningún lado, no lo inventes: el estado es "falta_dato" (se va a buscar en internet). Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
 Si DATOS trae productos_pedidos, el comprador pregunta también por esos otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 ${FORMATO_IA}`;
+
+/** Las reglas para un dato que se buscó en internet (Fer, 25/10). En las preguntas nunca se nombra la fuente: ML no
+ *  deja poner links ni sitios de afuera. */
+const CERTEZA = `CERTEZA de un dato buscado en internet:
+- "seguro": contestá con el dato, normal.
+- "duda": contestá con el dato y aclará en una frase corta que ese dato no figura en la ficha del producto y que lo buscamos en internet para responderle. No digas que no lo podemos garantizar.
+- "contradice": explicá que encontramos información que no coincide, mencioná los dos datos, pedí disculpas por no tener el dato exacto y respondé lo más útil posible.
+Nunca nombres de dónde salió ni pongas links que no sean de nuestras publicaciones.`;
+
+/** La segunda vuelta, con lo que se buscó en internet: la pregunta se contesta siempre. */
+const CON_INTERNET = `
+
+SEGUNDA VUELTA: en la primera te faltó un dato. Se buscó en internet y el resultado está en DATO_DE_INTERNET. Ahora contestá SIEMPRE y el estado es "ok".
+${CERTEZA}
+- "no_encontrado" o "no_aplica": decí con amabilidad que no logramos conseguir ese dato (y sumá lo que sí sepas de DATOS que le sirva).`;
 
 /** La IA propone una respuesta y queda guardada como sugerencia, con lo que
  *  la IA dice de ella (si se puede mandar sola). */
@@ -111,21 +129,41 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
   if (pedidos.length) (ctx as Record<string, unknown>).productos_pedidos = pedidos;
   const textos = await textosCanal(org, q.canal_id);
   const r = await pedirClaude({
-    system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 600,
+    system: `${INSTRUCCIONES}\n${CERTEZA}${instruccionesExtra(textos)}`, modelo: "medio", maxTokens: 600,
     contenido: `DATOS:\n${JSON.stringify(ctx, null, 1)}\n\nPREGUNTA DEL COMPRADOR:\n${q.texto}`,
   });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
-  const p = leerPropuesta(r.texto);
+  let p = leerPropuesta(r.texto);
+  // Le faltó un dato (Fer, 25/10): se busca en internet y la pregunta se contesta igual, con lo que se haya encontrado.
+  // Si la búsqueda falla, queda como estaba (para una persona).
+  let internet: Hallazgo | null = null;
+  if (p.estado === "falta_dato") {
+    const productoId = (ctx.ficha_laucen as { producto_id?: number } | null)?.producto_id ?? null;
+    const buscado = (productoId ? await productoParaBuscar(org, productoId) : null)
+      ?? { titulo: ctx.publicacion?.titulo ?? "", atributos: ctx.publicacion?.atributos, descripcion: ctx.publicacion?.descripcion };
+    internet = await buscarEnInternet(buscado, q.texto);
+    if (!internet.error) {
+      await guardarHallazgo(org, productoId, q.texto, internet, `Pregunta de Mercado Libre ${q.id}`);
+      const r2 = await pedirClaude({
+        system: INSTRUCCIONES + CON_INTERNET + instruccionesExtra(textos), modelo: "medio", maxTokens: 600,
+        contenido: `DATOS:\n${JSON.stringify(ctx, null, 1)}\n\nDATO_DE_INTERNET:\n${JSON.stringify(hallazgoParaIa(internet, false))}\n\nPREGUNTA DEL COMPRADOR:\n${q.texto}`,
+      });
+      const p2 = "error" in r2 ? null : leerPropuesta(r2.texto);
+      if (p2?.texto) p = { estado: "ok", texto: p2.texto };
+    }
+  }
   // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts).
   const texto = conFirma(p.texto, textos.firma, 1990);
-  await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4 where id = $1 and organizacion_id = $2", [preguntaId, org, texto, p.estado]);
+  await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4, ia_internet = $5::jsonb where id = $1 and organizacion_id = $2",
+    [preguntaId, org, texto, p.estado, internet ? JSON.stringify(internet) : null]);
   return { texto, estado: p.estado };
 }
 
 /** La IA propone sola la respuesta a las preguntas sin responder que todavía no tienen sugerencia (Fer, 5/10: "no me
  *  hagas apretar el botón proponer"). Cada pregunta se intenta una vez cada 30 minutos como mucho, para no gastar en una
  *  que falla; sin llave de Claude no hace nada. Nunca tira: lo que falla queda para la próxima. Con el interruptor de
- *  Preguntas prendido, la que la IA da por buena ("ok") se manda sola; las demás quedan para una persona. */
+ *  Preguntas prendido, se manda sola salvo que siga faltando un dato (la búsqueda en internet falló): Fer, 25/10, el
+ *  100 % de las preguntas se responde, también la que pide una persona. */
 export async function sugerirPendientes(opts: { org?: string; max?: number; hastaMs?: number } = {}): Promise<{ propuestas: number; errores: number; enviadas: number }> {
   const res = { propuestas: 0, errores: 0, enviadas: 0 };
   if (!hayClaude()) return res;
@@ -141,7 +179,7 @@ export async function sugerirPendientes(opts: { org?: string; max?: number; hast
     try {
       const p = await sugerirRespuesta(q.organizacion_id, Number(q.id));
       res.propuestas++;
-      if (p.estado === "ok" && (await respuestaAuto(q.organizacion_id)).preguntas) {
+      if (p.estado !== "falta_dato" && (await respuestaAuto(q.organizacion_id)).preguntas) {
         await responder(q.organizacion_id, Number(q.id), p.texto, null, { auto: true });
         res.enviadas++;
       }

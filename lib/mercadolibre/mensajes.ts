@@ -1,8 +1,10 @@
 // Mensajes de posventa de Mercado Libre (la conversación con el comprador de
 // un pedido), de todas las cuentas en una bandeja. Igual que las preguntas:
 // la IA propone, el operador aprueba; con el interruptor de Mensajes prendido
-// (Fer, 5/10) la IA contesta sola, salvo en una conversación donde el
-// comprador pidió hablar con una persona: ahí no contesta más.
+// (Fer, 5/10) la IA contesta sola. Si el comprador pide una persona, o tiene
+// un problema y la IA tiene la menor duda, le avisa que deriva el caso a una
+// persona del equipo y no contesta más sola esa conversación (Fer, 25/10). Si
+// le falta un dato técnico, lo busca en internet (lib/datos-internet.ts).
 
 import { buscarProductosPedidos } from "@/lib/mercadolibre/productos-pedidos";
 import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
@@ -12,6 +14,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
 export { SQL_SIN_RESPONDER };
 import { pedirClaude, hayClaude } from "@/lib/claude";
+import { AVISO_DERIVAR, ahoraYHorario, buscarEnInternet, guardarHallazgo, hallazgoParaIa, productoParaBuscar, SQL_DATOS_INTERNET, type Hallazgo } from "@/lib/datos-internet";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 
 type MensajeMl = {
@@ -116,10 +119,30 @@ async function revisarFacturaDeLaVenta(cuenta: CuentaMl, pack: string | number) 
 
 const INSTRUCCIONES = `Sos quien atiende la posventa de una tienda argentina en Mercado Libre. Escribí la próxima respuesta al comprador, en castellano rioplatense, cordial y breve (1 a 4 oraciones, máximo 350 caracteres, que es el límite de ML).
 Reglas de Mercado Libre: nada de teléfonos, mails ni redes; links, sólo los de publicaciones nuestras de Mercado Libre que figuren en productos_pedidos, nunca otros; no ofrecer arreglos por fuera de ML.
-Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que no figuran. Para una pregunta técnica del producto comprado (memoria, ampliaciones, discos, compatibilidad, etc.), usá los datos_tecnicos de su línea: es lo que la tienda sabe del equipo. Si el comprador reclama, primero empatía y una solución concreta dentro de lo que se ve en los datos.
+Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que no figuran. Para una pregunta técnica del producto comprado (memoria, ampliaciones, discos, compatibilidad, etc.), usá los datos_tecnicos de su línea: es lo que la tienda sabe del equipo; después, sus datos_de_internet (lo que ya se buscó en internet, con su certeza: usalo con las reglas de CERTEZA de abajo). Si el dato técnico no está en ningún lado, no lo inventes: el estado es "falta_dato" (se va a buscar en internet).
+Si el comprador tiene un problema o reclama (no le llegó, llegó roto, incompleto o distinto, no funciona, quiere devolverlo o cambiarlo, la factura está mal, etc.): contestá vos sólo si la solución está clarísima en los datos y en las reglas de la tienda. Ante la menor duda, o si es algo que no está en lo que te paso, el estado es "derivar": en "texto", empatía en pocas palabras y el aviso de que derivás el caso.
+${AVISO_DERIVAR}
 Si traigo productos_pedidos, el comprador pide también otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
-Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona".
-${FORMATO_IA}`;
+Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona" y en "texto" va el aviso de que derivás su caso.
+${FORMATO_IA}
+- "derivar" si derivás el caso a una persona (ver arriba): en "texto" va el mensaje que se lo avisa al comprador.`;
+
+/** Las reglas para un dato que se buscó en internet (Fer, 25/10). En ML nunca se nombra la fuente. */
+const CERTEZA = `CERTEZA de un dato buscado en internet:
+- "seguro": contestá con el dato, normal.
+- "duda": contestá con el dato y aclará en una frase corta que ese dato no figura en la ficha del producto y que lo buscamos en internet para responderle. No digas que no lo podemos garantizar.
+- "contradice": explicá que encontramos información que no coincide, mencioná los dos datos, pedí disculpas por no tener el dato exacto y avisá que derivás el caso a una persona (estado "derivar").
+Nunca nombres de dónde salió ni pongas links que no sean de nuestras publicaciones.`;
+
+/** La segunda vuelta, con lo que se buscó en internet. */
+const CON_INTERNET = `
+
+SEGUNDA VUELTA: en la primera te faltó un dato. Se buscó en internet y el resultado está en DATO_DE_INTERNET. Ahora contestá siempre:
+- "no_encontrado" o "no_aplica": decí con amabilidad que no logramos conseguir ese dato y avisá que derivás el caso a una persona (estado "derivar").
+- "seguro" o "duda": el estado es "ok".`;
+
+/** Con lo encontrado así, la IA no lo resuelve sola: deriva. */
+const DERIVA_CON: Hallazgo["certeza"][] = ["contradice", "no_encontrado", "no_aplica"];
 
 /** La compra leída de ML (sólo lectura) cuando no está en Laucen: una venta anterior al día desde el que se traen
  *  pedidos (Fer, 22/10: sin ella la IA no sabía qué producto era y contestó genérico). Lo que diga la venta: producto,
@@ -143,14 +166,16 @@ async function compraDeMl(org: string, canalId: string | null, packId: string): 
   const items = ordenes.flatMap((x) => x.order_items ?? []);
   // Los datos técnicos para la IA del producto de Laucen, por el SKU de la venta.
   const skus = [...new Set(items.map((l) => l.item?.seller_sku).filter((x): x is string => !!x))];
-  const tecnicos = new Map((skus.length ? await consulta<{ sku: string; notas_ia: string }>(`
-    select v.sku, pr.notas_ia from variacion v join producto pr on pr.id = v.producto_id
-     where v.organizacion_id = $1 and v.sku = any($2::text[]) and nullif(trim(pr.notas_ia), '') is not null`, [org, skus]) : []).map((x) => [x.sku, x.notas_ia]));
+  const tecnicos = new Map((skus.length ? await consulta<{ sku: string; producto_id: number; notas_ia: string | null; internet: string | null }>(`
+    select v.sku, pr.id::int producto_id, nullif(trim(pr.notas_ia), '') notas_ia, ${SQL_DATOS_INTERNET("pr")} internet
+      from variacion v join producto pr on pr.id = v.producto_id
+     where v.organizacion_id = $1 and v.sku = any($2::text[])`, [org, skus]) : []).map((x) => [x.sku, x]));
   return {
     nota: "Compra anterior a Laucen: leída de Mercado Libre",
     fecha: ordenes[0].date_created ?? null, estado: ordenes[0].status ?? null, entregado: ordenes.some((x) => x.tags?.includes("delivered")),
     lineas: items.map((l) => ({ titulo: l.item?.title ?? null, cantidad: l.quantity ?? null, garantia: l.item?.warranty ?? null,
-      datos_tecnicos: (l.item?.seller_sku && tecnicos.get(l.item.seller_sku)) || null })),
+      ...(() => { const t = l.item?.seller_sku ? tecnicos.get(l.item.seller_sku) : undefined;
+        return { producto_id: t?.producto_id ?? null, datos_tecnicos: t?.notas_ia ?? null, datos_de_internet: t?.internet ?? null }; })() })),
   };
 }
 
@@ -162,9 +187,10 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
     "select de_vendedor, texto, fecha from meli_mensaje where organizacion_id = $1 and pack_id = $2 order by fecha", [org, packId]);
   const pedido = conv?.pedido_id ? await una(`
     select p.estado, p.fecha, p.total_ars,
-           (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad,
-                   'datos_tecnicos', (select nullif(trim(pr.notas_ia), '') from variacion v join producto pr on pr.id = v.producto_id where v.id = l.variacion_id)))
-              from pedido_linea l where l.pedido_id = p.id) lineas,
+           (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad, 'producto_id', pr.id,
+                   'datos_tecnicos', nullif(trim(pr.notas_ia), ''), 'datos_de_internet', ${SQL_DATOS_INTERNET("pr")}) order by l.id)
+              from pedido_linea l left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
+             where l.pedido_id = p.id) lineas,
            (select json_build_object('estado', e.estado, 'subestado', e.subestado, 'logistica', e.logistica, 'tracking', e.tracking, 'entrega_estimada', e.entrega_estimada)
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
       from pedido p where p.id = $1`, [conv.pedido_id]) : await compraDeMl(org, conv?.canal_id ?? null, packId);
@@ -176,26 +202,44 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
         pregunta: delComprador, itemId: "", plan: null,
         tituloPublicacion: ((pedido as { lineas?: { titulo: string }[] } | null)?.lineas ?? []).map((l) => l.titulo).join(" | ") || null })
     : [];
-  const r = await pedirClaude({
-    system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 400,
-    contenido: `PEDIDO:\n${JSON.stringify(pedido)}${pedidos.length ? `\n\nproductos_pedidos:\n${JSON.stringify(pedidos, null, 1)}` : ""}\n\nCONVERSACIÓN:\n${mensajes.map((m) => `${m.de_vendedor ? "Vendedor" : "Comprador"}: ${m.texto ?? "(adjunto)"}`).join("\n")}`,
-  });
+  const momento = await ahoraYHorario(org);
+  const contenido = (extra = "") => `${momento}\n\nPEDIDO:\n${JSON.stringify(pedido)}${pedidos.length ? `\n\nproductos_pedidos:\n${JSON.stringify(pedidos, null, 1)}` : ""}${extra}\n\nCONVERSACIÓN:\n${mensajes.map((m) => `${m.de_vendedor ? "Vendedor" : "Comprador"}: ${m.texto ?? "(adjunto)"}`).join("\n")}`;
+  const r = await pedirClaude({ system: `${INSTRUCCIONES}\n${CERTEZA}${instruccionesExtra(textos)}`, modelo: "medio", maxTokens: 400, contenido: contenido() });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
-  const p = leerPropuesta(r.texto);
+  let p = leerPropuesta(r.texto);
+  // Le faltó un dato técnico (Fer, 25/10): se busca en internet, del producto de la compra (el primero), y se contesta
+  // con lo encontrado; si no se encontró o no coincide, se deriva a una persona. Si la búsqueda falla, queda como estaba.
+  let internet: Hallazgo | null = null;
+  if (p.estado === "falta_dato" && delComprador) {
+    const linea = ((pedido as { lineas?: { titulo: string | null; producto_id: number | null }[] } | null)?.lineas ?? [])[0];
+    const productoId = linea?.producto_id ?? null;
+    const buscado = (productoId ? await productoParaBuscar(org, productoId) : null) ?? (linea?.titulo ? { titulo: linea.titulo } : null);
+    // Sin un producto que buscar, es como si no fuera un dato del producto: se deriva igual.
+    internet = buscado ? await buscarEnInternet(buscado, delComprador) : { certeza: "no_aplica", dato: "", fuentes: [], usd: 0 };
+    if (!internet.error) {
+      await guardarHallazgo(org, productoId, delComprador, internet, `Mensaje de Mercado Libre (pack ${packId})`);
+      const r2 = await pedirClaude({
+        system: `${INSTRUCCIONES}\n${CERTEZA}${CON_INTERNET}${instruccionesExtra(textos)}`, modelo: "medio", maxTokens: 400,
+        contenido: contenido(`\n\nDATO_DE_INTERNET:\n${JSON.stringify(hallazgoParaIa(internet, false))}`),
+      });
+      const p2 = "error" in r2 ? null : leerPropuesta(r2.texto);
+      if (p2?.texto) p = { texto: p2.texto, estado: DERIVA_CON.includes(internet.certeza) || p2.estado === "derivar" || p2.estado === "persona" ? "derivar" : "ok" };
+    }
+  }
   // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts); con ella, sigue dentro de los 350 de ML.
   const texto = conFirma(p.texto, textos.firma, 350);
   // Si pidió una persona, queda marcado para siempre: la IA no contesta más sola esta conversación.
-  await consulta(`update meli_conversacion set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4,
+  await consulta(`update meli_conversacion set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4, ia_internet = $5::jsonb,
                          pidio_persona_ts = coalesce(pidio_persona_ts, case when $4 = 'persona' then now() end)
-                   where organizacion_id = $1 and pack_id = $2`, [org, packId, texto, p.estado]);
+                   where organizacion_id = $1 and pack_id = $2`, [org, packId, texto, p.estado, internet ? JSON.stringify(internet) : null]);
   return { texto, estado: p.estado };
 }
 
 /** ¿La IA puede mandar sola la respuesta a esta conversación? Sólo si el
- *  último mensaje es del comprador, reciente (3 días), y nunca pidió una persona. */
+ *  último mensaje es del comprador, reciente (3 días), nunca pidió una persona y la IA no la derivó ya. */
 async function puedeContestarSola(org: string, packId: string): Promise<boolean> {
   const c = await una<{ ok: boolean }>(`
-    select c.pidio_persona_ts is null
+    select c.pidio_persona_ts is null and c.derivada_ts is null
            and (select not m.de_vendedor and m.fecha > now() - interval '3 days' from meli_mensaje m
                  where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1) ok
       from meli_conversacion c where c.organizacion_id = $1 and c.pack_id = $2`, [org, packId]);
@@ -203,7 +247,9 @@ async function puedeContestarSola(org: string, packId: string): Promise<boolean>
 }
 
 /** Lo mismo que las preguntas: la IA propone sola la respuesta a las conversaciones con mensajes del comprador sin leer.
- *  Con el interruptor de Mensajes prendido, la que la IA da por buena se manda sola (puedeContestarSola). */
+ *  Con el interruptor de Mensajes prendido se manda sola (puedeContestarSola), también el aviso de que deriva el caso a
+ *  una persona (pidió una persona o la IA deriva: Fer, 25/10); desde ese aviso la IA no contesta más esa conversación.
+ *  Lo único que no sale solo es lo que sigue con un dato faltante (la búsqueda en internet falló). */
 export async function sugerirMensajesPendientes(opts: { org?: string; max?: number; hastaMs?: number } = {}): Promise<{ propuestas: number; errores: number; enviadas: number }> {
   const res = { propuestas: 0, errores: 0, enviadas: 0 };
   if (!hayClaude()) return res;
@@ -217,10 +263,13 @@ export async function sugerirMensajesPendientes(opts: { org?: string; max?: numb
   for (const c of tomadas) {
     if (opts.hastaMs && Date.now() > opts.hastaMs - 8_000) break;
     try {
+      // Antes de proponer: si pide una persona, la propuesta misma marca la conversación.
+      const podia = await puedeContestarSola(c.organizacion_id, c.pack_id);
       const p = await sugerirMensaje(c.organizacion_id, c.pack_id);
       res.propuestas++;
-      if (p.estado === "ok" && (await respuestaAuto(c.organizacion_id)).mensajes && await puedeContestarSola(c.organizacion_id, c.pack_id)) {
+      if (p.estado !== "falta_dato" && podia && (await respuestaAuto(c.organizacion_id)).mensajes) {
         await enviarMensaje(c.organizacion_id, c.pack_id, p.texto, null, { auto: true });
+        if (p.estado !== "ok") await consulta("update meli_conversacion set derivada_ts = coalesce(derivada_ts, now()) where organizacion_id = $1 and pack_id = $2", [c.organizacion_id, c.pack_id]);
         res.enviadas++;
       }
     } catch { res.errores++; }

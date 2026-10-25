@@ -3,6 +3,7 @@
 
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
+import DatosInternet from "@/app/componentes/DatosInternet";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
@@ -258,6 +259,10 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <div className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>{ETIQUETA_NOTAS_IA}</span>
           <ValorVista largo className={ALTO_NOTAS_IA}>{p.notas_ia}</ValorVista>
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_IA}</span>
+        </div>
+        {/* Lo que la IA buscó en internet de este producto y nadie revisó (lib/datos-internet.ts). */}
+        <div className="col-span-2 sm:col-span-4 empty:hidden">
+          <DatosInternetDelProducto org={s.org.id} productoId={p.id} />
         </div>
       </div>
       <AtributosMl p={p} attrsMl={attrsMl} />
@@ -1170,6 +1175,19 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+/** Los datos de internet sin revisar de este producto, con su título (nada si no hay). */
+async function DatosInternetDelProducto({ org, productoId }: { org: string; productoId: number }) {
+  const n = await consulta<{ n: number }>("select count(*)::int n from producto_dato_web where organizacion_id = $1 and producto_id = $2", [org, productoId]).catch(() => []);
+  if (!n[0]?.n) return null;
+  return (
+    <>
+      <span className={ETIQUETA}>Buscado en internet por la IA, sin revisar ({n[0].n})</span>
+      <p className="text-[10px] text-[#5C6B76] mb-1">La IA ya lo usa para contestar. Pasalo a los datos técnicos si está bien, o borralo.</p>
+      <DatosInternet org={org} productoId={productoId} volver={`/catalogo/productos/${productoId}`} />
     </>
   );
 }

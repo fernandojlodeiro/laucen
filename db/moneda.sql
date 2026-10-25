@@ -210,7 +210,7 @@ declare
       and (exists (select 1 from public.pedido where creado_ts > now() - interval '61 minutes')
         or exists (select 1 from public.meli_pregunta where estado = 'UNANSWERED' and ia_estado in ('falta_dato', 'persona')
                      and sugerencia_ts > now() - interval '61 minutes')
-        or exists (select 1 from public.meli_conversacion where sin_leer > 0 and ia_estado in ('falta_dato', 'persona')
+        or exists (select 1 from public.meli_conversacion where (sin_leer > 0 and ia_estado in ('falta_dato', 'persona') or derivada_ts is not null)
                      and sugerencia_ts > now() - interval '61 minutes')
         or exists (select 1 from public.chat_caso where resuelto_ts is null and abierto_ts > now() - interval '61 minutes'))
 $cmd$;

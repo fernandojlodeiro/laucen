@@ -29,7 +29,8 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
-- **"Mensajes (N)"** (y el contador de Mensajes de la barra de estado y del tablero de Mercado Libre): N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
+- **"Mensajes (N)"** (y el contador de Mensajes de la barra de estado y del tablero de Mercado Libre): N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días, o la IA le avisó al comprador que derivaba su caso a una persona y todavía nadie del equipo le escribió. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
+- **"Datos de internet (N)"**: N = datos que la IA buscó en internet y nadie revisó todavía (ver «Cuando a la IA le falta un dato técnico»).
 
 ### Pestaña Preguntas
 
@@ -45,9 +46,18 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 **Respondidas** (las últimas 100, lo más reciente primero): la publicación, la pregunta, la respuesta en verde y "Respondió <nombre> · fecha" (si mandó exactamente lo que propuso la IA, sin cambiar nada, dice "Respondió <nombre> con la IA") (o "alguien desde Mercado Libre" si se contestó fuera de Laucen).
 
+### Pestaña Datos de internet
+
+La lista de lo que la IA buscó en internet porque no estaba en la ficha del producto, lo más nuevo primero: el producto (foto, SKU y título), **lo que encontró**, la **certeza** (Seguro, Con duda, No coinciden), lo que preguntaron (de dónde vino y cuándo) y las **fuentes** (las páginas de donde lo sacó; se abren en otra pestaña).
+
+- **"Pasar a datos técnicos"**: suma el dato al final de los **Datos técnicos para la IA** del producto y lo saca de la lista.
+- **Tacho**: lo borra (pregunta «¿Borrar? Sí / No» en el mismo lugar). La IA deja de usarlo.
+
+Mientras está en la lista, **la IA ya lo usa** para contestar sobre ese producto, sin volver a buscarlo. Lo mismo se ve en la ficha de cada producto, debajo de sus datos técnicos.
+
 ### Pestaña Mensajes
 
-- **A la izquierda**, la lista de conversaciones (las sin responder primero, después las que tienen mensajes sin leer, después por el último mensaje; hasta 100): el cliente (o "Pack …"), las marcas **"Sin responder"** y **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
+- **A la izquierda**, la lista de conversaciones (las sin responder primero, después las que tienen mensajes sin leer, después por el último mensaje; hasta 100): el cliente (o "Pack …"), las marcas **"Derivada a una persona"** (la IA le avisó al comprador que una persona le va a responder y nadie le escribió todavía), **"Pidió una persona"**, **"Sin responder"** y **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
 - **Quién respondió**: debajo de cada mensaje de la tienda dice "Respondió <nombre>". Si mandó **exactamente** lo que había propuesto la IA, sin cambiar nada (ni una coma), dice "Respondió <nombre> con la IA"; si cambió algo, queda sólo el nombre. Igual en las preguntas.
 - **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los de la tienda a la derecha, con **"Respondió <nombre>"** de quien lo mandó desde Laucen, o "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
 - Sin conversación elegida: "Elegí una conversación para verla y contestar."
@@ -97,6 +107,32 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 - En una conversación, al lado del pedido (o de «sin pedido en Laucen»), **Ver la venta** abre la ficha de esa venta de Mercado Libre con sus artículos, envío y reclamos, aunque sea anterior al sistema.
 - En una pregunta, si quien pregunta **ya nos compró** (en cualquiera de las cuentas de Mercado Libre: el usuario es el mismo en todas) o ya está como cliente, aparece el cartel verde **Cliente** con cuántas compras hizo y la fecha de la última. Tocándolo se abre su ficha de cliente (con sus datos, teléfono, mail y todo lo que compró) o, si todavía no está como cliente, sus compras en el [Historial de ventas](/ventas/historial).
 
+### Cuando a la IA le falta un dato técnico
+
+Si preguntan una característica del producto que no está en la publicación, en la ficha ni en sus datos técnicos (por ejemplo, «¿tiene Zigbee?», «¿qué voltaje usa?», «¿es compatible con…?»), la IA **la busca sola en internet**: el modelo exacto, primero en la web del fabricante, su hoja de datos o manual. Lo que encuentra tiene una **certeza**:
+
+- **Seguro**: lo encontró escrito para ese modelo en la web del fabricante, su hoja de datos o manual. Contesta normal.
+- **Con duda**: lo encontró en otra fuente, o para un modelo parecido, o lo deduce. Contesta con el dato y aclara en una frase que ese dato no figura en la ficha del producto y que se buscó en internet para responderle.
+- **No coinciden**: las fuentes dicen cosas distintas. Menciona los dos datos y pide disculpas por no tener el dato exacto.
+- **No lo encontró**, o lo que falta no es una característica del producto (stock, envío, factura…): ahí no se busca.
+
+Qué hace con eso:
+- **Preguntas**: **se contestan siempre**. Si no coinciden, menciona los dos datos y responde lo más útil posible; si no lo encontró, dice que no se logró conseguir ese dato.
+- **Mensajes de posventa**: con «seguro» o «con duda», contesta. Si no coinciden o no lo encontró, lo dice y **avisa que deriva el caso a una persona del equipo** (ver «Derivar a una persona»).
+- En Mercado Libre **nunca nombra la fuente** ni pone links de afuera (Mercado Libre no lo permite). En WhatsApp sí manda el link de la fuente.
+- Lo encontrado queda guardado en el producto, en **Datos de internet**, para no volver a buscarlo.
+- En la tarjeta de la pregunta (y en la conversación) se ve **🌐 La IA buscó en internet**, con qué tan seguro era, el dato y las fuentes.
+- Si la búsqueda no se pudo hacer (una falla del servicio), la respuesta queda para una persona, como cuando falta un dato.
+
+### Derivar a una persona (mensajes de posventa)
+
+La IA le avisa al comprador que **deriva su caso a una persona del equipo** cuando:
+- el comprador pide hablar con una persona;
+- tiene un problema o reclama (no le llegó, llegó roto, incompleto o distinto, no funciona, quiere devolverlo o cambiarlo, la factura está mal…) y la solución no está clarísima en los datos y en las reglas de la tienda: **ante la menor duda, deriva**;
+- buscó un dato técnico en internet y no lo encontró o las fuentes no coinciden.
+
+El aviso dice que una persona del equipo le va a responder **en breve** si es dentro del horario de atención, o **en el horario habitual de atención** si no. El horario es el de la tienda web (Configuración › Tienda web); si no está cargado, dice «en nuestro horario habitual de atención». Con el interruptor de mensajes prendido, ese aviso se manda solo; desde ahí **la IA no contesta más sola esa conversación**, que queda marcada **"Derivada a una persona"** y cuenta como sin responder hasta que alguien del equipo le escriba (desde Laucen o desde Mercado Libre). La ventana de avisos también lo muestra.
+
 ## Criterios y reglas
 
 - **Preguntas por otros productos** (en preguntas y en mensajes de posventa): si quien pregunta o escribe nombra otros productos además del de la publicación (por ejemplo una lista para armar un carrito), la IA los busca entre las publicaciones activas de **esa misma cuenta** (primero las del mismo plan que la publicación de la pregunta) y ve de cada una su link, su plan y el stock disponible. Con eso puede pasarle el link de la que tenga stock. Si no hay publicación o no hay stock, lo que contesta lo definen las reglas de la IA de la empresa (ver [Respuestas de la IA](/config/respuestas-ia)). Sólo se le pasan links de publicaciones propias de Mercado Libre (Mercado Libre puede rechazar links en los mensajes de posventa: en ese caso el mensaje no sale y queda para una persona); si la IA no encuentra el producto con lo que el comprador escribió, lo toma como que no hay publicación.
@@ -108,8 +144,8 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 - **Sin responder** = preguntas que Mercado Libre tiene como no respondidas. Si alguien la contesta desde Mercado Libre, o el interesado la borra, sale de la lista cuando se actualiza.
 - **Con el interruptor apagado, la IA no contesta sola**: propone sola el texto apenas entra la pregunta o el mensaje (una vez; si falla, reintenta cada 30 minutos como mucho), pero lo mandás vos. La propuesta queda guardada en el cuadro hasta que respondas. "Proponer con IA" arma otra a pedido.
 - **Qué sabe la IA para una pregunta**: el título, precio, stock en Mercado Libre, estado, si tiene envío gratis o es Full, los atributos, las variaciones y la descripción de la publicación; la ficha del producto en Laucen (descripción, marca, medidas, peso, atributos) y el **stock disponible del canal**; y las últimas 8 preguntas ya respondidas de esa misma publicación.
-- **Cómo escribe la IA una respuesta a una pregunta**: castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empieza con "Hola" y termina con un saludo corto. Respeta las reglas de Mercado Libre: nada de teléfonos, mails, direcciones, links, redes ni nombres de otras tiendas, y no invita a comprar por fuera. Usa sólo los datos que tiene: si un dato no está, no lo inventa (dice que lo consulta o sugiere ver la descripción); si preguntan por stock usa el disponible; si preguntan por envío dice lo que figura sin prometer fechas.
-- **Mensajes de posventa con IA**: usa el estado del pedido, sus líneas y el envío (estado, logística, tracking, entrega estimada) y la conversación. Hasta 350 caracteres (el límite de Mercado Libre), 1 a 4 oraciones, sin teléfonos, mails, links ni redes, sin arreglos por fuera de Mercado Libre y sin prometer fechas que no figuran; si el comprador reclama, primero empatía y una solución concreta.
+- **Cómo escribe la IA una respuesta a una pregunta**: castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empieza con "Hola" y termina con un saludo corto. Respeta las reglas de Mercado Libre: nada de teléfonos, mails, direcciones, links, redes ni nombres de otras tiendas, y no invita a comprar por fuera. Usa sólo los datos que tiene: si un dato técnico no está, no lo inventa: lo busca en internet (ver «Cuando a la IA le falta un dato técnico»); si preguntan por stock usa el disponible; si preguntan por envío dice lo que figura sin prometer fechas.
+- **Mensajes de posventa con IA**: usa el estado del pedido, sus líneas y el envío (estado, logística, tracking, entrega estimada) y la conversación. Hasta 350 caracteres (el límite de Mercado Libre), 1 a 4 oraciones, sin teléfonos, mails, links ni redes, sin arreglos por fuera de Mercado Libre y sin prometer fechas que no figuran; si el comprador reclama, contesta sola sólo si la solución está clarísima; si no, empatía y el aviso de que deriva el caso (ver «Derivar a una persona»).
 - **Límites**: una respuesta a una pregunta, hasta 2.000 caracteres; un mensaje de posventa, hasta 350.
 - **"Stock del canal"**: lo disponible para ese canal según Laucen (nunca menos de 0). Si la publicación no está vinculada a un producto, no se puede calcular.
 - **Leído / sin leer**: abrir una conversación en Laucen la marca leída **en Laucen**. En Mercado Libre se marca leída al contestar o al tocar "Actualizar".
@@ -157,10 +193,12 @@ Hay **dos interruptores, uno para preguntas y otro para mensajes**, arriba a la 
 - **Apagado**: la IA sólo propone la respuesta; la mandás vos.
 - **Prendido**: cuando entra una pregunta o un mensaje, la IA arma la respuesta y **la manda sola** a Mercado Libre, sin que nadie la apruebe. En el historial queda **"Respondió la IA sola"**.
 
-La IA **no** manda sola (deja la respuesta escrita para que la revises vos) cuando:
-- **El comprador pide hablar con una persona** (con un humano, con alguien de la tienda, o dice que no quiere que le conteste un robot). En la pregunta aparece la marca **"Pide hablar con una persona"**. En un mensaje, la conversación queda marcada **"Pidió hablar con una persona: la IA no contesta más sola"** y desde ahí **la IA no vuelve a contestar sola esa conversación**, aunque el comprador escriba de nuevo; la contestás vos.
-- **Le falta un dato** para contestar bien (algo que no está en la publicación, la ficha, el stock o el pedido). Aparece **"La IA no la mandó sola: le falta un dato"**.
-- En mensajes, además: sólo contesta si el último mensaje es del comprador y es de los últimos 3 días.
+**Preguntas**: con el interruptor prendido **se contestan todas**, también la que pide hablar con una persona y la que necesita un dato técnico que no está (la IA lo busca en internet: ver «Cuando a la IA le falta un dato técnico»). Sólo queda para vos, con **"La IA no la mandó sola: le falta un dato"**, si la búsqueda en internet no se pudo hacer.
+
+**Mensajes**:
+- **El comprador pide hablar con una persona** (con un humano, con alguien de la tienda, o dice que no quiere que le conteste un robot), o la IA **deriva el caso** (ver «Derivar a una persona»): la IA le manda sola el aviso de que una persona del equipo le va a responder, y desde ahí **no vuelve a contestar sola esa conversación**, aunque el comprador escriba de nuevo; la contestás vos (la IA igual te deja propuesta una respuesta). La conversación queda marcada **"Derivada a una persona"** (o **"Pidió hablar con una persona: la IA no contesta más sola"**).
+- **Le falta un dato** y la búsqueda en internet no se pudo hacer: aparece **"La IA no la mandó sola: le falta un dato"**.
+- Sólo contesta si el último mensaje es del comprador y es de los últimos 3 días.
 
 Al **prender** un interruptor, lo que está pendiente (preguntas sin responder, o conversaciones con mensajes sin leer) se vuelve a pasar por la IA, y en unos minutos (en el próximo barrido) se contesta lo que la IA puede contestar. Abrir una conversación en Laucen la da por leída: si la abrís, esa ya no la contesta la IA sola hasta que el comprador escriba de nuevo.
 
