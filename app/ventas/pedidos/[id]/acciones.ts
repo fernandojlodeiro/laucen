@@ -13,6 +13,7 @@ import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { refacturar, liberarFactura, LARGO_LEYENDA, sqlFacturaVigente } from "@/lib/facturacion/revision";
 import { cambiarClientePedido } from "@/lib/pedidos/cliente";
+import { agregarEnvioSinCargo, type DireccionEnvio } from "@/lib/pedidos/envio";
 import { conciliarComprobante, confirmarCandidato, descartarCandidatos } from "@/lib/pagos/comprobante";
 import { tienePermiso } from "@/lib/permisos";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
@@ -470,6 +471,18 @@ export async function accionCambiarCliente(pid: number, clienteId: number): Prom
     } catch (e) {
       return { error: `El cliente ya es ${r.nuevo}, pero la factura nueva no salió: ${motivoErp(e)} Probá con «Refacturar con datos actuales».` };
     }
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+}
+
+/** «Agregar envío sin cargo» (Fer, 25/10; lib/pedidos/envio.ts): el pedido que retiraba pasa a mandarse. */
+export async function accionAgregarEnvio(pid: number, metodoId: number, d: DireccionEnvio): Promise<{ error?: string; ok?: string }> {
+  const s = await entrarErp("pedidos_ver");
+  try {
+    const r = await agregarEnvioSinCargo(s.org.id, pid, s.usuario.id, metodoId, d);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return { ok: r };
   } catch (e) {
     return { error: motivoErp(e) };
   }

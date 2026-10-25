@@ -30,6 +30,8 @@ import { motivoNoEditable } from "@/lib/pedidos/editar";
 import { motivoNoCambiaCliente } from "@/lib/pedidos/cliente";
 import CambiarCliente from "./CambiarCliente";
 import EnvioOca from "./EnvioOca";
+import AgregarEnvio from "./AgregarEnvio";
+import { puedeAgregarEnvio, metodosParaEnvio } from "@/lib/pedidos/envio";
 import { envioOcaDe } from "@/lib/oca/envios";
 import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
@@ -108,6 +110,18 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         from pedido p join canal ca on ca.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, s.org.id]);
     const ofrecer = !!envioOca || (!!x && x.canal_tipo !== "mercadolibre" && x.tiene_dir && !["presupuesto", "cancelado", "devuelto", "despachado", "entregado"].includes(c.estado));
     return { ofrecer, envio: envioOca, sucursal: x?.sucursal ?? null };
+  })();
+  // «Agregar envío sin cargo» (lib/pedidos/envio.ts): un pedido que retiraba, con la dirección del cliente de arranque.
+  const agregarEnvio = await (async () => {
+    if (!(await puedeAgregarEnvio(s.org.id, pid))) return null;
+    const metodos = await metodosParaEnvio(s.org.id, pid);
+    if (!metodos.length) return null;
+    const d = c.cliente_id ? await una<{ calle: string | null; numero: string | null; piso: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null; telefono: string | null }>(`
+      select d.calle, d.numero, d.piso_depto piso, d.localidad, d.provincia, d.codigo_postal, coalesce(cl.whatsapp, cl.telefono_movil, cl.telefono) telefono
+        from cliente cl left join lateral (select * from cliente_direccion x where x.cliente_id = cl.id order by x.principal desc, x.id limit 1) d on true
+       where cl.id = $1`, [c.cliente_id]) : null;
+    const inicial = Object.fromEntries(Object.entries({ ...d, recibe: c.cliente ?? "" }).filter(([, v]) => v).map(([k, v]) => [k, String(v)]));
+    return { metodos, inicial };
   })();
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
   const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
@@ -317,6 +331,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               </div>
             ) : envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
             {oca.ofrecer && <EnvioOca pid={pid} envio={oca.envio} sucursal={oca.sucursal} />}
+            {agregarEnvio && <AgregarEnvio pid={pid} metodos={agregarEnvio.metodos} inicial={agregarEnvio.inicial} />}
             {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {enMoneda(ml.comision, v, tcPedido)}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
             {ml?.sin_vincular && <p className="text-[11px] text-[#C03420] mt-1">Tiene artículos que no están vinculados a un producto de Laucen: esas líneas no descuentan stock. Vinculalos en Catálogo → Vincular con Mercado Libre.</p>}
           </div>

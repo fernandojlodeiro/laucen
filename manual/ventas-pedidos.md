@@ -232,6 +232,10 @@ Antes de que salga sola una factura (la facturación automática de [Facturació
 
 Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo nuevo o cambian las notas.
 
+### Agregar un envío a un pedido que retiraba
+
+Si el cliente eligió retirar y después pide que se lo mandemos: en el recuadro **"Envío"** del pedido, **"🚚 Agregar envío sin cargo"** (sólo en pedidos que no son de Mercado Libre, que retiran y que todavía no se despacharon ni entregaron). Se abre ahí mismo con **"Cómo se manda"** (los métodos de envío del canal, sin el retiro ni la sucursal de OCA) y la dirección (viene la del cliente si la tiene): **"Calle"**, **"Número"**, **"Piso / depto"**, **"Localidad"**, **"Provincia"**, **"CP"** (obligatorio), **"Recibe"** y **"Teléfono"**. Con **"Agregar el envío"** el pedido pasa a mandarse por ese método, **el total no cambia** y aparece **"Despachar por OCA"**. En el historial queda "Envío agregado sin cargo: …". Lo hace una persona del equipo: el cliente no puede cambiar su compra. Cobrar el envío (con cargo) todavía no se puede.
+
 ### Cambiar el cliente del pedido
 
 Para corregir un pedido cargado a nombre de otro (por ejemplo, con la razón social equivocada y la factura rechazada). Vale para cualquier pedido no cancelado, **pagado o no y también los de Mercado Libre**.
