@@ -92,10 +92,10 @@ export async function comprobarAgrupado(cuenta: CuentaMl, madre: ItemMadre, plan
 type Pub = { id: number; item_id: string; up: string; catalogo: boolean; tipo: string | null; tags: unknown; terms: unknown; precio: number | null; vendidos: number; catalogo_prod: string | null;
   /** Lo vendido entre todas las publicaciones de su producto de ML (con ventas, la vieja no se elimina). */
   ventas_up: number };
-type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; umbral: number; pubs: Pub[] };
+export type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; umbral: number; pubs: Pub[] };
 
 /** Los productos de la cuenta con algún plan en otro producto de ML que el de la madre (con o sin ventas). */
-async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
+export async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
   const filas = await consulta<Pub & { variacion: number; sku: string; madre_up: string; disp: number; umbral: number }>(`
     with x as (
       select p.id::int, p.variacion_id::int variacion, v.sku, p.id_externo item_id, p.datos_externos ->> 'user_product_id' up,

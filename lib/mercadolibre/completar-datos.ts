@@ -11,7 +11,7 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
-import { madreDe } from "@/lib/mercadolibre/agrupar";
+import { gruposSeparados, type ItemMadre } from "@/lib/mercadolibre/agrupar";
 
 export const SIN_GTIN: Valor = { id: "EMPTY_GTIN_REASON", value_id: "17055160", value_name: "El producto no tiene código registrado" };
 const PAQUETE = ["SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WEIGHT"];
@@ -65,9 +65,14 @@ export async function prepararCompletarDatos(org: string, canal: number, usuario
   }
   const cambios: CambioMl[] = [];
   const claves: string[] = [];
+  const grupos = new Map((await gruposSeparados(org, canal)).map((g) => [g.sku, g]));
   for (const [sku, x] of porSku) {
-    const madre = await madreDe(org, canal, sku);
-    if (!madre) { res.sinDato.push(`${sku}: no tiene publicación base en la cuenta`); continue; }
+    // La misma madre que va a copiar el agrupado (gruposSeparados): con dos productos de ML empatados, madreDe podía
+    // elegir el otro y el dato quedaba en una publicación que no se copia (25/10).
+    const g = grupos.get(sku);
+    const ml = g ? (await una<{ ml: ItemMadre }>("select datos_externos -> 'ml' ml from meli_item where canal_id = $1 and item_id = $2 and variation_id = ''", [canal, g.madre]))?.ml : null;
+    if (!g || !ml) { res.sinDato.push(`${sku}: ya no tiene planes separados o no tiene publicación base en la cuenta`); continue; }
+    const madre = { itemId: g.madre, ml };
     const tiene = new Set((madre.ml.attributes ?? []).filter((a) => a.value_name || (a.value_id && a.value_id !== "-1")).map((a) => a.id));
     const agregar: Valor[] = [];
     const faltan: string[] = [];
