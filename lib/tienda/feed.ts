@@ -28,12 +28,12 @@ export const PLATAFORMAS: { clave: Plataforma; nombre: string }[] = [
   { clave: "google", nombre: "Google Merchant Center" }, { clave: "meta", nombre: "Meta (Facebook e Instagram)" }, { clave: "tiktok", nombre: "TikTok" },
 ];
 
-/** canal.config.publicidad_feed: bandas de precio (custom_label_1) y qué hacer con los sin stock. */
-export type ConfigFeed = { bandas: number[]; sin_stock: "no_va" | "agotado" };
+/** canal.config.publicidad_feed: bandas de precio (custom_label_1). Los sin stock nunca van (regla fija de la web). */
+export type ConfigFeed = { bandas: number[] };
 export function configFeedDe(x: unknown): ConfigFeed {
   const c = (x ?? {}) as Partial<ConfigFeed>;
   const bandas = (Array.isArray(c.bandas) ? c.bandas : [33000, 300000]).map(Number).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b).slice(0, 6);
-  return { bandas, sin_stock: c.sin_stock === "agotado" ? "agotado" : "no_va" };
+  return { bandas };
 }
 
 /** "<33.000", "33.000-300.000", ">300.000". */
@@ -99,7 +99,8 @@ export async function catalogoPublicidad(t: Tienda, base: string, plataforma: Pl
     const c = cadena(f.familia_id);
     if (f.excluido_producto || c.some((id) => regla.get(id)?.excluida)) { afuera.excluido++; continue; }
     if (!f.fotos?.length) { afuera.sin_foto++; continue; }
-    if (f.disponible <= 0 && conf.sin_stock === "no_va") { afuera.sin_stock++; continue; }
+    // Reglas de la web, sin excepción: sin stock o sin precio no va (inactivo ya no llega: lo filtra la consulta).
+    if (f.disponible <= 0) { afuera.sin_stock++; continue; }
     const venta = Number(f.venta), lista = Number(f.lista);
     const grupo = c.map((id) => regla.get(id)?.grupo).find((g) => g) ?? "otros";
     const tipo = c.slice().reverse().map((id) => fam.get(id)!.nombre).join(" > ");

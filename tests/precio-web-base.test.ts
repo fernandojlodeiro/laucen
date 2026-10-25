@@ -165,24 +165,25 @@ test("el control no encuentra diferencias y ninguna tabla del precio queda sin a
   await igualAlVivo(e.org);
 });
 
-test("primero lo que se ve, después lo archivado; un cambio real adelanta lo que estaba atrás", async () => {
+test("lo inactivo no se calcula; al activarlo entra solo; el trabajo de cada 10 segundos vacía la cola", async () => {
   const e = await escenario();
-  const arch = await id("insert into producto (organizacion_id, sku_base, titulo, estado) values ($1, $2, 'Viejo', 'archivado') returning id",
+  const inactivo = await id("insert into producto (organizacion_id, sku_base, titulo, estado) values ($1, $2, 'Viejo', 'archivado') returning id",
     [e.org, `P-${randomUUID().slice(0, 8)}`]);
-  const varArch = await id("select id from variacion where producto_id = $1 and es_default", [arch]);
+  const varInactiva = await id("select id from variacion where producto_id = $1 and es_default", [inactivo]);
+  await q("insert into precio (organizacion_id, variacion_id, lista_id, importe_ars, importe_usd, moneda_origen) values ($1, $2, $3, 9000, 9, 'ARS')", [e.org, varInactiva, e.base]);
+  await m.stock.moverStock(e.org, { variacionId: varInactiva, tipo: "ingreso", cantidad: 3, destinoId: e.general });
   await q("delete from precio_web_pendiente where organizacion_id = $1", [e.org]);
   await q("select precio_web_todo_de($1)", [e.org]);
   await q("select precio_web_expandir_todo()");
-  const pr = new Map((await q<{ variacion_id: string; prioridad: number }>(
-    "select variacion_id, prioridad from precio_web_pendiente where organizacion_id = $1", [e.org])).map((x) => [Number(x.variacion_id), x.prioridad]));
-  assert.equal(pr.get(e.a.v), 0);
-  assert.equal(pr.get(e.kit.v), 0);
-  assert.equal(pr.get(varArch), 1, "lo archivado va después");
-  // Un cambio real sobre lo archivado lo pone adelante.
-  await q("update producto set titulo = 'Viejo 2' where id = $1", [arch]);
-  assert.equal((await q<{ prioridad: number }>("select prioridad from precio_web_pendiente where variacion_id = $1", [varArch]))[0].prioridad, 0);
-  // El trabajo de cada 10 segundos vacía la cola (de a 50, guardando tanda por tanda).
+  const enCola = new Set((await q<{ variacion_id: string }>("select variacion_id from precio_web_pendiente where organizacion_id = $1", [e.org])).map((x) => Number(x.variacion_id)));
+  assert.ok(enCola.has(e.a.v) && enCola.has(e.kit.v), "lo activo entra");
+  assert.ok(!enCola.has(varInactiva), "lo inactivo no entra en un recálculo general");
   await q("call precio_web_procesar_continuo(30)");
-  assert.equal((await q("select 1 from precio_web_pendiente where organizacion_id = $1", [e.org])).length, 0);
+  assert.equal((await q("select 1 from precio_web_pendiente where organizacion_id = $1", [e.org])).length, 0, "la cola queda vacía");
+  assert.equal((await q("select 1 from precio_web where variacion_id = $1", [varInactiva])).length, 0, "lo inactivo nunca está en la tabla");
+  // Al activarlo, el aviso del producto lo calcula.
+  await q("update producto set estado = 'activo' where id = $1", [inactivo]);
+  await procesar();
+  assert.equal((await q("select 1 from precio_web where variacion_id = $1", [varInactiva])).length, 1, "al activarlo entra");
   await igualAlVivo(e.org);
 });

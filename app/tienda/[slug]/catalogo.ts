@@ -38,7 +38,9 @@ export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
 });
 
 export const abierta = (t: Tienda) => t.estado === "activo";
-export const ocultaSinStock = (t: Tienda) => t.config.sin_stock === "ocultar";
+/** Las reglas de la web, que no se rompen nunca (Fer, 25/10): un producto se muestra sólo si está activo
+ *  (eso ya lo filtra la consulta), tiene precio y tiene stock. Sin opción que las apague. */
+export const vendibleEnLaWeb = (p: { venta: number; stock: number }) => p.venta > 0 && p.stock > 0;
 export const whatsappDe = (t: Tienda) => (t.config.whatsapp ?? "").replace(/\D/g, "") || null;
 export const linkWhatsapp = (t: Tienda, texto: string) => {
   const n = whatsappDe(t);
@@ -170,7 +172,7 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
     ["tienda-catalogo", "v7", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 30, tags: [`tienda-${t.canalId}`] },
   )();
-  return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;
+  return todos.filter(vendibleEnLaWeb);
 });
 
 // ── Categorías ───────────────────────────────────────────

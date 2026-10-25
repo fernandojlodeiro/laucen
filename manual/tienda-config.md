@@ -39,7 +39,7 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Nombre que ve el comprador**
 - **Dirección (slug)**: minúsculas, números y guiones; la tienda queda en …/tienda/slug.
 - Cinco colores, cada uno con "el de siempre" de referencia: **Color de la marca** (la franja de arriba), **Texto sobre la marca** (links e íconos de la franja), **Botones y links** ("Comprar ahora", links, elegido), **Ofertas y envío gratis** (% OFF, cuotas sin interés, envío gratis), **Fondo de la página** (detrás de las tarjetas).
-- **Productos sin stock**: "Mostrar (como "sin stock")" u "Ocultar".
+- **Productos sin stock**: nunca se muestran (tampoco los inactivos ni los sin precio). Es una regla fija de la web, no se configura.
 - **Logo**, **Banner (la imagen grande de arriba)**, **Banner 2**, **Banner 3**.
 - **Bajada (el texto sobre el banner)**: ej. "Envíos a todo el país".
 - **Devoluciones (lo que ve el comprador en la ficha y en Ayuda)** y **Garantía**: textos largos; también salen en Términos y condiciones.
@@ -146,10 +146,6 @@ En [Tienda web](/config/tienda), abajo de todo, **Protección contra bots**:
 ### Sacar un dominio
 
 Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras la tienda tenga otros dominios ("Primero borrá los demás dominios de la tienda…"), ni uno de otra marca mientras haya dominios que redirigen a él ("Primero borrá o cambiá los dominios que redirigen a éste.").
-
-### Ocultar los productos sin stock
-
-Lápiz → **Productos sin stock** → "Ocultar" → **"Grabar"**.
 
 ### Pausar la tienda (que no tome pedidos)
 

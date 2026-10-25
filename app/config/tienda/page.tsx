@@ -276,7 +276,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                       <span className="font-mono">{c[k.clave] ?? k.defecto}</span>{!c[k.clave] && <span className="text-[#5C6B76]">(el de siempre)</span>}</span>
                   </Dato>
                 ))}
-                <Dato etiqueta="Productos sin stock">{c.sin_stock === "ocultar" ? "Ocultar" : "Mostrar (como \"sin stock\")"}</Dato>
+                <Dato etiqueta="Productos sin stock">Nunca se muestran (tampoco los inactivos ni los sin precio)</Dato>
                 <Dato etiqueta="Logo">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {c.logo ? <img src={c.logo} alt="Logo" className="h-16 object-contain" /> : null}
@@ -315,11 +315,9 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                   <input type="color" name={k.clave} defaultValue={c[k.clave] ?? k.defecto} className="h-8 w-14 rounded border border-[#E3E9F0] align-middle" />
                   <span className="ml-2 text-[11px] text-[#5C6B76]">{k.ayuda} · el de siempre: <span className="font-mono">{k.defecto}</span></span></label>
               ))}
+              {/* Regla fija de la web (Fer, 25/10): sin opción que la apague. */}
               <div><span className={ETIQUETA}>Productos sin stock</span>
-                <span className="flex gap-3 text-xs py-1.5">
-                  <label className="inline-flex items-center gap-1"><input type="radio" name="sin_stock" value="mostrar" defaultChecked={c.sin_stock !== "ocultar"} /> Mostrar (como &quot;sin stock&quot;)</label>
-                  <label className="inline-flex items-center gap-1"><input type="radio" name="sin_stock" value="ocultar" defaultChecked={c.sin_stock === "ocultar"} /> Ocultar</label>
-                </span></div>
+                <span className="block text-xs py-1.5 text-[#5C6B76]">Nunca se muestran (tampoco los inactivos ni los sin precio).</span></div>
               <div><span className={ETIQUETA}>Logo</span>
                 <SubirImagen name="logo" valor={c.logo ?? null} organizacionId={s.org.id} etiqueta="Logo" /></div>
               <div><span className={ETIQUETA}>Banner (la imagen grande de arriba)</span>

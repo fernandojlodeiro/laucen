@@ -164,7 +164,7 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
           )) : <p className="text-[#5C6B76]">Los catálogos necesitan un dominio propio.</p>}
           <p className="border-t border-[#EEF1F4] pt-2">
             <b>{n(resumen.salen)}</b> productos salen en el catálogo.
-            {" "}Quedan afuera: {conf.sin_stock === "agotado" ? "ninguno por stock (los sin stock van como agotados)" : `${n(resumen.afuera.sin_stock)} sin stock`}, {n(resumen.afuera.sin_foto)} sin foto y {n(resumen.afuera.excluido)} excluidos (abajo). Los que no tienen precio no se publican en ningún lado.
+            {" "}Quedan afuera: {`${n(resumen.afuera.sin_stock)} sin stock`}, {n(resumen.afuera.sin_foto)} sin foto y {n(resumen.afuera.excluido)} excluidos (abajo). Los que no tienen precio no se publican en ningún lado.
           </p>
           <form id="ficha-feed" action={accionGuardarFeed} className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-[#EEF1F4] pt-2">
             <input type="hidden" name="canal_id" value={tienda.id} />
@@ -172,14 +172,9 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
               <label><span className={ETIQUETA}>Bandas de precio (para separar campañas)</span>
                 <input name="bandas" defaultValue={conf.bandas.map(n).join(" ")} placeholder="33.000 300.000" className={`${CAMPO} w-full`} />
                 <span className="block text-[10px] text-[#5C6B76] mt-0.5">Montos separados por espacio. Cada producto lleva su banda («&lt;33.000», «33.000-300.000», «&gt;300.000»).</span></label>
-              <label><span className={ETIQUETA}>Los productos sin stock</span>
-                <select name="sin_stock" defaultValue={conf.sin_stock} className={`${CAMPO} w-full`}>
-                  <option value="no_va">No van al catálogo</option>
-                  <option value="agotado">Van como agotados</option>
-                </select></label>
             </> : <>
               <Dato etiqueta="Bandas de precio">{conf.bandas.length ? conf.bandas.map(n).join(" · ") : null}</Dato>
-              <Dato etiqueta="Los productos sin stock">{conf.sin_stock === "agotado" ? "Van como agotados" : "No van al catálogo"}</Dato>
+              <Dato etiqueta="Los productos sin stock">Nunca van al catálogo</Dato>
             </>}
           </form>
         </div>
