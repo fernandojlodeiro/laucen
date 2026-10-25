@@ -36,6 +36,7 @@ const VUELTA_GOOGLE: Record<string, { ok: boolean; texto: string }> = {
   canje: { ok: false, texto: "Google no terminó de dar el permiso o no dejó ver las cuentas. Probá de nuevo en un rato." },
   sin_refresh: { ok: false, texto: "Google no dio el permiso permanente. Probá de nuevo: en la cuenta de Google, quitale el acceso a Laucen y volvé a conectar." },
   sin_cuentas: { ok: false, texto: "Con esa cuenta de Google no se ve ninguna cuenta de Google Ads. Probá con la que administra los anuncios." },
+  token: { ok: false, texto: "Google todavía no deja leer los anuncios desde Laucen: falta el token de desarrollador en «La app de Google de Laucen», abajo de todo." },
   sinpermiso: { ok: false, texto: "Tu rol no puede conectar los anuncios." },
   sinapp: { ok: false, texto: "La conexión con Google todavía no está lista del lado de Laucen." },
 };
@@ -52,6 +53,7 @@ const VUELTA_META: Record<string, { ok: boolean; texto: string }> = {
   estado: { ok: false, texto: "La conexión tardó demasiado o vino de otro lado. Empezala de nuevo." },
   canje: { ok: false, texto: "Meta no terminó de dar el permiso. Probá de nuevo en un rato." },
   sin_cuentas: { ok: false, texto: "No se compartió ninguna cuenta publicitaria. Probá de nuevo y tildá la cuenta de anuncios del negocio." },
+  token: { ok: false, texto: "Google todavía no deja leer los anuncios desde Laucen: falta el token de desarrollador en «La app de Google de Laucen», abajo de todo." },
   sinpermiso: { ok: false, texto: "Tu rol no puede conectar los anuncios." },
   sinapp: { ok: false, texto: "La conexión con Meta todavía no está lista del lado de Laucen." },
 };

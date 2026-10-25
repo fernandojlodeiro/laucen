@@ -88,7 +88,7 @@ async function buscar(app: AppGoogle, token: string, cliente: string, query: str
 export type CuentaGoogle = { id: string; nombre: string; moneda: string; login: string | null };
 
 /** Las cuentas que se ven con el permiso: las directas que no son administradoras y, de las administradoras, las de abajo. */
-async function cuentasDelPermiso(app: AppGoogle, token: string): Promise<CuentaGoogle[]> {
+async function cuentasDelPermiso(app: AppGoogle, token: string, errores: string[]): Promise<CuentaGoogle[]> {
   const r = await fetch(`${API}/customers:listAccessibleCustomers`, { headers: encabezados(app, token) });
   const d = await comoJson(r);
   if (!r.ok) throw new Error(`google cuentas: ${JSON.stringify(d).slice(0, 300)}`);
@@ -105,22 +105,43 @@ async function cuentasDelPermiso(app: AppGoogle, token: string): Promise<CuentaG
         const cc = h.customerClient as { id?: string; descriptiveName?: string; currencyCode?: string; manager?: boolean } | undefined;
         if (cc?.id && !cc.manager && !out.has(String(cc.id))) out.set(String(cc.id), { id: String(cc.id), nombre: cc.descriptiveName || String(cc.id), moneda: cc.currencyCode || "ARS", login: id });
       }
-    } catch (e) { console.error("[google-ads] cuenta", id, e instanceof Error ? e.message : e); }
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      console.error("[google-ads] cuenta", id, m);
+      errores.push(m);
+    }
   }
   return [...out.values()];
 }
 
 /** La vuelta del permiso: canjea el código, busca las cuentas, guarda y lee por primera vez. */
-export async function conectarGoogleAds(org: string, app: AppGoogle, code: string, redirectUri: string): Promise<"ok" | "canje" | "sin_cuentas" | "sin_refresh"> {
+/** Guarda lo que contestó Google (para diagnosticar; nunca va a una pantalla). */
+async function anotarError(texto: string): Promise<void> {
+  await consulta("update google_ads_app_credencial set ultimo_error = $1, ultimo_error_ts = now() where id = 1", [texto.slice(0, 2000)]).catch(() => {});
+}
+
+/** Google pide el token de desarrollador en cada llamada a la API de Google Ads: sin él (o sin aprobar) no deja leer. */
+const faltaToken = (errores: string[]) => errores.some((e) => /DEVELOPER_TOKEN|developer.token/i.test(e));
+
+export async function conectarGoogleAds(org: string, app: AppGoogle, code: string, redirectUri: string): Promise<"ok" | "canje" | "sin_cuentas" | "sin_refresh" | "token"> {
   const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ code, client_id: app.clientId, client_secret: app.clientSecret, redirect_uri: redirectUri, grant_type: "authorization_code" }) });
   const d = await comoJson(r);
   if (!r.ok || !d.access_token) { console.error("[google-ads] canje", JSON.stringify(d).slice(0, 300)); return "canje"; }
   if (!d.refresh_token) return "sin_refresh";
   let cuentas: CuentaGoogle[];
-  try { cuentas = await cuentasDelPermiso(app, String(d.access_token)); } catch (e) { console.error("[google-ads]", e); return "canje"; }
+  const errores: string[] = [];
+  try { cuentas = await cuentasDelPermiso(app, String(d.access_token), errores); } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    console.error("[google-ads]", m);
+    await anotarError(m);
+    return faltaToken([m]) ? "token" : "canje";
+  }
   console.log("[google-ads] %d cuenta(s): %s", cuentas.length, cuentas.map((c) => c.nombre).join(", ") || "ninguna");
-  if (!cuentas.length) return "sin_cuentas";
+  if (!cuentas.length) {
+    await anotarError(errores.length ? errores.join("\n") : "listAccessibleCustomers sin cuentas");
+    return faltaToken(errores) ? "token" : "sin_cuentas";
+  }
   await consulta(`
     insert into google_ads_credencial (organizacion_id, refresh_token, cuentas) values ($1, $2, $3::jsonb)
     on conflict (organizacion_id) do update set refresh_token = excluded.refresh_token, cuentas = excluded.cuentas, conectado_ts = now(),

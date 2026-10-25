@@ -195,6 +195,9 @@ create table if not exists google_ads_app_credencial (
   actualizado_ts   timestamptz not null default now()
 );
 alter table google_ads_app_credencial enable row level security;
+-- Lo último que contestó Google cuando una conexión no encontró cuentas o falló: para diagnosticar, nunca se muestra.
+alter table google_ads_app_credencial add column if not exists ultimo_error text;
+alter table google_ads_app_credencial add column if not exists ultimo_error_ts timestamptz;
 
 -- La cuenta de Google Ads conectada de cada organización («Conectar Google Ads»: permiso de Google para leer los
 -- anuncios). `cuentas`: [{id, nombre, moneda, login}] (login = la cuenta administradora por la que se llega, si hay).

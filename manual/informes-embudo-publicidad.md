@@ -35,6 +35,8 @@ Menú **Informes › Embudo de publicidad** ([Embudo de publicidad](/informes/em
 2. Se abre Google: entrá con la cuenta de Google que administra los anuncios y aceptá el permiso. Es sólo para **leer**: Laucen no cambia nada en las campañas.
 3. Volvés con el aviso "¡Google Ads conectado!". Si la cuenta es administradora de otras, se leen todas las de abajo. Se vuelve a leer solo cada 3 horas.
 
+Si vuelve con «falta el token de desarrollador»: Google pide ese token para dejar leer los anuncios desde un sistema. Se saca de una **cuenta administradora de Google Ads** (gratis), en su **Centro de API**, y la cuenta de anuncios tiene que estar vinculada a esa administradora. Se pega en **«La app de Google de Laucen»**, con el lápiz, y se vuelve a conectar.
+
 ### Que cada venta de la web sepa de qué anuncio vino
 En cada anuncio de Meta, en **«Parámetros de URL»** (al armar el anuncio, en «Seguimiento»), pegá el texto que muestra la pantalla en **Conexiones**. Así, cuando alguien entra a la tienda desde ese anuncio y compra, el pedido queda con el anuncio. Sin eso, la venta igual cuenta para Meta (por el código que Meta agrega a los links), pero no para un anuncio en particular.
 
