@@ -14,7 +14,7 @@ import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { leerCarrito, sumarAlCarrito, fijarCantidad, vaciarCarrito } from "@/lib/tienda/carrito";
 import { comprar, cobrarConPayway, mediosActivos, type DatosCompra } from "@/lib/tienda/checkout";
-import { cuentaActual, crearCuentaDesdePedido, ingresar, cerrarSesion } from "@/lib/tienda/cuentas";
+import { cuentaActual, crearCuentaDesdePedido, ingresar, cerrarSesion, pedirRegistro, pedirRecuperacion, cambiarClave } from "@/lib/tienda/cuentas";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, cargarTienda } from "./catalogo";
@@ -244,6 +244,40 @@ export async function ingresarAccion(fd: FormData) {
     await ingresar(t, email, clave);
     refrescar(t);
     return volver ? { ir: volver } : undefined;
+  });
+}
+
+/** «Crear cuenta» sin haber comprado (Fer, 25/10): manda el mail para confirmar. */
+export async function registroAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  await intentar(rutaTienda(t, "/cuenta?modo=crear"), async () => {
+    await controlarBot(t, "registro", fd);
+    const email = texto(fd, "email") ?? "";
+    await pedirRegistro(t, texto(fd, "nombre") ?? "", email, String(fd.get("clave") ?? ""));
+    return { ir: rutaTienda(t, `/cuenta?modo=revisa&mail=${encodeURIComponent(email.trim().toLowerCase())}`) };
+  });
+}
+
+/** «Olvidé mi contraseña»: manda el link si el mail tiene cuenta (la pantalla dice lo mismo siempre). */
+export async function recuperarAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  await intentar(rutaTienda(t, "/cuenta?modo=olvide"), async () => {
+    await controlarBot(t, "recuperar", fd);
+    const email = texto(fd, "email") ?? "";
+    await pedirRecuperacion(t, email);
+    return { ir: rutaTienda(t, `/cuenta?modo=revisa&mail=${encodeURIComponent(email.trim().toLowerCase())}&para=clave`) };
+  });
+}
+
+/** La contraseña nueva, desde el link del mail. */
+export async function cambiarClaveAccion(fd: FormData) {
+  const t = await tiendaDe(fd);
+  const codigo = String(fd.get("c") ?? "");
+  await intentar(rutaTienda(t, `/cuenta/clave?c=${encodeURIComponent(codigo)}`), async () => {
+    if (String(fd.get("clave") ?? "") !== String(fd.get("repetir") ?? "")) throw new ErrorErp("Las dos contraseñas no coinciden.");
+    await cambiarClave(t, codigo, String(fd.get("clave") ?? ""));
+    refrescar(t);
+    return { ir: `${rutaTienda(t, "/cuenta")}?ok=${encodeURIComponent("Listo: cambiaste tu contraseña.")}` };
   });
 }
 

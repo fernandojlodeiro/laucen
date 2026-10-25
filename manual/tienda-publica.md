@@ -2,7 +2,7 @@
 titulo: La tienda que ve el cliente
 menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
-rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto], /tienda/[slug]/categorias
+rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/cuenta/clave, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto], /tienda/[slug]/categorias
 permiso: todos
 resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
@@ -89,7 +89,12 @@ La abre el link del pedido (por su código, sin necesidad de cuenta):
 
 ### Mi cuenta
 
-Sin sesión: **"Ingresá tu mail y contraseña"** con **"Ingresar"** (y "Seguir sin cuenta" si venía del checkout). Con sesión: "Hola, <nombre>", **"Salir"** y **Mis pedidos** (número, fecha, unidades, total y estado; cada uno lleva a su página).
+Sin sesión: **"Ingresá tu mail y contraseña"** con **"Ingresar"**, **"Olvidé mi contraseña"** y **"Crear cuenta"** (y "Seguir sin cuenta" si venía del checkout).
+
+- **"Crear cuenta"** (sin haber comprado): **"Nombre y apellido"**, **"Mail"** y **"Contraseña (8 caracteres o más)"** → **"Crear cuenta"**. Dice **"Revisá tu mail"**: le llega «Confirmá tu mail para crear tu cuenta en …» con el botón **"Confirmar mi mail"** (vale 24 horas). Al tocarlo se crea la cuenta (atada al cliente que ya tenga ese mail, o a uno nuevo), queda adentro y le llega el mail de bienvenida. Sin confirmar no se crea nada.
+- **"Olvidé mi contraseña"**: el mail de la cuenta → **"Mandarme el link"**. Le llega «Cambiá tu contraseña de …» con **"Elegir una contraseña nueva"** (vale una hora y se usa una vez): la nueva dos veces → **"Guardar y entrar"**.
+- Si alguien pide crear una cuenta con un mail que ya tiene cuenta, le llega el mail para cambiar la contraseña. La pantalla dice siempre lo mismo, tenga o no cuenta ese mail (así nadie averigua qué mails están registrados).
+- Los dos formularios tienen el control antibot y un tope por hora y por día (mandan mails). Con sesión: "Hola, <nombre>", **"Salir"** y **Mis pedidos** (número, fecha, unidades, total y estado; cada uno lleva a su página).
 
 ### Ayuda
 

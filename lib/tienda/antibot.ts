@@ -23,7 +23,7 @@ import type { Tienda } from "@/lib/tienda/tienda";
 
 import { CAMPO_MARCA, CAMPO_TRAMPA, CAMPO_TURNSTILE } from "@/lib/tienda/antibot-campos";
 
-export type Ruta = "checkout" | "ingresar" | "crear_cuenta";
+export type Ruta = "checkout" | "ingresar" | "crear_cuenta" | "registro" | "recuperar";
 
 /** Tiempo mínimo entre dibujar y mandar, y topes por IP. Al ingresar, el administrador de
  *  contraseñas del navegador completa en un segundo: por eso ahí el mínimo es corto. */
@@ -31,6 +31,9 @@ const REGLAS: Record<Ruta, { minimoMs: number; porHora: number; porDia: number }
   checkout: { minimoMs: 3000, porHora: 15, porDia: 40 },
   ingresar: { minimoMs: 800, porHora: 10, porDia: 40 },
   crear_cuenta: { minimoMs: 1500, porHora: 10, porDia: 30 },
+  // Crear la cuenta sin comprar y «Olvidé mi contraseña» (Fer, 25/10): mandan mails, así que topes bajos.
+  registro: { minimoMs: 2500, porHora: 5, porDia: 15 },
+  recuperar: { minimoMs: 1500, porHora: 5, porDia: 15 },
 };
 const VIGENCIA_MS = 12 * 3600_000;
 

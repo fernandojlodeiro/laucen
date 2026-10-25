@@ -133,6 +133,24 @@ create table if not exists cliente_cuenta (
 );
 alter table cliente_cuenta enable row level security;
 
+-- Los links por mail de las cuentas de la tienda (Fer, 25/10): confirmar el mail de una cuenta nueva
+-- («registro», guarda nombre y contraseña hasta que se confirma) y cambiar la contraseña olvidada
+-- («recuperar»). Se guarda el hash del código, nunca el código; vence y se usa una sola vez.
+create table if not exists cuenta_tienda_token (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  tipo             text not null check (tipo in ('registro', 'recuperar')),
+  email            text not null,
+  nombre           text,
+  clave_hash       text,
+  token_hash       text not null unique,
+  vence_ts         timestamptz not null,
+  usado_ts         timestamptz,
+  creado_ts        timestamptz not null default now()
+);
+alter table cuenta_tienda_token enable row level security;
+
 -- Dominios propios de las tiendas (Fer, 3/10, bitácora #281): los carga cada
 -- organización desde Configuración › Tienda web; el código no tiene ninguno
 -- fijo. Uno principal por tienda (abre la tienda) y los demás redirigen (308)

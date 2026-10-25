@@ -141,6 +141,31 @@ export async function mailBienvenida(t: Tienda, email: string, nombre: string | 
   });
 }
 
+/** Confirmar el mail de una cuenta nueva (Fer, 25/10): el link crea la cuenta (vale 24 horas). */
+export async function mailConfirmarCuenta(t: Tienda, email: string, nombre: string | null, codigo: string): Promise<Resultado> {
+  const marca = await marcaDe(t);
+  return enviarMail(t.organizacionId, {
+    para: email, asunto: `Confirmá tu mail para crear tu cuenta en ${marca.nombre}`, remitente: remitenteDe(t), tipo: "cuenta_confirmar", clave: null,
+    html: plantilla(marca, null,
+      `<p>${saludo(nombre)}</p><p>Para terminar de crear tu cuenta en ${escapar(marca.nombre)}, confirmá tu mail con el botón. El link vale 24 horas.</p>
+       <p style="font-size:13px;color:#777">Si no fuiste vos, ignorá este mail: sin confirmar, no se crea nada.</p>`,
+      { texto: "Confirmar mi mail", url: await urlTienda(t, `/cuenta/confirmar?c=${encodeURIComponent(codigo)}`) }),
+  });
+}
+
+/** Cambiar la contraseña olvidada (vale una hora). `yaTenia`: pidió crear una cuenta con un mail que ya tenía. */
+export async function mailRecuperarClave(t: Tienda, email: string, codigo: string, yaTenia: boolean): Promise<Resultado> {
+  const marca = await marcaDe(t);
+  return enviarMail(t.organizacionId, {
+    para: email, asunto: `Cambiá tu contraseña de ${marca.nombre}`, remitente: remitenteDe(t), tipo: "cuenta_recuperar", clave: null,
+    html: plantilla(marca, null,
+      `<p>Hola,</p><p>${yaTenia ? `Ya tenés una cuenta en ${escapar(marca.nombre)} con este mail. Si no te acordás la contraseña, cambiala con el botón.`
+        : "Pediste cambiar la contraseña de tu cuenta. Elegí una nueva con el botón."} El link vale una hora.</p>
+       <p style="font-size:13px;color:#777">Si no fuiste vos, ignorá este mail: tu contraseña sigue igual.</p>`,
+      { texto: "Elegir una contraseña nueva", url: await urlTienda(t, `/cuenta/clave?c=${encodeURIComponent(codigo)}`) }),
+  });
+}
+
 /** La factura en PDF, a los clientes con «Factura por mail» tildado y mail cargado (no las de ventas de
  *  Mercado Libre, que van a ML). Con `manual`, aunque no tenga el tilde. Sin nota de crédito. */
 export async function mailFactura(org: string, comprobanteId: number, o: { manual?: boolean } = {}): Promise<Resultado> {
