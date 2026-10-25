@@ -20,7 +20,8 @@ import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import { COLORES_POR_DEFECTO } from "@/app/tienda/[slug]/tema";
 import SubirImagen from "./SubirImagen";
 import { accionCrearTienda, accionGuardarTienda } from "./acciones";
-import { accionNuevoDominio, accionVerificarDominio, accionBorrarDominio, accionGuardarDominio } from "./dominios";
+import { Interruptor } from "@/app/radar/Piezas";
+import { accionNuevoDominio, accionVerificarDominio, accionBorrarDominio, accionGuardarDominio, accionCanonicalDominio } from "./dominios";
 import { accionGuardarTurnstile } from "./antibot";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ const COLORES: { clave: "color_marca" | "color_marca_texto" | "color_boton" | "c
   { clave: "color_fondo", nombre: "Fondo de la página", ayuda: "Detrás de las tarjetas", defecto: COLORES_POR_DEFECTO.fondo },
 ];
 
-type Dominio = { id: number; canal_id: number; dominio: string; principal: boolean; estado: string; dns: RegistroDns[]; detalle: string | null; revisado: string | null;
+type Dominio = { id: number; canal_id: number; dominio: string; principal: boolean; canonical_principal: boolean | null; estado: string; dns: RegistroDns[]; detalle: string | null; revisado: string | null;
   marca: Marca | null; redirige_a_id: number | null };
 
 const ESTADOS_DOMINIO: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
@@ -92,7 +93,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
      where c.organizacion_id = $1 and c.tipo = 'web_minorista' and c.estado <> 'archivado' order by c.id`, [s.org.id]);
 
   const dominios = await consulta<Dominio>(`
-    select id::int, canal_id::int, dominio, principal, estado, dns, detalle, marca, redirige_a_id::int,
+    select id::int, canal_id::int, dominio, principal, estado, dns, detalle, marca, redirige_a_id::int, canonical_principal,
            to_char(revisado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') revisado
       from tienda_dominio where organizacion_id = $1 order by canal_id, principal desc, dominio`, [s.org.id]);
   const direcciones = new Map(await Promise.all(tiendas.map(async (t) =>
@@ -145,7 +146,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarla en Configuración → Canales</Link></div>
               <div className="sm:col-span-2"><span className={ETIQUETA}>Feed para Meta (Facebook / Instagram)</span>
                 <a href={`${direccion}/feed.xml`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}/feed.xml ↗</a>
-                <span className="block text-[11px] text-[#5C6B76]">Cargalo en Meta Commerce Manager como fuente de datos programada.</span></div>
+                <span className="block text-[11px] text-[#5C6B76]">Los catálogos de Google, Meta y TikTok y la medición de ventas: <Link href="/config/tienda/publicidad" className="text-[#16577F] hover:underline">Publicidad</Link>.</span></div>
               <div><span className={ETIQUETA}>Vende el stock de</span>{t.depositos ?? <span className="text-[#C03420]">Ningún depósito: elegilos en Canales</span>}</div>
             </div>
 
@@ -203,9 +204,13 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                           <tr className={TR}>
                             <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio} ↗</a></td>
                             <td className={TD}>{d.principal ? "Principal" : d.marca?.nombre
-                              ? <span className="inline-flex items-center gap-1.5">Otra marca: <b>{d.marca.nombre}</b>
+                              ? <><span className="inline-flex items-center gap-1.5">Otra marca: <b>{d.marca.nombre}</b>
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   {d.marca.logo && <img src={d.marca.logo} alt="" className="h-5 max-w-16 object-contain" />}</span>
+                                  <div className="mt-1">
+                                    <Interruptor accion={accionCanonicalDominio} prendido={d.canonical_principal ?? true} campos={{ id: String(d.id) }} compacto deshabilitado={!puedeDominios}
+                                      etiqueta={(d.canonical_principal ?? true) ? `Para Google es ${principal ?? "el principal"}` : "Para Google es un sitio aparte"} />
+                                  </div></>
                               : <>Redirige a <span className="font-mono">{destino ?? "—"}</span></>}</td>
                             <td className={TD}><Estado texto={e.texto} tono={e.tono} />
                               {d.detalle && <span className="block text-[11px] text-[#C03420] mt-0.5">{d.detalle}</span>}</td>

@@ -9,7 +9,8 @@
 
 import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
-import { firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
+import { enviarTexto, firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
+import { recibirComprobanteWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { anotarEntrega, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { contestar } from "@/lib/mensajes/estela";
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 type Mensaje = {
   from?: string; id?: string; timestamp?: string; type?: string;
   text?: { body?: string };
-  image?: { caption?: string }; video?: { caption?: string }; document?: { caption?: string; filename?: string };
+  image?: { caption?: string; id?: string; mime_type?: string }; video?: { caption?: string }; document?: { caption?: string; filename?: string; id?: string; mime_type?: string };
   audio?: { id?: string }; sticker?: unknown; location?: { name?: string; address?: string; latitude?: number; longitude?: number };
   button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
   reaction?: unknown;
@@ -119,6 +120,14 @@ export async function POST(req: NextRequest) {
         if (id == null) continue; // Meta lo mandó dos veces
         after(async () => {
           try {
+            // Una foto o un PDF de un cliente con un pedido sin pagar: puede ser el comprobante de la transferencia
+            // (lib/pagos/comprobante-whatsapp.ts). Si el pago quedó registrado, se le confirma y la IA no contesta encima.
+            const media = m.type === "image" ? m.image : m.type === "document" ? m.document : null;
+            if (media?.id) {
+              const pago = await recibirComprobanteWhatsapp(org, chat.id, { mediaId: media.id, tipo: media.mime_type ?? "", nombre: m.document?.filename ?? null })
+                .catch((e) => { console.error("[wa-comprobante]", org, chat.id, e); return null; });
+              if (pago) { await confirmarPagoPorWhatsapp(org, chat.id, pago.pedidoId); return; }
+            }
             const cfg = await configMensajes(org);
             if (!cfg.iaActiva) return;
             if (!(await ganaLaEspera(chat.id, cfg.esperaSeg))) return;
@@ -135,4 +144,14 @@ export async function POST(req: NextRequest) {
     console.error("[wa-webhook]", e);
   }
   return NextResponse.json({ ok: true });
+}
+
+/** «¡Gracias! Recibimos tu pago»: el aviso por el mismo chat cuando el comprobante cerró con Mercado Pago. */
+async function confirmarPagoPorWhatsapp(org: string, chatId: number, pedidoId: number) {
+  const { credencialDeOrg, chatPorId, guardarMensaje } = await import("@/lib/mensajes/chats");
+  const [cred, chat] = await Promise.all([credencialDeOrg(org), chatPorId(org, chatId)]);
+  if (!cred || !chat) return;
+  const texto = `¡Gracias! Recibimos tu pago del pedido #${pedidoId}. Ya lo estamos preparando y te avisamos por acá cuando esté listo.`;
+  const r = await enviarTexto({ token: cred.token, phoneNumberId: cred.phoneNumberId }, chat.externo, texto);
+  if (r.ok) await guardarMensaje({ org, chatId, clase: "operador", texto, wamid: r.wamid, estado: "enviado" }).catch(() => null);
 }

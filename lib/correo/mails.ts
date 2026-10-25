@@ -13,8 +13,9 @@ import { formatear, type Moneda } from "@/lib/moneda";
 import { nombreTienda, tiendaDelCanal, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca, urlTienda } from "@/lib/tienda/dominios-tienda";
 import { enviarMail, escapar, plantilla, type Resultado } from "@/lib/correo/mailer";
+import { cuentasDe, type CuentaTransferencia } from "@/lib/tienda/medios";
 
-const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null });
+const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null, whatsapp: t.config.whatsapp ?? null });
 const remitenteDe = (t: Tienda) => ({ nombre: nombreTienda(t), email: t.config.email ?? null });
 const saludo = (nombre: string | null) => { const n = (nombre ?? "").trim().split(/[ ,]/)[0]; return n ? `Hola ${escapar(n)},` : "Hola,"; };
 
@@ -41,7 +42,8 @@ type DatosPedido = {
 async function datosPedido(org: string, pedidoId: number) {
   const p = await una<DatosPedido>(`
     select p.id::int, p.codigo_seguimiento codigo, p.moneda, case when p.moneda = 'USD' then p.total_usd else p.total_ars end total,
-           cl.email, coalesce(cl.nombre_pila, cl.nombre) nombre, p.datos_externos #>> '{tienda,medio}' medio,
+           coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
+           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre, p.datos_externos #>> '{tienda,medio}' medio,
            me.nombre metodo, me.tipo metodo_tipo, p.costo_envio_ars costo_envio, p.envio
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
@@ -53,11 +55,11 @@ async function datosPedido(org: string, pedidoId: number) {
 }
 
 function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string }[], p: DatosPedido) {
-  const filas = lineas.map((l) => `<tr><td style="padding:6px 0;border-bottom:1px solid #eee">${l.cantidad} × ${escapar(l.titulo)}</td>
+  const filas = lineas.map((l) => `<tr><td style="padding:6px 8px 6px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere">${l.cantidad} × ${escapar(l.titulo)}</td>
     <td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${formatear(Number(l.unit) * l.cantidad, p.moneda)}</td></tr>`).join("");
   return `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">${filas}
-    ${Number(p.costo_envio) > 0 ? `<tr><td style="padding:6px 0">Envío</td><td style="padding:6px 0;text-align:right">${formatear(Number(p.costo_envio), "ARS")}</td></tr>` : ""}
-    <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
+    ${Number(p.costo_envio) > 0 ? `<tr><td style="padding:6px 0">Envío</td><td style="padding:6px 0;text-align:right;white-space:nowrap">${formatear(Number(p.costo_envio), "ARS")}</td></tr>` : ""}
+    <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700;white-space:nowrap">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
 }
 
 /** Los avisos del pedido: recibido, pagado, despachado o listo para retirar. */
@@ -72,14 +74,14 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
   const boton = seguimiento ? { texto: "Ver mi pedido", url: seguimiento } : undefined;
   let asunto: string, titulo: string, cuerpo: string;
   if (tipo === "recibido") {
-    const medio = p.medio ? await una<{ nombre: string; instrucciones: string | null }>(
-      "select nombre, instrucciones from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
+    const medio = p.medio ? await una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(
+      "select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
       [org, t.canalId, p.medio]) : null;
     asunto = `Recibimos tu pedido #${p.id}`;
     titulo = "¡Recibimos tu pedido!";
     cuerpo = `<p>${saludo(p.nombre)} gracias por tu compra en ${escapar(marca.nombre)}. Este es tu pedido <b>#${p.id}</b>:</p>${tablaLineas(lineas, p)}
       ${medio ? `<p>Medio de pago: <b>${escapar(medio.nombre)}</b>.</p>` : ""}
-      ${p.medio === "transferencia" && medio?.instrucciones ? `<p>Para pagar, transferí el total a:</p><pre style="background:#f6f6f6;border-radius:8px;padding:12px;font-size:13px;white-space:pre-wrap">${escapar(medio.instrucciones)}</pre>` : ""}
+      ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
       ${p.metodo ? `<p>Entrega: <b>${escapar(p.metodo)}</b>.</p>` : ""}
       <p>Te vamos a avisar por acá cada novedad.</p>`;
   } else if (tipo === "pagado") {
@@ -106,6 +108,27 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
   });
 }
 
+/** Cómo pagar por transferencia (Fer, 24/10): el total bien grande y cada cuenta con su alias destacado,
+ *  para que el comprador transfiera el monto justo apenas compra. Debajo, las instrucciones del medio. */
+export function bloqueTransferencia(total: number, moneda: Moneda, cuentas: CuentaTransferencia[], instrucciones: string | null, color?: string | null) {
+  const c = color && /^#[0-9a-f]{6}$/i.test(color) ? color : "#3483FA";
+  // Cada dato en dos renglones (el nombre chico arriba, el valor abajo) y los números largos pueden
+  // cortarse: así entra en el ancho de un celular sin achicar ni partir el total.
+  const dato = (k: string, v: string, grande = false) =>
+    `<div style="margin-top:8px"><div style="color:#777;font-size:12px">${k}</div><div style="font-family:monospace;font-size:${grande ? "18px;font-weight:700" : "14px"};color:#222;word-break:break-all">${escapar(v)}</div></div>`;
+  return `<div style="margin:20px 0;border:2px solid ${c};border-radius:12px;padding:14px 10px;text-align:center">
+      <div style="font-size:14px;color:#555">Total a transferir</div>
+      <div style="font-size:28px;font-weight:800;color:#222;margin-top:4px;white-space:nowrap">${escapar(formatear(total, moneda))}</div>
+    </div>
+    ${cuentas.length ? `<p style="margin-bottom:8px">Transferí ese monto a ${cuentas.length > 1 ? "cualquiera de estas cuentas" : "esta cuenta"}:</p>
+    ${cuentas.map((x) => `<div style="background:#f6f6f6;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:15px">${escapar(x.banco)}</div>
+      ${x.alias ? dato("Alias", x.alias, true) : ""}${x.cbu ? dato("CBU/CVU", x.cbu) : ""}${x.titular ? dato("Titular", x.titular) : ""}${x.cuit ? dato("CUIT", x.cuit) : ""}
+    </div>`).join("")}` : ""}
+    ${instrucciones ? `<p style="white-space:pre-line">${escapar(instrucciones)}</p>` : ""}
+    <p>Cuando transfieras, respondé este mail con el comprobante y lo acreditamos.</p>`;
+}
+
 /** Bienvenida al crear la cuenta en la tienda. */
 export async function mailBienvenida(t: Tienda, email: string, nombre: string | null): Promise<Resultado> {
   const marca = await marcaDe(t);
@@ -118,12 +141,38 @@ export async function mailBienvenida(t: Tienda, email: string, nombre: string | 
   });
 }
 
+/** Confirmar el mail de una cuenta nueva (Fer, 25/10): el link crea la cuenta (vale 24 horas). */
+export async function mailConfirmarCuenta(t: Tienda, email: string, nombre: string | null, codigo: string): Promise<Resultado> {
+  const marca = await marcaDe(t);
+  return enviarMail(t.organizacionId, {
+    para: email, asunto: `Confirmá tu mail para crear tu cuenta en ${marca.nombre}`, remitente: remitenteDe(t), tipo: "cuenta_confirmar", clave: null,
+    html: plantilla(marca, null,
+      `<p>${saludo(nombre)}</p><p>Para terminar de crear tu cuenta en ${escapar(marca.nombre)}, confirmá tu mail con el botón. El link vale 24 horas.</p>
+       <p style="font-size:13px;color:#777">Si no fuiste vos, ignorá este mail: sin confirmar, no se crea nada.</p>`,
+      { texto: "Confirmar mi mail", url: await urlTienda(t, `/cuenta/confirmar?c=${encodeURIComponent(codigo)}`) }),
+  });
+}
+
+/** Cambiar la contraseña olvidada (vale una hora). `yaTenia`: pidió crear una cuenta con un mail que ya tenía. */
+export async function mailRecuperarClave(t: Tienda, email: string, codigo: string, yaTenia: boolean): Promise<Resultado> {
+  const marca = await marcaDe(t);
+  return enviarMail(t.organizacionId, {
+    para: email, asunto: `Cambiá tu contraseña de ${marca.nombre}`, remitente: remitenteDe(t), tipo: "cuenta_recuperar", clave: null,
+    html: plantilla(marca, null,
+      `<p>Hola,</p><p>${yaTenia ? `Ya tenés una cuenta en ${escapar(marca.nombre)} con este mail. Si no te acordás la contraseña, cambiala con el botón.`
+        : "Pediste cambiar la contraseña de tu cuenta. Elegí una nueva con el botón."} El link vale una hora.</p>
+       <p style="font-size:13px;color:#777">Si no fuiste vos, ignorá este mail: tu contraseña sigue igual.</p>`,
+      { texto: "Elegir una contraseña nueva", url: await urlTienda(t, `/cuenta/clave?c=${encodeURIComponent(codigo)}`) }),
+  });
+}
+
 /** La factura en PDF, a los clientes con «Factura por mail» tildado y mail cargado (no las de ventas de
  *  Mercado Libre, que van a ML). Con `manual`, aunque no tenga el tilde. Sin nota de crédito. */
 export async function mailFactura(org: string, comprobanteId: number, o: { manual?: boolean } = {}): Promise<Resultado> {
   const c = await una<{ tipo_cbte: number; punto_venta: number; numero: string | null; estado: string; pedido_id: number | null; email: string | null; nombre: string | null;
     por_mail: boolean | null; canal_tipo: string | null }>(`
-    select cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.pedido_id::int, cl.email, coalesce(cl.nombre_pila, cl.nombre) nombre, cl.factura_por_mail por_mail, ca.tipo canal_tipo
+    select cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.pedido_id::int,
+           coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email, coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre, coalesce((p.datos_externos #>> '{tienda,contacto,factura_mail}')::boolean, cl.factura_por_mail) por_mail, ca.tipo canal_tipo
       from comprobante cb left join pedido p on p.id = cb.pedido_id left join canal ca on ca.id = p.canal_id
       left join cliente cl on cl.id = coalesce(cb.cliente_id, p.cliente_id)
      where cb.id = $1 and cb.organizacion_id = $2`, [comprobanteId, org]);
@@ -143,8 +192,11 @@ export async function mailFactura(org: string, comprobanteId: number, o: { manua
   return enviarMail(org, {
     para: c.email, asunto: `Tu ${nombreCbte}`, remitente: remitenteDe(t), tipo: "factura", clave: o.manual ? null : `factura:${comprobanteId}`,
     comprobanteId, pedidoId: c.pedido_id,
-    html: plantilla(marca, `Tu ${tipo?.nombre?.toLowerCase() ?? "factura"}`,
-      `<p>${saludo(c.nombre)} te mandamos la ${escapar(nombreCbte)}${c.pedido_id ? ` de tu pedido #${c.pedido_id}` : ""}. Va adjunta en PDF.</p>`),
+    // Un mail normal, sin título grande (Fer, 25/10).
+    html: plantilla(marca, null,
+      `<p>${saludo(c.nombre)}</p>
+       <p>Te mandamos la factura${c.pedido_id ? ` correspondiente a tu pedido <b>#${c.pedido_id}</b>` : ""}, adjunta en PDF (${escapar(nombreCbte)}).</p>
+       <p>¡Muchas gracias por tu compra!</p>`),
     adjuntos: [{ nombre: `${nombreCbte.replace(/\s+/g, "-")}.pdf`, datos: await pdfComprobante(org, comprobanteId), tipo: "application/pdf" }],
   });
 }
@@ -159,19 +211,34 @@ export async function alAutorizarMail(org: string, comprobanteId: number): Promi
   }
 }
 
-/** Lo que dejó la cola de cambios de estado (correo_cola): hasta 20 por vuelta. */
+/** Lo que dejó la cola de cambios de estado (correo_cola): hasta 20 por vuelta. Cada aviso sale por mail y,
+ *  si el cliente eligió WhatsApp, también por WhatsApp (lib/mensajes/avisos-pedido.ts); cada canal con sus
+ *  reintentos: el mail hasta 5, el WhatsApp cada 10 minutos durante 3 días (plantilla en aprobación). */
 export async function procesarCola(org: string | null, hastaMs: number): Promise<{ enviados: number; fallidos: number }> {
-  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar"; nota: string | null }>(`
-    select id::int, organizacion_id, pedido_id::int, tipo, nota from correo_cola
-     where hecho_ts is null and intentos < 5 and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
+  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar"; nota: string | null;
+    falta_mail: boolean; falta_wa: boolean }>(`
+    select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa from correo_cola
+     where (${SQL_FALTA_MAIL} or ${SQL_FALTA_WA}) and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
   let enviados = 0, fallidos = 0;
+  const { avisarPorWhatsapp } = await import("@/lib/mensajes/avisos-pedido");
   for (const f of filas) {
     if (Date.now() > hastaMs) break;
-    const r = await mailPedido(f.organizacion_id, f.pedido_id, f.tipo, f.nota).catch((e) => ({ ok: false, motivo: e instanceof Error ? e.message : String(e) }) as Resultado);
-    // Sin mail del cliente no hay nada que reintentar; sin configurar, se reintenta después (hasta 5).
-    const terminado = r.ok || r.motivo === "sin_mail" || r.motivo === "dominio_sin_correo" || r.motivo === "mail_invalido";
-    await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 then now() end where id = $1`, [f.id, terminado]);
-    if (r.ok) enviados++; else if (!terminado) fallidos++;
+    if (f.falta_mail) {
+      const r = await mailPedido(f.organizacion_id, f.pedido_id, f.tipo, f.nota).catch((e) => ({ ok: false, motivo: e instanceof Error ? e.message : String(e) }) as Resultado);
+      // Sin mail del cliente no hay nada que reintentar; sin configurar, se reintenta después (hasta 5).
+      const terminado = r.ok || r.motivo === "sin_mail" || r.motivo === "dominio_sin_correo" || r.motivo === "mail_invalido";
+      await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 then now() end where id = $1`, [f.id, terminado]);
+      if (r.ok) enviados++; else if (!terminado) fallidos++;
+    }
+    if (f.falta_wa) {
+      const w = await avisarPorWhatsapp(f.organizacion_id, f.pedido_id, f.tipo, f.nota)
+        .catch((e) => ({ estado: "pendiente" as const, detalle: e instanceof Error ? e.message : String(e) }));
+      await consulta(`update correo_cola set wa_intentos = wa_intentos + 1, wa_intento_ts = now(), wa_estado = $2, wa_detalle = $3,
+                             wa_hecho_ts = case when $2 <> 'pendiente' then now() end where id = $1`, [f.id, w.estado, w.detalle.slice(0, 300)]);
+    }
   }
   return { enviados, fallidos };
 }
+
+const SQL_FALTA_MAIL = "(hecho_ts is null and intentos < 5)";
+const SQL_FALTA_WA = "(wa_hecho_ts is null and wa_intentos < 300 and creado_ts > now() - interval '3 days' and (wa_intento_ts is null or wa_intento_ts < now() - interval '10 minutes'))";

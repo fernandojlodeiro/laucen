@@ -41,3 +41,21 @@ export async function consultarPago(accessToken: string, id: string): Promise<Pa
     : ["refunded", "charged_back"].includes(p.status) ? "reembolsado" : "pendiente";
   return { id: String(p.id), estado, pedidoId: p.external_reference ? Number(p.external_reference) : null, importe: p.transaction_amount, cuotas: p.installments ?? 1, crudo: p };
 }
+
+/** Lo que cobra Mercado Pago al comprador por pagar en cuotas (installment_rate, en %), por cantidad de
+ *  cuotas: el menor entre Visa y Mastercard (su consulta de cuotas, la misma del checkout). Es una
+ *  referencia: la tasa final depende de la tarjeta y el banco del comprador. Vacío si no contesta. */
+export async function tasasCuotas(accessToken: string): Promise<Map<number, number>> {
+  const m = new Map<number, number>();
+  for (const medio of ["visa", "master"]) {
+    const r = await fetch(`${API}/v1/payment_methods/installments?amount=100000&payment_method_id=${medio}`,
+      { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) }).catch(() => null);
+    if (!r?.ok) continue;
+    const j = await r.json().catch(() => []) as { payer_costs?: { installments: number; installment_rate: number }[] }[];
+    for (const x of Array.isArray(j) ? j : []) for (const c of x.payer_costs ?? []) {
+      if (!Number.isFinite(c.installment_rate) || c.installments < 2) continue;
+      m.set(c.installments, Math.min(m.get(c.installments) ?? Infinity, c.installment_rate));
+    }
+  }
+  return m;
+}

@@ -10,7 +10,8 @@ import { leerCarrito } from "@/lib/tienda/carrito";
 import { cotizar, type Cotizacion } from "@/lib/tienda/cotizar";
 import { rutaTienda } from "@/lib/tienda/tienda";
 import { abierta, cargarTienda, envioDe } from "../catalogo";
-import { Aviso, AvisosUrl, BOTON, CAJA, IconoCarrito, IconoTacho, LINK, Monto } from "../piezas";
+import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, IconoCarrito, IconoTacho, Monto } from "../piezas";
+import AlInicio from "./AlInicio";
 import { cambiarCantidad } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function Carrito({ params, searchParams }: Props) {
           <span className="grid h-20 w-20 place-items-center rounded-full bg-[var(--boton-claro)] text-[var(--boton)]"><IconoCarrito clase="h-10 w-10" /></span>
           <h1 className="text-xl font-semibold text-[var(--texto)]">Tu carrito está vacío</h1>
           <p className="text-sm text-[var(--texto-2)]">{carrito.length > 0 ? "Los productos que tenías ya no están disponibles." : "Sumá productos y conseguí envío gratis en las compras que califican."}</p>
-          <Link href={rutaTienda(t, "/buscar")} className={LINK}>Descubrir productos</Link>
+          <Link href={rutaTienda(t, "/buscar")} className={BOTON}>Descubrir productos</Link>
         </div>
       </div>
     );
@@ -56,6 +57,7 @@ export default async function Carrito({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-4">
+      <AlInicio />
       <AvisosUrl sp={sp} />
       {error && <Aviso tipo="error">{error}</Aviso>}
       {cot && (
@@ -122,7 +124,9 @@ export default async function Carrito({ params, searchParams }: Props) {
                 </div>
               )}
             </section>
-            <Link href={rutaTienda(t, "/buscar")} className={`${LINK} inline-block text-sm`}>Seguir comprando</Link>
+            <div className="text-center">
+              <Link href={rutaTienda(t, "/buscar")} className={`${BOTON_SUAVE} inline-flex px-6`}>Seguir comprando más productos</Link>
+            </div>
           </div>
 
           <aside className={`${CAJA} lg:sticky lg:top-4`}>
@@ -141,8 +145,8 @@ export default async function Carrito({ params, searchParams }: Props) {
               <div className="flex items-baseline justify-between gap-2 pt-2 text-lg font-semibold"><span>Total</span><Monto n={cot.total} moneda={m} /></div>
               {abierta(t)
                 ? (cot.sinStock.length
-                  ? <span className={`${BOTON} mt-2 w-full cursor-not-allowed opacity-50`}>Continuar compra</span>
-                  : <Link href={rutaTienda(t, "/checkout")} className={`${BOTON} mt-2 w-full`}>Continuar compra</Link>)
+                  ? <span className={`${BOTON} mt-2 w-full cursor-not-allowed opacity-50`}>Finalizar compra</span>
+                  : <Link href={rutaTienda(t, "/checkout")} className={`${BOTON} mt-2 w-full`}>Finalizar compra</Link>)
                 : <Aviso>La tienda no está tomando pedidos en este momento.</Aviso>}
               <p className="text-xs text-[var(--texto-2)]">Los descuentos por medio de pago se aplican en el paso siguiente.</p>
             </div>

@@ -20,14 +20,18 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp, accionFacturaMail } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
 import AccionesPedido from "./AccionesPedido";
 import NuevoPedido, { type EdicionPedido } from "../NuevoPedido";
 import { motivoNoEditable } from "@/lib/pedidos/editar";
+import { motivoNoCambiaCliente } from "@/lib/pedidos/cliente";
+import CambiarCliente from "./CambiarCliente";
 import EnvioOca from "./EnvioOca";
+import AgregarEnvio from "./AgregarEnvio";
+import { puedeAgregarEnvio, metodosParaEnvio } from "@/lib/pedidos/envio";
 import { envioOcaDe } from "@/lib/oca/envios";
 import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
@@ -107,6 +111,18 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     const ofrecer = !!envioOca || (!!x && x.canal_tipo !== "mercadolibre" && x.tiene_dir && !["presupuesto", "cancelado", "devuelto", "despachado", "entregado"].includes(c.estado));
     return { ofrecer, envio: envioOca, sucursal: x?.sucursal ?? null };
   })();
+  // «Agregar envío sin cargo» (lib/pedidos/envio.ts): un pedido que retiraba, con la dirección del cliente de arranque.
+  const agregarEnvio = await (async () => {
+    if (!(await puedeAgregarEnvio(s.org.id, pid))) return null;
+    const metodos = await metodosParaEnvio(s.org.id, pid);
+    if (!metodos.length) return null;
+    const d = c.cliente_id ? await una<{ calle: string | null; numero: string | null; piso: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null; telefono: string | null }>(`
+      select d.calle, d.numero, d.piso_depto piso, d.localidad, d.provincia, d.codigo_postal, coalesce(cl.whatsapp, cl.telefono_movil, cl.telefono) telefono
+        from cliente cl left join lateral (select * from cliente_direccion x where x.cliente_id = cl.id order by x.principal desc, x.id limit 1) d on true
+       where cl.id = $1`, [c.cliente_id]) : null;
+    const inicial = Object.fromEntries(Object.entries({ ...d, recibe: c.cliente ?? "" }).filter(([, v]) => v).map(([k, v]) => [k, String(v)]));
+    return { metodos, inicial };
+  })();
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
   const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
   const LOGISTICA: Record<string, string> = { oca: "OCA", fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
@@ -115,12 +131,15 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
   const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null; asociado_id: number | null; wa_estado: string | null; wa_detalle: string | null; wa_enviado_ts: Date | null;
+    mail_para: string | null; mail_ts: Date | null; mail_salio: boolean | null;
     es_ml: boolean; ml_estado: string | null; ml_subida_ts: Date | null; ml_documento_id: string | null; ml_error: string | null; ml_cola_id: number | null }>(`
     select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones, cb.comprobante_asociado_id::int asociado_id, cb.wa_estado, cb.wa_detalle, cb.wa_enviado_ts,
+           m.para mail_para, m.creado_ts mail_ts, m.salio mail_salio,
            (ca.tipo = 'mercadolibre' and p.id_externo is not null) es_ml, ${sqlEstadoFacturaMl("cb")} ml_estado, cb.ml_subida_ts, cb.ml_documento_id,
            (select q.ultimo_error from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_error,
            (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_cola_id
       from comprobante cb join pedido p on p.id = cb.pedido_id join canal ca on ca.id = p.canal_id
+      left join lateral (select e.para, e.creado_ts, e.salio from correo_enviado e where e.comprobante_id = cb.id order by e.id desc limit 1) m on true
      where cb.pedido_id = $1 and cb.organizacion_id = $2 order by cb.id`, [pid, s.org.id]);
   const enMl = (x: (typeof comprobantes)[number]) => ({ estado: x.ml_estado, subida_ts: x.ml_subida_ts, documento_id: x.ml_documento_id, error: x.ml_error, cola_id: x.ml_cola_id });
   const subibles = comprobantes.filter((x) => x.estado === "autorizado" && x.es_ml && puedeSubir(enMl(x)));
@@ -158,6 +177,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   // El lápiz (Fer, 7/10): un presupuesto siempre; un pedido si todavía no se tocó (lib/pedidos/editar.ts).
   const editable = !(await motivoNoEditable(s.org.id, pid));
+  // «Cambiar cliente» (lib/pedidos/cliente.ts) y el cliente que tenía antes del primer cambio.
+  const motivoCliente = c.estado === "presupuesto" ? null : await motivoNoCambiaCliente(s.org.id, pid);
+  const original = (await una<{ o: { id?: number; nombre?: string; razon_social?: string; cuit?: string; documento?: string; contacto?: { email?: string } } | null }>(
+    "select datos_externos -> 'cliente_original' o from pedido where id = $1", [pid]))?.o ?? null;
   const nombreDoc = c.estado === "presupuesto" ? "Presupuesto" : "Pedido";
   if (editable && sp.editar === "ficha") {
     const canalPedido = (await una<{ c: number }>("select canal_id::int c from pedido where id = $1", [pid]))!.c;
@@ -221,11 +244,18 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         <Dato t="Total"><span className="font-bold tabular-nums">{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</span>
           {c.moneda !== v && <span className="text-[#5C6B76]"> (cargado en {c.moneda === "USD" ? "dólares" : "pesos"})</span>}</Dato>
         <Dato t="Depósito">{c.deposito ?? "—"}{!c.afecta_stock && <span className="text-[#5C6B76]"> · no mueve stock</span>}</Dato>
-        <Dato t="Cliente">
+        <CambiarCliente pid={pid} facturado={facturado} motivo={motivoCliente}>
           {c.cliente_id ? <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-semibold text-[#16577F] hover:underline">{c.cliente}</Link> : "—"}
           {c.documento_numero && <div className="text-[#5C6B76]">{c.documento_tipo} {c.documento_numero}</div>}
           {c.cliente_email && <div className="text-[#5C6B76]">{c.cliente_email}</div>}
-        </Dato>
+          {original && (
+            <div className="text-[11px] text-[#5C6B76] mt-1">
+              Original: {original.id ? <Link href={`/ventas/clientes/${original.id}`} className="text-[#16577F] hover:underline">{original.razon_social ?? original.nombre}</Link> : original.razon_social ?? original.nombre ?? "consumidor final"}
+              {(original.cuit ?? original.documento) && <> · {original.cuit ? `CUIT ${original.cuit}` : original.documento}</>}
+              {original.contacto?.email && <> · {original.contacto.email}</>}
+            </div>
+          )}
+        </CambiarCliente>
         <Dato t="Canal">{c.canal}</Dato>
         <Dato t="Fecha">{fecha(c.fecha)}</Dato>
         <Dato t="Unidades"><span className="tabular-nums">{unidades}</span></Dato>
@@ -301,6 +331,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               </div>
             ) : envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
             {oca.ofrecer && <EnvioOca pid={pid} envio={oca.envio} sucursal={oca.sucursal} />}
+            {agregarEnvio && <AgregarEnvio pid={pid} metodos={agregarEnvio.metodos} inicial={agregarEnvio.inicial} />}
             {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {enMoneda(ml.comision, v, tcPedido)}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
             {ml?.sin_vincular && <p className="text-[11px] text-[#C03420] mt-1">Tiene artículos que no están vinculados a un producto de Laucen: esas líneas no descuentan stock. Vinculalos en Catálogo → Vincular con Mercado Libre.</p>}
           </div>
@@ -315,7 +346,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   <tr key={i} className={TR}>
                     <td className={TDN}>{fechaHora(h.fecha)}</td>
                     <td className={`${TD} whitespace-nowrap`}>
-                      {h.estado_anterior ? `${etiqueta(ESTADOS_PEDIDO, h.estado_anterior)} → ` : ""}<b>{etiqueta(ESTADOS_PEDIDO, h.estado_nuevo)}</b>
+                      {h.estado_anterior === h.estado_nuevo ? <span className="text-[#5C6B76]">Sin cambio de estado</span>
+                        : <>{h.estado_anterior ? `${etiqueta(ESTADOS_PEDIDO, h.estado_anterior)} → ` : ""}<b>{etiqueta(ESTADOS_PEDIDO, h.estado_nuevo)}</b></>}
                     </td>
                     <td className={TD}>{h.quien_nombre === "sistema" ? "Sistema" : h.quien_nombre}</td>
                     <td className={`${TD} text-[#5C6B76]`}>{h.nota ?? ""}</td>
@@ -392,11 +424,24 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                     WhatsApp: {x.wa_estado === "enviado" ? `enviada${x.wa_enviado_ts ? ` el ${fechaHora(x.wa_enviado_ts)}` : ""} (${x.wa_detalle ?? ""})` : x.wa_detalle ?? x.wa_estado}
                   </span>
                 )}
-                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && x.wa_estado !== "enviado" && (
+                {x.mail_ts && (
+                  <span className={`text-[11px] ${x.mail_salio ? "text-[#5C6B76]" : "text-[#C03420]"}`}>
+                    Mail: {x.mail_salio ? `enviado a ${x.mail_para} el ${fechaHora(x.mail_ts)}` : `no salió a ${x.mail_para}`}
+                  </span>
+                )}
+                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && (
+                  // Mandar (o reenviar) la factura por mail, aunque no tenga tildado «Factura por mail» (Fer, 25/10).
+                  <form action={accionFacturaMail}>
+                    <input type="hidden" name="pedido_id" value={pid} />
+                    <input type="hidden" name="comprobante_id" value={x.id} />
+                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">{x.mail_salio ? "Reenviar por mail" : "Mandar por mail"}</BotonEnviar>
+                  </form>
+                )}
+                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && (
                   <form action={accionFacturaWhatsapp}>
                     <input type="hidden" name="pedido_id" value={pid} />
                     <input type="hidden" name="comprobante_id" value={x.id} />
-                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">Mandar por WhatsApp</BotonEnviar>
+                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">{x.wa_estado === "enviado" ? "Reenviar por WhatsApp" : "Mandar por WhatsApp"}</BotonEnviar>
                   </form>
                 )}
               </div>

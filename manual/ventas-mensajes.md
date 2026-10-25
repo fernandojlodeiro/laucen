@@ -42,6 +42,7 @@ La pantalla se actualiza sola cada pocos segundos.
 2. Se abre Meta: entrá con tu Facebook, elegí la cuenta de WhatsApp Business del negocio y el número.
 3. Te pide escanear un código con la app WhatsApp Business del teléfono: escanealo.
 4. Volvés a Laucen con el aviso "¡WhatsApp conectado!". Desde ese momento los mensajes nuevos llegan a Chats y los contesta la IA.
+5. Si en Meta quedó permiso sobre más de un número (por ejemplo, porque la cuenta de Meta también tiene el número de otro negocio), Laucen no conecta ninguno solo: muestra **"¿Qué número conectás a Laucen?"** con cada número y su botón **"Conectar este número"**. Un número cuya cuenta de WhatsApp ya usa otro sistema aparece como **"Ya lo usa otro sistema"** y no se puede conectar: conectarlo le cortaría los mensajes a ese sistema (hay que pasarlo a una cuenta de WhatsApp propia en Meta).
 
 ### Contestar vos un chat
 1. Abrí el chat.
@@ -87,6 +88,8 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 **¿Por qué no me deja escribirle a un cliente?** Pasaron más de 24 horas desde su último mensaje: escribile desde el teléfono.
 
 **¿Por qué un mensaje dice NO ENTREGADO?** WhatsApp no lo aceptó; el motivo está al lado (por ejemplo, que el número no tiene WhatsApp).
+
+**¿Y si el cliente manda el comprobante de la transferencia?** Si tiene un pedido sin pagar, la foto o el PDF queda en el pedido y se busca la transferencia en Mercado Pago. Si aparece, el pago queda registrado y se le contesta «¡Gracias! Recibimos tu pago del pedido #…». Ver [Pedidos](/ventas/pedidos).
 
 **¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **En espera** con el asunto. En la barra de abajo sube el contador **"WhatsApp"** y, si lo elegiste en [Mis avisos](/config/avisos), suena y se abre sola una ventana con el chat y el botón **"Ir a responder"**.
 

@@ -7,6 +7,7 @@
 // limpia si la compra da error.
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { preconnect, preload } from "react-dom";
 import type { Medio } from "@/lib/tienda/checkout";
 import type { MetodoEnvio, Resumen } from "../resumen";
 import { CONDICIONES_IVA, PROVINCIAS, precio, sinDireccion } from "../comun";
@@ -16,11 +17,13 @@ import Antibot from "../Antibot";
 export type Precarga = Partial<Record<"nombre" | "email" | "telefono" | "documento" | "razon_social" | "condicion_iva" | "calle" | "numero" | "piso_depto" | "localidad" | "provincia" | "codigo_postal", string>>;
 
 const CAMPO = "w-full h-12 rounded-md border border-[rgba(0,0,0,.25)] bg-white px-3 text-base outline-none hover:border-[rgba(0,0,0,.4)] focus:border-[var(--boton)] focus:ring-1 focus:ring-[var(--boton)]";
-const ETIQUETA = "block text-sm text-[var(--texto)] mb-1";
+const ETIQUETA = "flex items-baseline justify-between gap-2 text-sm text-[var(--texto)] mb-1";
+/** «obligatorio» chiquito en ámbar, a la derecha de la etiqueta (Fer, 25/10: saber cuáles son mientras se completa). */
+const Obligatorio = () => <span className="text-[11px] font-normal text-amber-600">obligatorio</span>;
 const CAJA = "rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)]";
 
 const AYUDA_MEDIO: Record<string, string> = {
-  mercadopago: "Te llevamos a Mercado Pago para pagar con tarjeta, dinero en cuenta o efectivo.",
+  mercadopago: "Te llevamos al sitio seguro de Mercado Pago: pagás con dinero en cuenta, con tarjeta en cuotas (el interés te lo muestra Mercado Pago) o en cuotas sin tarjeta.",
   payway: "Pagás con tarjeta de crédito o débito en el paso siguiente.",
   payway_debito: "Pagás con tu tarjeta de débito, en un pago, en el paso siguiente.",
   transferencia: "Te mostramos los datos para transferir al confirmar.",
@@ -42,30 +45,47 @@ function Bloque({ n, titulo, children }: { n: number; titulo: string; children: 
 function Campo({ nombre, etiqueta, opcional, ...resto }: { nombre: string; etiqueta: string; opcional?: boolean } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
-      <label htmlFor={`f-${nombre}`} className={ETIQUETA}>{etiqueta}{opcional && <span className="font-normal text-gray-400"> (opcional)</span>}</label>
+      <label htmlFor={`f-${nombre}`} className={ETIQUETA}><span>{etiqueta}{opcional && <span className="font-normal text-gray-400"> (opcional)</span>}</span>{!opcional && <Obligatorio />}</label>
       <input id={`f-${nombre}`} name={nombre} className={CAMPO} required={!opcional} {...resto} />
     </div>
   );
 }
 
-export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion, antibot }: {
+export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion, antibot, planesCredito = [], hastaCuotasMp = null }: {
   slug: string; medios: Medio[]; metodos: MetodoEnvio[]; inicial: Resumen; precarga: Precarga;
+  /** Los planes de cuotas con tarjeta de crédito (Payway) y hasta cuántas cuotas por Mercado Pago, para el resumen de cada medio. */
+  planesCredito?: { cuotas: number; interes_pct: number }[]; hastaCuotasMp?: number | null;
   antibot: { marca: string; siteKey: string | null };
   eleccion: { metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string };
 }) {
   const [metodo, setMetodo] = useState(eleccion.metodoEnvioId);
   const [medio, setMedio] = useState(eleccion.medio);
+  // Con tarjeta (Payway), el formulario de pago se va bajando mientras completa los datos: al confirmar ya
+  // está en el navegador y la pasarela abre en el acto (Fer, 25/10: tardaba en abrir).
+  if (medio?.startsWith("payway")) { preconnect("https://live.decidir.com"); preload("https://live.decidir.com/static/v2.5/decidir.js", { as: "script" }); }
   const [cuotas, setCuotas] = useState(1);
   const conDebito = medios.some((x) => x.tipo === "payway_debito");
+  // El resumen chico de cada medio, siempre a la vista.
+  const cuotasCredito = planesCredito.filter((p) => p.interes_pct === 0).map((p) => p.cuotas);
+  const resumenDe = (tipo: string): string | null => ({
+    transferencia: "Te mandamos los datos para pagar por mail.",
+    payway_debito: "En un pago, con tu tarjeta de débito.",
+    payway: conDebito
+      ? (cuotasCredito.length ? `En 1 pago o en ${cuotasCredito.join(" o ")} cuotas sin interés.` : "En 1 pago.")
+      : "Crédito o débito.",
+    mercadopago: `Dinero en cuenta, tarjetas${hastaCuotasMp ? ` en hasta ${hastaCuotasMp} cuotas` : ""} o cuotas sin tarjeta.`,
+  } as Record<string, string>)[tipo] ?? null;
   const [provincia, setProvincia] = useState(eleccion.provincia);
   const [cp, setCp] = useState(eleccion.codigoPostal);
   const cpCotizado = useRef(eleccion.codigoPostal);
   const [sucursales, setSucursales] = useState<{ id: string; texto: string }[] | null>(null);
   const [documento, setDocumento] = useState(precarga.documento ?? "");
+  const [facturaA, setFacturaA] = useState(!!precarga.razon_social && precarga.condicion_iva === "responsable_inscripto");
   const [resumen, setResumen] = useState(inicial);
   const [errorCot, setErrorCot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [yendo, setYendo] = useState(false);
+  // A dónde lo mandamos al confirmar: la pasarela de Mercado Pago, el pago con tarjeta (Payway) o el pedido.
+  const [yendo, setYendo] = useState<null | "mercadopago" | "payway" | "pedido">(null);
   const [calculando, empezarCalculo] = useTransition();
   const [enviando, empezarEnvio] = useTransition();
   const ultimo = useRef(0);
@@ -73,7 +93,6 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
 
   const elegido = metodos.find((m) => m.id === metodo);
   const conDireccion = !!elegido && !sinDireccion(elegido.tipo);
-  const esCuit = documento.replace(/\D/g, "").length === 11;
   const m = resumen.moneda;
   const aSucursal = elegido?.tipo === "oca_sucursal";
 
@@ -112,7 +131,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           setError(r.error);
           setTimeout(() => cajaError.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
         } else {
-          setYendo(true);
+          setYendo(/mercadopago/i.test(r.ir) ? "mercadopago" : /[?&]pagar=1/.test(r.ir) ? "payway" : "pedido");
           window.location.assign(r.ir);
         }
       } catch {
@@ -131,36 +150,82 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
     return precio(c.costo, m);
   };
 
-  const ocupado = enviando || yendo;
+  const ocupado = enviando || !!yendo;
 
   return (
     <form onSubmit={enviar} className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <input type="hidden" name="slug" value={slug} />
+      {/* Compra hecha: mientras abre el pedido (o el pago), que se vea que salió bien y que espere. */}
+      {yendo && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-white/90 px-6 text-center" role="status" aria-live="polite">
+          <div className="space-y-3">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[var(--boton)] border-t-transparent" aria-hidden />
+            <p className="text-lg font-semibold text-[var(--texto)]">¡Listo, recibimos tu pedido!</p>
+            <p className="text-sm text-[var(--texto-2)]">
+              {yendo === "mercadopago" ? "Aguardá un momento: te estamos llevando al sitio seguro de Mercado Pago para que pagues."
+                : yendo === "payway" ? "Aguardá un momento: te estamos llevando al pago con tarjeta, en el sitio seguro de Payway."
+                : "Aguardá un momento: te estamos mostrando tu pedido con los datos para pagar."}
+            </p>
+            <p className="text-sm font-semibold text-[var(--texto)]">No cierres esta página.</p>
+          </div>
+        </div>
+      )}
       <div className="space-y-4">
         <Bloque n={1} titulo="Tus datos">
           <Campo nombre="nombre" etiqueta="Nombre y apellido" autoComplete="name" defaultValue={precarga.nombre} />
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo nombre="email" etiqueta="Mail" type="email" autoComplete="email" inputMode="email" defaultValue={precarga.email} />
-            <Campo nombre="telefono" etiqueta="Teléfono" type="tel" autoComplete="tel" inputMode="tel" defaultValue={precarga.telefono} />
+            <Campo nombre="telefono" etiqueta="WhatsApp" type="tel" autoComplete="tel" inputMode="tel" defaultValue={precarga.telefono} placeholder="Ej. 351 555 1234" />
           </div>
-          <div>
-            <label htmlFor="f-documento" className={ETIQUETA}>DNI o CUIT</label>
-            <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
-              onChange={(e) => setDocumento(e.target.value)} placeholder="Sólo números" />
-            {esCuit && <p className="mt-1 text-xs text-gray-500">Si necesitás factura A, completá la razón social y la condición frente al IVA.</p>}
-          </div>
-          {esCuit && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Campo nombre="razon_social" etiqueta="Razón social" opcional defaultValue={precarga.razon_social} />
+          {/* Factura A, como en Mercado Libre: un interruptor; prendido pide los datos fiscales. */}
+          <button type="button" role="switch" aria-checked={facturaA} onClick={() => setFacturaA((x) => !x)} className="flex items-center gap-3 text-left">
+            <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${facturaA ? "bg-[var(--boton)]" : "bg-gray-300"}`}>
+              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${facturaA ? "translate-x-5" : "translate-x-0.5"}`} />
+            </span>
+            <span className="text-sm text-[var(--texto)]">Necesito factura A</span>
+          </button>
+          <input type="hidden" name="factura_a" value={facturaA ? "1" : ""} />
+          {facturaA ? (
+            <div className="grid gap-4 rounded-md bg-[var(--fondo)] p-3 sm:grid-cols-2">
+              <Campo nombre="razon_social" etiqueta="Razón social" defaultValue={precarga.razon_social} />
               <div>
-                <label htmlFor="f-condicion_iva" className={ETIQUETA}>Condición frente al IVA <span className="font-normal text-gray-400">(opcional)</span></label>
-                <select id="f-condicion_iva" name="condicion_iva" className={CAMPO} defaultValue={precarga.condicion_iva ?? ""}>
+                <label htmlFor="f-documento" className={ETIQUETA}><span>CUIT</span><Obligatorio /></label>
+                <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
+                  onChange={(e) => setDocumento(e.target.value)} placeholder="11 números, sin guiones" />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="f-condicion_iva" className={ETIQUETA}><span>Condición frente al IVA</span><Obligatorio /></label>
+                <select id="f-condicion_iva" name="condicion_iva" className={CAMPO} required defaultValue={precarga.condicion_iva && precarga.condicion_iva !== "consumidor_final" ? precarga.condicion_iva : ""}>
                   <option value="">Elegí…</option>
-                  {CONDICIONES_IVA.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                  {CONDICIONES_IVA.filter(([k]) => k !== "consumidor_final").map(([k, n]) => <option key={k} value={k}>{n}</option>)}
                 </select>
               </div>
+              <Campo nombre="fiscal_calle" etiqueta="Domicilio fiscal (calle y número)" opcional autoComplete="off" />
+              <Campo nombre="fiscal_localidad" etiqueta="Localidad" opcional autoComplete="off" />
+              <div>
+                <label htmlFor="f-fiscal_provincia" className={ETIQUETA}><span>Provincia</span><Obligatorio /></label>
+                <select id="f-fiscal_provincia" name="fiscal_provincia" className={CAMPO} required defaultValue={PROVINCIAS.includes("Córdoba") ? "Córdoba" : ""}>
+                  <option value="">Elegí…</option>
+                  {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <Campo nombre="fiscal_cp" etiqueta="Código postal" opcional inputMode="numeric" autoComplete="off" />
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="f-documento" className={ETIQUETA}><span>DNI o CUIT</span><Obligatorio /></label>
+              <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
+                onChange={(e) => setDocumento(e.target.value)} placeholder="Sólo números" />
             </div>
           )}
+          <fieldset>
+            <legend className={ETIQUETA}>Prefiero recibir la factura por</legend>
+            <div className="flex flex-wrap gap-5 text-sm">
+              <label className="inline-flex items-center gap-2"><input type="checkbox" name="factura_mail" value="1" defaultChecked className="h-5 w-5 accent-[var(--boton)]" /> Mail</label>
+              <label className="inline-flex items-center gap-2"><input type="checkbox" name="factura_whatsapp" value="1" defaultChecked className="h-5 w-5 accent-[var(--boton)]" /> WhatsApp</label>
+            </div>
+            <p className="mt-1 text-xs font-semibold text-[var(--verde)]">Podés tildar las dos.</p>
+          </fieldset>
         </Bloque>
 
         <Bloque n={2} titulo="Entrega">
@@ -195,7 +260,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
               </div>
               <div className="grid grid-cols-[1fr_130px] gap-3">
                 <div>
-                  <label htmlFor="f-provincia" className={ETIQUETA}>Provincia</label>
+                  <label htmlFor="f-provincia" className={ETIQUETA}><span>Provincia</span><Obligatorio /></label>
                   <select id="f-provincia" name="provincia" required className={CAMPO} value={provincia}
                     onChange={(e) => { setProvincia(e.target.value); recotizar({ provincia: e.target.value }); }}>
                     <option value="">Elegí…</option>
@@ -204,7 +269,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="f-codigo_postal" className={ETIQUETA}>Código postal</label>
+                  <label htmlFor="f-codigo_postal" className={ETIQUETA}><span>Código postal</span><Obligatorio /></label>
                   <input id="f-codigo_postal" name="codigo_postal" required autoComplete="postal-code" maxLength={8} className={CAMPO} value={cp}
                     onChange={(e) => setCp(e.target.value)}
                     onBlur={() => { if (cp.trim() !== cpCotizado.current.trim()) recotizar({ codigoPostal: cp.trim() }); }} />
@@ -212,7 +277,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
               </div>
               {aSucursal && (
                 <div>
-                  <label htmlFor="f-sucursal_oca" className={ETIQUETA}>Sucursal de OCA donde lo retirás</label>
+                  <label htmlFor="f-sucursal_oca" className={ETIQUETA}><span>Sucursal de OCA donde lo retirás</span><Obligatorio /></label>
                   <select id="f-sucursal_oca" name="sucursal_oca" required className={CAMPO} defaultValue="">
                     <option value="" disabled>{cp.replace(/\D/g, "").length < 4 ? "Poné tu código postal" : sucursales == null ? "Buscando sucursales…" : sucursales.length ? "Elegí la sucursal…" : "No hay sucursales para ese código postal"}</option>
                     {(sucursales ?? []).map((x) => <option key={x.id} value={x.id}>{x.texto}</option>)}
@@ -227,46 +292,60 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
         <Bloque n={3} titulo="Medio de pago">
           {medios.length === 0 && <p className="text-sm text-red-700">No hay medios de pago disponibles. Escribinos para coordinar.</p>}
           <div className="space-y-2">
-            {medios.map((x) => (
-              <label key={x.tipo} className={`flex cursor-pointer items-start gap-3 rounded-md border p-4 hover:border-[var(--boton)] ${medio === x.tipo ? "border-[var(--boton)] shadow-[0_0_0_1px_var(--boton)]" : "border-black/20"}`}>
-                <input type="radio" name="medio" value={x.tipo} required checked={medio === x.tipo}
-                  onChange={() => { setMedio(x.tipo); setCuotas(1); recotizar({ medio: x.tipo, cuotas: 1 }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
-                <span className="flex-1">
-                  <span className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold">{x.nombre}</span>
-                    {x.descuento_pct > 0 && <span className="rounded bg-[var(--verde)] px-2 py-0.5 text-xs font-semibold text-white">{x.descuento_pct.toLocaleString("es-AR")}% de descuento</span>}
-                    {x.descuento_pct < 0 && <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{(-x.descuento_pct).toLocaleString("es-AR")}% de recargo</span>}
-                  </span>
-                  {medio === x.tipo && (
-                    <span className="mt-1 block text-sm text-gray-600">
-                      {x.tipo === "payway" && conDebito ? "Pagás con tarjeta de crédito en el paso siguiente." : AYUDA_MEDIO[x.tipo]}
-                      {x.instrucciones && x.tipo !== "transferencia" && <span className="mt-1 block whitespace-pre-line">{x.instrucciones}</span>}
+            {medios.map((x) => {
+              const elegido = medio === x.tipo;
+              return (
+                <div key={x.tipo} className={`rounded-md border p-4 ${elegido ? "border-[var(--boton)] shadow-[0_0_0_1px_var(--boton)]" : "border-black/20 hover:border-[var(--boton)]"}`}>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input type="radio" name="medio" value={x.tipo} required checked={elegido}
+                      onChange={() => { setMedio(x.tipo); setCuotas(1); recotizar({ medio: x.tipo, cuotas: 1 }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
+                    <span className="flex-1">
+                      <span className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold">{x.nombre}</span>
+                        {x.descuento_pct > 0 && <span className="rounded bg-[var(--verde)] px-2 py-0.5 text-xs font-semibold text-white">{x.descuento_pct.toLocaleString("es-AR")}% de descuento</span>}
+                        {x.descuento_pct < 0 && <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{(-x.descuento_pct).toLocaleString("es-AR")}% de recargo</span>}
+                      </span>
+                      {/* Un resumen chico siempre a la vista (Fer, 25/10): qué incluye cada opción, sin tener que elegirla. */}
+                      {resumenDe(x.tipo) && <span className="mt-0.5 block text-xs text-gray-500">{resumenDe(x.tipo)}</span>}
                     </span>
+                  </label>
+                  {elegido && (x.aviso || x.instrucciones || (AYUDA_MEDIO[x.tipo] && x.tipo !== "payway")) && (
+                    <p className="ml-8 mt-2 text-sm text-gray-600">
+                      {x.aviso ? <span className="whitespace-pre-line">{x.aviso}</span> : x.tipo === "payway" && conDebito ? "Pagás con tarjeta de crédito en el paso siguiente." : AYUDA_MEDIO[x.tipo]}
+                      {x.instrucciones && x.tipo !== "transferencia" && <span className="mt-1 block whitespace-pre-line">{x.instrucciones}</span>}
+                    </p>
                   )}
-                  {medio === x.tipo && x.tipo === "payway" && resumen.cuotas && resumen.cuotas.planes.length > 0 && (() => {
-                    // Cada opción con lo que paga: el interés va sobre los productos; el envío, igual.
+                  {elegido && x.tipo === "payway" && resumen.cuotas && resumen.cuotas.planes.length > 0 && (() => {
+                    // Las cuotas como en Mercado Libre: una fila por opción con la cuota grande y el total.
                     const c = resumen.cuotas, envio = resumen.envio?.costo ?? 0;
                     const total = (i: number) => Math.round((c.productos * (1 + i / 100) + envio) * 100) / 100;
+                    const opciones = [{ cuotas: 1, interes_pct: 0 }, ...c.planes];
                     return (
-                      <span className="mt-3 block">
-                        <label htmlFor="f-cuotas" className={ETIQUETA}>Cuotas</label>
-                        <select id="f-cuotas" name="cuotas" className={CAMPO} value={cuotas}
-                          onChange={(e) => { const n = Number(e.target.value); setCuotas(n); recotizar({ cuotas: n }); }}>
-                          <option value={1}>1 pago de {precio(total(0), m)}</option>
-                          {c.planes.map((p) => (
-                            <option key={p.cuotas} value={p.cuotas}>
-                              {p.interes_pct === 0
-                                ? `${p.cuotas} cuotas sin interés de ${precio(Math.round(total(0) / p.cuotas * 100) / 100, m)}`
-                                : `${p.cuotas} cuotas de ${precio(Math.round(total(p.interes_pct) / p.cuotas * 100) / 100, m)} (total ${precio(total(p.interes_pct), m)})`}
-                            </option>
-                          ))}
-                        </select>
-                      </span>
+                      <fieldset className="ml-8 mt-3">
+                        <legend className={ETIQUETA}>¿En cuántas cuotas?</legend>
+                        <p className="-mt-0.5 mb-1.5 text-xs text-gray-500">En cuotas, con Visa o Mastercard de crédito. Con otra tarjeta, en cuotas por Mercado Pago.</p>
+                        <div className="divide-y divide-[var(--linea)] overflow-hidden rounded-md border border-[var(--linea)]">
+                          {opciones.map((o) => {
+                            const t = total(o.interes_pct), cuota = Math.round((t / o.cuotas) * 100) / 100, marcada = cuotas === o.cuotas;
+                            return (
+                              <label key={o.cuotas} className={`flex cursor-pointer items-center gap-3 px-3 py-3 ${marcada ? "bg-[color-mix(in_srgb,var(--boton)_8%,white)]" : "bg-white"}`}>
+                                <input type="radio" name="cuotas" value={o.cuotas} checked={marcada} className="h-4 w-4 accent-[var(--boton)]"
+                                  onChange={() => { setCuotas(o.cuotas); recotizar({ cuotas: o.cuotas }); }} />
+                                <span className="flex-1">
+                                  <span className="block text-[15px] text-[var(--texto)]">{o.cuotas === 1 ? "1 pago de " : `${o.cuotas} cuotas de `}<b className="whitespace-nowrap">{precio(cuota, m)}</b></span>
+                                  {o.cuotas > 1 && <span className="block text-xs text-gray-500">Total {precio(t, m)}</span>}
+                                </span>
+                                {o.cuotas > 1 && o.interes_pct === 0 && <span className="text-sm font-semibold text-[var(--verde)]">Sin interés</span>}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
                     );
                   })()}
-                </span>
-              </label>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </Bloque>
 

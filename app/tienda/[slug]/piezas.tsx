@@ -8,6 +8,7 @@ import { formatearNumero } from "@/lib/numeros";
 import type { Moneda } from "@/lib/moneda";
 import type { Plan } from "@/lib/tienda/cuotas";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
+import VideoTarjeta from "./VideoTarjeta";
 import { buscarProductos, POR_PAGINA, type Cucarda, type Filtros, type Orden, type Tarjeta } from "./catalogo";
 
 // ── Estilos comunes ──────────────────────────────────────
@@ -68,39 +69,117 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 /** "Mismo precio en 6 cuotas de $ 1.234" (verde, sin interés) o "en 12 cuotas de $ 1.500" (con interés). */
 export function LineaCuotas({ plan, venta, moneda, className = "" }: { plan: Plan | null; venta: number; moneda: Moneda; className?: string }) {
   if (!plan || plan.cuotas < 2) return null;
+  // Por Mercado Pago: "Hasta 12 cuotas de $ … con Mercado Pago" (cuota de referencia) o sin valor si no se sabe la tasa.
+  if (plan.medio === "mercadopago") {
+    const cuota = r2((venta * (1 + plan.interes_pct / 100)) / plan.cuotas);
+    return (
+      <div className={className}>
+        <p className="text-[var(--texto)]">Hasta {plan.cuotas} cuotas{plan.referencia && <> de <Monto n={cuota} moneda={moneda} className="align-baseline" /></>} con Mercado Pago</p>
+        <p className="text-xs text-[var(--texto-2)]">{plan.referencia ? "Cuota de referencia, según tu tarjeta. " : ""}También sin tarjeta.</p>
+      </div>
+    );
+  }
+  // "6 cuotas sin interés de $ …": gris, con sólo "sin interés" en verde (Fer, 24/10: menos verde).
   const sin = plan.interes_pct === 0;
   const cuota = r2((venta * (1 + plan.interes_pct / 100)) / plan.cuotas);
   return (
-    <p className={`${sin ? "text-[var(--verde)]" : "text-[var(--texto)]"} ${className}`}>
-      {sin ? "Mismo precio en " : "en "}{plan.cuotas} cuotas de <Monto n={cuota} moneda={moneda} className="align-baseline" />
+    <p className={`text-[var(--texto-2)] ${className}`}>
+      {plan.cuotas} cuotas{sin && <span className="text-[var(--verde)]"> sin interés</span>} de <Monto n={cuota} moneda={moneda} className="align-baseline text-[var(--texto)]" />
     </p>
   );
 }
 
-/** "$ 90.000 con transferencia": el precio pagando contado (esquema de cuotas y descuentos). */
+/** El precio pagando contado (esquema de cuotas y descuentos), en un recuadro verde suave para que
+ *  se vea: es el más barato. "$ 90.000 / con transferencia o débito". */
 export function LineaContado({ contado, moneda, className = "" }: { contado: { precio: number; texto: string } | null; moneda: Moneda; className?: string }) {
   if (!contado) return null;
-  return <p className={`text-[var(--verde)] ${className}`}><Monto n={contado.precio} moneda={moneda} className="align-baseline font-semibold" /> {contado.texto}</p>;
+  return (
+    <div className={`rounded bg-[color-mix(in_srgb,var(--verde)_10%,white)] px-2 py-1 leading-tight ${className}`}>
+      <Monto n={contado.precio} moneda={moneda} className="font-semibold text-[var(--verde)]" />
+      <span className="block text-xs text-[var(--texto-2)]">{contado.texto}</span>
+    </div>
+  );
 }
 
-/** Bloque de precio: tachado chico, precio grande con "% OFF" verde. */
+/** "Hasta 12 cuotas": la cucarda chica de los productos caros (el plan de Mercado Pago). */
+export const HastaCuotas = ({ cuotas }: { cuotas: number | null }) => cuotas
+  ? <span className="inline-block rounded-[3px] border border-[var(--linea)] px-1 py-0.5 text-[11px] leading-none text-[var(--texto-2)]">Hasta {cuotas} cuotas</span>
+  : null;
+
+/** "Precio según cómo pagues" (ficha, esquema de cuotas y descuentos): cada forma de pago con su
+ *  precio y su % OFF contra el tachado, para que se vea de frente que contado sale menos y que en
+ *  6 cuotas sale más. Los planes de Mercado Pago van sin % (el interés lo pone Mercado Pago). */
+export function PrecioSegunPago({ lista, venta, moneda, planes, contado }: {
+  lista: number; venta: number; moneda: Moneda; planes: Plan[]; contado: { pct: number; texto: string } | null;
+}) {
+  const conMp = planes.some((x) => x.medio === "mercadopago");
+  const filas: { nombre: string; total: number | null; detalle?: React.ReactNode; verde?: boolean }[] = [];
+  if (contado && contado.pct > 0) {
+    const nombre = contado.texto.replace(/^con /, "");
+    filas.push({ nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), total: r2(venta * (1 - contado.pct / 100)), verde: true });
+  }
+  filas.push({ nombre: conMp ? "Tarjeta en 1 pago o Mercado Pago" : "Tarjeta en 1 pago", total: venta });
+  for (const x of planes.filter((x) => x.cuotas > 1)) {
+    const total = r2(venta * (1 + x.interes_pct / 100));
+    const cuota = <Monto n={r2(total / x.cuotas)} moneda={moneda} className="align-baseline" />;
+    if (x.medio === "mercadopago") filas.push({ nombre: `Hasta ${x.cuotas} cuotas con Mercado Pago`, total: null,
+      detalle: <>{x.referencia && <>Desde {cuota} por cuota, según tu tarjeta. </>}Con el interés de Mercado Pago. También sin tarjeta.</> });
+    else filas.push({ nombre: `${x.cuotas} cuotas ${x.interes_pct === 0 ? "sin interés" : "fijas"}`, total, detalle: <>{x.cuotas} cuotas de {cuota}</>, verde: x.interes_pct === 0 });
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-base text-[var(--texto)]">Precio según cómo pagues</p>
+      <ul className="divide-y divide-[var(--linea)] rounded-md border border-[var(--linea)]">
+        {filas.map((f) => {
+          const off = f.total == null ? 0 : pctOff(lista, f.total);
+          return (
+            <li key={f.nombre} className="flex items-start justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <p className={f.verde ? "text-[var(--verde)]" : "text-[var(--texto)]"}>{f.nombre}</p>
+                {f.detalle && <p className="text-xs text-[var(--texto-2)]">{f.detalle}</p>}
+              </div>
+              {f.total != null && (
+                <div className="shrink-0 text-right">
+                  <Monto n={f.total} moneda={moneda} className="font-semibold text-[var(--texto)]" />
+                  {off > 0 && <p className="text-xs font-semibold text-[var(--verde)]">{off}% OFF</p>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Bloque de precio: arriba el tachado chico con el "% OFF" verde a la derecha (en la tarjeta,
+ *  pegado al borde; en la ficha, al lado), y abajo el precio grande en negro. */
 export function Precio({ lista, venta, moneda, desde, grande }: { lista: number; venta: number; moneda: Moneda; desde?: boolean; grande?: boolean }) {
   const off = pctOff(lista, venta);
   return (
     <div>
-      {off > 0 && <Monto n={lista} moneda={moneda} tachado className={`text-[var(--texto-2)] ${grande ? "text-base" : "text-xs"}`} />}
+      {off > 0 && (
+        <div className={`flex items-center gap-2 ${grande ? "" : "justify-between"}`}>
+          <Monto n={lista} moneda={moneda} tachado className={`shrink-0 text-[var(--texto-2)] ${grande ? "text-base" : "text-xs"}`} />
+          {/* En un renglón si entra; con un tachado largo en el celular no entra, y va «47%» arriba de «OFF»,
+              centrados en un cuadradito (Fer, 24/10: estirado a lo ancho en dos renglones quedaba feo). */}
+          <span className={`inline-flex min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[3px] bg-[var(--verde)] px-1.5 py-0.5 text-center font-semibold leading-[1.1] text-white ${grande ? "text-sm" : "text-xs"} ${
+            !grande && formatearNumero(Math.floor(lista), "entero").length >= 9 ? "max-sm:w-min max-sm:px-2" : "whitespace-nowrap"}`}>
+            <span>{off}%</span><span>OFF</span>
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {desde && <span className="text-xs text-[var(--texto-2)]">Desde</span>}
         <Monto n={venta} moneda={moneda} className={`text-[var(--texto)] ${grande ? "text-[36px] font-light" : "text-2xl"}`} />
-        {off > 0 && <span className={`rounded-[3px] bg-[var(--verde)] px-1.5 py-0.5 font-semibold leading-none text-white ${grande ? "text-base" : "text-xs"}`}>{off}% OFF</span>}
       </div>
     </div>
   );
 }
 
-/** "Llega gratis": la pastilla verde del envío gratis (a todo el país, desde el monto de Configuración › Envíos). */
+/** "Llega gratis": el texto verde del envío gratis (a todo el país, desde el monto de Configuración › Envíos). */
 export const LlegaGratis = () => (
-  <p><span className="inline-block rounded-[3px] bg-[color-mix(in_srgb,var(--verde)_12%,white)] px-1.5 py-0.5 text-sm font-semibold text-[var(--verde)]">Llega gratis</span></p>
+  <span className="inline-block text-sm font-semibold text-[var(--verde)]">Llega gratis</span>
 );
 
 const enlaceProducto = (t: Tienda, p: { id: number }) => rutaTienda(t, `/producto/${p.id}`);
@@ -112,17 +191,20 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
     <Link href={enlaceProducto(t, p)}
       className="group flex h-full flex-col overflow-hidden rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] transition-shadow hover:shadow-[0_7px_16px_0_rgba(0,0,0,.2)]">
       <div className="relative aspect-square border-b border-[var(--linea)] bg-white">
-        {p.foto
+        {p.video ? <VideoTarjeta video={p.video} foto={p.foto} alt={p.titulo} apagado={sinStock} />
+          : p.foto
           ? <img src={p.foto} alt={p.titulo} loading="lazy" decoding="async" className={`h-full w-full object-contain p-3 ${sinStock ? "opacity-50" : ""}`} />
           : <div className="grid h-full w-full place-items-center text-gray-300"><IconoFoto /></div>}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4 pt-3">
         <Etiquetas lista={p.cucardas} masVendido={p.masVendido} />
-        <h3 className="line-clamp-2 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
+        <h3 className="line-clamp-3 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
-        <LineaContado contado={p.contado} moneda={t.moneda} className="text-sm" />
-        {p.envioGratis && !sinStock && <LlegaGratis />}
+        <LineaContado contado={p.contado} moneda={t.moneda} className="mt-1 text-sm" />
+        {!sinStock && (p.envioGratis || p.cuotasMp) && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">{p.envioGratis && <LlegaGratis />}<HastaCuotas cuotas={p.cuotasMp} /></div>
+        )}
         {sinStock && <p className="text-sm text-[var(--texto-2)]">Sin stock</p>}
       </div>
     </Link>
@@ -147,8 +229,10 @@ export function FilaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
         {p.marca && <p className="text-xs text-[var(--texto-2)]">Por {p.marca}</p>}
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
-        <LineaContado contado={p.contado} moneda={t.moneda} className="text-sm" />
-        {p.envioGratis && !sinStock && <LlegaGratis />}
+        <LineaContado contado={p.contado} moneda={t.moneda} className="mt-1 self-start text-sm" />
+        {!sinStock && (p.envioGratis || p.cuotasMp) && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">{p.envioGratis && <LlegaGratis />}<HastaCuotas cuotas={p.cuotasMp} /></div>
+        )}
         {sinStock ? <p className="text-sm text-[var(--texto-2)]">Sin stock</p>
           : p.stock > 1 && p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{`Últimas ${p.stock} disponibles`}</p>}
       </div>

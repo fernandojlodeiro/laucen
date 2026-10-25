@@ -13,11 +13,12 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionGuardarMensajes, accionIaGeneral } from "./acciones";
+import { accionDesconectar, accionElegirNumero, accionGuardarMensajes, accionIaGeneral } from "./acciones";
+import { pendienteDe } from "@/lib/mensajes/alta";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; ok?: string; error?: string; wa?: string };
+type SP = { editar?: string; ok?: string; error?: string; wa?: string; alta?: string };
 const VOLVER = "/ventas/mensajes/configuracion";
 const AYUDA = "block text-[11px] text-[#5C6B76] mt-0.5";
 
@@ -28,12 +29,13 @@ const VUELTA: Record<string, { ok: boolean; texto: string }> = {
   estado: { ok: false, texto: "La conexión tardó demasiado o vino de otro lado. Empezala de nuevo." },
   canje: { ok: false, texto: "Meta no terminó de dar el permiso. Probá de nuevo en un rato." },
   sin_cuenta: { ok: false, texto: "No se eligió ninguna cuenta de WhatsApp en Meta. Probá de nuevo y elegí la del negocio." },
-  varias_cuentas: { ok: false, texto: "Se eligió más de una cuenta o número. Probá de nuevo eligiendo uno solo." },
   sin_numero: { ok: false, texto: "La cuenta de WhatsApp no tiene un número. Probá de nuevo." },
   otro_dueno: { ok: false, texto: "Ese número ya está conectado a otra organización." },
   webhooks: { ok: false, texto: "Se conectó, pero Meta no aceptó mandar los mensajes a Laucen. Probá de nuevo; si sigue, avisá." },
   sinpermiso: { ok: false, texto: "Tu rol no puede conectar el WhatsApp." },
   sinapp: { ok: false, texto: "La conexión con Meta todavía no está lista del lado de Laucen." },
+  elegir: { ok: true, texto: "Meta dio permiso sobre más de un número: elegí abajo cuál conectar." },
+  ocupado: { ok: false, texto: "Ese número está en una cuenta de WhatsApp que ya usa otro sistema: conectarlo le cortaría los mensajes. Hay que pasarlo a una cuenta propia en Meta." },
 };
 
 export default async function ConfigMensajes({ searchParams }: { searchParams: Promise<SP> }) {
@@ -43,12 +45,35 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const editando = editandoFicha(sp);
   const vuelta = sp.wa ? VUELTA[sp.wa] : null;
   const lista = hayAppDeMeta();
+  // Meta dio permiso sobre varios números (bitácora #868): se elige cuál conectar.
+  const pendiente = sp.alta ? await pendienteDe(s.org.id, Number(sp.alta) || 0) : null;
 
   return (
     <Pantalla titulo="WhatsApp" subtitulo="El número conectado y la IA que contesta los mensajes" ancho="max-w-4xl">
       <Avisos sp={sp} />
       {vuelta && <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${vuelta.ok ? "bg-[#E8F5EE] text-[#167655]" : "bg-[#FDF0E6] text-[#8a6100]"}`}>{vuelta.texto}</p>}
       <PestanasMensajes org={s.org.id} permisos={s.permisos} superadmin={s.superadmin} activa="config" />
+
+      {pendiente && (
+        <div className={`${CAJA} mb-4 text-xs space-y-2`}>
+          <p className="font-semibold">¿Qué número conectás a Laucen?</p>
+          <ul className="space-y-1.5">
+            {pendiente.opciones.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center gap-2">
+                <span className="font-mono">{o.numero || o.id}</span>{o.nombre && <span>· {o.nombre}</span>}
+                {o.ocupado
+                  ? <span className="text-[#8a6100]">Ya lo usa otro sistema: no se puede conectar acá.</span>
+                  : <form action={accionElegirNumero}>
+                      <input type="hidden" name="alta" value={pendiente.id} />
+                      <input type="hidden" name="telefono" value={o.id} />
+                      <button className={PRIMARIO}>Conectar este número</button>
+                    </form>}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-[#5C6B76]">Si el número que querés no está en la lista, empezá de nuevo con «Conectar WhatsApp».</p>
+        </div>
+      )}
 
       <TituloSeccion titulo="El número de WhatsApp" />
       <div className={`${CAJA} mb-4 text-xs space-y-2`}>

@@ -5,6 +5,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id } from "@/lib/erp/acciones";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
+import { cuentasDe } from "@/lib/tienda/medios";
 import { TIPOS_MEDIO, CREDENCIALES_REQUERIDAS, type TipoMedio } from "./comun";
 
 const VOLVER = "/config/medios-pago";
@@ -50,8 +51,11 @@ export async function accionGuardarMedio(fd: FormData) {
     const nombre = texto(fd, "nombre") ?? TIPOS_MEDIO[m.tipo].nombre;
     const desc = numero(fd, "descuento_pct") ?? 0;
     if (desc < -100 || desc > 100) throw new ErrorErp("El descuento va entre -100 % y 100 % (negativo = recargo).");
-    await consulta(`update medio_pago set nombre = $3, descuento_pct = $4, instrucciones = $5, orden = $6 where id = $1 and organizacion_id = $2`,
-      [m.id, s.org.id, nombre, desc, texto(fd, "instrucciones"), entero(fd, "orden") ?? 0]);
+    // Las cuentas para transferir: una por renglón con algo cargado.
+    const cuentas = m.tipo === "transferencia" ? cuentasDe(Array.from({ length: 7 }, (_, i) => ({
+      banco: texto(fd, `banco_${i}`), alias: texto(fd, `alias_${i}`), cbu: texto(fd, `cbu_${i}`), titular: texto(fd, `titular_${i}`), cuit: texto(fd, `cuit_${i}`) }))) : null;
+    await consulta(`update medio_pago set nombre = $3, descuento_pct = $4, instrucciones = $5, orden = $6, aviso = $7, cuentas = $8::jsonb where id = $1 and organizacion_id = $2`,
+      [m.id, s.org.id, nombre, desc, texto(fd, "instrucciones"), entero(fd, "orden") ?? 0, texto(fd, "aviso"), cuentas?.length ? JSON.stringify(cuentas) : null]);
     revalidatePath(VOLVER);
     return "Guardado.";
   });

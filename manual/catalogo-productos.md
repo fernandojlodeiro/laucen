@@ -141,6 +141,7 @@ Datos libres del producto (material, origen…): Nombre, Valor y Orden, con láp
 - Caja **Fotos del producto** con el botón **📷 Subir fotos** (se pueden elegir varias a la vez). La primera foto es la principal.
 - En un producto con variaciones, una caja por variación con **📷 Fotos propias**. Si una variación no tiene fotos propias, "usa las del producto".
 - Cada foto tiene ◀ / ▶ para moverla un lugar antes o después y un tacho para borrarla.
+- Caja **Video del producto** con **🎬 Subir video** (uno por producto, hasta 200 MB; subir otro lo reemplaza) y un tacho para borrarlo. Se ve en la ficha de la tienda web, después de la primera foto.
 
 #### Pestaña Cucardas
 

@@ -188,3 +188,19 @@ export async function accionGuardarDominio(fd: FormData) {
     return marca ? `${f.dominio} abre la tienda como «${marca.nombre}».` : `${f.dominio} redirige.`;
   });
 }
+
+/** "Canonical hacia el principal" de un dominio de otra marca (bitácora #856): prendido, sus páginas le
+ *  dicen a Google que son las del dominio principal; apagado, se posicionan por separado. */
+export async function accionCanonicalDominio(fd: FormData) {
+  const s = await entrarErp("tienda_config");
+  await intentar(VOLVER, async () => {
+    await entrar();
+    const f = await filaDe(s.org.id, id(fd, "id"));
+    if (!f) throw new ErrorErp("El dominio no existe.");
+    const prendido = fd.get("valor") === "1";
+    await consulta("update tienda_dominio set canonical_principal = $3 where id = $1 and organizacion_id = $2", [f.id, s.org.id, prendido]);
+    olvidarDominios();
+    revalidatePath(VOLVER);
+    return prendido ? `${f.dominio}: Google lo toma como el dominio principal.` : `${f.dominio}: Google lo toma como un sitio aparte.`;
+  });
+}

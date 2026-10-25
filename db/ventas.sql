@@ -567,3 +567,43 @@ begin
     'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', 'cancelado', 'nuevo', 'nuevo', 'quien', p_quien));
   perform reservar_pedido(p_org, p.id, p_quien);
 end $$;
+
+-- Comprobantes de pago de un pedido (Fer, 24/10): foto o PDF de la transferencia, en el bucket privado
+-- «comprobantes». origen: quién lo trajo (un operador; después, el mail o el WhatsApp del cliente).
+create table if not exists pedido_comprobante_pago (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  pedido_id        bigint not null references pedido(id) on delete cascade,
+  ruta             text not null,
+  nombre           text,
+  tipo             text,
+  origen           text not null default 'operador' check (origen in ('operador', 'mail', 'whatsapp')),
+  subido_por       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists pedido_comprobante_pago_pedido on pedido_comprobante_pago (pedido_id);
+alter table pedido_comprobante_pago enable row level security;
+-- La conciliación con Mercado Pago (lib/pagos/comprobante.ts): lo que leyó la IA, cómo quedó y, si quedó
+-- «a confirmar», las transferencias que se proponen. Sin estado = todavía no se intentó.
+alter table pedido_comprobante_pago add column if not exists lectura jsonb;
+alter table pedido_comprobante_pago add column if not exists estado text check (estado in ('conciliado', 'a_confirmar', 'sin_encontrar', 'no_coincide', 'no_es'));
+alter table pedido_comprobante_pago add column if not exists detalle text;
+alter table pedido_comprobante_pago add column if not exists candidatos jsonb;
+alter table pedido_comprobante_pago add column if not exists mp_pago_id text;
+alter table pedido_comprobante_pago add column if not exists revisado_ts timestamptz;
+
+-- El conforme de retiro (Fer, 25/10): la firma de quien retira en el local —el cliente o un comisionista— y,
+-- si hace falta, la foto de su DNI. Sólo queda guardado: no mueve nada del pedido. Mismo bucket privado
+-- «comprobantes», carpeta <org>/pedidos/<id>/retiro.
+create table if not exists pedido_conforme_retiro (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  pedido_id        bigint not null references pedido(id) on delete cascade,
+  ruta             text not null,
+  nombre           text,
+  tipo             text,
+  subido_por       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists pedido_conforme_retiro_pedido on pedido_conforme_retiro (pedido_id);
+alter table pedido_conforme_retiro enable row level security;

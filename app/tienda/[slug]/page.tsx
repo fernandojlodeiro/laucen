@@ -13,6 +13,8 @@ import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBas
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
 import Banners from "./Banners";
 import Carrusel from "./Carrusel";
+import { headers } from "next/headers";
+import { dominioCanonico } from "@/lib/tienda/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -76,12 +78,25 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
     { titulo: "Ayuda", texto: c.horario ? `Te atendemos ${c.horario.charAt(0).toLowerCase()}${c.horario.slice(1)}.` : "¿Tenés dudas? Escribinos.", href: r("/ayuda"), icono: <IconoCharla clase="h-5 w-5" /> },
   ];
 
+  // Para los buscadores (bitácora #856): quién es la tienda y cómo se busca en ella.
+  const dominio = await dominioCanonico(t, (await headers()).get("host"));
+  const datos = dominio ? [
+    { "@context": "https://schema.org", "@type": "Organization", name: nombre, url: `https://${dominio}/`, ...(c.logo ? { logo: c.logo } : {}),
+      ...(c.email ? { email: c.email } : {}) },
+    { "@context": "https://schema.org", "@type": "WebSite", name: nombre, url: `https://${dominio}/`,
+      potentialAction: { "@type": "SearchAction", target: `https://${dominio}/buscar?q={search_term_string}`, "query-input": "required name=search_term_string" } },
+  ] : [];
+
   return (
+    <>
+    {/* Fuera del contenedor con space-y: si no, el banner recibía su margen de arriba (Fer, 24/10). */}
+    {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
     <div className="space-y-10">
       {/* Banners a todo el ancho. */}
-      <div className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
+      {/* Pegado al encabezado y con la primera fila subiendo sobre su borde de abajo (Fer, 24/10: le sobraba lugar). */}
+      <div className="relative left-1/2 -mb-6 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (
-          <div className="relative h-[150px] overflow-hidden bg-[var(--marca)] sm:h-[260px] lg:h-[340px]">
+          <div className="relative aspect-[3/1] overflow-hidden bg-[var(--marca)] lg:aspect-auto lg:h-[340px]">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,.55),transparent_60%)]" />
             <div className="relative mx-auto flex h-full max-w-[1200px] items-center gap-6 px-6 pb-[6%] text-[var(--marca-texto)]">
               <div className="flex-1">
@@ -91,7 +106,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
               </div>
               {c.logo && <img src={c.logo} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
             </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/5 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
           </div>
         )}
       </div>
@@ -139,5 +154,6 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
         ))}
       </section>
     </div>
+    </>
   );
 }

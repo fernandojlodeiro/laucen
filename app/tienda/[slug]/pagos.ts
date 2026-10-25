@@ -37,7 +37,7 @@ export async function preferenciaNueva(t: Tienda, codigo: string): Promise<strin
   const cred = await credencial(t, "mercadopago");
   if (!cred?.datos?.access_token) throw new ErrorErp("Mercado Pago no está disponible ahora. Escribinos y lo resolvemos.");
   const vars = await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id]);
-  const planes = await planesDeLaCompra(t, vars.map((x) => x.v), Number(p.subtotal ?? p.total_ars));
+  const planes = await planesDeLaCompra(t, vars.map((x) => x.v));
   const seguir = await urlTienda(t, `/pedido/${codigo}`);
   const pref = await crearPreferencia(cred.datos.access_token, {
     pedidoId: p.id, titulo: `${nombreTienda(t)} — pedido ${p.id}`, total: Number(p.total_ars), email: p.email, nombre: p.nombre,

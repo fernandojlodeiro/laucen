@@ -50,6 +50,12 @@ create table if not exists correo_cola (
 );
 create index if not exists correo_cola_pendiente on correo_cola (creado_ts) where hecho_ts is null;
 alter table correo_cola enable row level security;
+-- El mismo aviso por WhatsApp (lib/mensajes/avisos-pedido.ts), con su propio estado y sus reintentos.
+alter table correo_cola add column if not exists wa_estado text;
+alter table correo_cola add column if not exists wa_detalle text;
+alter table correo_cola add column if not exists wa_intentos int not null default 0;
+alter table correo_cola add column if not exists wa_intento_ts timestamptz;
+alter table correo_cola add column if not exists wa_hecho_ts timestamptz;
 
 create or replace function public.correo_encolar_estado() returns trigger language plpgsql as $$
 declare v_tipo text;
@@ -82,7 +88,8 @@ declare
   select net.http_get(
     url := 'https://laucen.vercel.app/api/correo/cola?clave=' || (select clave from public.erp_llave where id = 1),
     timeout_milliseconds := 60000
-  ) where exists (select 1 from public.correo_cola where hecho_ts is null and intentos < 5)
+  ) where exists (select 1 from public.correo_cola where (hecho_ts is null and intentos < 5)
+       or (wa_hecho_ts is null and wa_intentos < 300 and creado_ts > now() - interval '3 days' and (wa_intento_ts is null or wa_intento_ts < now() - interval '10 minutes')))
 $cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;

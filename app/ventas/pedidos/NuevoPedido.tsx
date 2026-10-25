@@ -41,7 +41,7 @@ const MEDIOS = ["Efectivo", "Transferencia", "Tarjeta de débito", "Tarjeta de c
 /** Cuadro de búsqueda al tipear (desde la segunda letra) con la X para borrar
  *  y la caja "Comienza por" (tildada de entrada), como BuscadorVivo pero sin
  *  tocar la dirección: busca con una acción del servidor. */
-function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>) {
+export function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>) {
   const [texto, setTexto] = useState("");
   const [comienza, setComienza] = useState(true);
   const [hallados, setHallados] = useState<T[]>([]);
@@ -70,7 +70,7 @@ function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>)
   };
 }
 
-function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
+export function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
   b: ReturnType<typeof usarBusqueda<unknown>>; placeholder: string; alEnter?: () => void;
   /** Flecha abajo / arriba: moverse por la lista de resultados (Fer, 7/10: todo con el teclado). */
   alFlecha?: (paso: 1 | -1) => void; id?: string;
@@ -100,7 +100,7 @@ function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
 
 /** Alta rápida de un cliente que no apareció en el buscador: pide ahí mismo los datos principales de la
  *  ficha (Fer, 22/10: CUIT / CUIL y DNI por separado, sin desplegable de tipo de documento). */
-function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
+export function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   nombreInicial: string; documentoInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void;
 }) {
   // Si lo que se buscó era un número, va a su campo: 11 cifras = CUIT, si no, DNI.
@@ -114,6 +114,9 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   // La condición de IVA se sugiere sola (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor
   // final. Si la persona la eligió a mano, ya no se toca.
   const [ivaElegida, setIvaElegida] = useState(false);
+  // Cómo quiere la factura (Fer, 25/10): las dos tildadas de entrada, como en el pago de la tienda.
+  const [facturaMail, setFacturaMail] = useState(true);
+  const [facturaWhatsapp, setFacturaWhatsapp] = useState(true);
   const [error, setError] = useState("");
   // Los que ya están cargados con esos datos (mismo CUIT, DNI o razón social): se ofrece elegirlos.
   const [repetidos, setRepetidos] = useState<ClienteHallado[]>([]);
@@ -137,7 +140,7 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   const guardar = (igual = false) => {
     setError(""); setRepetidos([]);
     grabar(async () => {
-      const r = await crearClienteDesdePedido({ ...v, igual });
+      const r = await crearClienteDesdePedido({ ...v, facturaMail, facturaWhatsapp, igual });
       if (r.cliente) return alCrear(r.cliente);
       setError(r.error ?? "No se pudo crear el cliente.");
       setRepetidos(r.repetidos ?? []); setForzable(!!r.forzable);
@@ -191,6 +194,11 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
         {campo("email", "Mail")}
         {campo("telefono", "Teléfono")}
         {campo("whatsapp", "WhatsApp", { placeholder: "351 555-1234" })}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className={ETIQUETA}>La factura le llega</span>
+        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={facturaMail} onChange={(e) => setFacturaMail(e.target.checked)} className="h-4 w-4 accent-[#16577F]" /> Por mail</label>
+        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={facturaWhatsapp} onChange={(e) => setFacturaWhatsapp(e.target.checked)} className="h-4 w-4 accent-[#16577F]" /> Por WhatsApp</label>
       </div>
       <div className="grid grid-cols-6 gap-2">
         {campo("calle", "Calle", { className: "col-span-3" })}

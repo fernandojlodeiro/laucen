@@ -69,6 +69,7 @@ export default async function Ayuda({ params }: { params: Promise<{ slug: string
           </ul>
         ) : <p className="text-[var(--texto-2)]">Escribinos y te contamos cómo pagar.</p>}
         <p className="text-sm text-[var(--texto-2)]">Las cuotas disponibles de cada producto están en su ficha.</p>
+        {medios.some((m) => m.tipo === "mercadopago") && <p className="text-sm text-[var(--texto-2)]">Con Mercado Pago también podés pagar en cuotas sin tarjeta.</p>}
       </section>
 
       {(c.devoluciones || c.garantia) && (

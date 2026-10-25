@@ -10,7 +10,8 @@ import { consulta, una } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { planesDeLaCompra } from "@/lib/tienda/checkout";
-import { MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { financiacionTienda, marcasPermitidas } from "@/lib/tienda/financiacion";
+import { cuentasDe } from "@/lib/tienda/medios";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { cargarTienda, estadoCriollo, linkWhatsapp } from "../../catalogo";
@@ -20,6 +21,10 @@ import { paywayPublico } from "../../pagos";
 import PagoPayway from "./PagoPayway";
 import Antibot from "../../Antibot";
 import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
+import { headers } from "next/headers";
+import { datosComprador, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
+import { EventoPublicidad } from "../../Publicidad";
+import Refrescar from "./Refrescar";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Tu pedido", robots: { index: false } };
@@ -29,7 +34,7 @@ type Props = { params: Promise<{ slug: string; codigo: string }>; searchParams: 
 type Pedido = {
   id: number; fecha: string; estado: string; estado_pago: string; moneda: Moneda; total: string; costo_envio_ars: string;
   envio: { metodo?: string | null; a_convenir?: boolean; bonificado?: boolean; direccion?: Record<string, string | null> | null; sucursal_oca?: { id: string; nombre: string; direccion: string } | null };
-  medio_pago: string | null; medio: string | null; cliente_id: number | null; email: string | null; nombre: string | null;
+  medio_pago: string | null; medio: string | null; cliente_id: number | null; email: string | null; nombre: string | null; telefono: string | null;
   metodo_tipo: string | null; descuentos: { nombre: string; importe: number }[] | null;
   subtotal: string | null; cuotas: number | null; debito: boolean | null;
 };
@@ -40,15 +45,17 @@ async function cargarPedido(t: Tienda, codigo: string) {
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') fecha, p.estado, p.estado_pago, p.moneda,
            case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, p.costo_envio_ars, p.envio, p.medio_pago,
            coalesce(p.datos_externos #>> '{tienda,medio}', (select medio from pago where pedido_id = p.id order by id desc limit 1)) medio,
-           p.cliente_id::int, cl.email, cl.nombre, me.tipo metodo_tipo,
+           p.cliente_id::int, coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
+           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre) nombre,
+           coalesce(p.datos_externos #>> '{tienda,contacto,telefono}', cl.telefono_movil, cl.telefono) telefono, me.tipo metodo_tipo,
            p.datos_externos #> '{tienda,descuentos}' descuentos, p.datos_externos #>> '{tienda,subtotal}' subtotal,
            (p.datos_externos #>> '{tienda,cuotas}')::int cuotas, (p.datos_externos #>> '{tienda,debito}')::boolean debito
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
   if (!p) return null;
   const [lineas, envios, medio, tieneCuenta] = await Promise.all([
-    consulta<{ variacion_id: number | null; producto_id: number | null; titulo: string; cantidad: number; unit: string; foto: string | null }>(`
-      select l.variacion_id::int, v.producto_id::int, l.titulo, l.cantidad, case when $2 = 'USD' then l.precio_unit_usd else l.precio_unit_ars end unit,
+    consulta<{ variacion_id: number | null; producto_id: number | null; titulo: string; cantidad: number; unit: string; foto: string | null; sku: string | null }>(`
+      select l.variacion_id::int, v.producto_id::int, v.sku, l.titulo, l.cantidad, case when $2 = 'USD' then l.precio_unit_usd else l.precio_unit_ars end unit,
              coalesce((select url from variacion_foto where variacion_id = l.variacion_id order by orden limit 1),
                       (select url from producto_foto where producto_id = v.producto_id order by orden limit 1)) foto
         from pedido_linea l left join variacion v on v.id = l.variacion_id
@@ -56,8 +63,8 @@ async function cargarPedido(t: Tienda, codigo: string) {
     consulta<{ estado: string | null; tracking: string | null; transportista: string | null; entrega: string | null }>(`
       select estado, tracking, transportista, to_char(entrega_estimada at time zone 'America/Argentina/Buenos_Aires', 'DD/MM') entrega
         from envio where pedido_id = $1 and organizacion_id = $2 order by id`, [p.id, org]),
-    p.medio ? una<{ nombre: string; instrucciones: string | null }>(`
-      select nombre, instrucciones from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3
+    p.medio ? una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(`
+      select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3
        order by canal_id nulls last limit 1`, [org, t.canalId, p.medio]) : null,
     p.email ? una("select 1 from cliente_cuenta where organizacion_id = $1 and email = lower($2)", [org, p.email]) : null,
   ]);
@@ -86,21 +93,43 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   const pw = pagarConTarjeta ? await paywayPublico(t) : null;
   // Cuotas: las elegidas al comprar (esquema de cuotas: el interés ya está en el total) o, en un pedido sin elegir, los planes de la compra.
   const planes = !pagarConTarjeta || p.debito || p.cuotas ? []
-    : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), Number(p.subtotal ?? p.total));
-  const marcas = p.debito ? MARCAS_PAYWAY.filter((x) => MARCAS_DEBITO.includes(x.id)) : MARCAS_PAYWAY;
+    : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), "payway");
+  // Las tarjetas que puede usar: con débito, sólo débito; en cuotas, Visa y Master de crédito; en un pago, las de crédito.
+  const permitida = marcasPermitidas(financiacionTienda(t), !!p.debito, p.cuotas);
+  const marcas = MARCAS_PAYWAY.filter((x) => permitida(x.id));
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;
   // Los precios de las líneas ya tienen aplicados los descuentos: se muestran como ahorro.
   const ahorro = (p.descuentos ?? []).filter((x) => x.importe > 0);
 
+  // Publicidad: la compra cuenta una sola vez por pedido (el id del pedido viaja a cada plataforma),
+  // cuando el pago queda aprobado; transferencia y efectivo, al crear el pedido si así está configurado.
+  const pub = await etiquetasDelHost((await headers()).get("host"));
+  const cuentaComoVenta = !!pub && p.estado !== "cancelado"
+    && (pagado || (pub.contar_al_crear && (p.medio === "transferencia" || p.medio === "efectivo")));
+  const compra: Evento | null = !cuentaComoVenta ? null : {
+    tipo: "compra", moneda: m, pedido: String(p.id), valor: Math.round(lineas.reduce((s, l) => s + Number(l.unit) * l.cantidad, 0) * 100) / 100,
+    ...(m === "ARS" ? { envio: Number(p.costo_envio_ars) || 0 } : {}),
+    items: lineas.map((l) => ({ id: l.variacion_id ? idCatalogo(l.sku, l.variacion_id) : l.titulo, nombre: l.titulo, precio: Number(l.unit), cantidad: l.cantidad })),
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <AvisosUrl sp={sp} />
+      {compra && <EventoPublicidad evento={compra} unaVez={`compra_${p.id}`} conversionGoogle={pub?.google?.enviarConversion}
+        comprador={pub?.datos_comprador ? datosComprador(p.email, p.telefono) : undefined} />}
+      {/* Volvió de Mercado Pago y el aviso del pago todavía no llegó: se actualiza sola un rato. */}
+      {pendiente && p.medio === "mercadopago" && !fallo && <Refrescar />}
       <div className="space-y-2 text-center">
         {fallo ? <h1 className="text-2xl font-bold sm:text-3xl">El pago no se completó</h1>
           : <h1 className="text-2xl font-bold sm:text-3xl">{pagado || p.estado_pago === "a_convenir" || p.estado_pago === "a_cobrar" ? "¡Gracias por tu compra!" : "¡Recibimos tu pedido!"}</h1>}
         <p className="text-gray-500">Pedido <b className="text-gray-800">#{p.id}</b> · {p.fecha}</p>
         <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${estado.color}`}>{estado.texto}</span>
+        {!fallo && p.email && (
+          <p className="mx-auto max-w-md pt-1 text-sm text-gray-600">
+            Te mandamos un mail a <b className="text-gray-800">{p.email}</b> con todos los datos de tu compra. Leelo para estar al tanto: ahí te vamos avisando cada novedad.
+          </p>
+        )}
       </div>
 
       {fallo && (
@@ -127,8 +156,23 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       {pendiente && (p.medio === "transferencia" || p.medio === "efectivo") && (
         <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 sm:p-5">
           <h2 className="text-lg font-bold">{p.medio === "transferencia" ? "Cómo transferir" : "Cómo pagar"}</h2>
-          <p className="text-sm">Total a pagar: <b className="text-base">{formatear(p.total, m)}</b></p>
-          {medio?.instrucciones && <div className="whitespace-pre-line rounded-md bg-white p-3 font-mono text-sm leading-relaxed">{medio.instrucciones}</div>}
+          <div className="rounded-md bg-white p-3 text-center">
+            <p className="text-sm text-gray-600">Total a {p.medio === "transferencia" ? "transferir" : "pagar"}</p>
+            <p className="text-3xl font-bold tracking-tight">{formatear(p.total, m)}</p>
+          </div>
+          {p.medio === "transferencia" && cuentasDe(medio?.cuentas).length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {cuentasDe(medio?.cuentas).map((c, i) => (
+                <div key={i} className="rounded-md bg-white p-3 text-sm">
+                  <p className="font-semibold">{c.banco}</p>
+                  {c.alias && <p className="mt-1">Alias: <b className="select-all font-mono text-base">{c.alias}</b></p>}
+                  {c.cbu && <p>CBU/CVU: <span className="select-all font-mono">{c.cbu}</span></p>}
+                  {(c.titular || c.cuit) && <p className="text-gray-600">{[c.titular, c.cuit && `CUIT ${c.cuit}`].filter(Boolean).join(" · ")}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {medio?.instrucciones && <div className="whitespace-pre-line rounded-md bg-white p-3 text-sm leading-relaxed">{medio.instrucciones}</div>}
           {p.medio === "transferencia" && wa && (
             <a href={wa} target="_blank" rel="noopener" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#25D366] px-5 font-semibold text-white hover:brightness-105 sm:w-auto">
               <IconoWhatsapp clase="h-5 w-5" /> Avisanos por WhatsApp cuando transfieras
@@ -217,3 +261,4 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
     </div>
   );
 }
+
