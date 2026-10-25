@@ -199,6 +199,9 @@ export type LineaEntrada = {
   /** Lo del canal para esta línea (ej. {"ml": {order_id, item_id…}}: de qué
    *  orden de Mercado Libre vino, en un carrito de varias órdenes). */
   datos_externos?: Record<string, unknown> | null;
+  /** «Otro concepto» (Fer, 25/10): un renglón sin producto —un servicio, un envío que se cobra—, con su
+   *  texto (titulo) y su precio. No toca stock ni va al picking. */
+  concepto?: boolean;
 };
 
 export type PedidoEntrada = {
@@ -302,7 +305,7 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
       returning id`,
       [org, canal.id, clienteId, entrada.id_externo ?? null, entrada.fecha ?? null, estado, moneda, total.ars, total.usd,
         entrada.medio_pago ?? null, estadoPago, entrada.deposito_id ?? null, JSON.stringify(entrada.envio ?? {}),
-        entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null),
+        entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null && !l.datos.concepto),
         JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null, envioArs, entrada.metodo_envio_id ?? null, listaId])).rows[0];
     const pedidoId = Number(p.id);
     await insertarLineas(c, org, pedidoId, lineas, 0);
@@ -348,6 +351,16 @@ async function resolverLineas(c: PoolClient, org: string, entrada: LineaEntrada[
     const extra = l.descuento_pct ?? 0;
     if (!(extra >= 0 && extra < 100)) throw new ErrorErp(`Línea ${n}: el descuento tiene que estar entre 0 y 100 %.`);
     const datos = l.datos_externos ?? {};
+    if (l.concepto) {
+      const titulo = l.titulo?.trim();
+      if (!titulo) throw new ErrorErp(`Línea ${n}: escribí qué es el concepto.`);
+      if (l.precio_unitario == null || !(l.precio_unitario >= 0)) throw new ErrorErp(`Línea ${n}: falta el precio del concepto.`);
+      const [ars, usd] = await dosMonedas(l.precio_unitario);
+      const f = 1 - extra / 100;
+      lineas.push({ variacion_id: null, cantidad: l.cantidad, lista_ars: extra ? ars : null, lista_usd: extra ? usd : null, descuento: extra,
+        unit_ars: r2(ars * f), unit_usd: r2(usd * f), titulo, sku: "", datos: { ...datos, concepto: true } });
+      continue;
+    }
     const v = (await c.query<{ id: string; sku: string; titulo: string }>(`
       select v.id, v.sku, titulo_variacion(v.id) titulo from variacion v
        where v.organizacion_id = $1 and ${l.variacion_id ? "v.id = $2" : "v.sku = $2"}`,
@@ -417,7 +430,7 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   });
   await insertarLineas(c, org, pedidoId, lineas, orden);
   await c.query(`update pedido set total_ars = total_ars + $2, total_usd = total_usd + $3,
-                        sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null) where id = $1`,
+                        sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null and not datos_externos ? 'concepto') where id = $1`,
     [pedidoId, r2(lineas.reduce((s, l) => s + l.unit_ars * l.cantidad, 0)), r2(lineas.reduce((s, l) => s + l.unit_usd * l.cantidad, 0))]);
   if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
     const dep = p.deposito_id ?? (await c.query<{ id: string }>(`
@@ -482,7 +495,7 @@ export async function quitarLineas(org: string, pedidoId: number, lineaIds: numb
   }
   await c.query("delete from pedido_linea where pedido_id = $1 and id = any($2::bigint[])", [pedidoId, lineas.map((l) => l.id)]);
   await c.query(`update pedido set total_ars = greatest(total_ars - $2, 0), total_usd = greatest(total_usd - $3, 0),
-                        sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null) where id = $1`,
+                        sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null and not datos_externos ? 'concepto') where id = $1`,
     [pedidoId, r2(lineas.reduce((s, l) => s + Number(l.unit_ars) * l.cantidad, 0)), r2(lineas.reduce((s, l) => s + Number(l.unit_usd) * l.cantidad, 0))]);
   await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
                  values ($1, $2, $3, $3, $4, $5)`,
