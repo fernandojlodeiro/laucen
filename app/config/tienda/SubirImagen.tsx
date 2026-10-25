@@ -7,8 +7,10 @@ import { useState } from "react";
 import { subirArchivo } from "@/lib/supabase-navegador";
 import { SUAVE, BORRAR } from "@/app/botones";
 
-export default function SubirImagen({ name, valor, organizacionId, etiqueta, alto = "h-16" }: {
+export default function SubirImagen({ name, valor, organizacionId, etiqueta, alto = "h-16", form }: {
   name: string; valor: string | null; organizacionId: string; etiqueta: string; alto?: string;
+  /** El formulario al que pertenece, si está afuera de él (una fila que se edita en una tabla). */
+  form?: string;
 }) {
   const [link, setLink] = useState(valor ?? "");
   const [subiendo, setSubiendo] = useState(false);
@@ -27,7 +29,7 @@ export default function SubirImagen({ name, valor, organizacionId, etiqueta, alt
 
   return (
     <div>
-      <input type="hidden" name={name} value={link} />
+      <input type="hidden" name={name} value={link} form={form} />
       {link
         // eslint-disable-next-line @next/next/no-img-element
         ? <img src={link} alt={etiqueta} className={`${alto} max-w-full object-contain rounded border border-[#E3E9F0] bg-[#FAFBFC] mb-1`} />

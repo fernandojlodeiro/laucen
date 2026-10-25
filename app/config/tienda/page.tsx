@@ -1,5 +1,5 @@
 // Tienda web: lo que ve el comprador (nombre, dirección, colores, logo,
-// banner, datos de contacto) de cada canal tipo web_minorista. Vive en
+// datos de contacto; los banners, en ./banners) de cada canal tipo web_minorista. Vive en
 // canal.config; la lista de precios, el estado y los depósitos se cambian en
 // Configuración → Canales. Abre en vista; se edita con el lápiz (?editar=t<id>).
 // Abajo, los dominios propios de cada tienda (tienda_dominio, bitácora #281).
@@ -51,7 +51,7 @@ const ESTADOS: Record<string, { texto: string; tono: "verde" | "amarillo" | "gri
   activo: { texto: "Activa: toma pedidos", tono: "verde" }, pausado: { texto: "Pausada: no toma pedidos", tono: "amarillo" },
 };
 
-/** Los datos de una marca (dominio de "otra marca"): nombre, logo, colores de la franja, banners y mail. */
+/** Los datos de una marca (dominio de "otra marca"): nombre, logo, colores de la franja y mail (los banners, en Banners de la tienda). */
 function CamposMarca({ m, org }: { m: Marca | null; org: string }) {
   const color = (k: "color_marca" | "color_marca_texto", nombre: string, defecto: string) => (
     <div><span className={ETIQUETA}>{nombre}</span>
@@ -71,12 +71,6 @@ function CamposMarca({ m, org }: { m: Marca | null; org: string }) {
         <SubirImagen name="marca_logo" valor={m?.logo ?? null} organizacionId={org} etiqueta="Logo" /></div>
       {color("color_marca", "Color de la franja", COLORES_POR_DEFECTO.marca)}
       {color("color_marca_texto", "Texto sobre la franja", COLORES_POR_DEFECTO.marcaTexto)}
-      <div><span className={ETIQUETA}>Banner (vacío: los de la tienda)</span>
-        <SubirImagen name="marca_banner" valor={m?.banner ?? null} organizacionId={org} etiqueta="Banner" alto="h-16" /></div>
-      <div><span className={ETIQUETA}>Banner 2</span>
-        <SubirImagen name="marca_banner_2" valor={m?.banner_2 ?? null} organizacionId={org} etiqueta="Banner 2" alto="h-16" /></div>
-      <div><span className={ETIQUETA}>Banner 3</span>
-        <SubirImagen name="marca_banner_3" valor={m?.banner_3 ?? null} organizacionId={org} etiqueta="Banner 3" alto="h-16" /></div>
     </>
   );
 }
@@ -178,7 +172,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                     <div><BotonEnviar clase={PRIMARIO} corriendo="Conectando…">Crear</BotonEnviar></div>
                   </form>
                   <p className="text-[11px] text-[#5C6B76] mt-2">
-                    {principal ? <>Otra marca abre la misma tienda (productos, precios, stock y pedidos) con su nombre y su logo; el logo, los colores y los banners se cargan después con el lápiz. Los que redirigen (www) van al principal o a una marca.</> : <>Primero el principal: es el que abre la tienda. Después, las otras marcas y los que redirigen (www).</>}
+                    {principal ? <>Otra marca abre la misma tienda (productos, precios, stock y pedidos) con su nombre y su logo; el logo y los colores se cargan después con el lápiz (los banners, en Configuración › Banners de la tienda). Los que redirigen (www) van al principal o a una marca.</> : <>Primero el principal: es el que abre la tienda. Después, las otras marcas y los que redirigen (www).</>}
                     {" "}Al crearlo, Laucen lo agrega en Vercel y te muestra los registros DNS que hay que cargar.
                   </p>
                 </AltaNueva>
@@ -255,7 +249,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                                   </span></div>
                                 <CamposMarca m={d.marca} org={s.org.id} />
                               </form>
-                              <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre y logo (colores, banners y mail: los propios si los cargás; si no, los de la tienda, con el mail en este dominio); los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
+                              <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre y logo (colores y mail: los propios si los cargás; si no, los de la tienda, con el mail en este dominio); los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
                             </td></tr>
                           )}
                         </Fragment>);
@@ -281,19 +275,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {c.logo ? <img src={c.logo} alt="Logo" className="h-16 object-contain" /> : null}
                 </Dato>
-                <Dato etiqueta="Banner (la imagen grande de arriba)">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {c.banner ? <img src={c.banner} alt="Banner" className="h-24 object-contain" /> : null}
-                </Dato>
-                <Dato etiqueta="Banner 2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {c.banner_2 ? <img src={c.banner_2} alt="Banner 2" className="h-24 object-contain" /> : null}
-                </Dato>
-                <Dato etiqueta="Banner 3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {c.banner_3 ? <img src={c.banner_3} alt="Banner 3" className="h-24 object-contain" /> : null}
-                </Dato>
-                <Dato etiqueta="Bajada (el texto sobre el banner)" className="sm:col-span-2">{c.bajada}</Dato>
+                <Dato etiqueta="Bajada (el texto de la portada sin banners)" className="sm:col-span-2">{c.bajada}</Dato>
                 <Dato etiqueta="Devoluciones (lo que ve el comprador en la ficha y en Ayuda)" largo className="sm:col-span-2">{c.devoluciones}</Dato>
                 <Dato etiqueta="Garantía" largo className="sm:col-span-2">{c.garantia}</Dato>
                 <Dato etiqueta="Sobre nosotros (lo que ve el comprador en la página «Sobre nosotros»)" largo className="sm:col-span-2">{c.sobre_nosotros}</Dato>
@@ -320,13 +302,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <span className="block text-xs py-1.5 text-[#5C6B76]">Nunca se muestran (tampoco los inactivos ni los sin precio).</span></div>
               <div><span className={ETIQUETA}>Logo</span>
                 <SubirImagen name="logo" valor={c.logo ?? null} organizacionId={s.org.id} etiqueta="Logo" /></div>
-              <div><span className={ETIQUETA}>Banner (la imagen grande de arriba)</span>
-                <SubirImagen name="banner" valor={c.banner ?? null} organizacionId={s.org.id} etiqueta="Banner" alto="h-24" /></div>
-              <div><span className={ETIQUETA}>Banner 2</span>
-                <SubirImagen name="banner_2" valor={c.banner_2 ?? null} organizacionId={s.org.id} etiqueta="Banner 2" alto="h-24" /></div>
-              <div><span className={ETIQUETA}>Banner 3</span>
-                <SubirImagen name="banner_3" valor={c.banner_3 ?? null} organizacionId={s.org.id} etiqueta="Banner 3" alto="h-24" /></div>
-              <label className="sm:col-span-2"><span className={ETIQUETA}>Bajada (el texto sobre el banner)</span>
+              <label className="sm:col-span-2"><span className={ETIQUETA}>Bajada (el texto de la portada sin banners)</span>
                 <input name="bajada" defaultValue={c.bajada ?? ""} placeholder="Ej. Envíos a todo el país" className={`${CAMPO} w-full`} /></label>
               <label className="sm:col-span-2"><span className={ETIQUETA}>Devoluciones (lo que ve el comprador en la ficha y en Ayuda)</span>
                 <textarea name="devoluciones" rows={2} defaultValue={c.devoluciones ?? ""} placeholder="Ej. Tenés 30 días desde que lo recibís para devolverlo." className={`${CAMPO} w-full h-auto py-1.5`} /></label>
