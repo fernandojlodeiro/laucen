@@ -369,3 +369,40 @@ create table if not exists tienda_catalogo (
   primary key (canal_id, lista_id, moneda)
 );
 alter table tienda_catalogo enable row level security;
+
+-- Banners de la portada (Fer, 25/10): los que se quieran, en dos familias (clara y oscura) que se
+-- turnan cada 12 horas; cada semana se invierte cuál va primero (lib/tienda/banners.ts). Cada uno
+-- es para todas las marcas de la tienda (dominio_id null) o para una sola (el dominio principal o
+-- uno de otra marca); en una marca se ven los suyos más los de todas. link vacío = no lleva a
+-- ningún lado; imagen_celular vacía = la misma imagen en el celular.
+create table if not exists tienda_banner (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  dominio_id       bigint references tienda_dominio(id) on delete cascade,
+  familia          text not null default 'clara' check (familia in ('clara', 'oscura')),
+  imagen           text not null,
+  imagen_celular   text,
+  link             text,
+  orden            int not null default 0,
+  activo           boolean not null default true,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists tienda_banner_orden on tienda_banner (canal_id, familia, orden);
+alter table tienda_banner enable row level security;
+select erp_politica_org('tienda_banner');
+-- Los tres casilleros de antes (canal.config banner, banner_2, banner_3 y los de cada marca en
+-- tienda_dominio.marca) pasan a la tabla como familia clara y se sacan de donde estaban (así esto
+-- corre una sola vez).
+insert into tienda_banner (organizacion_id, canal_id, familia, imagen, orden)
+  select c.organizacion_id, c.id, 'clara', c.config ->> k.clave, k.n
+    from canal c cross join (values ('banner', 1), ('banner_2', 2), ('banner_3', 3)) k(clave, n)
+   where c.tipo = 'web_minorista' and coalesce(c.config ->> k.clave, '') <> '';
+update canal set config = config - 'banner' - 'banner_2' - 'banner_3'
+ where tipo = 'web_minorista' and config ?| array['banner', 'banner_2', 'banner_3'];
+insert into tienda_banner (organizacion_id, canal_id, dominio_id, familia, imagen, orden)
+  select d.organizacion_id, d.canal_id, d.id, 'clara', d.marca ->> k.clave, 10 + k.n
+    from tienda_dominio d cross join (values ('banner', 1), ('banner_2', 2), ('banner_3', 3)) k(clave, n)
+   where coalesce(d.marca ->> k.clave, '') <> '';
+update tienda_dominio set marca = marca - 'banner' - 'banner_2' - 'banner_3'
+ where marca ?| array['banner', 'banner_2', 'banner_3'];

@@ -7,7 +7,7 @@
 import { consulta, una } from "@/lib/erp/base";
 
 export type ConfigTienda = {
-  nombre?: string; slug?: string; color?: string; logo?: string; banner?: string; bajada?: string;
+  nombre?: string; slug?: string; color?: string; logo?: string; bajada?: string;
   whatsapp?: string;            // número en formato internacional, sin +: 5493511234567
   whatsapp_token?: never;       // las credenciales de WhatsApp van en la tabla de credenciales, no acá
   email?: string; direccion?: string; horario?: string;
@@ -18,7 +18,6 @@ export type ConfigTienda = {
   color_boton?: string;         // botones y links
   color_verde?: string;         // descuentos, cuotas sin interés, envío gratis
   color_fondo?: string;         // fondo de la página
-  banner_2?: string; banner_3?: string;  // más imágenes para el carrusel de la portada
   devoluciones?: string;        // política de devoluciones (texto que ve el comprador)
   garantia?: string;            // garantía (texto que ve el comprador)
   sobre_nosotros?: string;      // texto de la página "Sobre nosotros"
@@ -30,6 +29,8 @@ export type Tienda = {
   slug: string; config: ConfigTienda; estado: string;
   /** El dominio de "otra marca" por donde se está mirando (lib/tienda/dominios-tienda.ts, conMarca); null = la tienda tal cual. */
   dominio: string | null;
+  /** El id (tienda_dominio) de esa otra marca, aunque todavía no abra con https: elige sus banners. */
+  marcaId?: number;
 };
 
 export const slugDe = (texto: string) =>

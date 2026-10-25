@@ -48,7 +48,7 @@ function marcaDe(fd: FormData) {
   if (!nombre) throw new ErrorErp("Poné el nombre de la marca (lo que ve el comprador en ese dominio).");
   const color = (k: string) => { const v = texto(fd, k); return v && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null; };
   const m: Record<string, string> = { nombre };
-  for (const k of ["logo", "banner", "banner_2", "banner_3", "email"]) { const v = texto(fd, `marca_${k}`); if (v) m[k] = v; }
+  for (const k of ["logo", "email"]) { const v = texto(fd, `marca_${k}`); if (v) m[k] = v; }
   for (const k of ["color_marca", "color_marca_texto"]) { const v = fd.get(`marca_${k}_usar`) ? color(`marca_${k}`) : null; if (v) m[k] = v; }
   return m;
 }
@@ -154,7 +154,7 @@ export async function accionBorrarDominio(fd: FormData) {
 }
 
 /** Cambia un dominio que no es el principal: que redirija (al principal o a otra
- *  marca) o que sea otra marca (nombre, logo, colores de la franja, banners y mail). */
+ *  marca) o que sea otra marca (nombre, logo, colores de la franja y mail). */
 export async function accionGuardarDominio(fd: FormData) {
   const s = await entrarErp("tienda_config");
   const domId = id(fd, "id");
