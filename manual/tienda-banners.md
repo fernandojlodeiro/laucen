@@ -27,11 +27,11 @@ Menú **Configuración › Tienda web › Banners de la tienda**. Si hay más de
 ### Agregar banners
 1. Apretá **Nuevo banner**, arriba a la derecha.
 2. Tocá **Elegir imágenes** y elegí una o varias (cada imagen queda como un banner). Con **Sumar más imágenes** agregás otras; con la ✕ de una, la sacás antes de grabar.
-3. Elegí la **familia**, en qué tienda **se ve** («Todas las tiendas» o una en particular) y, si querés, el **link**.
+3. Elegí la **pantalla** («Compu y celular», «Sólo compu» o «Sólo celular»), la **familia**, en qué tienda **se ve** («Todas las tiendas» o una en particular) y, si querés, el **link**. Vale para todas las imágenes que elegiste.
 4. Apretá **Agregar banners**. Van al final de la familia.
 
 ### Cambiar uno
-Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, cargar o sacar la imagen para el celular, la tienda, la familia y el link. **Grabar** lo guarda; **Cancelar** deja todo como estaba. Si lo pasás a la otra familia, va al final de esa.
+Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantalla, la tienda, la familia y el link. **Grabar** lo guarda; **Cancelar** deja todo como estaba. Si lo pasás a la otra familia, va al final de esa.
 
 ### Ordenarlos, apagarlos o borrarlos
 - Con ▲ ▼ lo subís o bajás un lugar dentro de su familia.
@@ -46,9 +46,9 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, cargar o 
 - **No hace falta que las familias tengan la misma cantidad.**
 - **Tienda donde se ve:** «Todas las tiendas» se ve en la tienda principal y en cada dominio de otra marca. Uno elegido para una tienda se ve sólo ahí, junto con los de todas, en el orden de la lista.
 - **Link:** vacío, el banner no lleva a ningún lado. Si empieza con «/» lleva a una página de la tienda (por ejemplo «/buscar?ofertas=1»); si es la dirección de otro sitio (https://…), se abre en otra pestaña.
-- **Medidas:** **1920 × 420** la imagen de la compu y **1200 × 400** la del celular (en la lista, columna «Celular», botón **«Subir para el celular»**; sin ella, el celular usa la misma). El banner va siempre a todo el ancho: la de 1920 × 420 se ve entera; una más alta (por ejemplo de 3 a 1) se recorta un poco arriba y abajo en la compu.
-- **El último cuarto de abajo de cada imagen va sin texto** (sólo fondo): se funde con el fondo de la página y, en la compu, la primera fila de productos ("Destacados") sube encima. En el celular el título de la fila va abajo del banner. Lo importante (textos, precio, logos) va en los tres cuartos de arriba y separado de los bordes.
-- **Imagen para el celular:** opcional. En la lista, en la columna «Celular», **«Subir para el celular»** abre ese banner para editar: «Subir imagen» en «Imagen para el celular» y **«Grabar»**. Si no la cargás, el celular muestra la misma de la compu.
+- **Pantalla:** cada banner es para **«Compu y celular»**, **«Sólo compu»** o **«Sólo celular»**. En la compu pasan los de compu y los de las dos; en el celular, los de celular y los de las dos. Si para una pantalla no hay ninguno (en la familia del turno ni en la otra), se usan los de la otra pantalla.
+- **Medidas:** **1920 × 420** las de compu y **1200 × 400** las de celular. El banner va siempre a todo el ancho y toma el alto de la imagen (en la compu, hasta 420): con esas medidas se ve entero; una imagen más alta se recorta un poco arriba y abajo.
+- **El último cuarto de abajo de cada imagen va sin texto** (sólo fondo): se funde con el fondo de la página y la primera fila de productos ("Destacados") sube encima, en la compu y en el celular. Lo importante (textos, precio, logos) va en los tres cuartos de arriba y separado de los bordes.
 - Pasan solos cada 6 segundos; se frenan mientras el mouse está encima.
 
 ## Preguntas frecuentes

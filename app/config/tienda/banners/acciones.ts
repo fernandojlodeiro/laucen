@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, id, texto } from "@/lib/erp/acciones";
-import { agregarBanners, guardarBanner, activarBanner, borrarBanner, moverBanner, esFamilia } from "@/lib/tienda/banners";
+import { agregarBanners, guardarBanner, activarBanner, borrarBanner, moverBanner, esFamilia, esPantalla } from "@/lib/tienda/banners";
 
 /** Vuelve a la pantalla como estaba (tienda, familia y filtro), sin la edición abierta. */
 const volver = (fd: FormData) => {
@@ -15,13 +15,14 @@ const volver = (fd: FormData) => {
 };
 const familiaDe = (fd: FormData) => { const f = fd.get("familia"); if (!esFamilia(f)) throw new ErrorErp("Elegí la familia: clara u oscura."); return f; };
 const dominioDe = (fd: FormData) => id(fd, "dominio_id") || null;
+const pantallaDe = (fd: FormData) => { const p = fd.get("pantalla"); if (!esPantalla(p)) throw new ErrorErp("Elegí para qué pantalla es: compu, celular o las dos."); return p; };
 const listo = () => { revalidatePath("/config/tienda/banners"); revalidatePath("/tienda", "layout"); };
 
 export async function accionAgregarBanners(fd: FormData) {
   const s = await entrarErp("tienda_config");
   await intentar(volver(fd), async () => {
     const n = await agregarBanners(s.org.id, id(fd, "canal_id"), {
-      imagenes: fd.getAll("imagen").map(String), familia: familiaDe(fd), dominioId: dominioDe(fd), link: texto(fd, "link"),
+      imagenes: fd.getAll("imagen").map(String), familia: familiaDe(fd), pantalla: pantallaDe(fd), dominioId: dominioDe(fd), link: texto(fd, "link"),
     });
     listo();
     return n === 1 ? "Listo: banner agregado." : `Listo: ${n} banners agregados.`;
@@ -32,7 +33,7 @@ export async function accionGuardarBanner(fd: FormData) {
   const s = await entrarErp("tienda_config");
   await intentar(volver(fd), async () => {
     await guardarBanner(s.org.id, id(fd), {
-      imagen: texto(fd, "imagen"), imagenCelular: texto(fd, "imagen_celular"), familia: familiaDe(fd), dominioId: dominioDe(fd), link: texto(fd, "link"),
+      imagen: texto(fd, "imagen"), familia: familiaDe(fd), pantalla: pantallaDe(fd), dominioId: dominioDe(fd), link: texto(fd, "link"),
     });
     listo();
   });

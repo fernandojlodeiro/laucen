@@ -10,6 +10,9 @@
 // Un banner es para todas las marcas de la tienda (dominio_id null) o para un
 // dominio (el principal o uno de otra marca): en cada uno se ven los suyos más
 // los de todas.
+// Y es para una pantalla (Fer, 26/10): la compu, el celular o las dos. La portada arma dos tandas, una
+// para cada pantalla; si a una no le toca ninguno, usa la de la otra. (Un banner viejo puede traer
+// además imagen_celular: en el celular se ve ésa.)
 
 import type { QueryResultRow } from "pg";
 import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
@@ -18,8 +21,12 @@ export type FamiliaBanner = "clara" | "oscura";
 export const FAMILIAS: Record<FamiliaBanner, string> = { clara: "Clara", oscura: "Oscura" };
 export const esFamilia = (x: unknown): x is FamiliaBanner => x === "clara" || x === "oscura";
 
+export type PantallaBanner = "todas" | "compu" | "celular";
+export const PANTALLAS: Record<PantallaBanner, string> = { todas: "Compu y celular", compu: "Sólo compu", celular: "Sólo celular" };
+export const esPantalla = (x: unknown): x is PantallaBanner => x === "todas" || x === "compu" || x === "celular";
+
 export type Banner = {
-  id: number; dominio_id: number | null; familia: FamiliaBanner; imagen: string; imagen_celular: string | null;
+  id: number; dominio_id: number | null; familia: FamiliaBanner; pantalla: PantallaBanner; imagen: string; imagen_celular: string | null;
   link: string | null; orden: number; activo: boolean;
 };
 
@@ -41,22 +48,24 @@ export function turnoDeBanners(ahora = new Date()): { familia: FamiliaBanner; ha
 /** Los banners que se ven ahora en la portada, en orden: los activos de la familia del turno
  *  para ese dominio (o, si no hay, los de la otra). `marcaId`: el dominio de otra marca por
  *  donde se entró; sin él, el principal. */
-export async function bannersDeLaPortada(canalId: number, marcaId: number | null | undefined, ahora = new Date()): Promise<Banner[]> {
+export async function bannersDeLaPortada(canalId: number, marcaId: number | null | undefined, ahora = new Date()): Promise<{ compu: Banner[]; celular: Banner[] }> {
   const filas = await consulta<Banner>(`
-    select id::int, dominio_id::int, familia, imagen, imagen_celular, link, orden::int, activo
+    select id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo
       from tienda_banner
      where canal_id = $1 and activo
        and (dominio_id is null or dominio_id = coalesce($2::bigint, (select id from tienda_dominio where canal_id = $1 and principal)))
      order by orden, id`, [canalId, marcaId ?? null]);
   const { familia } = turnoDeBanners(ahora);
-  const delTurno = filas.filter((b) => b.familia === familia);
-  return delTurno.length ? delTurno : filas.filter((b) => b.familia !== familia);
+  const delTurno = (lista: Banner[]) => { const t = lista.filter((b) => b.familia === familia); return t.length ? t : lista.filter((b) => b.familia !== familia); };
+  const compu = delTurno(filas.filter((b) => b.pantalla !== "celular"));
+  const celular = delTurno(filas.filter((b) => b.pantalla !== "compu")).map((b) => ({ ...b, imagen: b.imagen_celular || b.imagen }));
+  return { compu: compu.length ? compu : celular, celular: celular.length ? celular : compu };
 }
 
 /** Todos los banners de la tienda (para la pantalla de configuración). */
 export async function bannersDe(org: string, canalId: number): Promise<Banner[]> {
   return consulta<Banner>(`
-    select id::int, dominio_id::int, familia, imagen, imagen_celular, link, orden::int, activo
+    select id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo
       from tienda_banner where organizacion_id = $1 and canal_id = $2 order by familia, orden, id`, [org, canalId]);
 }
 
@@ -94,7 +103,7 @@ async function canalDeLaOrg(org: string, canalId: number) {
 }
 
 /** Da de alta un banner por imagen, al final de su familia. */
-export async function agregarBanners(org: string, canalId: number, datos: { imagenes: string[]; familia: FamiliaBanner; dominioId: number | null; link: string | null }) {
+export async function agregarBanners(org: string, canalId: number, datos: { imagenes: string[]; familia: FamiliaBanner; pantalla: PantallaBanner; dominioId: number | null; link: string | null }) {
   await canalDeLaOrg(org, canalId);
   const imagenes = datos.imagenes.map(imagenValida).filter((x): x is string => !!x);
   if (!imagenes.length) throw new ErrorErp("Subí al menos una imagen.");
@@ -104,14 +113,14 @@ export async function agregarBanners(org: string, canalId: number, datos: { imag
     const q = <T extends QueryResultRow>(sql: string, v?: unknown[]) => c.query<T>(sql, v);
     const [{ max }] = (await q<{ max: number }>("select coalesce(max(orden), 0)::int max from tienda_banner where canal_id = $1 and familia = $2", [canalId, datos.familia])).rows;
     for (const [k, imagen] of imagenes.entries()) {
-      await q("insert into tienda_banner (organizacion_id, canal_id, dominio_id, familia, imagen, link, orden) values ($1, $2, $3, $4, $5, $6, $7)",
-        [org, canalId, dominio, datos.familia, imagen, link, max + k + 1]);
+      await q("insert into tienda_banner (organizacion_id, canal_id, dominio_id, familia, pantalla, imagen, link, orden) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+        [org, canalId, dominio, datos.familia, datos.pantalla, imagen, link, max + k + 1]);
     }
   });
   return imagenes.length;
 }
 
-export async function guardarBanner(org: string, id: number, datos: { imagen: string | null; imagenCelular: string | null; familia: FamiliaBanner; dominioId: number | null; link: string | null }) {
+export async function guardarBanner(org: string, id: number, datos: { imagen: string | null; familia: FamiliaBanner; pantalla: PantallaBanner; dominioId: number | null; link: string | null }) {
   const b = await una<{ canal_id: number; familia: FamiliaBanner }>("select canal_id::int, familia from tienda_banner where id = $1 and organizacion_id = $2", [id, org]);
   if (!b) throw new ErrorErp("Ese banner ya no existe.");
   const imagen = imagenValida(datos.imagen);
@@ -119,9 +128,9 @@ export async function guardarBanner(org: string, id: number, datos: { imagen: st
   const dominio = await dominioValido(org, b.canal_id, datos.dominioId);
   const link = linkValido(datos.link);
   // Si cambia de familia, va al final de la otra.
-  await consulta(`update tienda_banner set imagen = $3, imagen_celular = $4, dominio_id = $5, link = $6, familia = $7,
+  await consulta(`update tienda_banner set imagen = $3, pantalla = $4, dominio_id = $5, link = $6, familia = $7,
       orden = case when familia = $7 then orden else (select coalesce(max(orden), 0) + 1 from tienda_banner where canal_id = $8 and familia = $7) end
-    where id = $1 and organizacion_id = $2`, [id, org, imagen, imagenValida(datos.imagenCelular), dominio, link, datos.familia, b.canal_id]);
+    where id = $1 and organizacion_id = $2`, [id, org, imagen, datos.pantalla, dominio, link, datos.familia, b.canal_id]);
 }
 
 export async function activarBanner(org: string, id: number, activo: boolean) {
