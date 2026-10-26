@@ -61,9 +61,9 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
           <AltaNueva texto="Nuevo banner" sinBoton>
             <form action={accionAgregarBanners} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start text-xs">
               <input type="hidden" name="canal_id" value={tienda.id} />{vuelta}
-              <div className="sm:col-span-3"><span className={ETIQUETA}>Imágenes (podés elegir varias: cada una queda como un banner)</span>
+              <div className="sm:col-span-3"><span className={ETIQUETA}>Imágenes para la compu (podés elegir varias: cada una queda como un banner)</span>
                 <SubirVarias name="imagen" organizacionId={s.org.id} />
-                <span className="block text-[11px] text-[#5C6B76] mt-1">Para la compu, 1920 × 420 (se ve entera, a todo el ancho). Para el celular, 1200 × 400, en «Imagen para el celular» al editar el banner (sin ella, el celular usa la misma). El último cuarto de abajo, sin texto: se funde con el fondo y la primera fila de productos sube encima.</span></div>
+                <span className="block text-[11px] text-[#5C6B76] mt-1">Para la compu, 1920 × 420 (se ve entera, a todo el ancho). La del celular (1200 × 400) se agrega después, en cada banner de la lista, con «Subir para el celular»; sin ella, el celular usa la misma. El último cuarto de abajo, sin texto: se funde con el fondo y la primera fila de productos sube encima.</span></div>
               <label><span className={ETIQUETA}>Familia</span>
                 <select name="familia" defaultValue={familia} className={`${CAMPO} w-full`}>
                   {(Object.keys(FAMILIAS) as FamiliaBanner[]).map((f) => <option key={f} value={f}>{FAMILIAS[f]}</option>)}
@@ -100,8 +100,8 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
               <thead className={THEAD}>
                 <tr>
                   <th className={TH} title="Orden en que pasan">N.º</th>
-                  <th className={TH}>Imagen</th>
-                  <th className={TH} title="Imagen para el celular (vacía: la misma)">Celular</th>
+                  <th className={TH}>Compu</th>
+                  <th className={TH} title="Imagen para el celular (sin ella, la misma de la compu)">Celular</th>
                   <th className={TH}>Se ve en</th>
                   <th className={TH}>Link</th>
                   <th className={TH}>Activo</th>
@@ -121,7 +121,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                       <td className={`${TDN} text-[#5C6B76]`}>
                         <form id={form} action={accionGuardarBanner}><input type="hidden" name="id" value={b.id} />{vuelta}</form>{i + 1}
                       </td>
-                      <td className={`${TD} min-w-52`}><SubirImagen name="imagen" valor={b.imagen} organizacionId={s.org.id} etiqueta="Imagen" alto="h-12" form={form} /></td>
+                      <td className={`${TD} min-w-52`}><SubirImagen name="imagen" valor={b.imagen} organizacionId={s.org.id} etiqueta="Imagen para la compu" alto="h-12" form={form} /></td>
                       <td className={`${TD} min-w-52`}><SubirImagen name="imagen_celular" valor={b.imagen_celular} organizacionId={s.org.id} etiqueta="Imagen para el celular" alto="h-12" form={form} /></td>
                       <td className={`${TD} w-56 space-y-1`}>
                         {elegirDestino({ name: "dominio_id", valor: b.dominio_id, form })}
@@ -151,7 +151,8 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                       </td>
                       <td className={TD}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {b.imagen_celular ? <img src={b.imagen_celular} alt="" className={MINIATURA} /> : <span className="text-[#5C6B76]">La misma</span>}
+                        {b.imagen_celular ? <img src={b.imagen_celular} alt="" className={MINIATURA} />
+                          : <Link href={aca({ editar: b.id })} scroll={false} className={`${SUAVE} inline-block whitespace-nowrap`}>Subir para el celular</Link>}
                       </td>
                       <td className={TD}>{nombreDestino(b.dominio_id)}</td>
                       <td className={`${TD} max-w-56 truncate`} title={b.link ?? undefined}>

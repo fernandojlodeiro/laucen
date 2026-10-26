@@ -46,9 +46,9 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, cargar o 
 - **No hace falta que las familias tengan la misma cantidad.**
 - **Tienda donde se ve:** «Todas las tiendas» se ve en la tienda principal y en cada dominio de otra marca. Uno elegido para una tienda se ve sólo ahí, junto con los de todas, en el orden de la lista.
 - **Link:** vacío, el banner no lleva a ningún lado. Si empieza con «/» lleva a una página de la tienda (por ejemplo «/buscar?ofertas=1»); si es la dirección de otro sitio (https://…), se abre en otra pestaña.
-- **Medidas:** **1920 × 420** la imagen de la compu y **1200 × 400** la del celular («Imagen para el celular», al editar el banner; sin ella, el celular usa la misma). El banner va siempre a todo el ancho: la de 1920 × 420 se ve entera; una más alta (por ejemplo de 3 a 1) se recorta un poco arriba y abajo en la compu.
+- **Medidas:** **1920 × 420** la imagen de la compu y **1200 × 400** la del celular (en la lista, columna «Celular», botón **«Subir para el celular»**; sin ella, el celular usa la misma). El banner va siempre a todo el ancho: la de 1920 × 420 se ve entera; una más alta (por ejemplo de 3 a 1) se recorta un poco arriba y abajo en la compu.
 - **El último cuarto de abajo de cada imagen va sin texto** (sólo fondo): se funde con el fondo de la página y, en la compu, la primera fila de productos ("Destacados") sube encima. En el celular el título de la fila va abajo del banner. Lo importante (textos, precio, logos) va en los tres cuartos de arriba y separado de los bordes.
-- **Imagen para el celular:** opcional; si no la cargás, el celular muestra la misma.
+- **Imagen para el celular:** opcional. En la lista, en la columna «Celular», **«Subir para el celular»** abre ese banner para editar: «Subir imagen» en «Imagen para el celular» y **«Grabar»**. Si no la cargás, el celular muestra la misma de la compu.
 - Pasan solos cada 6 segundos; se frenan mientras el mouse está encima.
 
 ## Preguntas frecuentes
