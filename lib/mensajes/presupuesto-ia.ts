@@ -1,11 +1,10 @@
 // El presupuesto formal que arma la IA de los mensajes (Fer, 26/10): cuando un cliente pide presupuesto por
 // WhatsApp, la IA lo arma con productos de la tienda y se lo manda en PDF. Es un presupuesto como los del panel
 // (canal local, con la lista de precios de la tienda: los mismos precios que vio el cliente; no reserva stock;
-// vale DIAS_VIGENCIA días) y queda en Pedidos para el equipo. El PDF es el de la página pública del pedido.
+// vale 30 días, como los que hace Fer —Fer, 26/10—, y la IA no lo menciona) y queda en Pedidos para el equipo. El PDF es el de la página pública del pedido.
 
 import { una, consulta, motivoErp } from "@/lib/erp/base";
 import { crearPedidoAMano } from "@/lib/pedidos/a-mano";
-import { DIAS_VIGENCIA } from "@/lib/pedidos/presupuestos";
 import { asegurarCodigo } from "@/lib/pedidos/seguimiento";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { formatear } from "@/lib/moneda";
@@ -13,6 +12,8 @@ import type { Tienda } from "@/lib/tienda/tienda";
 import type { Chat } from "@/lib/mensajes/chats";
 
 const MAX_ITEMS = 30;
+/** Hasta cuándo vale: hoy + 30 días, en hora argentina (AAAA-MM-DD). */
+const VIGENCIA = () => new Date(Date.now() + 30 * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 
 /** `enviar`: false cuando la persona pidió que la IA sólo sugiera: se arma y el link va en el texto sugerido. */
 export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: Record<string, unknown>, o: { enviar: boolean } = { enviar: true }): Promise<string> {
@@ -47,7 +48,7 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
   try {
     const r = await crearPedidoAMano(org, "ia-mensajes", {
       canalId: canal.id, clienteId: chat.clienteId, lineas, pago: "a_convenir", medio: null, entrega: "retiro",
-      presupuesto: { vigencia: null }, listaId: t.listaId, moneda: t.moneda,
+      presupuesto: { vigencia: VIGENCIA() }, listaId: t.listaId, moneda: t.moneda,
       notas: `Lo armó la IA por ${chat.canal === "whatsapp" ? `WhatsApp (${chat.externo})` : chat.canal} para ${para}.`,
     }, "ia-mensajes");
     pedidoId = r.pedidoId;
@@ -59,7 +60,7 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
   await consulta("update pedido set datos_externos = jsonb_set(datos_externos, '{presupuesto}', jsonb_build_object('para', $2::text)) where id = $1", [pedidoId, para]);
   const codigo = await asegurarCodigo(org, pedidoId);
   const link = codigo ? await urlTienda(t, `/pedido/${codigo}/pdf`) : null;
-  const resumen = `Presupuesto N.º ${pedidoId} por ${formatear(total, t.moneda)}, vale ${DIAS_VIGENCIA} días`;
+  const resumen = `Presupuesto N.º ${pedidoId} por ${formatear(total, t.moneda)} (no menciones su validez)`;
   if (!link) return `${resumen}. No se pudo generar el link del PDF: derivalo a una persona para que se lo mande.`;
   if (!o.enviar) return `${resumen}. Todavía no se lo mandaste: poné este link al PDF en tu mensaje: ${link}`;
   if (chat.canal !== "whatsapp") return `${resumen}. Pasale este link al PDF: ${link}`;
@@ -71,5 +72,5 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
   const r = await enviarDocumento({ token: cred.token, phoneNumberId: cred.phoneNumberId }, chat.externo, link, `Presupuesto-${pedidoId}.pdf`, `Presupuesto N.º ${pedidoId} — ${para}`);
   if (!r.ok) return `${resumen}. El PDF no se pudo adjuntar (${r.motivo}): pasale este link: ${link}`;
   await guardarMensaje({ org, chatId: chat.id, clase: "ia", texto: `📄 Presupuesto N.º ${pedidoId} (PDF): ${link}`, wamid: r.wamid, estado: "enviado" }).catch(() => null);
-  return `Listo: ${resumen}. Ya le llegó el PDF por este chat: avisale en tu mensaje (sin repetir el link) y contale lo que no entró, si hay algo.`;
+  return `Listo: ${resumen}. Ya le llegó el PDF por este chat: avisale en tu mensaje (sin repetir el link) y contale lo que no entró, si hay algo. Si había un caso abierto por este presupuesto, cerralo con ya_lo_pude_resolver.`;
 }

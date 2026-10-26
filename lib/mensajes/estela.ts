@@ -40,7 +40,7 @@ const SISTEMA = `Sos la persona que atiende los mensajes de los clientes de una 
 Cómo escribís:
 - Castellano rioplatense ("vos", "tenés", "fijate"), cálido y corto, como se escribe por WhatsApp: una o dos frases, tres como mucho. Sin títulos ni listas largas; si hace falta enumerar, pocos renglones cortos con guiones.
 - Formato de WhatsApp: *negrita* con un asterisco, sin markdown de enlaces (el link va pegado tal cual). Por Instagram, texto sin asteriscos ni formato, hasta 1.000 caracteres.
-- Precios con formato argentino ($ 12.345). Siempre aclarás que el precio puede cambiar y que lo que vale es el de la tienda al comprar.
+- Precios con formato argentino ($ 12.345). Nunca digas que el precio puede cambiar ni que vale el de la tienda al momento de comprar, ni hables de la validez de un presupuesto (Fer, 26/10).
 - Nunca digas que sos una inteligencia artificial salvo que te lo pregunten directamente; si te lo preguntan, decí la verdad.
 
 De dónde sacás lo que decís:
@@ -63,7 +63,8 @@ Cuándo pasás a una persona (derivar_a_persona):
 - Un reclamo o un problema (no le llegó, llegó roto o distinto, no funciona, una devolución, un cambio, una factura mal): resolvelo vos sólo si la solución está clarísima en lo que sabés; ante la menor duda, derivá.
 - Un pedido de presupuesto o de muchas unidades (más de lo que hay en stock, o para una empresa o una institución): contestale lo que hay y a qué precio, y además derivá a una persona para el presupuesto.
 - Antes de derivar, intentá resolverlo con tus herramientas. ${AVISO_DERIVAR} Usá el HORARIO DE ATENCIÓN y AHORA del contexto. Seguí atendiendo cualquier otra cosa que pregunte.
-- Si en el contexto hay casos abiertos y ya tenés la respuesta, cerralos con ya_lo_pude_resolver.
+- Si en el contexto hay casos abiertos y ya tenés la respuesta, cerralos con ya_lo_pude_resolver (por ejemplo, un caso por un presupuesto que ya le mandaste).
+- Si la persona se presenta con su nombre y apellido y no es un cliente cargado, guardalo con guardar_nombre.
 
 Límites:
 - No tomás pedidos ni cobrás por el chat: para comprar, mandale el link del producto en la tienda. No prometas descuentos, reservas ni plazos que no estén en el contexto.
@@ -104,6 +105,11 @@ const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
         email: { type: "string", description: "El mail con el que compró." },
       },
     },
+  },
+  {
+    name: "guardar_nombre",
+    description: "Guarda el nombre y apellido de quien te escribe (cuando se presenta), para que el equipo lo vea en el chat. Sólo si todavía no es un cliente cargado.",
+    input_schema: { type: "object", properties: { nombre: { type: "string", description: "Nombre y apellido, como se presentó (ej. 'Silvia Montanari')." } }, required: ["nombre"] },
   },
   {
     name: "armar_presupuesto",
@@ -282,6 +288,14 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       await guardarHallazgo(org, id, pregunta, h, `WhatsApp (chat ${chat.id})`);
       if (h.certeza === "no_aplica") return "Eso no es una característica del producto: no está en internet. Contestá con lo que sabés o derivá.";
       return `Certeza: ${h.certeza}.${h.dato ? ` Dato: ${h.dato}` : ""}${h.fuentes.length ? ` Fuentes: ${h.fuentes.join(" ")}` : ""}`;
+    }
+    case "guardar_nombre": {
+      if (chat.clienteId) return "Es un cliente cargado: su nombre ya está en la ficha.";
+      const nombre = String(e.nombre ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+      if (nombre.length < 3) return "Falta el nombre.";
+      await consulta("update chat set nombre = $3 where id = $1 and organizacion_id = $2", [chat.id, org, nombre]);
+      chat.nombre = nombre;
+      return "Listo, quedó guardado.";
     }
     case "armar_presupuesto": {
       if (!t?.listaId) return "No hay tienda web: no se pueden armar presupuestos.";
