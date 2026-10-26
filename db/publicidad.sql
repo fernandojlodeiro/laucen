@@ -234,3 +234,43 @@ create table if not exists whatsapp_clic (
   unique (organizacion_id, codigo)
 );
 alter table whatsapp_clic enable row level security;
+
+-- El registro propio de cada visitante de la tienda (Fer, 26/10: «no perder a nadie que entró y no compró»). El
+-- visitante es el id anónimo de su navegador (galleta lc_visitante); se une al cliente cuando compra y al chat cuando
+-- escribe desde el botón de WhatsApp. No depende de Google ni de Meta.
+create table if not exists visitante (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  id               text not null,
+  primera          jsonb,
+  cliente_id       bigint references cliente(id) on delete set null,
+  chat_id          bigint references chat(id) on delete set null,
+  creado_ts        timestamptz not null default now(),
+  ultimo_ts        timestamptz not null default now(),
+  primary key (organizacion_id, id)
+);
+alter table visitante enable row level security;
+create table if not exists visitante_evento (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  visitante        text not null,
+  tipo             text not null check (tipo in ('visita', 'producto', 'carrito', 'checkout', 'whatsapp', 'compra')),
+  producto_id      bigint,
+  pedido_id        bigint,
+  pagina           text,
+  entrada          jsonb,
+  ts               timestamptz not null default now()
+);
+create index if not exists visitante_evento_visitante on visitante_evento (organizacion_id, visitante, ts desc);
+alter table visitante_evento enable row level security;
+alter table whatsapp_clic add column if not exists visitante text;
+
+-- El token de la API de conversiones de Meta de cada dominio de la tienda (Configuración › Tienda web › Publicidad,
+-- lib/tienda/meta-capi.ts). Termina en _credencial: el asistente no la lee.
+create table if not exists meta_capi_credencial (
+  dominio_id      bigint primary key references tienda_dominio(id) on delete cascade,
+  token           text not null,
+  actualizado_ts  timestamptz not null default now()
+);
+alter table meta_capi_credencial enable row level security;
+-- Cuándo se le avisó la compra a Meta desde el servidor (una sola vez por pedido).
+alter table pedido add column if not exists meta_capi_ts timestamptz;

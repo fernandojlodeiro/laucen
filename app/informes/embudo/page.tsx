@@ -200,6 +200,19 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
         <div className="text-[#5C6B76]"><span className="font-semibold text-[#1F2D3A]">TikTok:</span> el gasto todavía no se lee (próximamente); las ventas de la web que llegan desde sus anuncios ya se cuentan.</div>
       </div>
 
+      <TituloSeccion titulo="Listas para volver a mostrarles anuncios" />
+      <div className={`${CAJA} mb-4 text-xs space-y-2`}>
+        <p className="text-[#5C6B76]">
+          Quienes escribieron por WhatsApp o cancelaron un pedido de la tienda en los últimos 90 días y no compraron después: su teléfono y su mail,
+          en el formato que pide cada plataforma. Se suben en Google Ads › Herramientas › Administrador de públicos (lista de clientes) y en Meta ›
+          Públicos › Crear público personalizado › Lista de clientes. Cada plataforma los cifra al subirlos.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a href="/informes/embudo/lista?para=google" download className={SUAVE}>Bajar la lista para Google</a>
+          <a href="/informes/embudo/lista?para=meta" download className={SUAVE}>Bajar la lista para Meta</a>
+        </div>
+      </div>
+
       {esDueno && (
         <>
           <TituloSeccion titulo="La app de Google de Laucen">

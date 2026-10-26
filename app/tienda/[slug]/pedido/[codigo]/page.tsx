@@ -23,7 +23,10 @@ import { paywayPublico } from "../../pagos";
 import PagoPayway from "./PagoPayway";
 import Antibot from "../../Antibot";
 import { marcaDeTiempo, turnstileDe } from "@/lib/tienda/antibot";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { after } from "next/server";
+import { enviarAMeta, fbcDe } from "@/lib/tienda/meta-capi";
+import { deGalleta, GALLETA_ENTRADAS } from "@/lib/publicidad/atribucion";
 import { datosComprador, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
 import { EventoPublicidad } from "../../Publicidad";
 import Refrescar from "./Refrescar";
@@ -118,6 +121,26 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
     ...(m === "ARS" ? { envio: Number(p.costo_envio_ars) || 0 } : {}),
     items: lineas.map((l) => ({ id: l.variacion_id ? idCatalogo(l.sku, l.variacion_id) : l.titulo, nombre: l.titulo, precio: Number(l.unit), cantidad: l.cantidad })),
   };
+
+  // La misma compra a Meta desde el servidor (API de conversiones, lib/tienda/meta-capi.ts), una sola vez por pedido y
+  // con el mismo id que el píxel: llega aunque el navegador corte el píxel.
+  if (compra && pub?.meta) {
+    const [h, c] = [await headers(), await cookies()];
+    const host = h.get("host");
+    const anuncio = deGalleta(c.get(GALLETA_ENTRADAS)?.value)?.anuncios.filter((a) => a.plataforma === "meta").at(-1);
+    const datos = {
+      ip: h.get("x-forwarded-for")?.split(",")[0].trim() ?? null, navegador: h.get("user-agent"),
+      fbp: c.get("_fbp")?.value ?? null, fbc: fbcDe(c.get("_fbc")?.value, anuncio?.clid, anuncio?.ts),
+    };
+    after(async () => {
+      const libre = await una("update pedido set meta_capi_ts = now() where id = $1 and meta_capi_ts is null returning id", [p.id]).catch(() => null);
+      if (!libre) return;
+      const ok = await enviarAMeta(host, { nombre: "Purchase", id: `compra-${p.id}`, url: `https://${host}${rutaTienda(t, `/pedido/${codigo}`)}`,
+        valor: compra.valor, moneda: compra.moneda, productos: compra.items.map((i) => i.id), pedido: String(p.id),
+        email: pub.datos_comprador ? p.email : null, telefono: pub.datos_comprador ? p.telefono : null, ...datos });
+      if (!ok) await consulta("update pedido set meta_capi_ts = null where id = $1", [p.id]).catch(() => {});
+    });
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

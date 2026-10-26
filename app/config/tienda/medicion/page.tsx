@@ -41,8 +41,9 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
   const aqui = `${BASE}?canal=${tienda.id}`;
   const t = (await tiendaDelCanal(s.org.id, tienda.id))!;
   // Los dominios que abren la tienda (el principal y los de otra marca); los que redirigen no miden nada.
-  const dominios = await consulta<{ id: number; dominio: string; principal: boolean; marca: string | null; publicidad: unknown }>(`
-    select id::int, dominio, principal, marca ->> 'nombre' marca, publicidad from tienda_dominio
+  const dominios = await consulta<{ id: number; dominio: string; principal: boolean; marca: string | null; publicidad: unknown; capi: boolean }>(`
+    select id::int, dominio, principal, marca ->> 'nombre' marca, publicidad,
+           exists (select 1 from meta_capi_credencial k where k.dominio_id = tienda_dominio.id) capi from tienda_dominio
      where organizacion_id = $1 and canal_id = $2 and (principal or marca ->> 'nombre' is not null) order by principal desc, dominio`, [s.org.id, tienda.id]);
   const conf = configFeedDe(tienda.feed);
   const [reglas, productos] = await Promise.all([
@@ -112,9 +113,15 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start border-b border-[#EEF1F4] pb-3">
                     <div className="pt-1">{llave("meta", p.meta.activo, "Meta")}</div>
-                    {editando
-                      ? <label><span className={ETIQUETA}>ID del píxel de Meta</span><input form={form} name="meta_pixel" defaultValue={p.meta.pixel_id ?? ""} placeholder="1234567890123456" inputMode="numeric" className={`${CAMPO} w-full font-mono`} /></label>
-                      : <Dato etiqueta="ID del píxel de Meta">{p.meta.pixel_id}</Dato>}
+                    {editando ? <>
+                      <label><span className={ETIQUETA}>ID del píxel de Meta</span><input form={form} name="meta_pixel" defaultValue={p.meta.pixel_id ?? ""} placeholder="1234567890123456" inputMode="numeric" className={`${CAMPO} w-full font-mono`} /></label>
+                      <label className="sm:col-span-2"><span className={ETIQUETA}>Token de la API de conversiones (opcional)</span>
+                        <input form={form} name="meta_capi" type="password" autoComplete="off" placeholder={d.capi ? "Cargado (vacío: queda el que está)" : ""} className={`${CAMPO} w-full font-mono`} />
+                        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Con el token, las compras y los clics en WhatsApp le llegan a Meta desde Laucen, aunque el navegador del visitante tenga un bloqueador. Se saca en el Administrador de eventos de Meta › el conjunto de datos › Configuración › API de conversiones.</span></label>
+                    </> : <>
+                      <Dato etiqueta="ID del píxel de Meta">{p.meta.pixel_id}</Dato>
+                      <Dato etiqueta="Token de la API de conversiones">{d.capi ? "Cargado" : null}</Dato>
+                    </>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start border-b border-[#EEF1F4] pb-3">
                     <div className="pt-1">{llave("tiktok", p.tiktok.activo, "TikTok")}</div>

@@ -11,7 +11,8 @@ import { cookies, headers } from "next/headers";
 import { COOKIE_EVENTOS, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
 import { redirect } from "next/navigation";
 import { una, consulta, ErrorErp, motivoErp } from "@/lib/erp/base";
-import { deGalleta, GALLETA_ORIGEN } from "@/lib/publicidad/atribucion";
+import { atribucionDe } from "@/lib/publicidad/atribucion";
+import { registrarEvento, unirVisitante, visitaActual } from "@/lib/tienda/visitantes";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { leerCarrito, sumarAlCarrito, fijarCantidad, vaciarCarrito } from "@/lib/tienda/carrito";
 import { comprar, cobrarConPayway, mediosActivos, type DatosCompra } from "@/lib/tienda/checkout";
@@ -66,6 +67,7 @@ export async function agregarAlCarrito(fd: FormData) {
       throw new ErrorErp(v.disponible === 1 ? "Queda 1 sola unidad." : `Quedan ${v.disponible} unidades${ya ? ` y ya tenés ${ya} en el carrito` : ""}.`);
     }
     await sumarAlCarrito(t.slug, variacionId, cantidad);
+    await registrarEvento(t.organizacionId, "carrito", { productoId: id(fd, "producto") });
     await anotarEvento({ tipo: "carrito", moneda: t.moneda, valor: Math.round(Number(v.venta) * cantidad * 100) / 100,
       items: [{ id: idCatalogo(v.sku, variacionId), nombre: v.titulo, precio: Number(v.venta), cantidad }] });
     refrescar(t);
@@ -184,9 +186,14 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);
-    // De qué anuncio vino (la galleta que dejó el middleware al entrar por el link del anuncio): embudo de publicidad.
-    const origen = deGalleta((await cookies()).get(GALLETA_ORIGEN)?.value);
-    if (origen) await consulta("update pedido set atribucion = $2::jsonb where id = $1 and atribucion is null", [r.pedidoId, JSON.stringify(origen)]).catch(() => {});
+    // De dónde vino (el sello de entradas del visitante y la regla de los 30 días, lib/publicidad/atribucion.ts):
+    // embudo de publicidad. Y el visitante queda unido al cliente.
+    const { visitante, entradas } = await visitaActual();
+    await consulta("update pedido set atribucion = $2::jsonb where id = $1 and atribucion is null",
+      [r.pedidoId, JSON.stringify(atribucionDe(entradas, visitante, "web"))]).catch(() => {});
+    await registrarEvento(t.organizacionId, "compra", { pedidoId: r.pedidoId });
+    const cli = await una<{ cliente_id: number | null }>("select cliente_id::int from pedido where id = $1", [r.pedidoId]).catch(() => null);
+    await unirVisitante(t.organizacionId, visitante, { clienteId: cli?.cliente_id ?? null });
     // Sin refrescar la página: el navegador ya se va al pedido (o a pagar), y volver a dibujar el
     // checkout con el carrito vacío mostraba «el carrito está vacío» mientras tanto (Fer, 24/10).
     return { ir: r.ir };

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       }
       const id = await guardarMensaje({ org, chatId: chat.id, clase: "entrante", texto: m.texto, wamid });
       if (id == null) continue; // Meta lo mandó dos veces
-      await anotarOrigen(org, chat.id, m.texto);
+      await anotarOrigen(org, chat.id, null);
       after(async () => {
         try {
           const cfg = await configMensajes(org);

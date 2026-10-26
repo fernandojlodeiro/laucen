@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
+import { sacarCodigo } from "@/lib/publicidad/atribucion";
 import { enviarTexto, firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
 import { recibirComprobanteWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { anotarAnuncio, anotarEntrega, anotarOrigen, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
@@ -114,14 +115,15 @@ export async function POST(req: NextRequest) {
       for (const m of v?.messages ?? []) {
         const tel = String(m.from ?? "").replace(/\D/g, "");
         if (!tel) continue;
-        const texto = textoDe(m);
+        // El código invisible del botón de WhatsApp de la tienda (lib/publicidad/atribucion.ts): se lee y se saca del texto.
+        const { codigo, limpio: texto } = sacarCodigo(textoDe(m));
         if (!texto) { await anotarEvento("mensaje_sin_texto", m, org, tel); continue; }
         const nombre = v?.contacts?.find((k) => k.wa_id === m.from)?.profile?.name ?? "";
         const chat = await chatDe(org, "whatsapp", tel, nombre);
         const id = await guardarMensaje({ org, chatId: chat.id, clase: "entrante", texto, wamid: m.id ?? null });
         if (id == null) continue; // Meta lo mandó dos veces
         await anotarAnuncio(chat.id, m.referral);
-        await anotarOrigen(org, chat.id, texto);
+        await anotarOrigen(org, chat.id, codigo);
         after(async () => {
           try {
             // Una foto o un PDF de un cliente con un pedido sin pagar: puede ser el comprobante de la transferencia

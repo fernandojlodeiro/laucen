@@ -76,6 +76,7 @@ En **No van al catálogo**, **"+ Agregar"**: una categoría (con sus subcategor�
 - **Los datos de la ficha para Google** (schema.org): nombre, fotos, descripción, SKU, marca, código de barras si es válido y la oferta (precio grande, moneda, disponibilidad y link), en todas las fichas, aunque no haya ninguna plataforma prendida.
 - **La dirección vieja del catálogo de Meta** (`/tienda/<tienda>/feed.xml`) sigue andando y da lo mismo que `/feeds/meta.xml`.
 
+- **API de conversiones de Meta**: con el píxel de Meta prendido y el **token de la API de conversiones** cargado (lápiz del dominio; se saca en el Administrador de eventos de Meta › el conjunto de datos › Configuración), la compra y el clic en WhatsApp le llegan a Meta también desde Laucen, aunque el navegador del visitante tenga un bloqueador. Llevan el mismo número que el del píxel: Meta los cuenta una sola vez. El token no se vuelve a mostrar.
 - **Google Analytics**: con el ID de Google Analytics (G-…) cargado, cada página de la tienda cuenta como vista, también al pasar de una página a otra sin recargar (en Google Analytics, «Medición mejorada» › «Cambios de página según el historial del navegador» tiene que estar prendido). Además de los cuatro eventos de comercio, el clic en el botón de WhatsApp se manda como **whatsapp_click** (y como «Contact» a Meta y TikTok).
 
 ## Preguntas frecuentes

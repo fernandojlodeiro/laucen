@@ -6,6 +6,8 @@
 // De dónde sale cada cosa:
 //   · Mercado Libre (por cuenta): la publicidad de ML (pub_campana_dia, lib/publicidad/lectura.ts). Las ventas son las
 //     unidades que ML atribuye a la publicidad (directas + indirectas) y su monto.
+//   · El crédito de cada venta y cada consulta sigue la regla de los 30 días (lib/publicidad/atribucion.ts): el último
+//     anuncio de los 30 días anteriores, aunque la última visita haya sido por otro lado.
 //   · Meta: el gasto, impresiones y clics por anuncio (anuncio_dia, lib/publicidad/meta-ads.ts); «escribieron» = los chats
 //     de WhatsApp o Instagram que empezaron desde un anuncio (chat.atribucion); ventas = los pedidos de la tienda web que
 //     llegaron desde un anuncio (pedido.atribucion), sin cancelados ni devueltos. Ver lib/publicidad/atribucion.ts.
@@ -49,14 +51,15 @@ export async function embudo(org: string, desde: string, hasta: string): Promise
       select d.plataforma, sum(${GASTO_ARS})::float8 gasto, sum(d.impresiones)::float8 vieron, sum(d.clics)::float8 clics, count(*)::int n
         from anuncio_dia d where d.organizacion_id = $1 and d.fecha between $2::date and $3::date group by d.plataforma`, v),
     consulta<{ plataforma: string; n: number }>(`
-      select coalesce(ch.atribucion ->> 'plataforma', ch.atribucion ->> 'fuente') plataforma, count(*)::int n from chat ch
+      select coalesce(ch.atribucion ->> 'plataforma', case when ch.atribucion ->> 'desde' = 'web' then 'web' end) plataforma, count(*)::int n from chat ch
        where ch.organizacion_id = $1 and ch.atribucion is not null and ${EN_PERIODO("ch.creado_ts")} group by 1`, v),
     consulta<{ plataforma: string; ventas: number; vendido: number }>(`
       select coalesce(p.atribucion ->> 'plataforma', 'otro') plataforma, count(*)::int ventas, coalesce(sum(p.total_ars), 0)::float8 vendido from pedido p
-       where p.organizacion_id = $1 and p.atribucion is not null and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")} group by 1`, v),
+       where p.organizacion_id = $1 and (p.atribucion ->> 'plataforma' is not null or p.atribucion ->> 'tipo' = 'campana')
+         and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")} group by 1`, v),
     consulta<{ ventas: number; vendido: number }>(`
       select count(*)::int ventas, coalesce(sum(p.total_ars), 0)::float8 vendido from pedido p join canal ca on ca.id = p.canal_id
-       where p.organizacion_id = $1 and ca.tipo in ('web_minorista', 'web_mayorista') and p.atribucion is null and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")}`, v),
+       where p.organizacion_id = $1 and ca.tipo in ('web_minorista', 'web_mayorista') and p.atribucion ->> 'plataforma' is null and coalesce(p.atribucion ->> 'tipo', '') <> 'campana' and ${SIN_CANCELAR} and ${EN_PERIODO("p.fecha")}`, v),
     consulta<AnuncioEmbudo>(`
       with g as (
         select d.plataforma, d.anuncio_id, max(d.anuncio) anuncio, max(d.campana) campana, sum(${GASTO_ARS})::float8 gasto,

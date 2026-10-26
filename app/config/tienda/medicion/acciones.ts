@@ -49,6 +49,13 @@ export async function accionGuardarPublicidad(fd: FormData) {
       tiktok: { ...pub.tiktok, pixel_id: idDe(fd, "tiktok_pixel", PIXEL_TIKTOK, true, "El ID del píxel de TikTok son letras y números (ej. C1ABC2DEF3GH4IJ5KL6M).") },
       contar_al_crear: fd.get("contar_al_crear") === "1", datos_comprador: fd.get("datos_comprador") === "1",
     });
+    // El token de la API de conversiones de Meta: aparte (meta_capi_credencial), nunca vuelve a la pantalla; vacío, queda el que estaba.
+    const capi = String(fd.get("meta_capi") ?? "").trim();
+    if (capi) {
+      if (!/^[A-Za-z0-9_-]{40,400}$/.test(capi)) throw new ErrorErp("El token de la API de conversiones de Meta es una sola tira larga de letras y números.");
+      await consulta(`insert into meta_capi_credencial (dominio_id, token) values ($1, $2)
+                      on conflict (dominio_id) do update set token = excluded.token, actualizado_ts = now()`, [dominio, capi]);
+    }
     return "Grabado. La tienda ya usa estas etiquetas (puede tardar un minuto).";
   });
 }

@@ -69,10 +69,12 @@ export function ClicsDeWhatsapp() {
       const a = (e.target as HTMLElement | null)?.closest?.("a[data-whatsapp]") as HTMLAnchorElement | null;
       if (!a) return;
       // La página donde lo tocó, por si el navegador no la manda (algunos no mandan de dónde venía).
-      try { const u = new URL(a.href); u.searchParams.set("p", location.pathname); a.href = u.toString(); } catch { /* queda como estaba */ }
+      // El id del evento: el mismo para el píxel de Meta y para lo que Laucen le manda desde el servidor (lo cuenta una vez).
+      const evento = `wa-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      try { const u = new URL(a.href); u.searchParams.set("p", location.pathname); u.searchParams.set("e", evento); a.href = u.toString(); } catch { /* queda como estaba */ }
       const producto = /\/producto\/(\d+)/.exec(location.pathname)?.[1];
       if (window.dataLayer) gtag("event", "whatsapp_click", { page_location: location.href, ...(producto ? { item_id: producto } : {}) });
-      window.fbq?.("track", "Contact");
+      window.fbq?.("track", "Contact", {}, { eventID: evento });
       window.ttq?.track("Contact", {});
     };
     document.addEventListener("click", alClic, true);

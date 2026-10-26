@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { DOMINIO_PANEL, REDIRIGEN_AL_PANEL, esDelPanel } from "@/lib/tienda/dominios";
 import { abreLaTienda, destinoDeHost } from "@/lib/tienda/dominios-tienda";
-import { aGalleta, atribucionDeParametros, DIAS_ORIGEN, GALLETA_ORIGEN } from "@/lib/publicidad/atribucion";
+import { aGalleta, deGalleta, entradaDeVisita, GALLETA_ENTRADAS, GALLETA_VISITANTE, sumarEntrada } from "@/lib/publicidad/atribucion";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -74,10 +74,26 @@ async function aLaTienda(req: NextRequest, host: string): Promise<NextResponse |
   }
   if (ruta.startsWith("/tienda/")) return null;
   const r = reescribir(req, `${base}${ruta === "/" ? "" : ruta}`);
-  // Llegó del link de un anuncio: se guarda de cuál, y queda en el pedido si compra (lib/publicidad/atribucion.ts).
-  const origen = atribucionDeParametros(req.nextUrl.searchParams);
-  if (origen) r.cookies.set(GALLETA_ORIGEN, aGalleta(origen), { maxAge: DIAS_ORIGEN * 86_400, path: "/", sameSite: "lax", httpOnly: true, secure: true });
+  anotarEntrada(req, r, host);
   return r;
+}
+
+/** El sello del visitante (lib/publicidad/atribucion.ts): cada vez que llega a la tienda desde afuera (una página
+ *  entera pedida desde otro sitio, o con el link de un anuncio) se suma esa entrada; y su id, la primera vez. */
+function anotarEntrada(req: NextRequest, r: NextResponse, host: string) {
+  const galleta = { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true, maxAge: 365 * 86_400 };
+  // Sólo la página entera (no los pedidos internos de Next al navegar ni los de adelanto).
+  const dest = req.headers.get("sec-fetch-dest");
+  const esPagina = dest ? dest === "document" : !req.headers.get("rsc") && !req.headers.get("next-router-prefetch") && (req.headers.get("accept") ?? "").includes("text/html");
+  if (!esPagina) return;
+  if (!req.cookies.get(GALLETA_VISITANTE)?.value) r.cookies.set(GALLETA_VISITANTE, crypto.randomUUID(), galleta);
+  const referer = req.headers.get("referer");
+  let deAfuera = true;
+  try { deAfuera = !referer || new URL(referer).hostname.toLowerCase() !== host; } catch { deAfuera = true; }
+  const conAnuncio = ["utm_source", "fbclid", "gclid", "gbraid", "wbraid", "ttclid"].some((k) => req.nextUrl.searchParams.has(k));
+  if (!deAfuera && !conAnuncio) return;
+  const antes = deGalleta(req.cookies.get(GALLETA_ENTRADAS)?.value);
+  r.cookies.set(GALLETA_ENTRADAS, aGalleta(sumarEntrada(antes, entradaDeVisita(req.nextUrl.searchParams, referer, host))), galleta);
 }
 
 function reescribir(req: NextRequest, ruta: string) {
