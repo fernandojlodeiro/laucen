@@ -24,10 +24,10 @@ const CANTIDAD = 12;
 
 // La primera fila de la portada sube sobre el pie del banner, que se funde con el fondo: el
 // título y el principio de las tarjetas quedan sobre el difuminado, a todo el ancho y sin caja
-// (Fer, 25/10: que el banner y los productos queden mezclados, sin hueco en el medio). En el celular el título
-// va abajo del banner, pegado a las tarjetas (Fer, 26/10: se le encimaba a la imagen); en la compu sube sobre el
-// último cuarto del banner, que no lleva texto.
-const ENCIMA = "relative z-10 !mt-2 lg:!-mt-24";
+// (Fer, 25/10: que el banner y los productos queden mezclados, sin hueco en el medio). Sube lo mismo en el
+// celular que en la compu (Fer, 26/10): un cuarto del alto del banner, sobre el difuminado, que no lleva texto.
+// En el celular el banner mide un tercio del ancho: un cuarto de eso son 8vw.
+const ENCIMA = "relative z-10 !-mt-[8vw] lg:!-mt-24";
 
 function Fila({ titulo, ver, productos, t, encima }: { titulo: string; ver?: { texto: string; href: string }; productos: Tarjeta[]; t: Parameters<typeof TarjetaProducto>[0]["t"]; encima?: boolean }) {
   if (!productos.length) return null;
@@ -119,7 +119,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
               </div>
               {c.logo && <img src={c.logo} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
             </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-1/2 lg:block" style={{ background: DIFUMINADO }} />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: DIFUMINADO }} />
           </div>
         )}
       </div>
