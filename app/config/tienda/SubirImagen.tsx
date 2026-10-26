@@ -35,7 +35,7 @@ export default function SubirImagen({ name, valor, organizacionId, etiqueta, alt
         ? <img src={link} alt={etiqueta} className={`${alto} max-w-full object-contain rounded border border-[#E3E9F0] bg-[#FAFBFC] mb-1`} />
         : <p className="text-[11px] text-[#5C6B76] mb-1">Sin {etiqueta.toLowerCase()}.</p>}
       <div className="flex flex-wrap gap-1">
-        <label className={`${SUAVE} cursor-pointer whitespace-nowrap ${subiendo ? "opacity-60" : ""}`}>
+        <label className={`${SUAVE} inline-block cursor-pointer whitespace-nowrap ${subiendo ? "opacity-60" : ""}`}>
           {subiendo ? "Subiendo…" : link ? "Cambiar" : "Subir imagen"}
           <input type="file" accept="image/*" onChange={elegir} disabled={subiendo} className="hidden" />
         </label>

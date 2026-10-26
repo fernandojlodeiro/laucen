@@ -41,7 +41,8 @@ export default function SubirVarias({ name, organizacionId }: { name: string; or
           ))}
         </div>
       )}
-      <label className={`${SUAVE} cursor-pointer ${subiendo ? "opacity-60" : ""}`}>
+      {/* inline-block: un label en línea con padding se encimaba con el texto de arriba (Fer, 26/10). */}
+      <label className={`${SUAVE} inline-block cursor-pointer whitespace-nowrap ${subiendo ? "opacity-60" : ""}`}>
         {subiendo ? `Subiendo… (faltan ${subiendo})` : links.length ? "Sumar más imágenes" : "Elegir imágenes"}
         <input type="file" accept="image/*" multiple onChange={elegir} disabled={subiendo > 0} className="hidden" />
       </label>
