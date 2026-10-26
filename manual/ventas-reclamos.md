@@ -77,7 +77,7 @@ Título "Reclamo N"; debajo el origen, la cuenta y el número de reclamo de ML. 
 Si Mercado Libre espera tu respuesta, arriba aparece el cartel **"Mercado Libre espera tu respuesta · Quedan … (vence …)"** (en rojo si quedan menos de 24 horas o ya venció).
 
 **Columna izquierda**:
-- **"Datos"**: Pedido (enlace), Comprador o Cliente, Estado, Tipo, Motivo, Etapa (ML), Fecha, Para responder (ML), Monto, Devuelto (web/local), Resolución y Notas (web/local). En los de ML, además, **"Qué pide cada parte"** (por ejemplo "El comprador: Que le devuelvan el dinero (pendiente)").
+- **"Datos"**: Pedido (enlace), Comprador o Cliente, Estado, Tipo, Motivo, Etapa (ML), Fecha, Para responder (ML), Monto, Devuelto (web/local), Resolución, **Tu reputación** (ML: «Te afecta» en rojo o «No te afecta» en verde, según Mercado Libre) y Notas (web/local). El **Motivo** de un reclamo de ML es el texto que da Mercado Libre, entero (por ejemplo «Llegó bien › No funciona»). En los de ML, además, **"Qué pide cada parte"** (por ejemplo "El comprador: Que le devuelvan el dinero (pendiente)").
 - **"Productos (N)"**: las líneas del pedido de esa orden (en un carrito de ML, sólo las de esa orden): SKU (enlace y 📷), Producto, Cantidad, Precio.
 - **"Conversación (N)"**: los mensajes del comprador, los de la tienda (con **"Respondió <nombre>"**: quién lo mandó desde Laucen; "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen), los de Mercado Libre y las notas internas (con quién las anotó), con fecha. En **"Historia"** cada acción mandada también dice quién la mandó. Abajo, **"Nota interna"** y **"Anotar nota"**.
 
@@ -107,7 +107,7 @@ Las acciones que Mercado Libre ofrece pero Laucen todavía no hace (mandar archi
 
 ### Ver lo último de un reclamo de Mercado Libre
 
-Apretá **"Actualizar desde ML"** (en la ficha) o **"Traer reclamos de ML"** (en la lista, para todos). Sólo leen: no cambian nada en Mercado Libre. "Traer reclamos de ML" revisa todas las cuentas a la vez; si alguna no se pudo traer (o algún reclamo puntual), el aviso dice cuál y por qué (por ejemplo "ML no da permiso de reclamos a esta cuenta" o "la cuenta está desconectada"), y lo de las demás cuentas entra igual.
+Laucen los lee solo: cuando Mercado Libre avisa un cambio, en la revisión de cada media hora y, los abiertos, al menos una vez por día aunque Mercado Libre no avise (así entra, por ejemplo, un mensaje escrito desde Mercado Libre). Para traerlo en el momento: Apretá **"Actualizar desde ML"** (en la ficha) o **"Traer reclamos de ML"** (en la lista, para todos). Sólo leen: no cambian nada en Mercado Libre. "Traer reclamos de ML" revisa todas las cuentas a la vez; si alguna no se pudo traer (o algún reclamo puntual), el aviso dice cuál y por qué (por ejemplo "ML no da permiso de reclamos a esta cuenta" o "la cuenta está desconectada"), y lo de las demás cuentas entra igual.
 
 ### Cargar un reclamo de la web o el local
 

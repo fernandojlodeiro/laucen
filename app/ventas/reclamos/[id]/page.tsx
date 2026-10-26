@@ -24,7 +24,7 @@ import { fechaHora } from "@/app/ventas/formato";
 import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
 import { ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
 import {
-  ACCIONES_RECLAMO, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, type AccionMl, type ResolucionEsperadaMl,
+  ACCIONES_RECLAMO, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, reputacionLegible, type AccionMl, type ResolucionEsperadaMl,
 } from "@/lib/mercadolibre/reclamos";
 import { ESTADOS_COLA, TONO_COLA } from "@/app/config/canales/cola/formato";
 import { tiempoParaResponder, TONO_RECLAMO } from "../formato";
@@ -46,7 +46,7 @@ type Reclamo = {
   fecha: Date; vence_ts: Date | null; espera_respuesta: boolean; acciones_disponibles: AccionMl[]; resolucion: string | null;
   monto: number | null; reembolso_ars: number | null; tc_dia: number | null; devolucion_id: string | null; devolucion_estado: string | null;
   devolucion_envio_estado: string | null; devolucion_tracking: string | null; recepcion_id: number | null; recepcion_estado: string | null;
-  notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null; orden_ml?: OrdenMlResumen; orden_ml_diag?: { ts: string; orden: string | null; pedido_en_laucen: number | null; resultado: string } } | null; actualizado_ts: Date;
+  notas: string | null; datos_externos: { reputacion?: Record<string, unknown> | null; resoluciones_esperadas?: ResolucionEsperadaMl[] | null; orden_ml?: OrdenMlResumen; orden_ml_diag?: { ts: string; orden: string | null; pedido_en_laucen: number | null; resultado: string } } | null; actualizado_ts: Date;
 };
 
 const DE: Record<string, string> = { comprador: "Comprador", vendedor: "Vos", ml: "Mercado Libre", interno: "Nota interna" };
@@ -167,6 +167,10 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                 <Dato etiqueta="Monto" numero>{r.monto != null ? enMoneda(r.monto, s.moneda, tc) : null}</Dato>
                 {!esMl && <Dato etiqueta="Devuelto" numero>{r.reembolso_ars != null ? enMoneda(r.reembolso_ars, s.moneda, tc) : null}</Dato>}
                 {(esMl || r.estado === "resuelto") && <Dato etiqueta="Resolución" className="sm:col-span-2">{r.resolucion}</Dato>}
+                {esMl && (() => {
+                  const rep = reputacionLegible(r.datos_externos?.reputacion);
+                  return <Dato etiqueta="Tu reputación">{rep ? <Estado texto={rep.texto} tono={rep.afecta ? "rojo" : "verde"} /> : null}</Dato>;
+                })()}
                 {!esMl && <Dato etiqueta="Notas" largo className="sm:col-span-2 lg:col-span-3">{r.notas}</Dato>}
               </div>
             )}

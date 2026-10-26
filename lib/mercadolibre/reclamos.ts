@@ -14,7 +14,8 @@
 //   /post-purchase/v1/claims/{id}/messages
 //   /post-purchase/v1/claims/{id}/expected-resolutions
 //   /post-purchase/v2/claims/{id}/returns
-//   /post-purchase/v1/claims/reasons/{reason_id}
+//   /post-purchase/v1/claims/reasons/{reason_id} (y los de arriba, para el motivo entero)
+//   /post-purchase/v1/claims/{id}/affects-reputation
 
 import { createHash } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -174,6 +175,25 @@ const RESOLUCIONES: Record<string, string> = {
 };
 const BENEFICIADO: Record<string, string> = { complainant: "a favor del comprador", respondent: "a tu favor" };
 
+/** El motivo entero de una cadena de motivos de ML (del más general al del reclamo): los textos distintos, con «›». Puro. */
+export function motivoDeCadena(cadena: Record<string, unknown>[]): string | null {
+  const textos: string[] = [];
+  for (const x of cadena) {
+    const t = [x.detail, x.name].find((v): v is string => typeof v === "string" && v.trim() !== "" && !/^[A-Z0-9_]+$/.test(v) && !/^[a-z0-9_]+$/.test(v));
+    if (t && !textos.includes(t.trim())) textos.push(t.trim());
+  }
+  return textos.length ? textos.join(" › ") : null;
+}
+
+/** Si el reclamo te afecta la reputación, en criollo (de affects-reputation de ML). Puro. */
+export function reputacionLegible(r: Record<string, unknown> | null | undefined): { texto: string; afecta: boolean } | null {
+  if (!r) return null;
+  const v = String(r.affects_reputation ?? r.status ?? "");
+  if (/not_affected|^no|false/i.test(v)) return { texto: "No te afecta", afecta: false };
+  if (/affected|^yes|true/i.test(v)) return { texto: "Te afecta", afecta: true };
+  return null;
+}
+
 /** El motivo por el prefijo del reason_id cuando ML no da el detalle. */
 export function motivoPorPrefijo(reasonId: string | null | undefined): string | null {
   if (!reasonId) return null;
@@ -279,22 +299,36 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
   const r = await leer(`/post-purchase/v1/claims/${claimId}`);
   if (r.status !== 200) throw new Error(`reclamo ${claimId}: ${motivoMl(r)}`);
   const c = r.datos as ReclamoMl;
-  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null; orden_ml: OrdenMlResumen | null }>(
-    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id, datos_externos -> 'orden_ml' orden_ml from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
+  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null; orden_ml: OrdenMlResumen | null; motivo_ml: unknown }>(
+    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id, datos_externos -> 'orden_ml' orden_ml, datos_externos -> 'motivo_ml' motivo_ml from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
     [org, String(c.id)]);
 
-  const [mens, dev, esperadas] = await Promise.all([
+  const [mens, dev, esperadas, rep] = await Promise.all([
     leer(`/post-purchase/v1/claims/${claimId}/messages`),
     (c.related_entities ?? []).includes("return") || /return/.test(c.type ?? "") ? leer(`/post-purchase/v2/claims/${claimId}/returns`) : Promise.resolve(null),
     leer(`/post-purchase/v1/claims/${claimId}/expected-resolutions`),
+    // Si el reclamo te afecta la reputación (Fer, 26/10: ML lo muestra y Laucen no).
+    leer(`/post-purchase/v1/claims/${claimId}/affects-reputation`),
   ]);
+  const reputacion = rep.status === 200 && rep.datos && typeof rep.datos === "object" ? rep.datos as Record<string, unknown> : null;
   const devolucion = dev?.status === 200 && dev.datos && typeof dev.datos === "object" && "id" in (dev.datos as object) ? dev.datos as DevolucionMl : null;
-  // El motivo: el detalle de ML una sola vez (si ya lo tenemos para ese reason_id, no se vuelve a pedir).
-  let motivo: string | null = antes?.motivo_id === (c.reason_id ?? null) ? antes?.motivo ?? null : null;
+  // El motivo, entero (Fer, 26/10: «Llegó bien» solo no decía nada): el de ML y los de arriba en su árbol
+  // («Llegó bien › No funciona»). Una sola vez por reason_id; lo crudo queda en datos_externos.motivo_ml.
+  let motivo: string | null = antes?.motivo_id === (c.reason_id ?? null) && antes?.motivo_ml ? antes?.motivo ?? null : null;
+  let motivoMlCrudo: unknown = motivo ? antes?.motivo_ml : null;
   if (!motivo && c.reason_id) {
-    const m = await leer(`/post-purchase/v1/claims/reasons/${c.reason_id}`);
-    const x = m.status === 200 ? m.datos as { detail?: string; name?: string } : null;
-    motivo = x?.detail || x?.name || null;
+    const cadena: Record<string, unknown>[] = [];
+    let id: string | null = c.reason_id;
+    for (let i = 0; id && i < 4; i++) {
+      const m = await leer(`/post-purchase/v1/claims/reasons/${id}`);
+      if (m.status !== 200 || !m.datos || typeof m.datos !== "object") break;
+      const x = m.datos as Record<string, unknown>;
+      cadena.unshift(x);
+      const padre = x.parent_id ?? x.parent ?? (x.settings as Record<string, unknown> | undefined)?.parent_id;
+      id = typeof padre === "string" && padre !== id ? padre : null;
+    }
+    motivo = motivoDeCadena(cadena);
+    motivoMlCrudo = cadena;
   }
   const f = mapearReclamo(c, cuenta.meliUserId, { devolucion, motivo });
 
@@ -316,6 +350,7 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
     : null;
   const datos = {
     ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null, ...(ordenMl ? { orden_ml: ordenMl } : {}),
+    motivo_ml: motivoMlCrudo, reputacion,
     // Qué se intentó con la orden en esta lectura (para ver por qué falta, si falta).
     orden_ml_diag: { ts: new Date().toISOString(), orden: f.orden_externa, pedido_en_laucen: pedidoId, resultado: ordenMl ? (ordenMl.error ? "error" : "ok") : pedidoId ? "no hace falta (hay pedido)" : f.orden_externa ? "sin dato" : "sin orden" },
   };
@@ -407,8 +442,8 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
   const cerrados = await leer(`/post-purchase/v1/claims/search?status=closed&offset=0&limit=50`);
   if (cerrados.status === 200) vistos.push(...((cerrados.datos as { data?: ReclamoMl[] }).data ?? []));
 
-  const locales = new Map((await consulta<{ id_externo: string; ml_actualizado: string | null; estado: string }>(
-    "select id_externo, ml_actualizado, estado from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and canal_id is not distinct from $2::bigint",
+  const locales = new Map((await consulta<{ id_externo: string; ml_actualizado: string | null; estado: string; viejo: boolean }>(
+    "select id_externo, ml_actualizado, estado, actualizado_ts < now() - interval '20 hours' viejo from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and canal_id is not distinct from $2::bigint",
     [org, cuenta.canalId])).map((x) => [x.id_externo, x]));
   const aTraer = new Set<string>();
   // Un cerrado que Laucen no tiene se trae sólo si es reciente: la búsqueda de
@@ -417,7 +452,9 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
   for (const c of vistos) {
     const l = locales.get(String(c.id));
     if (!l && !abiertosMl.has(String(c.id)) && Date.parse(c.last_updated ?? c.date_created) < desde) continue;
-    if (!l || l.ml_actualizado !== c.last_updated) aTraer.add(String(c.id));
+    // También una vez por día los abiertos, aunque ML no los marque como cambiados (Fer, 26/10: un mensaje escrito
+    // desde ML no le cambia la fecha al reclamo y no aparecía en Laucen).
+    if (!l || l.ml_actualizado !== c.last_updated || (l.estado !== "resuelto" && l.viejo)) aTraer.add(String(c.id));
   }
   for (const [idExt, l] of locales) if (l.estado !== "resuelto" && !abiertosMl.has(idExt)) aTraer.add(idExt);
   // Un reclamo que falla no frena a los demás: se anota y se sigue.
