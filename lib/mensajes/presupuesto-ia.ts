@@ -14,7 +14,8 @@ import type { Chat } from "@/lib/mensajes/chats";
 
 const MAX_ITEMS = 30;
 
-export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: Record<string, unknown>): Promise<string> {
+/** `enviar`: false cuando la persona pidió que la IA sólo sugiera: se arma y el link va en el texto sugerido. */
+export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: Record<string, unknown>, o: { enviar: boolean } = { enviar: true }): Promise<string> {
   const para = String(e.a_nombre_de ?? "").trim().slice(0, 150);
   if (!para) return "Falta a nombre de quién va el presupuesto: preguntáselo.";
   const items = (Array.isArray(e.items) ? e.items : []) as { producto?: unknown; sku?: unknown; cantidad?: unknown }[];
@@ -60,6 +61,7 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
   const link = codigo ? await urlTienda(t, `/pedido/${codigo}/pdf`) : null;
   const resumen = `Presupuesto N.º ${pedidoId} por ${formatear(total, t.moneda)}, vale ${DIAS_VIGENCIA} días`;
   if (!link) return `${resumen}. No se pudo generar el link del PDF: derivalo a una persona para que se lo mande.`;
+  if (!o.enviar) return `${resumen}. Todavía no se lo mandaste: poné este link al PDF en tu mensaje: ${link}`;
   if (chat.canal !== "whatsapp") return `${resumen}. Pasale este link al PDF: ${link}`;
 
   const { credencialDeOrg, guardarMensaje } = await import("@/lib/mensajes/chats");

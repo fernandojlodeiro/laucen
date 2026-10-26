@@ -185,7 +185,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
   const [texto, setTexto] = useState(chat.escribir.sugerencia ?? "");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [trabajando, setTrabajando] = useState<"" | "enviar" | "proponer" | "pedirle">("");
+  const [trabajando, setTrabajando] = useState<"" | "enviar" | "proponer" | "pedirle" | "sugerir">("");
   const [notas, setNotas] = useState(chat.notas ?? "");
   const [verNotas, setVerNotas] = useState(false);
   const [verMas, setVerMas] = useState(false);
@@ -222,13 +222,19 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
     if (r.ok && r.texto) { setTexto(r.texto); ultimaSugerencia.current = r.texto; } else if (!r.ok) setError(r.error);
     alCambiar();
   }
-  async function pedirle() {
+  // «Pedirle a Estela» (Fer, 26/10): su propia caja, aparte de la del cliente, para que nunca le llegue al cliente.
+  const [verIa, setVerIa] = useState(false);
+  const [indicacion, setIndicacion] = useState("");
+  async function pedirle(modo: "mandar" | "sugerir") {
     if (trabajando) return;
-    if (!texto.trim()) { setAviso(null); setError(`Escribí en la caja qué querés que haga ${nombreIa} y volvé a apretar «Pedirle a ${nombreIa}».`); caja.current?.focus(); return; }
-    setTrabajando("pedirle"); setError(null); setAviso(null);
-    const r = await accionPedirleIa(chat.clave, texto);
+    if (!indicacion.trim()) { setAviso(null); setError(`Escribí qué querés que haga ${nombreIa}.`); return; }
+    setTrabajando(modo === "mandar" ? "pedirle" : "sugerir"); setError(null); setAviso(null);
+    const r = await accionPedirleIa(chat.clave, indicacion, modo);
     setTrabajando("");
-    if (r.ok) { setTexto(""); setAviso(`${nombreIa} ya le escribió.`); alCambiar(); } else setError(r.error);
+    if (!r.ok) { setError(r.error); return; }
+    setIndicacion(""); setVerIa(false);
+    if (modo === "mandar") { setAviso(`${nombreIa} ya le escribió.`); alCambiar(); }
+    else { setTexto(r.texto ?? ""); ultimaSugerencia.current = r.texto ?? null; setAviso(`${nombreIa} lo dejó escrito en la caja: revisalo y apretá «Enviar».`); setTimeout(() => caja.current?.focus(), 30); }
   }
   async function ia(prender: boolean) {
     setError(null);
@@ -284,6 +290,21 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
         {chat.aviso && <p className="text-[11px] text-[#8a6100] mb-1">{chat.aviso}</p>}
         {error && <p className="text-xs text-[#C03420] mb-1">{error}</p>}
         {aviso && <p className="text-xs text-[#167655] mb-1">{aviso}</p>}
+        {verIa && (
+          <div className="mb-2 rounded-lg border border-[#C9B8E8] bg-[#F5F0FC] p-2">
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-[#5B3E96] mb-1">Indicación para {nombreIa} — no le llega al cliente</span>
+              <textarea value={indicacion} onChange={(e) => setIndicacion(e.target.value)} rows={2} autoFocus
+                placeholder={`Ej.: armale el presupuesto formal de lo que pidió que tenemos`}
+                className="w-full resize-y border border-[#C9B8E8] rounded-lg px-2 py-1.5 text-sm md:text-xs bg-white" />
+            </label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              <button type="button" onClick={() => pedirle("sugerir")} disabled={!!trabajando} className={SUAVE}>{trabajando === "sugerir" ? `${nombreIa} está escribiendo…` : "Que me lo sugiera"}</button>
+              <button type="button" onClick={() => pedirle("mandar")} disabled={!!trabajando} className={PRIMARIO}>{trabajando === "pedirle" ? `${nombreIa} está escribiendo…` : `Que lo mande ${nombreIa}`}</button>
+              <button type="button" onClick={() => { setVerIa(false); setIndicacion(""); }} disabled={!!trabajando} className={SUAVE}>Cancelar</button>
+            </div>
+          </div>
+        )}
         {!chat.escribir.puede ? (
           <p className="text-xs text-[#5C6B76] px-1 py-2">{chat.escribir.porQueNo}</p>
         ) : (
@@ -299,12 +320,8 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
               {chat.escribir.proponer && (
                 <button type="button" onClick={proponer} disabled={!!trabajando} className={SUAVE}>{trabajando === "proponer" ? "Proponiendo…" : "Proponer con IA"}</button>
               )}
-              {/* Lo de la caja como indicación para la IA: ella le escribe al cliente siguiéndola (Fer, 26/10). */}
-              {chat.ia && chat.origen !== "ml" && (
-                <button type="button" onClick={pedirle} disabled={!!trabajando} className={SUAVE}
-                  title={`Escribí en la caja qué querés que haga ${nombreIa} (no le llega al cliente) y ella le escribe`}>
-                  {trabajando === "pedirle" ? `${nombreIa} está escribiendo…` : `Pedirle a ${nombreIa}`}
-                </button>
+              {chat.ia && chat.origen !== "ml" && !verIa && (
+                <button type="button" onClick={() => { setVerIa(true); setError(null); }} disabled={!!trabajando} className={SUAVE}>🤖 Pedirle a {nombreIa}</button>
               )}
               {chat.escribir.tope != null && <span className={`text-[10px] ${pasado ? "text-[#C03420] font-bold" : "text-[#5C6B76]"}`}>{largo}/{chat.escribir.tope}</span>}
               {chat.escribir.ayuda && <span className="text-[10px] text-[#5C6B76]">{chat.escribir.ayuda}</span>}

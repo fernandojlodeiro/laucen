@@ -93,9 +93,10 @@ export async function accionIaBandeja(c: string, prender: boolean): Promise<Resu
   } catch (e) { return { ok: false, error: motivoErp(e) }; }
 }
 
-/** «Pedirle a Estela» (Fer, 26/10): lo escrito en la caja es una indicación para la IA (no va al cliente); ella
- *  escribe y manda su próximo mensaje siguiéndola. Si el chat lo atendía una persona, la IA vuelve a atenderlo. */
-export async function accionPedirleIa(c: string, encargo: string): Promise<Resultado & { texto?: string }> {
+/** «Pedirle a Estela» (Fer, 26/10): una indicación para la IA, en su propia caja (no va al cliente). «mandar»: ella
+ *  escribe y manda su próximo mensaje siguiéndola (si el chat lo atendía una persona, la IA vuelve a atenderlo).
+ *  «sugerir»: lo escribe y vuelve a la caja del cliente, para que la persona lo revise y lo mande con «Enviar». */
+export async function accionPedirleIa(c: string, encargo: string, modo: "mandar" | "sugerir"): Promise<Resultado & { texto?: string }> {
   try {
     const k = clave(c);
     if (k.tipo !== "c") return { ok: false, error: "Acá la IA no recibe indicaciones." };
@@ -106,6 +107,10 @@ export async function accionPedirleIa(c: string, encargo: string): Promise<Resul
     if (!chat) return { ok: false, error: "No existe ese chat." };
     if (chat.canal === "whatsapp" && !ventanaAbierta(chat.ultimoEntranteTs))
       return { ok: false, error: "Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp no deja escribirle desde acá." };
+    if (modo === "sugerir") {
+      const r = await contestar(s.org.id, chat.id, t, { soloProponer: true });
+      return r.texto ? { ok: true, texto: r.texto } : { ok: false, error: r.motivo ?? "La IA no sugirió nada." };
+    }
     if (chat.atiendePersonaDesde) await ponerIa(s.org.id, chat.id, true);
     const r = await contestar(s.org.id, chat.id, t);
     return r.texto ? { ok: true, texto: r.texto } : { ok: false, error: r.motivo ?? "La IA no mandó nada." };
