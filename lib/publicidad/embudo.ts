@@ -11,7 +11,9 @@
 //     llegaron desde un anuncio (pedido.atribucion), sin cancelados ni devueltos. Ver lib/publicidad/atribucion.ts.
 //   · Google: lo mismo que Meta, con el gasto de Google Ads (lib/publicidad/google-ads.ts).
 //   · TikTok: todavía sin conectar el gasto; sí las ventas de la web que llegaron desde sus anuncios.
-//   · Tienda web sin anuncio: los pedidos de la web que no vinieron de un anuncio, para comparar.
+//   · Tienda web sin anuncio: los pedidos de la web que no vinieron de un anuncio, para comparar; «escribieron» = los
+//     chats que empezaron desde el botón de WhatsApp de la tienda sin venir de un anuncio. Desde el botón, el chat lleva
+//     el origen de esa visita (whatsapp_clic): si venía de un anuncio de Google, cuenta en Google.
 // Los montos en pesos de cada momento; un gasto en dólares se pasa a pesos con el dólar de ese día.
 
 import { consulta } from "@/lib/erp/base";
@@ -47,7 +49,7 @@ export async function embudo(org: string, desde: string, hasta: string): Promise
       select d.plataforma, sum(${GASTO_ARS})::float8 gasto, sum(d.impresiones)::float8 vieron, sum(d.clics)::float8 clics, count(*)::int n
         from anuncio_dia d where d.organizacion_id = $1 and d.fecha between $2::date and $3::date group by d.plataforma`, v),
     consulta<{ plataforma: string; n: number }>(`
-      select ch.atribucion ->> 'plataforma' plataforma, count(*)::int n from chat ch
+      select coalesce(ch.atribucion ->> 'plataforma', ch.atribucion ->> 'fuente') plataforma, count(*)::int n from chat ch
        where ch.organizacion_id = $1 and ch.atribucion is not null and ${EN_PERIODO("ch.creado_ts")} group by 1`, v),
     consulta<{ plataforma: string; ventas: number; vendido: number }>(`
       select coalesce(p.atribucion ->> 'plataforma', 'otro') plataforma, count(*)::int ventas, coalesce(sum(p.total_ars), 0)::float8 vendido from pedido p
@@ -89,7 +91,7 @@ export async function embudo(org: string, desde: string, hasta: string): Promise
     { clave: "tiktok", canal: "TikTok", detalle: null, gasto: null, vieron: null, clics: null, escribieron: null, ventas: ped("tiktok").ventas, vendido: ped("tiktok").vendido, unidad: "pedidos" },
     ...(ped("otro").ventas ? [{ clave: "otro", canal: "Otras campañas (con utm)", detalle: null, gasto: null, vieron: null, clics: null, escribieron: null,
       ventas: ped("otro").ventas, vendido: ped("otro").vendido, unidad: "pedidos" as const }] : []),
-    { clave: "web", canal: "Tienda web sin anuncio", detalle: "para comparar", gasto: null, vieron: null, clics: null, escribieron: null,
+    { clave: "web", canal: "Tienda web sin anuncio", detalle: "para comparar", gasto: null, vieron: null, clics: null, escribieron: chatsDe("web") || null,
       ventas: web[0]?.ventas ?? 0, vendido: web[0]?.vendido ?? 0, unidad: "pedidos" },
   ];
   return { filas, anuncios };

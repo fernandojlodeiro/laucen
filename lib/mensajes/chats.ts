@@ -82,6 +82,22 @@ export async function anotarAnuncio(chatId: number, referral: unknown): Promise<
   if (a) await consulta("update chat set atribucion = $2::jsonb where id = $1 and atribucion is null", [chatId, JSON.stringify(a)]).catch(() => {});
 }
 
+/** De dónde vino un chat, con su primer mensaje (Fer, 26/10). Gana el anuncio de Meta (referral, anotarAnuncio); si
+ *  no, el código del botón de WhatsApp de la tienda («(ref A7K2)»: el origen de esa visita, lib/publicidad/atribucion);
+ *  si no, «directo». Sólo con el primer mensaje del cliente: después ya no se sabe. */
+export async function anotarOrigen(org: string, chatId: number, texto: string | null): Promise<void> {
+  const { refDelMensaje, sinAnuncio } = await import("@/lib/publicidad/atribucion");
+  const c = await una<{ atribucion: unknown; entrantes: number }>(`
+    select atribucion, (select count(*)::int from chat_mensaje m where m.chat_id = chat.id and m.clase = 'entrante') entrantes
+      from chat where id = $1`, [chatId]).catch(() => null);
+  if (!c || c.atribucion || c.entrantes > 1) return;
+  const ref = refDelMensaje(texto);
+  const clic = ref ? await una<{ id: number; atribucion: unknown }>(
+    "update whatsapp_clic set chat_id = $3 where organizacion_id = $1 and codigo = $2 and chat_id is null returning id::int, atribucion", [org, ref, chatId]).catch(() => null) : null;
+  const a = clic ? (clic.atribucion ?? sinAnuncio("web")) : sinAnuncio("directo");
+  await consulta("update chat set atribucion = $2::jsonb where id = $1 and atribucion is null", [chatId, JSON.stringify(a)]).catch(() => {});
+}
+
 // ── Mensajes ─────────────────────────────────────────────────────────
 export type Clase = "entrante" | "ia" | "operador" | "desde_el_telefono";
 export type NuevoMensaje = {

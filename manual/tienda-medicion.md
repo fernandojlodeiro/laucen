@@ -76,6 +76,8 @@ En **No van al catálogo**, **"+ Agregar"**: una categoría (con sus subcategor�
 - **Los datos de la ficha para Google** (schema.org): nombre, fotos, descripción, SKU, marca, código de barras si es válido y la oferta (precio grande, moneda, disponibilidad y link), en todas las fichas, aunque no haya ninguna plataforma prendida.
 - **La dirección vieja del catálogo de Meta** (`/tienda/<tienda>/feed.xml`) sigue andando y da lo mismo que `/feeds/meta.xml`.
 
+- **Google Analytics**: con el ID de Google Analytics (G-…) cargado, cada página de la tienda cuenta como vista, también al pasar de una página a otra sin recargar (en Google Analytics, «Medición mejorada» › «Cambios de página según el historial del navegador» tiene que estar prendido). Además de los cuatro eventos de comercio, el clic en el botón de WhatsApp se manda como **whatsapp_click** (y como «Contact» a Meta y TikTok).
+
 ## Preguntas frecuentes
 
 **¿Por qué Google desaprueba un producto por el precio?** Porque el precio de la ficha no coincide con el del catálogo. Los dos salen del mismo lugar; si cambiaste un precio, Google lo ve en la próxima lectura del catálogo.

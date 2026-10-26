@@ -17,7 +17,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consulta, una, enTransaccion } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
-import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
+import { rutaTienda, tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
 import { cuotasMpDe, financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
@@ -49,6 +49,10 @@ export const linkWhatsapp = (t: Tienda, texto: string) => {
   const n = whatsappDe(t);
   return n ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : null;
 };
+
+/** El botón de WhatsApp de la tienda: pasa por /whatsapp, que anota de qué anuncio venía la visita y pone el código
+ *  en el texto (whatsapp/route.ts). Los avisos de un pedido van directo (linkWhatsapp): ahí ya se sabe quién es. */
+export const botonWhatsapp = (t: Tienda, texto: string) => (whatsappDe(t) ? `${rutaTienda(t, "/whatsapp")}?t=${encodeURIComponent(texto)}` : null);
 
 export const normalizar = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 

@@ -60,6 +60,24 @@ export function EventoPublicidad({ evento, unaVez, conversionGoogle, comprador }
   return null;
 }
 
+/** El clic en el botón de WhatsApp (todo link con data-whatsapp, Fer 26/10): «whatsapp_click» en Google Analytics (con el
+ *  producto, si es una ficha) y «Contact» en Meta y TikTok. Lo que cuenta en el Embudo no depende de esto: lo anota
+ *  Laucen al pasar por /whatsapp, aunque el navegador corte estas etiquetas. */
+export function ClicsDeWhatsapp() {
+  useEffect(() => {
+    const alClic = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement | null)?.closest?.("a[data-whatsapp]")) return;
+      const producto = /\/producto\/(\d+)/.exec(location.pathname)?.[1];
+      if (window.dataLayer) gtag("event", "whatsapp_click", { page_location: location.href, ...(producto ? { item_id: producto } : {}) });
+      window.fbq?.("track", "Contact");
+      window.ttq?.track("Contact", {});
+    };
+    document.addEventListener("click", alClic, true);
+    return () => document.removeEventListener("click", alClic, true);
+  }, []);
+  return null;
+}
+
 /** En cada cambio de página: la vista de página de Meta y TikTok (la primera la manda su código
  *  base) y los eventos que dejó una acción del servidor (cookie pub_eventos), que se borran. */
 export function EventosDeNavegacion() {

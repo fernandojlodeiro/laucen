@@ -12,12 +12,12 @@ import { una } from "@/lib/erp/base";
 import { leerCarrito } from "@/lib/tienda/carrito";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
-import { abierta, arbolDe, arbolParaMenu, cargarTienda, linkWhatsapp } from "./catalogo";
+import { abierta, arbolDe, arbolParaMenu, botonWhatsapp, cargarTienda } from "./catalogo";
 import { IconoCarrito, IconoWhatsapp } from "./piezas";
 import { variablesTema } from "./tema";
 import { etiquetasDelHost } from "@/lib/tienda/publicidad";
 import { canonicalDe } from "@/lib/tienda/seo";
-import { EventosDeNavegacion } from "./Publicidad";
+import { ClicsDeWhatsapp, EventosDeNavegacion } from "./Publicidad";
 import Buscador from "./encabezado/Buscador";
 import EnviarA from "./encabezado/EnviarA";
 import { MenuCategorias, MenuMovil } from "./encabezado/Menus";
@@ -63,7 +63,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
     [cuenta.clienteId, t.organizacionId]) : null;
   const unidades = carrito.reduce((s, l) => s + l.cantidad, 0);
   const nombre = nombreTienda(t);
-  const wa = linkWhatsapp(t, `Hola ${nombre}, tengo una consulta.`);
+  const wa = botonWhatsapp(t, `Hola ${nombre}, tengo una consulta.`);
   const c = t.config;
   const r = (x = "") => rutaTienda(t, x);
   const menu = arbolParaMenu(arbol.raices);
@@ -106,7 +106,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
       </>}
       {pub?.meta && <script dangerouslySetInnerHTML={{ __html: `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pub.meta}');fbq('track','PageView');` }} />}
       {pub?.tiktok && <script dangerouslySetInnerHTML={{ __html: `!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};ttq.load('${pub.tiktok}');ttq.page();}(window,document,'ttq');` }} />}
-      {pub && <EventosDeNavegacion />}
+      {pub && <><EventosDeNavegacion /><ClicsDeWhatsapp /></>}
       {!abierta(t) && (
         <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">La tienda no está tomando pedidos en este momento.</div>
       )}
@@ -194,7 +194,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
             <p className="mb-2 font-semibold text-[var(--texto)]">Contacto</p>
             <ul className="space-y-1.5">
               {c.email && <li><a href={`mailto:${c.email}`} className="break-all hover:text-[var(--texto)]">{c.email}</a></li>}
-              {wa && <li><a href={wa} target="_blank" rel="noopener" className="hover:text-[var(--texto)]">WhatsApp</a></li>}
+              {wa && <li><a href={wa} target="_blank" rel="noopener" data-whatsapp className="hover:text-[var(--texto)]">WhatsApp</a></li>}
               {c.direccion && <li>{c.direccion}</li>}
               {c.horario && <li>{c.horario}</li>}
             </ul>
@@ -216,7 +216,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
       </footer>
 
       {wa && (
-        <a href={wa} target="_blank" rel="noopener" aria-label="Escribinos por WhatsApp"
+        <a href={wa} target="_blank" rel="noopener" data-whatsapp aria-label="Escribinos por WhatsApp"
           className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:scale-105 lg:bottom-4">
           <IconoWhatsapp />
         </a>

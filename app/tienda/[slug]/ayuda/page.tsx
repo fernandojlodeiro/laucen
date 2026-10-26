@@ -7,7 +7,7 @@ import Link from "next/link";
 import { formatearNumero } from "@/lib/numeros";
 import { mediosActivos } from "@/lib/tienda/checkout";
 import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
-import { cargarTienda, envioDe, linkWhatsapp } from "../catalogo";
+import { botonWhatsapp, cargarTienda, envioDe } from "../catalogo";
 import { metodosEnvio } from "../resumen";
 import { CAJA, IconoWhatsapp, LINK } from "../piezas";
 
@@ -19,7 +19,7 @@ export default async function Ayuda({ params }: { params: Promise<{ slug: string
   const [metodos, medios, envio] = await Promise.all([metodosEnvio(t), mediosActivos(t), envioDe(t)]);
   const c = t.config;
   const nombre = nombreTienda(t);
-  const wa = linkWhatsapp(t, `Hola ${nombre}, tengo una consulta.`);
+  const wa = botonWhatsapp(t, `Hola ${nombre}, tengo una consulta.`);
   const seccion = `${CAJA} scroll-mt-4 space-y-3 p-5 sm:p-8`;
   const h2 = "text-xl font-semibold text-[var(--texto)]";
 
@@ -88,7 +88,7 @@ export default async function Ayuda({ params }: { params: Promise<{ slug: string
           {c.horario && <li>Horario: {c.horario}</li>}
         </ul>
         {wa && (
-          <a href={wa} target="_blank" rel="noopener" className="inline-flex h-11 items-center gap-2 rounded-md bg-[#25D366] px-5 font-semibold text-white hover:brightness-105">
+          <a href={wa} target="_blank" rel="noopener" data-whatsapp className="inline-flex h-11 items-center gap-2 rounded-md bg-[#25D366] px-5 font-semibold text-white hover:brightness-105">
             <IconoWhatsapp clase="h-5 w-5" /> Escribinos por WhatsApp
           </a>
         )}

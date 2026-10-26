@@ -69,6 +69,20 @@ export function atribucionDeReferral(r: unknown, ahora = new Date()): Atribucion
   };
 }
 
+/** El código corto que va en el texto del botón de WhatsApp de la tienda: «… (ref A7K2)». Sin letras que se confunden. */
+export const LETRAS_REF = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const codigoRef = (azar: () => number = Math.random) => Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
+export const conRef = (texto: string, codigo: string) => `${texto.trim()} (ref ${codigo})`;
+/** El código de un mensaje que llegó desde el botón, o null. */
+export function refDelMensaje(texto: string | null | undefined): string | null {
+  const m = /\(ref ([A-Z0-9]{4,6})\)/i.exec(texto ?? "");
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** El origen de un chat que no vino de un anuncio: escribió desde el botón de la tienda («web») o directo. */
+export const sinAnuncio = (fuente: "web" | "directo", ahora = new Date()): Atribucion =>
+  ({ plataforma: null, anuncio_id: null, campana: null, fuente, medio: fuente === "web" ? "boton_whatsapp" : null, ts: ahora.toISOString() });
+
 /** La galleta: el JSON de la atribución (chico, sin datos personales). */
 export const aGalleta = (a: Atribucion) => JSON.stringify(a);
 export function deGalleta(v: string | null | undefined): Atribucion | null {

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
-import { anotarAnuncio, anotarEvento, chatDe, ganaLaEspera, guardarMensaje } from "@/lib/mensajes/chats";
+import { anotarAnuncio, anotarEvento, anotarOrigen, chatDe, ganaLaEspera, guardarMensaje } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { contestar } from "@/lib/mensajes/estela";
 import { appInstagram, cuentaDeId, firmaInstagramValida, mensajesDelAviso, perfil, type AvisoInstagram } from "@/lib/mensajes/instagram";
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       }
       const id = await guardarMensaje({ org, chatId: chat.id, clase: "entrante", texto: m.texto, wamid });
       if (id == null) continue; // Meta lo mandó dos veces
+      await anotarOrigen(org, chat.id, m.texto);
       after(async () => {
         try {
           const cfg = await configMensajes(org);

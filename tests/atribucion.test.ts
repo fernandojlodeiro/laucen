@@ -50,3 +50,21 @@ test("el sufijo recomendado de Google: plataforma y anuncio ({creative} es el id
   assert.equal(g?.plataforma, "google");
   assert.equal(g?.anuncio_id, "678901234567");
 });
+
+test("el código del botón de WhatsApp: se arma, va en el texto y se encuentra en el mensaje", async () => {
+  const { codigoRef, conRef, refDelMensaje, LETRAS_REF } = await import("@/lib/publicidad/atribucion");
+  const c = codigoRef();
+  assert.equal(c.length, 4);
+  assert.ok([...c].every((l) => LETRAS_REF.includes(l)));
+  const texto = conRef("Hola Daitom, tengo una consulta.", "A7K2");
+  assert.equal(texto, "Hola Daitom, tengo una consulta. (ref A7K2)");
+  assert.equal(refDelMensaje(texto), "A7K2");
+  assert.equal(refDelMensaje("Hola, ¿tienen la impresora? (Ref a7k2) gracias"), "A7K2");
+  assert.equal(refDelMensaje("Hola, tengo una consulta"), null);
+});
+
+test("sin anuncio: «web» si vino del botón de la tienda, «directo» si no", async () => {
+  const { sinAnuncio } = await import("@/lib/publicidad/atribucion");
+  assert.deepEqual({ ...sinAnuncio("web"), ts: "" }, { plataforma: null, anuncio_id: null, campana: null, fuente: "web", medio: "boton_whatsapp", ts: "" });
+  assert.equal(sinAnuncio("directo").fuente, "directo");
+});

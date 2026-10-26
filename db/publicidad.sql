@@ -218,3 +218,19 @@ update meta_ads_credencial set cuentas = (select jsonb_agg(case when c ? 'leer' 
  where exists (select 1 from jsonb_array_elements(cuentas) c where not c ? 'leer');
 update google_ads_credencial set cuentas = (select jsonb_agg(case when c ? 'leer' then c else c || '{"leer": true}' end) from jsonb_array_elements(cuentas) c)
  where exists (select 1 from jsonb_array_elements(cuentas) c where not c ? 'leer');
+
+-- Cada vez que alguien toca el botón de WhatsApp de la tienda (Fer, 26/10): de qué anuncio venía esa visita (la galleta
+-- lc_origen), en qué página lo tocó y el código corto que va en el texto del mensaje («… (ref A7K2)»). Cuando entra el
+-- mensaje con ese código, el chat se queda con ese origen (chat.atribucion) y el Embudo lo cuenta en «Escrib.».
+create table if not exists whatsapp_clic (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  codigo           text not null,
+  atribucion       jsonb,
+  pagina           text,
+  producto_id      bigint,
+  chat_id          bigint references chat(id) on delete set null,
+  creado_ts        timestamptz not null default now(),
+  unique (organizacion_id, codigo)
+);
+alter table whatsapp_clic enable row level security;
