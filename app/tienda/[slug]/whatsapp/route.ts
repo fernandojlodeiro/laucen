@@ -18,7 +18,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const numero = t ? whatsappDe(t) : null;
   if (!t || !numero) return NextResponse.redirect(new URL("/", req.url), 302);
   const texto = (new URL(req.url).searchParams.get("t") ?? "").trim().slice(0, 300) || `Hola ${nombreTienda(t)}, tengo una consulta.`;
-  const pagina = req.headers.get("referer")?.slice(0, 500) ?? null;
+  // La página donde lo tocó: la manda el botón (?p=) y, si no, el navegador (referer).
+  const sp = new URL(req.url).searchParams;
+  const pagina = (sp.get("p")?.startsWith("/") ? sp.get("p") : req.headers.get("referer"))?.slice(0, 500) ?? null;
   const producto = Number(/\/producto\/(\d+)/.exec(pagina ?? "")?.[1]) || null;
   const atribucion = deGalleta((await cookies()).get(GALLETA_ORIGEN)?.value);
   let codigo: string | null = null;
