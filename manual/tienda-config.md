@@ -40,7 +40,7 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Dirección (slug)**: minúsculas, números y guiones; la tienda queda en …/tienda/slug.
 - Cinco colores, cada uno con "el de siempre" de referencia: **Color de la marca** (la franja de arriba), **Texto sobre la marca** (links e íconos de la franja), **Botones y links** ("Comprar ahora", links, elegido), **Ofertas y envío gratis** (% OFF, cuotas sin interés, envío gratis), **Fondo de la página** (detrás de las tarjetas).
 - **Productos sin stock**: nunca se muestran (tampoco los inactivos ni los sin precio). Es una regla fija de la web, no se configura.
-- **Logo**. Los banners (las imágenes grandes de arriba de la portada) se cargan en [Banners de la tienda](/config/tienda/banners).
+- **Logo**. Los banners (las imágenes grandes de arriba de la portada) se cargan en [Banners de la tienda](/config/tienda/carrusel).
 - **Bajada (el texto de la portada sin banners)**: ej. "Envíos a todo el país".
 - **Devoluciones (lo que ve el comprador en la ficha y en Ayuda)** y **Garantía**: textos largos; también salen en Términos y condiciones.
 - **Sobre nosotros**: el texto de la página "Sobre nosotros" del pie de la tienda (párrafos separados por una línea en blanco). Vacío, se muestra una presentación general.
@@ -116,7 +116,7 @@ Cada dominio de otra marca muestra el mismo catálogo que el principal. De fábr
 
 ### Abrir la tienda con otra marca (otro nombre y logo)
 
-Sirve para vender lo mismo bajo dos nombres: un dominio de "otra marca" abre **la misma tienda** (los mismos productos, precios, stock, carrito y pedidos) pero con su propio **nombre, logo, colores de la franja, banners y mail** (los banners, en [Banners de la tienda](/config/tienda/banners), eligiendo esa marca en «Se ve en»).
+Sirve para vender lo mismo bajo dos nombres: un dominio de "otra marca" abre **la misma tienda** (los mismos productos, precios, stock, carrito y pedidos) pero con su propio **nombre, logo, colores de la franja, banners y mail** (los banners, en [Banners de la tienda](/config/tienda/carrusel), eligiendo esa marca en «Se ve en»).
 
 1. En **Dominios**, **"Nuevo dominio"** → el dominio de la otra marca (ej. otramarca.com.ar) → **"Otra marca"**, escribí su nombre en **"Si es otra marca: su nombre"** → **"Crear"**, y cargá sus registros DNS como en un principal.
 2. Apretá el **lápiz** de esa fila y cargá el **logo** (sin logo se ve el nombre escrito), y si querés los **colores de la franja** (tildá "Propio"; sin tildar, los de la tienda) y el **mail** (vacío: el de la tienda con el dominio de la marca, ej. hola@mitienda.com.ar visto desde otramarca.com.ar → hola@otramarca.com.ar). **"Grabar"**.

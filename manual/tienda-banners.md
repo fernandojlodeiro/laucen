@@ -1,8 +1,8 @@
 ---
 titulo: Banners de la tienda
 menu: Configuración › Tienda web › Banners de la tienda
-ruta: /config/tienda/banners
-rutas: /config/tienda/banners
+ruta: /config/tienda/carrusel
+rutas: /config/tienda/carrusel
 permiso: tienda_config
 resumen: Cargar las imágenes grandes de arriba de la portada de la tienda web, todas las que quieras, en dos familias (clara y oscura) que se turnan solas, con su link y la tienda donde se ven.
 ---

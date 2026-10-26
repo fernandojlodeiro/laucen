@@ -3,8 +3,8 @@
 //   - adentro, una subcarpeta para la compu («Escritorio», «Compu», «PC») y otra para el celular («Celulares»);
 //   - la familia sale del nombre de la imagen («…Clara…», «…Oscura…») o de una subcarpeta «Claros» / «Oscuros».
 // Las imágenes nuevas se suman al final de su familia, las que cambiaron en el Drive se reemplazan y las que ya no
-// están se borran. Los banners subidos a mano no se tocan (los del Drive son los que apuntan a banner-drive).
-// La imagen la sirve /api/tienda/banner-drive/<id>, que la guarda en la base la primera vez.
+// están se borran. Los banners subidos a mano no se tocan (los del Drive son los que apuntan a imagen).
+// La imagen la sirve /api/tienda/imagen/<id>, que la guarda en la base la primera vez.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { tokenDeAcceso, archivosDe, carpetasDe } from "@/lib/google/drive";
@@ -26,7 +26,7 @@ export const pantallaDeCarpeta = (nombre: string): PantallaBanner | null =>
   /celu|m[oó]vil|phone/i.test(nombre) ? "celular" : /escrit|compu|\bpc\b|desktop/i.test(nombre) ? "compu" : null;
 export const familiaDe = (nombre: string): FamiliaBanner | null => (/oscur/i.test(nombre) ? "oscura" : /clar/i.test(nombre) ? "clara" : null);
 
-const MARCA = "/api/tienda/banner-drive/";
+const MARCA = "/api/tienda/imagen/";
 const idDeImagen = (imagen: string) => imagen.split(MARCA)[1]?.split("?")[0] ?? null;
 
 type Archivo = { id: string; nombre: string; version: string; pantalla: PantallaBanner; familia: FamiliaBanner };

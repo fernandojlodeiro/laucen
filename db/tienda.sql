@@ -392,7 +392,7 @@ create index if not exists tienda_banner_orden on tienda_banner (canal_id, famil
 -- Para qué pantalla es cada banner (Fer, 26/10): la compu, el celular o las dos. Se elige al subirlo.
 alter table tienda_banner add column if not exists pantalla text not null default 'todas' check (pantalla in ('todas', 'compu', 'celular'));
 -- Banners que vienen del Google Drive de la organización (Fer, 26/10: los cargó Code desde su carpeta de
--- banners). La imagen del banner apunta a /api/tienda/banner-drive/<id del archivo>: la primera vez se baja del
+-- banners). La imagen del banner apunta a /api/tienda/imagen/<id del archivo>: la primera vez se baja del
 -- Drive, se pasa a WebP y queda acá; desde ahí se sirve de la base, sin volver al Drive.
 create table if not exists tienda_banner_archivo (
   id               text primary key,

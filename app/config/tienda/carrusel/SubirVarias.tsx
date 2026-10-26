@@ -1,7 +1,7 @@
 "use client";
 
 // Varias imágenes de una vez para el alta de banners: se suben directo del
-// navegador al bucket público "productos" (carpeta "tienda/banners") y el
+// navegador al bucket público "productos" (carpeta "tienda/portada") y el
 // formulario manda un link por imagen (cada una queda como un banner).
 
 import { useState } from "react";
@@ -20,7 +20,7 @@ export default function SubirVarias({ name, organizacionId }: { name: string; or
     setMotivo(imagenes.length < archivos.length ? "Algún archivo no era una imagen (JPG, PNG o WebP) y quedó afuera." : null);
     setSubiendo(imagenes.length);
     for (const a of imagenes) {
-      const r = await subirArchivo("productos", organizacionId, a, "tienda/banners");
+      const r = await subirArchivo("productos", organizacionId, a, "tienda/portada");
       if ("motivo" in r) setMotivo(r.motivo ?? null); else if (r.url) setLinks((l) => [...l, r.url!]);
       setSubiendo((n) => n - 1);
     }

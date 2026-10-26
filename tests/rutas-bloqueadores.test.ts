@@ -24,9 +24,6 @@ const EXCEPTUADAS: Record<string, string> = {
 
 /** PENDIENTES de otra sesión (banners de la tienda, 26/10): cada uno con su motivo. Se sacan de acá al renombrarlos. */
 const PENDIENTES: Record<string, string> = {
-  "/config/tienda/banners": "pantalla de banners de la tienda: renombrar (la está trabajando otra sesión)",
-  "/api/tienda/banners-drive": "trae los banners del Drive: renombrar con la pantalla",
-  "/api/tienda/banner-drive/[id]": "las imágenes de los banners en la tienda: un visitante con bloqueador no las ve",
   "/informes/promociones": "a revisar: «promociones» puede estar en las listas de los bloqueadores",
 };
 

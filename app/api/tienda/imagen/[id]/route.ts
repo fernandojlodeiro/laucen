@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   await asegurarEsquemaErp();
   const guardado = await una<{ tipo: string; contenido: Buffer }>("select tipo, contenido from tienda_banner_archivo where id = $1", [id]);
   if (guardado) return new Response(new Uint8Array(guardado.contenido), { headers: { "content-type": guardado.tipo, "cache-control": CACHE } });
-  const b = await una<{ org: string }>(`select organizacion_id org from tienda_banner where imagen like '%/api/tienda/banner-drive/' || $1 || '%' limit 1`, [id]);
+  const b = await una<{ org: string }>(`select organizacion_id org from tienda_banner where imagen like '%/api/tienda/imagen/' || $1 || '%' limit 1`, [id]);
   if (!b) return new Response("No existe", { status: 404 });
   try {
     const crudo = Buffer.from(await bajarDelDrive(await tokenDeAcceso(b.org), id));
@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     await consulta(`insert into tienda_banner_archivo (id, organizacion_id, tipo, contenido) values ($1, $2, 'image/webp', $3) on conflict (id) do nothing`, [id, b.org, webp]);
     return new Response(new Uint8Array(webp), { headers: { "content-type": "image/webp", "cache-control": CACHE } });
   } catch (e) {
-    console.error("[banner-drive]", id, e instanceof Error ? e.message : e);
+    console.error("[imagen]", id, e instanceof Error ? e.message : e);
     return new Response("No se pudo traer la imagen", { status: 502, headers: { "cache-control": "no-store" } });
   }
 }

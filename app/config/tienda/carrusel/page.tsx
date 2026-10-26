@@ -41,7 +41,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
   const filas = todos.filter((b) => b.familia === familia && (donde == null || b.dominio_id == null || b.dominio_id === donde));
   const nombreDestino = (id: number | null) => id == null ? "Todas" : destinos.find((d) => d.id === id)?.nombre ?? "—";
   const base = { canal: tiendas.length > 1 ? tienda?.id : null, familia: esFamilia(sp.familia) ? sp.familia : null, donde: donde ?? null };
-  const aca = (extra: Record<string, string | number | null> = {}) => url("/config/tienda/banners", { ...base, ...extra });
+  const aca = (extra: Record<string, string | number | null> = {}) => url("/config/tienda/carrusel", { ...base, ...extra });
   // Para que cada acción vuelva a esta misma vista.
   const vuelta = <><input type="hidden" name="_canal" value={base.canal ?? ""} /><input type="hidden" name="_familia" value={base.familia ?? ""} /><input type="hidden" name="_donde" value={base.donde ?? ""} /></>;
   const camposVuelta = { _canal: String(base.canal ?? ""), _familia: base.familia ?? "", _donde: String(base.donde ?? "") };
@@ -85,7 +85,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
 
           {tiendas.length > 1 && (
             <div className="flex gap-2 mb-3 text-xs">
-              {tiendas.map((t) => <Link key={t.id} href={`/config/tienda/banners?canal=${t.id}`} className={`rounded-lg border px-3 py-1.5 ${t.id === tienda.id ? "bg-[#16577F] text-white border-[#16577F]" : "bg-white border-[#E3E9F0]"}`}>{t.nombre}</Link>)}
+              {tiendas.map((t) => <Link key={t.id} href={`/config/tienda/carrusel?canal=${t.id}`} className={`rounded-lg border px-3 py-1.5 ${t.id === tienda.id ? "bg-[#16577F] text-white border-[#16577F]" : "bg-white border-[#E3E9F0]"}`}>{t.nombre}</Link>)}
             </div>
           )}
 

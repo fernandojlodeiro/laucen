@@ -12,12 +12,12 @@ const volver = (fd: FormData) => {
   const p = new URLSearchParams();
   for (const k of ["canal", "familia", "donde"]) { const v = texto(fd, `_${k}`); if (v) p.set(k, v); }
   const s = p.toString();
-  return `/config/tienda/banners${s ? `?${s}` : ""}`;
+  return `/config/tienda/carrusel${s ? `?${s}` : ""}`;
 };
 const familiaDe = (fd: FormData) => { const f = fd.get("familia"); if (!esFamilia(f)) throw new ErrorErp("Elegí la familia: clara u oscura."); return f; };
 const dominioDe = (fd: FormData) => id(fd, "dominio_id") || null;
 const pantallaDe = (fd: FormData) => { const p = fd.get("pantalla"); if (!esPantalla(p)) throw new ErrorErp("Elegí para qué pantalla es: compu, celular o las dos."); return p; };
-const listo = () => { revalidatePath("/config/tienda/banners"); revalidatePath("/tienda", "layout"); };
+const listo = () => { revalidatePath("/config/tienda/carrusel"); revalidatePath("/tienda", "layout"); };
 
 export async function accionAgregarBanners(fd: FormData) {
   const s = await entrarErp("tienda_config");

@@ -131,7 +131,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Tienda web", href: "/config/tienda", permiso: "tienda_config" },
       { texto: "Portada de la tienda", href: "/config/tienda/portada", permiso: "tienda_config" },
-      { texto: "Banners de la tienda", href: "/config/tienda/banners", permiso: "tienda_config" },
+      { texto: "Banners de la tienda", href: "/config/tienda/carrusel", permiso: "tienda_config" },
       { texto: "Cuotas y descuentos", href: "/config/tienda/financiacion", permiso: "tienda_config" },
       { texto: "Publicidad", href: "/config/tienda/medicion", permiso: "tienda_config" },
       { texto: "Medios de pago", href: "/config/medios-pago", permiso: "medios_pago_ver" },
