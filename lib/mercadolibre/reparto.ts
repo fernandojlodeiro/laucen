@@ -13,11 +13,12 @@
 // cuenta, en orden: más vendidos del producto en la cuenta (lo que informa ML
 // de sus publicaciones) → la cuenta preferida en el empate (.BAIRES) → al azar
 // (un sorteo fijo por producto y cuenta, así no cambia en cada pasada). La
-// suma de lo que le toca a cada cuenta nunca pasa lo que hay. Todas las
-// publicaciones de una cuenta (Clásica, Premium, planes de cuotas, catálogo)
-// muestran lo de la cuenta, estén o no en el mismo producto de ML (Fer, 22/10).
-// La cuenta que queda en 0 se pausa por stock y se reactiva sola cuando le
-// vuelve a tocar.
+// suma de lo que le toca a cada cuenta nunca pasa lo que hay. Dentro de la
+// cuenta, lo suyo se reparte de a una unidad entre sus productos de ML (el que
+// más vendió primero): las publicaciones de un mismo producto de ML (planes
+// agrupados, catálogo) muestran lo mismo, y la suma de lo visible en ML nunca
+// pasa lo que hay, ni con un carrito en la misma cuenta (Fer, 26/10). Lo que
+// queda en 0 se pausa por stock y se reactiva solo cuando le vuelve a tocar.
 //
 // Prendido en Configuración › Canales, caja «Reparto del stock entre cuentas
 // de ML» (config_org 'reparto_stock_ml'). Lo usa lib/mercadolibre/stock.ts.
@@ -99,9 +100,11 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
   // sincronizan (aunque la pasada sea de una sola cuenta): el reparto es entre todas.
   const filas = await consulta<FilaReparto>(`
     select p.id::int pub, p.variacion_id::int variacion, p.canal_id::int canal, c.lista_precios_id::int lista,
-           -- Todas las publicaciones de una cuenta muestran lo mismo, estén o no en el mismo producto de ML (Fer, 22/10:
-           -- «es el mismo producto y no lo van a comprar dos veces en la misma cuenta»): no se pausan planes por el reparto.
-           p.canal_id::text grupo,
+           -- Dentro de la cuenta, lo suyo se reparte entre sus productos de ML (cada uno tiene su propio stock en ML).
+           -- Mostrar lo de la cuenta en todos (22/10) dejó vender 3 con 2 en un carrito de la misma cuenta (pedido
+           -- 150454, 26/10: SKU03433 con 5 productos de ML separados en DAITOM). La común y su gemela de catálogo
+           -- comparten producto, así que van juntas.
+           coalesce(p.datos_externos ->> 'user_product_id', p.id_externo) grupo,
            coalesce(mi.vendidos, 0)::int vendidos,
            stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible
       from publicacion p join canal c on c.id = p.canal_id
