@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   await asegurarEsquemaErp();
   const guardado = await una<{ tipo: string; contenido: Buffer }>("select tipo, contenido from tienda_banner_archivo where id = $1", [id]);
   if (guardado) return new Response(new Uint8Array(guardado.contenido), { headers: { "content-type": guardado.tipo, "cache-control": CACHE } });
-  const b = await una<{ org: string }>(`select organizacion_id org from tienda_banner where imagen like '%/api/tienda/banner-drive/' || $1 limit 1`, [id]);
+  const b = await una<{ org: string }>(`select organizacion_id org from tienda_banner where imagen like '%/api/tienda/banner-drive/' || $1 || '%' limit 1`, [id]);
   if (!b) return new Response("No existe", { status: 404 });
   try {
     const crudo = Buffer.from(await bajarDelDrive(await tokenDeAcceso(b.org), id));

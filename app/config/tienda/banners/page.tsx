@@ -16,7 +16,9 @@ import { bannersDe, destinosDeBanner, turnoDeBanners, FAMILIAS, PANTALLAS, esFam
 import SubirImagen from "../SubirImagen";
 import SubirVarias from "./SubirVarias";
 import FiltroDonde from "./FiltroDonde";
-import { accionAgregarBanners, accionGuardarBanner, accionActivarBanner, accionBorrarBanner, accionMoverBanner } from "./acciones";
+import { accionAgregarBanners, accionGuardarBanner, accionActivarBanner, accionBorrarBanner, accionMoverBanner, accionLeerDrive } from "./acciones";
+import { carpetasDeBanners } from "@/lib/tienda/banners-drive";
+import { urlCarpeta } from "@/lib/google/drive";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const tiendas = await consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 and tipo = 'web_minorista' and estado <> 'archivado' order by id", [s.org.id]);
   const tienda = tiendas.find((t) => t.id === Number(sp.canal)) ?? tiendas[0];
-  const [todos, destinos] = tienda ? await Promise.all([bannersDe(s.org.id, tienda.id), destinosDeBanner(s.org.id, tienda.id)]) : [[], []];
+  const [todos, destinos, carpetas] = tienda ? await Promise.all([bannersDe(s.org.id, tienda.id), destinosDeBanner(s.org.id, tienda.id), carpetasDeBanners(s.org.id, tienda.id)]) : [[], [], []];
   const turno = turnoDeBanners();
   const familia: FamiliaBanner = esFamilia(sp.familia) ? sp.familia : turno.familia;
   const otra: FamiliaBanner = turno.familia === "clara" ? "oscura" : "clara";
@@ -91,6 +93,26 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
             Ahora se ve la familia <b>{FAMILIAS[turno.familia]}</b>, hasta el {hora(turno.hasta)} h; después, la <b>{FAMILIAS[otra]}</b>.
             <span className="block text-[11px] text-[#5C6B76] mt-0.5">Se turnan a las 0 y a las 12 (hora argentina). Cada lunes se invierte cuál va a la mañana y cuál a la tarde. Si a la del turno no le queda ningún banner activo para esa tienda, se ve la otra.</span>
           </div>
+
+          {/* Desde el Drive (Fer, 26/10): una carpeta por tienda y «Leer Drive» trae lo que haya. */}
+          <form action={accionLeerDrive} className={`${CAJA} text-xs mb-4`}>
+            <input type="hidden" name="canal_id" value={tienda.id} />{vuelta}
+            <p className="font-semibold mb-1">Desde el Google Drive</p>
+            <p className="text-[11px] text-[#5C6B76] mb-2">Pegá el link de la carpeta de banners de cada tienda. Adentro, una carpeta «Escritorio» y otra «Celulares»; en el nombre de cada imagen, «Clara» u «Oscura» (o carpetas «Claros» y «Oscuros»). «Leer Drive» suma las imágenes nuevas, reemplaza las que cambiaste y borra las que sacaste. Los banners subidos a mano no se tocan. Una tienda de otra marca sin banners propios muestra los de la principal.</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[{ clave: "todas", id: null as number | null, nombre: "Todas las tiendas" }, ...destinos.map((d) => ({ clave: String(d.id), id: d.id as number | null, nombre: `${d.nombre}${d.principal ? " (principal)" : ""}` }))].map((d) => {
+                const c = carpetas.find((x) => x.dominio_id === d.id);
+                return (
+                  <label key={d.clave} className="block">
+                    <input type="hidden" name="destino" value={d.clave} />
+                    <span className={ETIQUETA}>{d.nombre}{c?.leido && <span className="font-normal"> · leída el {c.leido}</span>}</span>
+                    <input name={`carpeta_${d.clave}`} defaultValue={c ? urlCarpeta(c.carpeta) : ""} placeholder="https://drive.google.com/drive/folders/…" className={`${CAMPO} w-full`} />
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-2"><BotonEnviar clase={PRIMARIO} corriendo="Leyendo el Drive…">Leer Drive</BotonEnviar></div>
+          </form>
 
           <div className="flex flex-wrap items-end justify-between gap-2">
             <Pestanas className="mb-0 grow" items={(Object.keys(FAMILIAS) as FamiliaBanner[]).map((f) => ({

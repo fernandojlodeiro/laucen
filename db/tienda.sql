@@ -402,6 +402,19 @@ create table if not exists tienda_banner_archivo (
   creado_ts        timestamptz not null default now()
 );
 alter table tienda_banner_archivo enable row level security;
+-- La carpeta del Drive de los banners de cada tienda (Fer, 26/10): «Leer Drive» en Banners de la tienda la recorre
+-- (lib/tienda/banners-drive.ts). dominio_id null = todas las tiendas; si no, la principal o una de otra marca.
+create table if not exists tienda_banner_drive (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  dominio_id       bigint references tienda_dominio(id) on delete cascade,
+  carpeta          text not null,
+  leido_ts         timestamptz,
+  creado_ts        timestamptz not null default now()
+);
+create unique index if not exists tienda_banner_drive_destino on tienda_banner_drive (canal_id, coalesce(dominio_id, 0));
+alter table tienda_banner_drive enable row level security;
 alter table tienda_banner enable row level security;
 select erp_politica_org('tienda_banner');
 -- Los tres casilleros de antes (canal.config banner, banner_2, banner_3 y los de cada marca en
