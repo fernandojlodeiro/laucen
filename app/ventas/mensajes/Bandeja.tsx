@@ -341,7 +341,18 @@ function Globo({ m, nombreIa }: { m: MensajeVista; nombreIa: string }) {
     <div className={`flex ${m.clase === "ml" ? "justify-center" : nuestro ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[85%] md:max-w-[80%] rounded-lg px-2.5 py-1.5 text-sm md:text-xs shadow-sm ${m.clase === "ml" ? "bg-[#FFF6D6]" : nuestro ? "bg-[#D9FDD3]" : "bg-white"}`}>
         {quien && <div className="text-[10px] font-bold text-[#167655] mb-0.5">{quien}</div>}
-        <div className="whitespace-pre-wrap break-words">{m.texto}</div>
+        {/* Un archivo que se le mandó (el PDF de un presupuesto o una factura): se ve como archivo, no como un link suelto. */}
+        {(() => {
+          const doc = /^📄 (.+?): (https?:\/\/\S+)$/.exec(m.texto ?? "");
+          if (!doc) return <div className="whitespace-pre-wrap break-words">{m.texto}</div>;
+          return (
+            <div className="flex items-center gap-2 rounded-md border border-[#C8E6C0] bg-white/70 px-2 py-1.5">
+              <span className="text-xl leading-none">📄</span>
+              <span className="min-w-0 flex-1"><b className="block truncate">{doc[1]}</b><span className="text-[10px] text-[#5C6B76]">Archivo PDF{nuestro ? " que le llegó al cliente" : ""}</span></span>
+              <a href={doc[2]} target="_blank" rel="noopener" className={SUAVE}>Ver el PDF ↗</a>
+            </div>
+          );
+        })()}
         <div className="mt-0.5 flex justify-end gap-1 text-[10px] text-[#5C6B76]">
           <span>{horaLarga(m.ts)}</span>{nuestro && estado}
         </div>
