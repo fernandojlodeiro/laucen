@@ -14,7 +14,7 @@ import {
   FILTROS, ORIGENES, NOMBRE_ORIGEN,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
 } from "@/lib/mensajes/bandeja-tipos";
-import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionProponerBandeja, accionResolverCaso } from "./acciones";
+import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionPedirleIa, accionProponerBandeja, accionResolverCaso } from "./acciones";
 import Llave from "./Llave";
 import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
 import CorregirIa from "@/app/componentes/CorregirIa";
@@ -185,7 +185,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
   const [texto, setTexto] = useState(chat.escribir.sugerencia ?? "");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [trabajando, setTrabajando] = useState<"" | "enviar" | "proponer">("");
+  const [trabajando, setTrabajando] = useState<"" | "enviar" | "proponer" | "pedirle">("");
   const [notas, setNotas] = useState(chat.notas ?? "");
   const [verNotas, setVerNotas] = useState(false);
   const [verMas, setVerMas] = useState(false);
@@ -221,6 +221,13 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
     setTrabajando("");
     if (r.ok && r.texto) { setTexto(r.texto); ultimaSugerencia.current = r.texto; } else if (!r.ok) setError(r.error);
     alCambiar();
+  }
+  async function pedirle() {
+    if (!texto.trim() || trabajando) return;
+    setTrabajando("pedirle"); setError(null); setAviso(null);
+    const r = await accionPedirleIa(chat.clave, texto);
+    setTrabajando("");
+    if (r.ok) { setTexto(""); setAviso(`${nombreIa} ya le escribió.`); alCambiar(); } else setError(r.error);
   }
   async function ia(prender: boolean) {
     setError(null);
@@ -290,6 +297,13 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {chat.escribir.proponer && (
                 <button type="button" onClick={proponer} disabled={!!trabajando} className={SUAVE}>{trabajando === "proponer" ? "Proponiendo…" : "Proponer con IA"}</button>
+              )}
+              {/* Lo de la caja como indicación para la IA: ella le escribe al cliente siguiéndola (Fer, 26/10). */}
+              {chat.ia && chat.origen !== "ml" && (
+                <button type="button" onClick={pedirle} disabled={!!trabajando || !texto.trim()} className={SUAVE}
+                  title={`Escribí en la caja qué querés que haga ${nombreIa} (no le llega al cliente) y ella le escribe`}>
+                  {trabajando === "pedirle" ? `${nombreIa} está escribiendo…` : `Pedirle a ${nombreIa}`}
+                </button>
               )}
               {chat.escribir.tope != null && <span className={`text-[10px] ${pasado ? "text-[#C03420] font-bold" : "text-[#5C6B76]"}`}>{largo}/{chat.escribir.tope}</span>}
               {chat.escribir.ayuda && <span className="text-[10px] text-[#5C6B76]">{chat.escribir.ayuda}</span>}

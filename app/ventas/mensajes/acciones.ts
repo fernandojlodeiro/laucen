@@ -93,6 +93,25 @@ export async function accionIaBandeja(c: string, prender: boolean): Promise<Resu
   } catch (e) { return { ok: false, error: motivoErp(e) }; }
 }
 
+/** «Pedirle a Estela» (Fer, 26/10): lo escrito en la caja es una indicación para la IA (no va al cliente); ella
+ *  escribe y manda su próximo mensaje siguiéndola. Si el chat lo atendía una persona, la IA vuelve a atenderlo. */
+export async function accionPedirleIa(c: string, encargo: string): Promise<Resultado & { texto?: string }> {
+  try {
+    const k = clave(c);
+    if (k.tipo !== "c") return { ok: false, error: "Acá la IA no recibe indicaciones." };
+    const s = await sesion();
+    const t = encargo.trim();
+    if (!t) return { ok: false, error: "Escribí en la caja qué querés que haga." };
+    const chat = await chatPorId(s.org.id, Number(k.id));
+    if (!chat) return { ok: false, error: "No existe ese chat." };
+    if (chat.canal === "whatsapp" && !ventanaAbierta(chat.ultimoEntranteTs))
+      return { ok: false, error: "Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp no deja escribirle desde acá." };
+    if (chat.atiendePersonaDesde) await ponerIa(s.org.id, chat.id, true);
+    const r = await contestar(s.org.id, chat.id, t);
+    return r.texto ? { ok: true, texto: r.texto } : { ok: false, error: r.motivo ?? "La IA no mandó nada." };
+  } catch (e) { return fallo(e); }
+}
+
 /** «Proponer con IA»: la IA escribe la respuesta en la caja (no la manda). */
 export async function accionProponerBandeja(c: string): Promise<(Resultado & { texto?: string })> {
   try {
