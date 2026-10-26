@@ -67,7 +67,7 @@ Qué hace con eso:
 Debajo de cada pregunta respondida (la haya contestado la IA o una persona) está el botón **"Corregir a la IA"**:
 
 1. Tocalo y escribí qué estuvo mal: qué dijo y cuál es lo correcto (por ejemplo, «No tiene Zigbee: sólo Wi-Fi y Bluetooth» o «Nunca ofrezcas envío en el día»).
-2. Apretá **"Ver qué va a cambiar"**. La IA propone, sin grabar nada todavía:
+2. Apretá **"Ver la propuesta antes de grabar"**. La IA propone, sin grabar nada todavía:
    - si es un dato del producto: cómo quedan los **Datos técnicos para la IA** de ese producto (corrige o saca el renglón equivocado y suma lo correcto; un renglón «[Internet…]» que se corrige o confirma queda sin esa marca);
    - si es un criterio general: un renglón nuevo para las [Respuestas de la IA](/config/respuestas-ia) de la empresa, que vale para todas las respuestas;
    - o las dos cosas.

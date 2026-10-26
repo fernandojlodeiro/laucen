@@ -52,7 +52,7 @@ export default function CorregirIa({ origen, id }: { origen: OrigenCorreccion; i
               className="w-full border border-[#E3E9F0] rounded-lg px-2 py-1.5 bg-white" />
           </label>
           <div className="flex gap-2">
-            <button type="button" className={PRIMARIO} onClick={proponer} disabled={trabajando || !texto.trim()}>{trabajando ? "Pensando…" : "Ver qué va a cambiar"}</button>
+            <button type="button" className={PRIMARIO} onClick={proponer} disabled={trabajando || !texto.trim()}>{trabajando ? "Pensando…" : "Ver la propuesta antes de grabar"}</button>
             <button type="button" className={SUAVE} onClick={cancelar} disabled={trabajando}>Cancelar</button>
           </div>
         </>
