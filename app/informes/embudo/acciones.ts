@@ -10,7 +10,7 @@ import { desconectarAnunciosMeta, elegirCuentaMeta, leerAnunciosMeta } from "@/l
 import { desconectarGoogleAds, elegirCuentaGoogle, guardarAppGoogleAds, leerGoogleAds } from "@/lib/publicidad/google-ads";
 import { texto } from "@/lib/erp/acciones";
 
-const VOLVER = "/informes/embudo-publicidad";
+const VOLVER = "/informes/embudo";
 
 /** «Leer los anuncios ahora»: Meta y Google, los que estén conectados. */
 export async function accionLeerAnuncios() {

@@ -9,7 +9,7 @@ import { firmarEstado } from "@/lib/mensajes/meta";
 import { appMetaAnuncios, urlDeConexion } from "@/lib/publicidad/meta-ads";
 
 export const dynamic = "force-dynamic";
-const VOLVER = "/informes/embudo-publicidad";
+const VOLVER = "/informes/embudo";
 
 export async function GET() {
   const base = urlPanel();

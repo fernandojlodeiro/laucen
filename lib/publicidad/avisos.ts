@@ -9,7 +9,7 @@ import { configPublicidad } from "@/lib/publicidad/config";
 import { veredictos, type FilaProducto } from "@/lib/publicidad/veredicto";
 import { avisarOrg } from "@/lib/avisos-push";
 
-export const PANTALLA = "/ventas/publicidad";
+export const PANTALLA = "/ventas/campanas-ml";
 
 export async function guardarYAvisar(org: string): Promise<{ productos: number; cortar: number; avisados: number }> {
   const cfg = await configPublicidad(org);

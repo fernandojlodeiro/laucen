@@ -1,15 +1,15 @@
 ---
 titulo: Publicidad
 menu: Configuración › Tienda web › Publicidad
-ruta: /config/tienda/publicidad
-rutas: /config/tienda/publicidad
+ruta: /config/tienda/medicion
+rutas: /config/tienda/medicion
 permiso: tienda_config
 resumen: Google Ads, Meta (Facebook e Instagram) y TikTok en la tienda web. Por dominio, las etiquetas que miden las ventas; por tienda, los catálogos de productos para los anuncios.
 ---
 
 ## Para qué sirve
 
-Además, cuando alguien entra a la tienda desde el link de un anuncio y compra, el pedido queda con el anuncio del que vino: se ve en el [Embudo de publicidad](/informes/embudo-publicidad).
+Además, cuando alguien entra a la tienda desde el link de un anuncio y compra, el pedido queda con el anuncio del que vino: se ve en el [Embudo de publicidad](/informes/embudo).
 
 Para hacer publicidad de la tienda en **Google** (Búsqueda y Shopping), **Meta** (Facebook e Instagram) y **TikTok**, cada plataforma necesita dos cosas:
 

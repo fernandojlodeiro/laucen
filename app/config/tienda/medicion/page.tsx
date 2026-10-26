@@ -21,7 +21,7 @@ import { accionActivarPlataforma, accionExcluirProducto, accionGuardarFeed, acci
 export const dynamic = "force-dynamic";
 
 type SP = { canal?: string; editar?: string; nuevo?: string; ok?: string; error?: string };
-const BASE = "/config/tienda/publicidad";
+const BASE = "/config/tienda/medicion";
 const n = (x: number) => formatearNumero(x, "entero");
 const GRUPOS = ["notebooks", "impresoras_3d", "componentes", "otros"];
 

@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const base = urlPanel();
   const url = new URL(req.url);
-  const volver = (motivo: string) => NextResponse.redirect(`${base}/informes/embudo-publicidad?meta=${motivo}`);
+  const volver = (motivo: string) => NextResponse.redirect(`${base}/informes/embudo?meta=${motivo}`);
   await asegurarEsquemaErp();
   const code = url.searchParams.get("code");
   const datos = verificarEstado(url.searchParams.get("state") ?? "");

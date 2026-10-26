@@ -1,8 +1,8 @@
 ---
 titulo: Embudo de publicidad
 menu: Informes › Embudo de publicidad
-ruta: /informes/embudo-publicidad
-rutas: /informes/embudo-publicidad
+ruta: /informes/embudo
+rutas: /informes/embudo
 permiso: publicidad_ver
 resumen: De lo invertido en anuncios a lo vendido, por canal (cada cuenta de Mercado Libre, Meta, Google y TikTok): cuántos vieron, hicieron clic, escribieron y compraron, cuánto costó cada venta y cuánto volvió por cada peso. Y los anuncios de Meta y Google uno por uno.
 ---
@@ -13,7 +13,7 @@ Para ver en un solo lugar si la publicidad vende, en todos los canales a la vez:
 
 ## Cómo se llega
 
-Menú **Informes › Embudo de publicidad** ([Embudo de publicidad](/informes/embudo-publicidad)).
+Menú **Informes › Embudo de publicidad** ([Embudo de publicidad](/informes/embudo)).
 
 ## Qué hay en la pantalla
 
@@ -44,7 +44,7 @@ En **Google Ads**, lo mismo con el texto de Google que muestra la pantalla, en l
 
 ## Criterios y reglas
 
-- **Mercado Libre**: el gasto, las veces que se vio, los clics y lo vendido salen de la publicidad de cada cuenta (ver [Publicidad en Mercado Libre](/ventas/publicidad)). Las **ventas son unidades** que Mercado Libre atribuye a la publicidad (las del producto anunciado y las de otros productos que compró quien entró por el anuncio).
+- **Mercado Libre**: el gasto, las veces que se vio, los clics y lo vendido salen de la publicidad de cada cuenta (ver [Publicidad en Mercado Libre](/ventas/campanas-ml)). Las **ventas son unidades** que Mercado Libre atribuye a la publicidad (las del producto anunciado y las de otros productos que compró quien entró por el anuncio).
 - **Meta**: el gasto, las veces que se vio y los clics, de la cuenta publicitaria conectada, anuncio por anuncio. **Escribieron** = chats de WhatsApp o Instagram que empezaron desde un anuncio «Enviar mensaje» (Meta lo dice en el primer mensaje). **Ventas** = pedidos de la tienda web que llegaron desde un anuncio de Meta, sin cancelados ni devueltos; **Vendido** = su total.
 - **De qué anuncio vino una compra de la web**: el último anuncio desde el que entró a la tienda en los últimos 30 días, aunque compre otro día.
 - **Google**: el gasto, las veces que se vio y los clics de las cuentas de Google Ads conectadas, anuncio por anuncio; las campañas de **máximo rendimiento** (Performance Max), que no tienen anuncios sueltos, van como una sola fila con el nombre de la campaña. **Ventas** = pedidos de la tienda web que llegaron desde un anuncio de Google.
@@ -54,7 +54,7 @@ En **Google Ads**, lo mismo con el texto de Google que muestra la pantalla, en l
 
 ## Relacionado
 
-- [Publicidad en Mercado Libre](/ventas/publicidad)
-- [Publicidad de la tienda web](/config/tienda/publicidad)
+- [Publicidad en Mercado Libre](/ventas/campanas-ml)
+- [Publicidad de la tienda web](/config/tienda/medicion)
 - [Ventas por canal](/informes/ventas-canal)
 - [Mensajes](/ventas/mensajes)

@@ -203,7 +203,7 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
       {esDueno && (
         <>
           <TituloSeccion titulo="La app de Google de Laucen">
-            <BotonesFicha editando={editandoG} ver="/informes/embudo-publicidad" editar="/informes/embudo-publicidad?editar=google" form="app-google" />
+            <BotonesFicha editando={editandoG} ver="/informes/embudo" editar="/informes/embudo?editar=google" form="app-google" />
           </TituloSeccion>
           <div className={`${CAJA} text-xs space-y-2`}>
             <p className="text-[11px] text-[#5C6B76]">El cliente OAuth de Google por el que cada organización conecta su Google Ads (un proyecto de Google Cloud con la «Google Ads API» habilitada y su nivel de acceso en «Explorador» o más). Sólo la ve el dueño del sistema. En el cliente OAuth, en «URIs de redireccionamiento autorizados»: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/google-ads/conectar/callback`}</code></p>

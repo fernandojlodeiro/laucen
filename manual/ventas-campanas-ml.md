@@ -1,8 +1,8 @@
 ---
 titulo: Publicidad en Mercado Libre
 menu: Ventas › Publicidad en Mercado Libre
-ruta: /ventas/publicidad
-rutas: /ventas/publicidad
+ruta: /ventas/campanas-ml
+rutas: /ventas/campanas-ml
 permiso: publicidad_ver
 resumen: Cuánto gasta y vende la publicidad de cada cuenta de Mercado Libre, producto por producto, y qué hacer con cada uno: SEGUIR, BAJAR, CORTAR o SUBIR.
 ---
@@ -34,7 +34,7 @@ Pestañas:
 
 ### Saber qué hacer con la publicidad hoy
 
-1. Entrá a [Publicidad en Mercado Libre](/ventas/publicidad).
+1. Entrá a [Publicidad en Mercado Libre](/ventas/campanas-ml).
 2. Mirá primero los rojos (CORTAR) y después los amarillos (BAJAR).
 3. Tocá el producto para ver en qué cuentas y publicaciones gastó, y usá **Abrir en Mercado Libre ↗** para ir a su campaña.
 4. En el panel de Mercado Libre pausá la campaña o sacá ese anuncio (CORTAR), bajá el presupuesto o subí el ROAS objetivo (BAJAR), o subí el presupuesto (SUBIR).

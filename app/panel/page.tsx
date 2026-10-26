@@ -23,7 +23,7 @@ export default async function Panel() {
   return (
     <Pantalla titulo="Para hacer" ancho="max-w-[2200px]" subtitulo="Lo que espera tu atención hoy, por cuenta, la web y el resto">
       {cortar.length > 0 && (
-        <Link href="/ventas/publicidad?veredicto=cortar" className="block mb-4 rounded-xl border-2 border-[#C03420] bg-[#FDF1EF] px-4 py-3 text-sm text-[#C03420] hover:bg-[#FBE4DF]">
+        <Link href="/ventas/campanas-ml?veredicto=cortar" className="block mb-4 rounded-xl border-2 border-[#C03420] bg-[#FDF1EF] px-4 py-3 text-sm text-[#C03420] hover:bg-[#FBE4DF]">
           <b>Publicidad: {cortar.length === 1 ? "1 producto para CORTAR" : `${cortar.length} productos para CORTAR`}</b> — sigue gastando sin rendir hasta que lo pauses en el panel de Mercado Libre.
           <span className="block text-xs mt-1">{cortar.slice(0, 5).map((c) => c.clave).join(" · ")}{cortar.length > 5 ? " · …" : ""} — ver en Ventas › Publicidad en Mercado Libre</span>
         </Link>

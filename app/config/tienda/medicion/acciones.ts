@@ -10,7 +10,7 @@ import { intentar, id } from "@/lib/erp/acciones";
 import { olvidarDominios } from "@/lib/tienda/dominios-tienda";
 import { GA4_ID, LABEL, PIXEL_META, PIXEL_TIKTOK, TAG_ID, publicidadDe, type Publicidad } from "@/lib/tienda/publicidad";
 
-const BASE = "/config/tienda/publicidad";
+const BASE = "/config/tienda/medicion";
 
 async function dominioDeLaOrg(org: string, dominioId: number) {
   const d = await una<{ canal_id: string; publicidad: unknown }>(

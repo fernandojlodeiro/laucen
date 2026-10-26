@@ -140,7 +140,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarla en Configuración → Canales</Link></div>
               <div className="sm:col-span-2"><span className={ETIQUETA}>Feed para Meta (Facebook / Instagram)</span>
                 <a href={`${direccion}/feed.xml`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}/feed.xml ↗</a>
-                <span className="block text-[11px] text-[#5C6B76]">Los catálogos de Google, Meta y TikTok y la medición de ventas: <Link href="/config/tienda/publicidad" className="text-[#16577F] hover:underline">Publicidad</Link>.</span></div>
+                <span className="block text-[11px] text-[#5C6B76]">Los catálogos de Google, Meta y TikTok y la medición de ventas: <Link href="/config/tienda/medicion" className="text-[#16577F] hover:underline">Publicidad</Link>.</span></div>
               <div><span className={ETIQUETA}>Vende el stock de</span>{t.depositos ?? <span className="text-[#C03420]">Ningún depósito: elegilos en Canales</span>}</div>
             </div>
 

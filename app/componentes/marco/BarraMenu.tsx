@@ -40,7 +40,9 @@ export function BarraMenu({ menu }: { menu: SeccionMenu[] }) {
         const abierto = abierta === s.texto;
         return (
           <div key={s.texto} className="relative h-full" onMouseEnter={() => setAbierta(s.texto)}>
-            <button type="button" aria-expanded={abierto} onClick={() => setAbierta(abierto ? null : s.texto)}
+            {/* El clic abre (no alterna): con el mouse, pasar por encima ya la abrió, y alternar la cerraba en el mismo clic.
+                Se cierra al salir, al tocar afuera o con Escape. */}
+            <button type="button" aria-expanded={abierto} onClick={() => setAbierta(s.texto)}
               className={`${clase} ${abierto ? "bg-[#EEF3F8]" : ""}`}>
               {s.texto} <span className="ml-1 text-[9px] text-[#5C6B76]">▾</span>
             </button>

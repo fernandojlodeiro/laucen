@@ -76,7 +76,7 @@ La pantalla se actualiza sola cada pocos segundos.
 
 Lo que se conteste desde la app de Instagram también aparece en la conversación. El permiso de Instagram dura 60 días y Laucen lo renueva solo.
 
-**«La app de Meta de Laucen»** (sólo la ve el dueño del sistema, en la misma pantalla): el identificador y la clave secreta de Instagram de la app de Meta por la que entran los mensajes de Instagram; el identificador, la clave secreta y la configuración «Conectar anuncios» de la misma app, para leer los anuncios en el [Embudo de publicidad](/informes/embudo-publicidad); y las direcciones y la clave de verificación para cargar en esa app. Mientras no esté cargada, el botón dice «Conectar Instagram (próximamente)».
+**«La app de Meta de Laucen»** (sólo la ve el dueño del sistema, en la misma pantalla): el identificador y la clave secreta de Instagram de la app de Meta por la que entran los mensajes de Instagram; el identificador, la clave secreta y la configuración «Conectar anuncios» de la misma app, para leer los anuncios en el [Embudo de publicidad](/informes/embudo); y las direcciones y la clave de verificación para cargar en esa app. Mientras no esté cargada, el botón dice «Conectar Instagram (próximamente)».
 
 ### Contestar vos un chat
 1. Abrí el chat.

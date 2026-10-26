@@ -36,7 +36,7 @@ test("el catálogo de publicidad nunca manda sin stock, sin precio ni inactivos"
 
 test("ninguna configuración puede mostrar productos sin stock", () => {
   for (const p of ["app/config/tienda/page.tsx", "app/config/tienda/acciones.ts", "lib/tienda/tienda.ts",
-    "app/config/tienda/publicidad/page.tsx", "app/config/tienda/publicidad/acciones.ts"]) {
+    "app/config/tienda/medicion/page.tsx", "app/config/tienda/medicion/acciones.ts"]) {
     assert.doesNotMatch(leer(p), /name="sin_stock"|sin_stock:|"agotado"/, p);
   }
 });

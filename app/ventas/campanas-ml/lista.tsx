@@ -6,7 +6,7 @@ import { consulta } from "@/lib/erp/base";
 import type { Fila, Lista } from "@/lib/listas/tipos";
 import { veredictos, type FilaProducto } from "@/lib/publicidad/veredicto";
 
-export const BASE_PUBLICIDAD = "/ventas/publicidad";
+export const BASE_PUBLICIDAD = "/ventas/campanas-ml";
 
 export const VEREDICTOS: Record<string, string> = { cortar: "CORTAR", bajar: "BAJAR", seguir: "SEGUIR", subir: "SUBIR", esperar: "Sin gasto" };
 export const ESTADOS_CAMPANA: Record<string, string> = { active: "Activa", paused: "Pausada", hold: "Retenida", idle: "Sin anuncios", deleted: "Eliminada" };

@@ -209,7 +209,7 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 
 - El código postal de "Enviar a …" se guarda en el navegador un año y precarga el del checkout.
 - La página del pedido no aparece en buscadores.
-- Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/publicidad).
+- Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/medicion).
 
 ### En el celular
 - **El encabezado** (buscador, menú y carrito) queda pegado arriba: se esconde al bajar por la página y vuelve ni bien se sube un poco, como en Mercado Libre. «Enviar a…» va en un solo renglón chico.
@@ -227,7 +227,7 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 - **sitemap.xml** en cada dominio: la portada, las categorías con productos y las fichas de los productos publicados con stock, con su fecha de última modificación (más Ayuda y Sobre nosotros). En un dominio de otra marca que le dice a Google que es el principal (ver [Tienda web](/config/tienda)), sale vacío.
 - **Canonical**: cada página le dice a Google cuál es su dirección «oficial»: ella misma en el dominio principal; en uno de otra marca, la misma página en el principal (se puede apagar por dominio).
 - **Página no encontrada**: cualquier dirección que no existe muestra la página de la tienda («No encontramos esta página», con «Ir a la tienda» y «Ver todos los productos»), con la marca del dominio. Nunca la del sistema.
-- **Datos para Google**: la portada dice quién es la tienda (nombre, dirección, logo) y cómo se busca en ella; cada ficha, el producto con su precio (ver [Publicidad](/config/tienda/publicidad)).
+- **Datos para Google**: la portada dice quién es la tienda (nombre, dirección, logo) y cómo se busca en ella; cada ficha, el producto con su precio (ver [Publicidad](/config/tienda/medicion)).
 
 ## Preguntas frecuentes
 
