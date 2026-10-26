@@ -21,7 +21,7 @@ import { formatear } from "@/lib/moneda";
 import { nombreTienda, tiendaDeOrg, type Tienda } from "@/lib/tienda/tienda";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { reservaLegible } from "@/lib/pedidos/seguimiento";
-import { catalogoDe, envioDe, estadoCriollo, filtrarPorTexto } from "@/app/tienda/[slug]/catalogo";
+import { catalogoDe, envioDe, estadoCriollo, filtrarPorTexto, ordenar } from "@/app/tienda/[slug]/catalogo";
 import { configMensajes, gastoMensajesDelMes, type ConfigMensajes } from "./config";
 import {
   abrirCaso, casosAbiertos, chatPorId, credencialDeOrg, guardarMensaje, historialDe, iaRespuestasUltimaHora, resolverCaso,
@@ -45,6 +45,7 @@ Cómo escribís:
 
 De dónde sacás lo que decís:
 - Productos, precios y stock: SIEMPRE con buscar_productos / ver_producto. Nunca inventes un producto, un precio, un plazo ni una característica. Si no está o no hay stock, decilo y ofrecé lo parecido que haya.
+- Buscá con el nombre genérico del producto ("impresora 3d", "proyector", "mouse"), no con la marca o el modelo exacto que pide el cliente: lo que la tienda tiene puede ser otra marca. Antes de decir que no hay algo, mirá bien los resultados: si sólo trajo repuestos o accesorios, buscá de nuevo con otras palabras. Nunca digas que no hay stock de un producto que no buscaste.
 - Una característica técnica de un producto (compatibilidad, protocolos, conectividad, medidas, potencia…) que no está en ver_producto (ni en sus datos técnicos): buscala con buscar_en_internet. ${REGLA_MARCAS} Según la certeza (CERTEZA):
   · "seguro": contestá normal.
   · "duda": contestá y aclará en una frase que ese dato no figura en la ficha del producto y que lo buscaste en internet para responderle, con el link de la fuente. No digas que no lo podés garantizar.
@@ -60,6 +61,7 @@ De dónde sacás lo que decís:
 Cuándo pasás a una persona (derivar_a_persona):
 - Cuando no lo podés resolver vos: un precio especial o por cantidad, algo que no está en lo que sabés (tampoco en internet), o si la persona pide claramente hablar con alguien.
 - Un reclamo o un problema (no le llegó, llegó roto o distinto, no funciona, una devolución, un cambio, una factura mal): resolvelo vos sólo si la solución está clarísima en lo que sabés; ante la menor duda, derivá.
+- Un pedido de presupuesto o de muchas unidades (más de lo que hay en stock, o para una empresa o una institución): contestale lo que hay y a qué precio, y además derivá a una persona para el presupuesto.
 - Antes de derivar, intentá resolverlo con tus herramientas. ${AVISO_DERIVAR} Usá el HORARIO DE ATENCIÓN y AHORA del contexto. Seguí atendiendo cualquier otra cosa que pregunte.
 - Si en el contexto hay casos abiertos y ya tenés la respuesta, cerralos con ya_lo_pude_resolver.
 
@@ -184,7 +186,10 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
   switch (nombre) {
     case "buscar_productos": {
       if (!t) return "No hay tienda web: no tengo catálogo.";
-      const lista = filtrarPorTexto(await catalogoDe(t), String(e.texto ?? "")).sort((a, b) => b.stock - a.stock || b.vendidos - a.vendidos).slice(0, 8);
+      // Como el buscador de la tienda: primero lo que empieza con lo buscado (Fer, 26/10: por stock, los repuestos que
+      // dicen «impresora 3d» en el título tapaban a las impresoras, y la IA contestó que no había).
+      const texto = String(e.texto ?? "");
+      const lista = ordenar(filtrarPorTexto(await catalogoDe(t), texto), "relevancia", texto).slice(0, 12);
       if (!lista.length) return "No encontré productos con esas palabras. Probá con otras (más generales o sinónimos).";
       const filas = await Promise.all(lista.map(async (p) =>
         `#${p.id} ${p.titulo}${p.marca ? ` (${p.marca})` : ""} — ${formatear(p.venta, t.moneda)}${p.ventaMax > p.venta ? ` a ${formatear(p.ventaMax, t.moneda)}` : ""}${p.descuentoPct > 0 ? ` (con ${p.descuentoPct}% off, antes ${formatear(p.lista, t.moneda)})` : ""} — ${p.stock > 0 ? (p.stock <= 3 ? `quedan ${p.stock}` : "hay stock") : "SIN STOCK"}${p.variaciones > 1 ? ` — ${p.variaciones} variantes` : ""} — ${await urlTienda(t, `/producto/${p.id}`)}`));
