@@ -8,7 +8,6 @@
 //   cuenta_corriente → "a convenir" (sólo clientes habilitados): también reserva ya
 
 import { randomBytes } from "node:crypto";
-import { after } from "next/server";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { crearPedido } from "@/lib/pedidos";
 import { sucursalesOca } from "@/lib/oca/envios";
@@ -131,8 +130,9 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     }
   }
   if (pedido.reservo) await avisarStockMl(org, pedido.pedidoId);
-  // El mail de "recibimos tu pedido", después de contestarle al comprador (no lo demora).
-  after(async () => { const { mailPedido } = await import("@/lib/correo/mails"); await mailPedido(org, pedido.pedidoId, "recibido").catch(() => null); });
+  // "Recibimos tu pedido", por la cola de los avisos (sale en un minuto): el mail, a todos; el WhatsApp, a los que
+  // esperan el pago (lib/pedidos/seguimiento.ts). Si paga antes con tarjeta, no sale: le llega el de pago confirmado.
+  await consulta(`insert into correo_cola (organizacion_id, pedido_id, tipo) values ($1, $2, 'recibido') on conflict (pedido_id, tipo) do nothing`, [org, pedido.pedidoId]);
   await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars) values ($1, $2, $3, 'pendiente', $4)`,
     [org, pedido.pedidoId, tipoBase(d.medio), cot.total]);
 

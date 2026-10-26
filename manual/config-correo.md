@@ -17,6 +17,7 @@ Laucen les manda mails a los clientes:
 - **Pedido en camino**, cuando se despacha (con la nota del despacho, por ejemplo el número de seguimiento).
 - **Listo para retirar**, cuando un pedido con retiro queda "Preparado".
 - **Bienvenida**, cuando el comprador crea su cuenta en la tienda.
+- **Los del seguimiento de un pedido sin pagar** (pedido recibido también de los pedidos cargados a mano, pago sin completar, recordatorio, último día y reserva anulada): cuándo sale cada uno está en [Pedidos](/ventas/pedidos), en "Avisos al cliente mientras el pedido espera el pago".
 
 Cada cliente recibe los mails **desde la marca donde compró**: si compró en otra marca de la tienda (otro dominio), desde el mail de esa marca y con su nombre. Lo demás, desde la tienda principal. **Las respuestas** del cliente llegan a la casilla de **"Responder a"**. Cada mail sale una sola vez.
 

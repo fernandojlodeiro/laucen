@@ -57,7 +57,7 @@ export default async function PlantillasWhatsapp({ searchParams }: { searchParam
                 )}
               </div>
               <p className="mt-2 text-xs whitespace-pre-wrap rounded-lg bg-[#F7F9FB] border border-[#E3E9F0] px-2 py-1.5">
-                {cuerpoDe(p, ctx).replace("{{1}}", "Juan").replace("{{2}}", p.nombre === "factura_emitida" ? "Factura B 00003-00000123" : "150420")}
+                {cuerpoDe(p, ctx).replace("{{1}}", "Juan").replace("{{2}}", p.nombre === "factura_emitida" ? "Factura B 00003-00000123" : "150420").replace("{{3}}", "el martes 28/10")}
                 {boton && <span className="block mt-1 font-semibold text-[#16577F]">[ {boton} ]</span>}
               </p>
               {m?.estado === "REJECTED" && (
