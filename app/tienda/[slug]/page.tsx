@@ -24,8 +24,10 @@ const CANTIDAD = 12;
 
 // La primera fila de la portada sube sobre el pie del banner, que se funde con el fondo: el
 // título y el principio de las tarjetas quedan sobre el difuminado, a todo el ancho y sin caja
-// (Fer, 25/10: que el banner y los productos queden mezclados, sin hueco en el medio).
-const ENCIMA = "relative z-10 !-mt-10 lg:!-mt-28";
+// (Fer, 25/10: que el banner y los productos queden mezclados, sin hueco en el medio). En el celular el título
+// va abajo del banner, pegado a las tarjetas (Fer, 26/10: se le encimaba a la imagen); en la compu sube sobre el
+// último cuarto del banner, que no lleva texto.
+const ENCIMA = "relative z-10 !mt-1 lg:!-mt-24";
 
 function Fila({ titulo, ver, productos, t, encima }: { titulo: string; ver?: { texto: string; href: string }; productos: Tarjeta[]; t: Parameters<typeof TarjetaProducto>[0]["t"]; encima?: boolean }) {
   if (!productos.length) return null;

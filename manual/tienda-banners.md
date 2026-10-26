@@ -46,7 +46,8 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, cargar o 
 - **No hace falta que las familias tengan la misma cantidad.**
 - **Tienda donde se ve:** «Todas las tiendas» se ve en la tienda principal y en cada dominio de otra marca. Uno elegido para una tienda se ve sólo ahí, junto con los de todas, en el orden de la lista.
 - **Link:** vacío, el banner no lleva a ningún lado. Si empieza con «/» lleva a una página de la tienda (por ejemplo «/buscar?ofertas=1»); si es la dirección de otro sitio (https://…), se abre en otra pestaña.
-- **Medidas:** proporción 3 a 1 (por ejemplo 2000 × 667). En el celular se ve entera; en la compu, con alto fijo, se recorta un poco arriba y abajo. **La mitad de abajo del banner se funde con el fondo de la página y la primera fila de productos sube encima**: lo importante (textos, precio, botón) va en la mitad de arriba.
+- **Medidas:** **1920 × 420** la imagen de la compu y **1200 × 400** la del celular («Imagen para el celular»). Las dos se ven **siempre enteras, sin recortes**: el banner toma el alto de la imagen (en la compu, hasta 420 de alto). Si un banner tiene una sola imagen, se usa en los dos lados; si es de 3 a 1 (por ejemplo 2000 × 667), en la compu se ve centrada y los costados se rellenan con la misma imagen agrandada y desenfocada.
+- **El último cuarto de abajo de cada imagen va sin texto** (sólo fondo): se funde con el fondo de la página y, en la compu, la primera fila de productos ("Destacados") sube encima. En el celular el título de la fila va abajo del banner. Lo importante (textos, precio, logos) va en los tres cuartos de arriba y separado de los bordes.
 - **Imagen para el celular:** opcional; si no la cargás, el celular muestra la misma.
 - Pasan solos cada 6 segundos; se frenan mientras el mouse está encima.
 

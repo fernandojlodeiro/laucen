@@ -63,7 +63,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
               <input type="hidden" name="canal_id" value={tienda.id} />{vuelta}
               <div className="sm:col-span-3"><span className={ETIQUETA}>Imágenes (podés elegir varias: cada una queda como un banner)</span>
                 <SubirVarias name="imagen" organizacionId={s.org.id} />
-                <span className="block text-[11px] text-[#5C6B76] mt-1">En proporción 3 a 1 (por ejemplo 2000 × 667). Lo importante, en la mitad de arriba: la de abajo se funde con el fondo de la página y la primera fila de productos sube encima (en la compu, además, se recorta un poco arriba y abajo).</span></div>
+                <span className="block text-[11px] text-[#5C6B76] mt-1">Para la compu, 1920 × 420; para el celular («Imagen para el celular», abajo), 1200 × 400. Se ven siempre enteras, sin recortes. El último cuarto de abajo, sin texto: se funde con el fondo y la primera fila de productos sube encima. Con una sola imagen de 3 a 1, en la compu se ve centrada y los costados se rellenan con la misma imagen desenfocada.</span></div>
               <label><span className={ETIQUETA}>Familia</span>
                 <select name="familia" defaultValue={familia} className={`${CAMPO} w-full`}>
                   {(Object.keys(FAMILIAS) as FamiliaBanner[]).map((f) => <option key={f} value={f}>{FAMILIAS[f]}</option>)}
