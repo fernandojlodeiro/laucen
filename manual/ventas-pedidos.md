@@ -353,6 +353,7 @@ Los pedidos de Mercado Libre **no tienen botones de estado** en la ficha: los mu
 ### Presupuestos
 
 Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, total) pero **no reserva stock**: es una cotización. Se reconoce porque su estado dice **"Presupuesto"** (en violeta) y su ficha se titula "Presupuesto N".
+- **Los que arma la IA de los mensajes**: cuando un cliente pide presupuesto por WhatsApp, la IA lo arma (canal local, con la lista de precios de la tienda web) y se lo manda en PDF. En las notas dice «Lo armó la IA por WhatsApp (número) para …» y en el PDF va a nombre de quien lo pidió.
 
 - **Se crea sólo en el canal local**, con "+ Nuevo pedido o presupuesto" eligiendo **"Presupuesto"**. Tiene una fecha **"Válido hasta"** (de entrada, 7 días); se cambia en su ficha.
 - **No pide pago, no reserva stock, no entra en picking, no se factura** y no cuenta como venta (ni en Rentabilidad, ni en el total comprado del cliente, ni en las ventas del tablero).

@@ -71,11 +71,12 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   const p = await una<{ id: number; fecha: string; vigencia: string | null; estado: string; canal_id: number; total_ars: number; total_usd: number;
     envio_ars: number; notas: string | null; envio: { metodo?: string | null; direccion?: Record<string, string | null> | null } | null;
     cliente: string | null; razon_social: string | null; cuit: string | null; doc_tipo: string | null; doc_nro: string | null; cond_iva: string | null;
-    email: string | null; telefono: string | null; cliente_id: number | null }>(`
+    email: string | null; telefono: string | null; cliente_id: number | null; para: string | null }>(`
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha, to_char(p.vigencia, 'YYYY-MM-DD') vigencia, p.estado,
            p.canal_id::int, p.total_ars::float, p.total_usd::float, p.costo_envio_ars::float envio_ars, p.notas, p.envio,
            cl.nombre cliente, cl.razon_social, cl.cuit, cl.documento_tipo doc_tipo, cl.documento_numero doc_nro, cl.condicion_iva cond_iva,
-           cl.email, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono, cl.id::int cliente_id
+           cl.email, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono, cl.id::int cliente_id,
+           p.datos_externos #>> '{presupuesto,para}' para
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
   if (!p) throw new ErrorErp("El presupuesto no existe.");
   const lineas = await consulta<Linea>(`
@@ -140,7 +141,8 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
 
   // ── Cliente ──
   const ladoCliente: string[] = [];
-  const nombreCliente = p.razon_social || p.cliente || "Consumidor final";
+  // «para»: a nombre de quién lo pidió, cuando no es un cliente cargado (el que arma la IA de los mensajes).
+  const nombreCliente = p.razon_social || p.cliente || p.para || "Consumidor final";
   const docCliente = p.cuit ? `CUIT ${cuitLegible(p.cuit)}` : p.doc_nro ? `${p.doc_tipo ?? "Doc."} ${p.doc_nro}` : null;
   ladoCliente.push([docCliente, p.cond_iva ? IVA[p.cond_iva] ?? p.cond_iva : null].filter(Boolean).join(" · "));
   if (dirCliente) {
