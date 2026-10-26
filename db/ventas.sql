@@ -274,6 +274,13 @@ alter table pedido add column if not exists vigencia date;
 -- Hasta qué día (inclusive) se le guarda el stock a un pedido sin pagar (Fer, 7/10). Pasado ese
 -- día, si sigue Nuevo y sin pagar, se cancela solo (lib/pedidos/reserva.ts, desde el barrido).
 alter table pedido add column if not exists reserva_hasta date;
+-- Reserva corta, por hora (Fer, 25/10): el pago con tarjeta o Mercado Pago que no se completó guarda el stock
+-- 24 horas desde el aviso al cliente (lib/pedidos/seguimiento.ts). Pasada la hora, se cancela como la de días.
+alter table pedido add column if not exists reserva_vence_ts timestamptz;
+-- ¿Recibe los avisos de la reserva (lib/pedidos/seguimiento.ts)? Los pedidos que ya existían cuando se hizo,
+-- no (nacieron en false); todos los nuevos, sí.
+alter table pedido add column if not exists avisos_reserva boolean not null default false;
+alter table pedido alter column avisos_reserva set default true;
 -- La lista de precios con que se armó (Fer, 7/10: se elige al cargarlo a mano).
 alter table pedido add column if not exists lista_precios_id bigint references lista_precios(id) on delete set null;
 do $$ begin

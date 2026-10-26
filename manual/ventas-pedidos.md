@@ -42,6 +42,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 - **"Con algo pendiente"** (caja para tildar): sólo los pedidos que todavía no terminaron: los que no están entregados, o están entregados pero sin cobrar o sin facturar. Los cancelados y devueltos nunca entran.
 - **"Incluye canceladas"** (caja para tildar): de entrada **los cancelados no se muestran**; tildándola, sí. Si elegís el estado "Cancelado", se muestran igual.
 - **"Reservados sin pagar"** (caja para tildar): sólo los pedidos **Nuevos sin pagar que tienen el stock apartado** (ver "Reserva de un pedido sin pagar"), sin importar la fecha, del que vence antes al último. Es adonde lleva la fila "Reservados sin pagar" de [Para hacer](/panel).
+- **"Sin pagar, en seguimiento"** (caja para tildar): los sin pagar que reciben los avisos automáticos (ver "Avisos al cliente mientras el pedido espera el pago"), del que vence antes al último. Debajo del estado de cada uno dice **"avisos: recibido 25/10 14:05, recordatorio 27/10 14:10"** (los que salieron, por mail o WhatsApp) y, en verde, **"contestó"** si el cliente escribió por WhatsApp después del primer aviso. Para que una persona los revise.
 - **"Limpiar filtros"**: aparece cuando hay algún filtro puesto; vuelve a la lista de entrada (todos los estados, última semana, sin cancelados).
 
 **"Vista"** (arriba de la tabla, a la derecha): elegí qué columnas ver; **"⚙ Configurar vistas…"** para armar otras.
@@ -373,7 +374,26 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 - Al pagarse, la reserva deja de vencer: el stock queda apartado hasta que se despacha.
 - Las ventas de Mercado Libre y los pedidos ya pagos no vencen.
 - Cambiar los días en Empresa vale para los pedidos nuevos; los que ya estaban siguen con su fecha.
-- Laucen no le avisa al cliente por WhatsApp ni por mail que su reserva está por vencer.
+- **Pago con tarjeta o Mercado Pago que no se completó** (pedido de la tienda): a los 10 minutos de entrar sin pago, la reserva pasa a ser de **24 horas desde ese momento** (no de días) y el cliente recibe el aviso "El pago no se completó" (ver abajo). Pasadas las 24 horas se cancela igual que la de días. Si el cliente cambia a transferencia o efectivo desde la página del pedido, vuelve a tener la reserva de días, contada desde ese momento.
+- **Al levantar un cancelado**, la reserva es otra vez de días y los recordatorios vuelven a salir.
+
+### Avisos al cliente mientras el pedido espera el pago (seguimiento)
+
+Mientras un pedido guarda stock sin estar pago, Laucen le escribe al cliente solo, **por mail y por WhatsApp** (por WhatsApp aunque no haya tildado esa casilla; hace falta que tenga un número cargado). Los textos están en [Plantillas de WhatsApp](/config/plantillas-whatsapp).
+
+| Cuándo | Aviso | Qué dice |
+|---|---|---|
+| Al entrar un pedido que espera el pago (transferencia o efectivo por la tienda, cargado a mano, o un presupuesto que pasa a pedido) | **Pedido recibido** | El pedido, hasta cuándo se guarda y el botón "Ver mi pedido" (lo que compró, cómo pagarlo y cómo recibirlo). Por mail, con los datos para transferir. |
+| A los 10 minutos de un pedido de la tienda con tarjeta o Mercado Pago sin pagar | **Pago sin completar** | Que se le guarda 24 horas, que puede reintentar o elegir otra forma de pago (botón "Elegir cómo pagar") y que si busca una forma que no vio, consulte. |
+| A los 2 días, si todavía falta para el último | **Recordatorio** | Que no llegó el pago, hasta cuándo se guarda, y que si ya pagó mande el comprobante. |
+| El último día de la reserva, desde las 9 | **Último día** | Que mañana se liberan los productos si no llega el pago. |
+| Cuando se cancela solo por la reserva vencida | **Reserva anulada** | Que se liberó la reserva y que, si todavía lo quiere, escriba. |
+
+- **Quiénes no los reciben**: las ventas de Mercado Libre, los clientes con **cuenta corriente** y los pedidos que ya existían cuando se sumaron estos avisos.
+- Antes de mandar cada uno se vuelve a mirar el pedido: si ya se pagó o se canceló, el recordatorio no sale.
+- Por mail, el de "pedido recibido" lo reciben todos los pedidos de la tienda (como siempre); el de WhatsApp, sólo los que esperan el pago (no quien está pagando con tarjeta en ese momento).
+- **Si el cliente contesta por WhatsApp**, la IA ya sabe de su pedido sin pagar: si dice que pagó, se fija si figura pagado (y le confirma) o le pide el comprobante, que se revisa solo; si quiere otra forma de pago, le explica las de la tienda y que puede cambiarla desde el link del pedido; si pide algo que la tienda no tiene, lo pasa a una persona.
+- Para verlos todos juntos: en la lista, la caja **"Sin pagar, en seguimiento"**.
 - **Al llegar a Despachado** (o directamente a Entregado), la reserva se convierte en **venta**: ahí sale del stock.
 - **Al cancelar o devolver**, se **libera** lo que siga reservado (vuelve a estar disponible). Lo que ya se había vendido (un pedido despachado) no vuelve solo: la mercadería que regresa entra por la recepción de la devolución.
 - **De qué depósito sale**: el que tenga el pedido; si no tiene, el primer depósito activo asignado al canal (por prioridad); si el canal no tiene, el primer depósito activo de la organización (los propios primero). Las ventas de Mercado Libre por **Full** salen del depósito Full del canal.

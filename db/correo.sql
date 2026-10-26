@@ -41,7 +41,7 @@ create table if not exists correo_cola (
   id               bigint generated always as identity primary key,
   organizacion_id  text not null references organizaciones(id) on delete cascade,
   pedido_id        bigint not null,
-  tipo             text not null check (tipo in ('pagado', 'despachado', 'listo_retirar')),
+  tipo             text not null,
   nota             text,
   intentos         int not null default 0,
   hecho_ts         timestamptz,
@@ -99,4 +99,75 @@ begin
   end if;
 exception when others then
   raise notice 'pg_cron: no se pudo ajustar correo-cola (%)', sqlerrm;
+end $$;
+
+-- El seguimiento de los pedidos sin pagar (Fer, 25/10, lib/pedidos/seguimiento.ts): los avisos de la reserva
+-- van por la misma cola, por mail y por WhatsApp (éstos, aunque el cliente no haya tildado WhatsApp).
+alter table correo_cola drop constraint if exists correo_cola_tipo_check;
+alter table correo_cola add constraint correo_cola_tipo_check check (tipo in ('pagado', 'despachado', 'listo_retirar',
+  'recibido', 'pago_incompleto', 'recordatorio', 'ultimo_dia', 'reserva_anulada'));
+
+-- ¿El pedido está en seguimiento? Nuevo, sin pagar, con reserva, de un canal donde se carga a mano o de la
+-- tienda (no Mercado Libre), de un cliente que no compra a cuenta corriente, y con avisos_reserva (los
+-- pedidos de antes de que esto existiera no reciben avisos de golpe).
+create or replace function public.pedido_en_seguimiento(p_pedido bigint) returns boolean language sql stable as $$
+  select exists (
+    select 1 from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+     where p.id = p_pedido and p.estado = 'nuevo' and p.estado_pago in ('pendiente', 'a_cobrar') and p.reserva_hasta is not null
+       and c.tipo in ('web_minorista', 'web_mayorista', 'local', 'otro') and not coalesce(cl.cuenta_corriente, false)
+       and p.avisos_reserva)
+$$;
+
+create index if not exists pedido_sin_pagar on pedido (fecha) where estado = 'nuevo' and estado_pago in ('pendiente', 'a_cobrar');
+
+-- Lo que toca mandar ahora (pg_cron 'pedido-seguimiento', cada 5 minutos).
+create or replace function public.pedido_seguimiento_encolar() returns int language plpgsql as $$
+declare
+  v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+  v_hora int := extract(hour from now() at time zone 'America/Argentina/Buenos_Aires')::int;
+  n int := 0; k int;
+begin
+  -- Tarjeta o Mercado Pago sin completar, a los 10 minutos: el aviso, y la reserva pasa a 24 horas desde ahora.
+  with nuevos as (
+    insert into correo_cola (organizacion_id, pedido_id, tipo)
+    select p.organizacion_id, p.id, 'pago_incompleto' from pedido p join canal c on c.id = p.canal_id
+     where p.estado = 'nuevo' and p.estado_pago in ('pendiente', 'a_cobrar') and c.tipo = 'web_minorista' and p.fecha < now() - interval '10 minutes'
+       and p.datos_externos #>> '{tienda,medio}' in ('payway', 'mercadopago') and p.reserva_vence_ts is null
+       and pedido_en_seguimiento(p.id)
+    on conflict (pedido_id, tipo) do nothing
+    returning pedido_id
+  )
+  update pedido set reserva_vence_ts = now() + interval '24 hours',
+                    reserva_hasta = ((now() + interval '24 hours') at time zone 'America/Argentina/Buenos_Aires')::date
+   where id in (select pedido_id from nuevos);
+  get diagnostics k = row_count; n := n + k;
+  -- A los 2 días, si todavía falta para el último día.
+  insert into correo_cola (organizacion_id, pedido_id, tipo)
+  select p.organizacion_id, p.id, 'recordatorio' from pedido p
+   where p.estado = 'nuevo' and p.estado_pago in ('pendiente', 'a_cobrar') and p.fecha <= now() - interval '48 hours' and p.reserva_vence_ts is null and p.reserva_hasta > v_hoy
+     and pedido_en_seguimiento(p.id)
+  on conflict (pedido_id, tipo) do nothing;
+  get diagnostics k = row_count; n := n + k;
+  -- El último día de la reserva, desde las 9 de la mañana (si el pedido no es de hoy).
+  if v_hora >= 9 then
+    insert into correo_cola (organizacion_id, pedido_id, tipo)
+    select p.organizacion_id, p.id, 'ultimo_dia' from pedido p
+     where p.estado = 'nuevo' and p.estado_pago in ('pendiente', 'a_cobrar') and p.reserva_vence_ts is null and p.reserva_hasta = v_hoy
+       and (p.fecha at time zone 'America/Argentina/Buenos_Aires')::date < v_hoy and pedido_en_seguimiento(p.id)
+    on conflict (pedido_id, tipo) do nothing;
+    get diagnostics k = row_count; n := n + k;
+  end if;
+  return n;
+end $$;
+
+do $$
+declare j record; cmd text := 'select public.pedido_seguimiento_encolar()';
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'pedido-seguimiento';
+  if not found then perform cron.schedule('pedido-seguimiento', '*/5 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar pedido-seguimiento (%)', sqlerrm;
 end $$;

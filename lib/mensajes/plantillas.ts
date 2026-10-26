@@ -4,16 +4,22 @@
 // también se ve si están aprobadas. Laucen nunca manda una plantilla sola: el texto se acuerda antes con Fer.
 
 import { plantillaFactura, PLANTILLA_FACTURA } from "@/lib/facturacion/envio";
-import { plantillaAviso } from "@/lib/mensajes/avisos-pedido";
+import { plantillaAviso, nombrePlantilla } from "@/lib/mensajes/avisos-pedido";
 
 export type Contexto = { tienda: string; panel: string };
 export type PlantillaLaucen = { nombre: string; titulo: string; cuando: string; armar: (c: Contexto) => Record<string, unknown> };
 
 export const PLANTILLAS: PlantillaLaucen[] = [
   { nombre: PLANTILLA_FACTURA, titulo: "Factura", cuando: "Al autorizarse la factura, a quien la pidió por WhatsApp.", armar: (c) => plantillaFactura(c.panel) },
-  { nombre: "pedido_pagado", titulo: "Pago confirmado", cuando: "Cuando el pedido queda pagado.", armar: (c) => plantillaAviso("pagado", c.tienda) },
-  { nombre: "pedido_despachado", titulo: "Pedido en camino", cuando: "Con el botón «Despachado» del pedido.", armar: (c) => plantillaAviso("despachado", c.tienda) },
-  { nombre: "pedido_listo_retirar", titulo: "Listo para retirar", cuando: "Con el botón «Preparado» de un pedido que retira.", armar: (c) => plantillaAviso("listo_retirar", c.tienda) },
+  { nombre: nombrePlantilla("pagado"), titulo: "Pago confirmado", cuando: "Cuando el pedido queda pagado.", armar: (c) => plantillaAviso("pagado", c.tienda) },
+  { nombre: nombrePlantilla("despachado"), titulo: "Pedido en camino", cuando: "Con el botón «Despachado» del pedido.", armar: (c) => plantillaAviso("despachado", c.tienda) },
+  { nombre: nombrePlantilla("listo_retirar"), titulo: "Listo para retirar", cuando: "Con el botón «Preparado» de un pedido que retira.", armar: (c) => plantillaAviso("listo_retirar", c.tienda) },
+  // El seguimiento de los pedidos sin pagar (lib/pedidos/seguimiento.ts): textos aprobados por Fer el 25/10.
+  { nombre: nombrePlantilla("recibido"), titulo: "Pedido recibido (sin pagar)", cuando: "Al entrar un pedido que espera el pago: transferencia o efectivo por la tienda, o cargado a mano.", armar: (c) => plantillaAviso("recibido", c.tienda) },
+  { nombre: nombrePlantilla("pago_incompleto"), titulo: "Pago sin completar", cuando: "A los 10 minutos de un pedido con tarjeta o Mercado Pago que no se pagó.", armar: (c) => plantillaAviso("pago_incompleto", c.tienda) },
+  { nombre: nombrePlantilla("recordatorio"), titulo: "Recordatorio de pago", cuando: "A los 2 días de un pedido que sigue sin pagar.", armar: (c) => plantillaAviso("recordatorio", c.tienda) },
+  { nombre: nombrePlantilla("ultimo_dia"), titulo: "Último día de la reserva", cuando: "El último día de la reserva, a la mañana.", armar: (c) => plantillaAviso("ultimo_dia", c.tienda) },
+  { nombre: nombrePlantilla("reserva_anulada"), titulo: "Reserva anulada", cuando: "Cuando el pedido se cancela solo porque venció la reserva.", armar: (c) => plantillaAviso("reserva_anulada", c.tienda) },
 ];
 
 /** El texto que lee el cliente (el cuerpo de la plantilla). */

@@ -6,11 +6,14 @@
 //     sigue Nuevo y sin pagar (y no entró en picking), se cancela solo
 //     (vencerReservas, desde el barrido de cada media hora) y libera el stock.
 //   - «Levantar el pedido» lo vuelve a Nuevo, reserva otra vez y le da otros N días.
-// Pendiente (Fer, 7/10): avisarle al cliente por WhatsApp y mail a 48 h y el día del vencimiento.
+//   - El pago con tarjeta o Mercado Pago que no se completó guarda 24 horas desde el aviso al cliente
+//     (reserva_vence_ts); pasada la hora, se cancela igual.
+//   - Los avisos al cliente durante la reserva: lib/pedidos/seguimiento.ts.
 
 import { consulta, una, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { cambiarEstado } from "@/lib/pedidos";
 import { avisarStockMl } from "@/lib/tienda/pagos/confirmar";
+import { encolarAnulada } from "@/lib/pedidos/seguimiento";
 
 const ZONA = "America/Argentina/Buenos_Aires";
 
@@ -25,7 +28,7 @@ export async function diasReserva(org: string, c?: Consultor): Promise<number> {
 export async function fijarVencimiento(org: string, pedidoId: number, c?: Consultor) {
   const dias = await diasReserva(org, c);
   const sql = `update pedido set reserva_hasta = case when estado = 'nuevo' and estado_pago in ('pendiente', 'a_cobrar')
-                 then (now() at time zone '${ZONA}')::date + $3::int else null end
+                 then (now() at time zone '${ZONA}')::date + $3::int else null end, reserva_vence_ts = null
                where id = $1 and organizacion_id = $2`;
   if (c) await c.query(sql, [pedidoId, org, dias]); else await consulta(sql, [pedidoId, org, dias]);
 }
@@ -36,9 +39,10 @@ export const sqlReservaSinPagar = (a = "p") =>
 
 /** Cancela los pedidos cuya reserva venció (pasó entero el día reserva_hasta) y siguen sin pagar. */
 export async function vencerReservas(hastaMs: number): Promise<{ cancelados: number[] }> {
-  const vencidos = await consulta<{ id: number; org: string; hasta: string }>(`
-    select p.id::int, p.organizacion_id org, to_char(p.reserva_hasta, 'DD/MM') hasta from pedido p
-     where ${sqlReservaSinPagar("p")} and p.reserva_hasta < (now() at time zone '${ZONA}')::date
+  const vencidos = await consulta<{ id: number; org: string; hasta: string; seguimiento: boolean }>(`
+    select p.id::int, p.organizacion_id org, to_char(coalesce(p.reserva_vence_ts at time zone '${ZONA}', p.reserva_hasta), 'DD/MM') hasta,
+           pedido_en_seguimiento(p.id) seguimiento from pedido p
+     where ${sqlReservaSinPagar("p")} and (p.reserva_hasta < (now() at time zone '${ZONA}')::date or p.reserva_vence_ts < now())
        and not exists (select 1 from picking_pedido pp where pp.pedido_id = p.id)
      order by p.reserva_hasta, p.id limit 50`);
   const cancelados: number[] = [];
@@ -46,8 +50,9 @@ export async function vencerReservas(hastaMs: number): Promise<{ cancelados: num
     if (Date.now() > hastaMs) break;
     try {
       await cambiarEstado(v.org, v.id, "cancelado", "sistema", `venció la reserva (sin pagar hasta el ${v.hasta})`);
-      await consulta("update pedido set reserva_hasta = null where id = $1", [v.id]);
+      await consulta("update pedido set reserva_hasta = null, reserva_vence_ts = null where id = $1", [v.id]);
       await avisarStockMl(v.org, v.id);
+      if (v.seguimiento) await encolarAnulada(v.org, v.id);
       cancelados.push(v.id);
     } catch (e) {
       console.error("[reserva] no se pudo cancelar", v.id, e instanceof Error ? e.message : e);
@@ -60,6 +65,9 @@ export async function vencerReservas(hastaMs: number): Promise<{ cancelados: num
 export async function reactivarPedido(org: string, pedidoId: number, quien: string): Promise<string[]> {
   const dias = await diasReserva(org);
   await una(`select reactivar_pedido($1, $2::bigint, $3, (now() at time zone '${ZONA}')::date + $4::int)`, [org, pedidoId, quien, dias]);
+  // Otra vuelta de reserva: de días, y con sus recordatorios de nuevo.
+  await consulta("update pedido set reserva_vence_ts = null where id = $1", [pedidoId]);
+  await consulta("delete from correo_cola where pedido_id = $1 and tipo in ('recordatorio', 'ultimo_dia', 'reserva_anulada')", [pedidoId]);
   await avisarStockMl(org, pedidoId);
   // Lo que se reservó sin tener: el disponible del depósito quedó en negativo.
   const faltan = await consulta<{ sku: string }>(`

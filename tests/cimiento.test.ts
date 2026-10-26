@@ -336,3 +336,39 @@ test("tienda: cotiza con reglas, descuento del medio y envío; la compra queda p
   const pagos = await q("select estado from pago where pedido_id = $1", [r.pedidoId]);
   assert.equal(pagos.length, 1);
 });
+
+test("tienda: cambiar la forma de pago de un pedido sin pagar lo vuelve a cotizar (descuento del medio) y deja el aviso de recibido en la cola", async () => {
+  const e = await escenario();
+  const a = await e.producto("CM-A");
+  await m.precios.guardarPrecio(e.org, { listaId: e.lista, variacionId: a, importe: 1000, moneda: "ARS" });
+  await m.stock.moverStock(e.org, { variacionId: a, tipo: "ingreso", cantidad: 10, destinoId: e.general });
+  await q("insert into medio_pago (organizacion_id, tipo, nombre, activo, descuento_pct) values ($1, 'transferencia', 'Transferencia', true, 10), ($1, 'mercadopago', 'Mercado Pago', true, 0), ($1, 'cuenta_corriente', 'Cuenta corriente', true, 0)", [e.org]);
+  const envio = await id("insert into metodo_envio (organizacion_id, tipo, nombre, activo, tarifas) values ($1, 'por_provincia', 'A domicilio', true, '{\"*\": 500}') returning id", [e.org]);
+  await q("update canal set config = '{\"slug\": \"cm\"}' where id = $1", [e.canal]);
+  const { tiendaDelCanal } = await import("@/lib/tienda/tienda");
+  const t = (await tiendaDelCanal(e.org, e.canal))!;
+  const { comprar } = await import("@/lib/tienda/checkout");
+  const r = await comprar(t, {
+    carrito: [{ variacionId: a, cantidad: 2 }], cliente: { nombre: "Ana", email: "ana@example.com" },
+    entrega: { metodoEnvioId: envio, calle: "Mitre", numero: "1", localidad: "Córdoba", provincia: "Córdoba" }, medio: "transferencia",
+  }, {});
+  const total = async () => (await q<{ t: string; medio: string; pago: string }>(
+    "select total_ars t, datos_externos #>> '{tienda,medio}' medio, (select importe_ars::text from pago where pedido_id = p.id and estado = 'pendiente') pago from pedido p where id = $1", [r.pedidoId]))[0];
+  assert.equal(Number((await total()).t), 2300); // 2000 −10 % + 500
+  assert.deepEqual((await q<{ tipo: string }>("select tipo from correo_cola where pedido_id = $1", [r.pedidoId])).map((x) => x.tipo), ["recibido"]);
+  const [{ codigo }] = await q<{ codigo: string }>("select codigo_seguimiento codigo from pedido where id = $1", [r.pedidoId]);
+  const { cambiarFormaDePago, opcionesDePago } = await import("@/lib/tienda/cambiar-medio");
+  const op = await opcionesDePago(t, codigo);
+  assert.deepEqual(op!.opciones.map((o) => [o.tipo, o.actual]), [["transferencia", true], ["mercadopago", false]], "sin cuenta corriente");
+  assert.equal(await cambiarFormaDePago(t, codigo, "mercadopago", null), "mercadopago");
+  let x = await total();
+  assert.deepEqual([Number(x.t), x.medio, Number(x.pago)], [2500, "mercadopago", 2500]);
+  assert.equal(await m.stock.disponibleCanal(e.org, a, e.canal), 8, "lo reservado al comprar sigue reservado, ni más ni menos");
+  await cambiarFormaDePago(t, codigo, "transferencia", null);
+  x = await total();
+  assert.deepEqual([Number(x.t), x.medio], [2300, "transferencia"]);
+  await assert.rejects(cambiarFormaDePago(t, codigo, "cuenta_corriente", null), /Elegí una forma de pago/);
+  const { confirmarPago } = await import("@/lib/tienda/pagos/confirmar");
+  await confirmarPago(e.org, r.pedidoId, { medio: "transferencia", importe: 2300 }, "u1");
+  await assert.rejects(cambiarFormaDePago(t, codigo, "mercadopago", null), /ya está pagado/);
+});

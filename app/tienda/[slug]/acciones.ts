@@ -19,6 +19,7 @@ import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, cargarTienda } from "./catalogo";
 import { preferenciaNueva } from "./pagos";
+import { cambiarFormaDePago } from "@/lib/tienda/cambiar-medio";
 import { metodosEnvio, resumir, type Eleccion, type Resumen } from "./resumen";
 import { sinDireccion, CONDICIONES_IVA } from "./comun";
 
@@ -199,6 +200,24 @@ export async function reintentarMercadoPago(fd: FormData) {
     ir = await preferenciaNueva(t, codigo);
   } catch (err) {
     redirect(`${rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`)}?pago=fallo&error=${encodeURIComponent(motivoErp(err))}`);
+  }
+  redirect(ir);
+}
+
+/** Cambiar la forma de pago desde la página del pedido (Fer, 25/10): vuelve a cotizar con la nueva. Con
+ *  Mercado Pago va directo a pagar; con las demás, vuelve a la página, que muestra cómo pagar. */
+export async function cambiarPago(fd: FormData) {
+  const t = await tiendaDe(fd);
+  const codigo = String(fd.get("codigo") ?? "");
+  const volver = rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`);
+  let ir: string;
+  try {
+    const base = await cambiarFormaDePago(t, codigo, String(fd.get("medio") ?? ""), Number(fd.get("cuotas")) || null);
+    revalidatePath(volver);
+    ir = base === "mercadopago" ? await preferenciaNueva(t, codigo)
+      : `${volver}?ok=${encodeURIComponent(base === "payway" ? "Listo: ahora podés pagar con tu tarjeta acá abajo." : "Listo: abajo tenés cómo pagar.")}`;
+  } catch (err) {
+    ir = `${volver}?error=${encodeURIComponent(motivoErp(err))}`;
   }
   redirect(ir);
 }

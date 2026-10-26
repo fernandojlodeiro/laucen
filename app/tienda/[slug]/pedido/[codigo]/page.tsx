@@ -1,7 +1,8 @@
 // Página del pedido (por su código, sin cuenta): gracias, estado en criollo,
 // detalle, cómo pagar según el medio (instrucciones de transferencia,
 // reintentar Mercado Pago, tarjeta con Payway), seguimiento del envío y
-// "creá tu cuenta en un clic".
+// "creá tu cuenta en un clic". Sin pagar, se puede cambiar la forma de pago (lib/tienda/cambiar-medio.ts);
+// el pedido se descarga en PDF. Abre también un pedido cargado a mano (el link de los avisos del seguimiento).
 
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -16,7 +17,8 @@ import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { cargarTienda, estadoCriollo, linkWhatsapp } from "../../catalogo";
 import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAMPO, ETIQUETA, IconoWhatsapp } from "../../piezas";
-import { crearCuenta, reintentarMercadoPago } from "../../acciones";
+import { crearCuenta, reintentarMercadoPago, cambiarPago } from "../../acciones";
+import { opcionesDePago } from "@/lib/tienda/cambiar-medio";
 import { paywayPublico } from "../../pagos";
 import PagoPayway from "./PagoPayway";
 import Antibot from "../../Antibot";
@@ -36,7 +38,7 @@ type Pedido = {
   envio: { metodo?: string | null; a_convenir?: boolean; bonificado?: boolean; direccion?: Record<string, string | null> | null; sucursal_oca?: { id: string; nombre: string; direccion: string } | null };
   medio_pago: string | null; medio: string | null; cliente_id: number | null; email: string | null; nombre: string | null; telefono: string | null;
   metodo_tipo: string | null; descuentos: { nombre: string; importe: number }[] | null;
-  subtotal: string | null; cuotas: number | null; debito: boolean | null;
+  subtotal: string | null; cuotas: number | null; debito: boolean | null; de_la_tienda: boolean;
 };
 
 async function cargarPedido(t: Tienda, codigo: string) {
@@ -44,14 +46,16 @@ async function cargarPedido(t: Tienda, codigo: string) {
   const p = await una<Pedido>(`
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') fecha, p.estado, p.estado_pago, p.moneda,
            case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, p.costo_envio_ars, p.envio, p.medio_pago,
-           coalesce(p.datos_externos #>> '{tienda,medio}', (select medio from pago where pedido_id = p.id order by id desc limit 1)) medio,
+           coalesce(p.datos_externos #>> '{tienda,medio}', (select medio from pago where pedido_id = p.id order by id desc limit 1),
+                    case when p.medio_pago ilike 'transfer%' then 'transferencia' end) medio,
            p.cliente_id::int, coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
            coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre) nombre,
            coalesce(p.datos_externos #>> '{tienda,contacto,telefono}', cl.telefono_movil, cl.telefono) telefono, me.tipo metodo_tipo,
            p.datos_externos #> '{tienda,descuentos}' descuentos, p.datos_externos #>> '{tienda,subtotal}' subtotal,
-           (p.datos_externos #>> '{tienda,cuotas}')::int cuotas, (p.datos_externos #>> '{tienda,debito}')::boolean debito
-      from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
-     where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
+           (p.datos_externos #>> '{tienda,cuotas}')::int cuotas, (p.datos_externos #>> '{tienda,debito}')::boolean debito,
+           p.canal_id = $2 de_la_tienda
+      from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
+     where p.organizacion_id = $1 and (p.canal_id = $2 or c.tipo in ('local', 'web_mayorista', 'otro')) and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
   if (!p) return null;
   const [lineas, envios, medio, tieneCuenta] = await Promise.all([
     consulta<{ variacion_id: number | null; producto_id: number | null; titulo: string; cantidad: number; unit: string; foto: string | null; sku: string | null }>(`
@@ -97,6 +101,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   // Las tarjetas que puede usar: con débito, sólo débito; en cuotas, Visa y Master de crédito; en un pago, las de crédito.
   const permitida = marcasPermitidas(financiacionTienda(t), !!p.debito, p.cuotas);
   const marcas = MARCAS_PAYWAY.filter((x) => permitida(x.id));
+  const cambio = pendiente ? await opcionesDePago(t, codigo) : null;
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;
   // Los precios de las líneas ya tienen aplicados los descuentos: se muestran como ahorro.
@@ -105,7 +110,8 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   // Publicidad: la compra cuenta una sola vez por pedido (el id del pedido viaja a cada plataforma),
   // cuando el pago queda aprobado; transferencia y efectivo, al crear el pedido si así está configurado.
   const pub = await etiquetasDelHost((await headers()).get("host"));
-  const cuentaComoVenta = !!pub && p.estado !== "cancelado"
+  // Un pedido cargado a mano (abierto desde el link de los avisos) no es una venta de la tienda.
+  const cuentaComoVenta = !!pub && p.de_la_tienda && p.estado !== "cancelado"
     && (pagado || (pub.contar_al_crear && (p.medio === "transferencia" || p.medio === "efectivo")));
   const compra: Evento | null = !cuentaComoVenta ? null : {
     tipo: "compra", moneda: m, pedido: String(p.id), valor: Math.round(lineas.reduce((s, l) => s + Number(l.unit) * l.cantidad, 0) * 100) / 100,
@@ -186,6 +192,37 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
             fijas={p.debito ? 1 : p.cuotas} />
         : <Aviso tipo="error">El pago con tarjeta no está disponible ahora. Escribinos y lo resolvemos.</Aviso>)}
 
+      {cambio && cambio.opciones.length > 1 && (
+        <details className="rounded-md bg-white p-4 shadow-[0_1px_2px_0_rgba(0,0,0,.12)] sm:p-5" open={sp.cambiar === "1"}>
+          <summary className={`${BOTON_SUAVE} cursor-pointer list-none`}>¿Querés pagar de otra forma?</summary>
+          <form action={cambiarPago} className="mt-4 space-y-3">
+            <input type="hidden" name="slug" value={t.slug} />
+            <input type="hidden" name="codigo" value={codigo} />
+            <fieldset className="space-y-2">
+              <legend className="mb-1 text-sm text-gray-600">El total se recalcula con la forma que elijas (por ejemplo, con el descuento de contado o el interés de las cuotas).</legend>
+              {cambio.opciones.map((o) => (
+                <label key={o.tipo} className="flex items-start gap-2 rounded-md border border-gray-200 p-3 text-sm has-[:checked]:border-[var(--boton)]">
+                  <input type="radio" name="medio" value={o.tipo} defaultChecked={o.actual} required className="mt-0.5" />
+                  <span><b>{o.nombre}</b>{o.actual && <span className="text-gray-500"> (la que elegiste)</span>}
+                    {o.descuento_pct > 0 && <span className="block text-green-700">{o.descuento_pct}% de descuento</span>}</span>
+                </label>
+              ))}
+            </fieldset>
+            {cambio.cuotas.length > 0 && (
+              <label className="block text-sm">
+                <span className={ETIQUETA}>Con tarjeta de crédito, en</span>
+                <select name="cuotas" defaultValue={cambio.cuotasActuales ?? 1} className={CAMPO}>
+                  {cambio.cuotas.map((c) => (
+                    <option key={c.cuotas} value={c.cuotas}>{c.cuotas === 1 ? "1 pago" : `${c.cuotas} cuotas`}{c.interes_pct > 0 ? ` (con ${c.interes_pct}% de interés)` : c.cuotas > 1 ? " sin interés" : ""}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button type="submit" className={BOTON}>Elegir esta forma de pago</button>
+          </form>
+        </details>
+      )}
+
       {envios.some((e) => e.estado || e.tracking) && (
         <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
           <h2 className="mb-3 text-lg font-bold">Seguimiento del envío</h2>
@@ -237,7 +274,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
         </div>
       </section>
 
-      {!cuenta && !d.tieneCuenta && p.email && (
+      {!cuenta && !d.tieneCuenta && p.email && p.de_la_tienda && (
         <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
           <h2 className="text-lg font-bold">Creá tu cuenta en un clic</h2>
           <p className="mb-3 text-sm text-gray-600">Elegí una contraseña y listo: vas a poder ver tus pedidos y comprar más rápido. Tu mail: <b>{p.email}</b></p>
@@ -255,6 +292,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <a href={rutaTienda(t, `/pedido/${codigo}/pdf`)} className={BOTON_SUAVE}>Descargar en PDF</a>
         <Link href={rutaTienda(t)} className={BOTON_SUAVE}>Seguir comprando</Link>
         {wa && <a href={wa} target="_blank" rel="noopener" className={BOTON_SUAVE}>¿Dudas? Escribinos</a>}
       </div>
