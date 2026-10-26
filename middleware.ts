@@ -86,6 +86,9 @@ function anotarEntrada(req: NextRequest, r: NextResponse, host: string) {
   const dest = req.headers.get("sec-fetch-dest");
   const esPagina = dest ? dest === "document" : !req.headers.get("rsc") && !req.headers.get("next-router-prefetch") && (req.headers.get("accept") ?? "").includes("text/html");
   if (!esPagina) return;
+  // El botón de WhatsApp, los avisos del navegador y los archivos (feed, sitemap) no son una llegada a la tienda.
+  const ultimo = req.nextUrl.pathname.split("/").pop() ?? "";
+  if (["whatsapp", "v", "sugerencias"].includes(ultimo) || ultimo.includes(".")) return;
   if (!req.cookies.get(GALLETA_VISITANTE)?.value) r.cookies.set(GALLETA_VISITANTE, crypto.randomUUID(), galleta);
   const referer = req.headers.get("referer");
   let deAfuera = true;
