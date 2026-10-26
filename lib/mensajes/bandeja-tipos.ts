@@ -70,6 +70,8 @@ export type MensajeVista = {
   corregir?: { origen: "pregunta" | "mensaje" | "whatsapp"; id: string };
 };
 
+export type PreguntaAnterior = { id: string; texto: string; respuesta: string | null; fecha: string; titulo: string | null; canal: string | null };
+
 export type CasoVista = { id: number; asunto: string; motivo: string; abiertoTs: string; asignado: string | null; resolver: boolean };
 
 export type Enlace = { texto: string; href: string; afuera?: boolean };
@@ -92,7 +94,11 @@ export type ChatAbierto = {
     sugerencia: string | null;
     /** Para citar publicaciones con # (las de esa cuenta de ML; null = todas). */
     canalId: number | null;
+    /** En una pregunta, el plan de su publicación: con #, las del mismo plan salen primero. */
+    plan?: string | null;
   };
+  /** En una pregunta (Fer, 12/10 y 26/10): si el comprador ya nos compró, y sus preguntas anteriores (en cualquier cuenta). */
+  comprador?: { cliente: { texto: string; href: string } | null; anteriores: PreguntaAnterior[] };
 };
 
 export type FotoBandeja = {

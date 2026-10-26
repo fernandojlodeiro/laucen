@@ -266,6 +266,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
         </div>
       )}
       {chat.casos.map((k) => <Caso key={`${k.id}-${k.asunto}`} clave={chat.clave} caso={k} alCambiar={alCambiar} />)}
+      {chat.comprador && (chat.comprador.cliente || chat.comprador.anteriores.length > 0) && <Comprador key={chat.clave} c={chat.comprador} />}
 
       <div ref={fondo} className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 bg-[#EFEAE2]">
         {chat.mensajes.map((m) => <Globo key={m.id} m={m} nombreIa={nombreIa} />)}
@@ -280,7 +281,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
         ) : (
           <>
             <div className="flex items-end gap-2">
-              <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1} canalId={chat.escribir.canalId ?? undefined}
+              <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1} canalId={chat.escribir.canalId ?? undefined} plan={chat.escribir.plan ?? null}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(min-width: 768px)").matches) { e.preventDefault(); void enviar(); } }}
                 placeholder={chat.ia?.prendida ? "Escribí un mensaje (la IA sigue atendiendo; apagala si lo tomás vos). Con # buscás una publicación…" : "Escribí un mensaje. Con # buscás una publicación…"}
                 className="w-full resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-sm md:text-xs bg-white overflow-hidden" />
@@ -339,6 +340,34 @@ function Caso({ clave, caso, alCambiar }: { clave: string; caso: ChatAbierto["ca
           <button type="button" className={PRIMARIO} onClick={async () => { await accionResolverCaso(Number(clave.slice(2)), caso.id, como); alCambiar(); }}>Listo</button>
           <button type="button" className={SUAVE} onClick={() => setAbierto(false)}>Cancelar</button>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** En una pregunta: si el comprador ya nos compró y sus preguntas anteriores, con lo que se le contestó (Fer, 26/10). */
+function Comprador({ c }: { c: NonNullable<ChatAbierto["comprador"]> }) {
+  const [ver, setVer] = useState(false);
+  return (
+    <div className="px-3 py-1.5 border-b border-[#E3E9F0] text-[11px] space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {c.cliente && <Link href={c.cliente.href} className="rounded-full bg-[#E8F5EE] text-[#167655] font-semibold px-2 py-0.5 hover:underline">{c.cliente.texto}</Link>}
+        {c.anteriores.length > 0 && (
+          <button type="button" onClick={() => setVer(!ver)} aria-expanded={ver} className={SUAVE}>
+            {ver ? "Ocultar" : "Ver"} sus preguntas anteriores ({c.anteriores.length})
+          </button>
+        )}
+      </div>
+      {ver && (
+        <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+          {c.anteriores.map((a) => (
+            <li key={a.id} className="rounded-lg bg-[#F7F9FB] border border-[#E3E9F0] px-2 py-1.5">
+              <div className="text-[10px] text-[#5C6B76]">{horaLarga(a.fecha)}{a.canal ? ` · ${a.canal}` : ""}{a.titulo ? ` · ${a.titulo}` : ""}</div>
+              <div><span className="text-[#5C6B76]">Preguntó: </span>{a.texto}</div>
+              <div><span className="text-[#5C6B76]">Respuesta: </span>{a.respuesta ?? "sin responder"}</div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

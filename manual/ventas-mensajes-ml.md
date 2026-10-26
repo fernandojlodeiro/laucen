@@ -28,10 +28,10 @@ Sirve para encontrar lo que la IA agregó y corregirlo si está mal: el SKU abre
 
 ### Citar una de tus publicaciones con #
 
-En la respuesta a una pregunta, en un mensaje de posventa de Mercado Libre o en un chat de WhatsApp, al escribir **#** el texto que sigue (hasta el cursor) se convierte en un buscador de publicaciones propias:
+En cualquier conversación de [Mensajes](/ventas/mensajes) (WhatsApp, Instagram, mensajes y preguntas de Mercado Libre, reclamos), al escribir **#** el texto que sigue (hasta el cursor) se convierte en un buscador de publicaciones propias:
 
 1. Escribí **#** y el nombre del producto (por ejemplo `#notebook asus`). Desde la segunda letra aparece una lista debajo de la caja.
-2. La búsqueda se hace sobre los **productos** (título, SKU, modelo, marca, SKU de la variación) y muestra sus publicaciones **activas** de Mercado Libre. En una pregunta o en un mensaje de posventa son las de **esa cuenta**; en WhatsApp, las de todas las cuentas (cada una con el nombre de la cuenta).
+2. La búsqueda se hace sobre los **productos** (título, SKU, modelo, marca, SKU de la variación) y muestra sus publicaciones **activas** de Mercado Libre. En una pregunta, en un mensaje de posventa o en un reclamo de Mercado Libre son las de **esa cuenta**; en WhatsApp, Instagram o un reclamo de la web o del local, las de todas las cuentas (cada una con el nombre de la cuenta).
 3. Cada renglón muestra la foto, el título, el SKU, el número y el **plan** (Clásica, Premium, Premium 3x, 9x o 12x). En una pregunta, las que son **del mismo plan que la publicación sobre la que preguntaron** salen primero, marcadas «mismo plan»; después van las demás, de la más barata a la más cara. Si ninguna es del mismo plan, la lista lo avisa.
 4. Elegí una con el mouse, o con las flechas y Enter. El **#** y lo que escribiste se reemplazan por el **link** de la publicación, listo para mandar. **Esc** cierra la lista y deja el texto como estaba.
 

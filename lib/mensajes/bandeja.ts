@@ -12,9 +12,10 @@ import { SQL_DERIVADA_ESPERA, SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-m
 import { configMensajes } from "./config";
 import { credencialDeOrg } from "./chats";
 import { telefonoLindo, ventanaAbierta } from "./reglas";
+import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import {
   partirClave, ORIGENES,
-  type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FilaBandeja, type FotoBandeja, type MensajeVista, type Origen,
+  type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FilaBandeja, type FotoBandeja, type MensajeVista, type Origen, type PreguntaAnterior,
 } from "./bandeja-tipos";
 
 type Puede = (p: PermisoKey) => boolean;
@@ -279,17 +280,36 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
   if (!/^\d{1,20}$/.test(id)) return null;
   const q = await una<{ id: string; canal_id: number | null; canal: string | null; firma: string | null; texto: string; fecha: string; estado: string;
     respuesta: string | null; respondida_ts: string | null; respondida_por: string | null; respondida_auto: boolean; respondida_con_ia: boolean;
-    sugerencia: string | null; ia_estado: string | null; titulo: string | null; permalink: string | null; item_id: string; producto_id: number | null }>(`
+    sugerencia: string | null; ia_estado: string | null; titulo: string | null; permalink: string | null; item_id: string; producto_id: number | null;
+    comprador_id: string | null; compras: number; ultima_compra: string | null; cliente_id: number | null; tipo: string | null; tags: unknown; terms: unknown }>(`
     select q.id::text, q.canal_id::int, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, q.texto, q.fecha::text, q.estado,
            q.respuesta, q.respondida_ts::text, u.nombre respondida_por, q.respondida_auto, q.respondida_con_ia, q.sugerencia, q.ia_estado,
-           coalesce(mi.titulo, pu.titulo) titulo, mi.permalink, q.item_id,
-           (select v.producto_id::int from variacion v where v.id = pu.variacion_id) producto_id
+           coalesce(mi.titulo, pu.titulo) titulo, mi.permalink, q.item_id, mi.tipo, mi.tags, mi.terms,
+           (select v.producto_id::int from variacion v where v.id = pu.variacion_id) producto_id,
+           -- ¿Ya nos compró? En cualquier cuenta: el usuario de Mercado Libre es el mismo en todas.
+           q.comprador_id::text, coalesce(cq.compras, 0) compras, cq.ultima::text ultima_compra,
+           (select ci.cliente_id::int from cliente_identidad ci join canal c2 on c2.id = ci.canal_id and c2.tipo = 'mercadolibre'
+             where ci.organizacion_id = q.organizacion_id and ci.id_externo = q.comprador_id::text limit 1) cliente_id
       from meli_pregunta q left join canal ca on ca.id = q.canal_id left join publicacion pu on pu.id = q.publicacion_id
       left join usuarios u on u.id = q.respondida_por
-      left join lateral (select titulo, permalink from meli_item m where m.organizacion_id = q.organizacion_id and m.item_id = q.item_id limit 1) mi on true
+      left join lateral (select titulo, permalink, tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms
+                           from meli_item m where m.organizacion_id = q.organizacion_id and m.item_id = q.item_id limit 1) mi on true
+      left join lateral (select count(distinct coalesce(mv.pack_id, mv.order_id))::int compras, max(mv.fecha) ultima from ml_venta mv
+                          where mv.organizacion_id = q.organizacion_id and mv.comprador_id = q.comprador_id and mv.estado <> 'cancelled') cq on true
      where q.organizacion_id = $1 and q.id = $2::bigint`, [org, id]);
   if (!q) return null;
   const pendiente = q.estado === "UNANSWERED";
+  const anteriores = q.comprador_id ? await consulta<PreguntaAnterior>(`
+    select x.id::text, x.texto, x.respuesta, x.fecha::text, ca.nombre canal,
+           (select m.titulo from meli_item m where m.organizacion_id = x.organizacion_id and m.item_id = x.item_id limit 1) titulo
+      from meli_pregunta x left join canal ca on ca.id = x.canal_id
+     where x.organizacion_id = $1 and x.comprador_id = $2::bigint and x.id <> $3::bigint
+     order by x.fecha desc limit 30`, [org, q.comprador_id, q.id]) : [];
+  const fecha = (ts: string) => new Date(ts).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+  const cliente = q.comprador_id && (q.compras > 0 || q.cliente_id) ? {
+    texto: q.compras > 0 ? `Ya nos compró: ${q.compras} compra${q.compras === 1 ? "" : "s"}${q.ultima_compra ? `, la última el ${fecha(q.ultima_compra)}` : ""}` : "Es cliente",
+    href: q.cliente_id ? `/ventas/clientes/${q.cliente_id}` : `/ventas/historial?comprador=${q.comprador_id}`,
+  } : null;
   const mensajes: MensajeVista[] = [{ id: `${q.id}:p`, clase: "entrante", texto: q.texto, ts: q.fecha, estado: null, motivo: null, quien: null, usd: 0, herramientas: [] }];
   if (q.respuesta) {
     mensajes.push({
@@ -310,16 +330,18 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
     aviso: pendiente && q.ia_estado && AVISO_IA[q.ia_estado] ? AVISO_IA[q.ia_estado] : null,
     escribir: {
       puede: pendiente, porQueNo: pendiente ? null : "Ya está respondida.", tope: 2000, proponer: pendiente, sugerencia: pendiente ? q.sugerencia || null : null,
-      canalId: q.canal_id, ayuda: `Hasta 2.000 caracteres. Sin teléfonos, mails ni links de afuera.${q.firma ? ` Se agrega la firma «${q.firma}».` : ""}`,
+      canalId: q.canal_id, plan: q.tipo ? planDe(q.tipo, q.tags, q.terms) : null,
+      ayuda: `Hasta 2.000 caracteres. Sin teléfonos, mails ni links de afuera.${q.firma ? ` Se agrega la firma «${q.firma}».` : ""}`,
     },
+    comprador: { cliente, anteriores },
   };
 }
 
 async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | null> {
   if (!Number.isInteger(id)) return null;
   const r = await una<{ id: number; origen: string; tipo: string | null; motivo: string | null; canal: string | null; nombre: string | null; cliente_id: number | null;
-    pedido_id: number | null; estado: string; vence: string | null; atender: boolean; puede_mensaje: boolean }>(`
-    select r.id::int, r.origen, r.tipo, r.motivo, ca.nombre canal, cl.nombre, r.cliente_id::int, r.pedido_id::int, r.estado,
+    pedido_id: number | null; estado: string; vence: string | null; atender: boolean; puede_mensaje: boolean; canal_id: number | null }>(`
+    select r.id::int, r.origen, r.tipo, r.motivo, ca.nombre canal, r.canal_id::int, cl.nombre, r.cliente_id::int, r.pedido_id::int, r.estado,
            to_char(r.vence_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM "a las" HH24:MI') vence, ${SQL_RECLAMO_A_ATENDER} atender,
            coalesce(r.acciones_disponibles @> '[{"action": "send_message_to_complainant"}]'::jsonb, false) puede_mensaje
       from reclamo r left join canal ca on ca.id = r.canal_id left join cliente cl on cl.id = r.cliente_id
@@ -348,7 +370,8 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
       quien: m.de === "ml" ? "Mercado Libre" : m.de === "vendedor" ? m.quien ?? "Vendedor" : null,
     })),
     aviso: null,
-    escribir: { puede: !porQueNo, porQueNo, tope: 2000, proponer: false, sugerencia: null, canalId: null,
+    // Con #, las publicaciones de la cuenta del reclamo (si es de Mercado Libre).
+    escribir: { puede: !porQueNo, porQueNo, tope: 2000, proponer: false, sugerencia: null, canalId: r.origen === "mercadolibre" ? r.canal_id : null,
       ayuda: "Le llega al comprador dentro del reclamo de Mercado Libre. Sale en unos segundos (por la cola de Mercado Libre)." },
   };
 }
