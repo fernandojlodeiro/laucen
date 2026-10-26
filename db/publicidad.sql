@@ -185,16 +185,17 @@ alter table pedido add column if not exists atribucion jsonb;
 alter table chat add column if not exists atribucion jsonb;
 
 -- Google Ads en el embudo de publicidad (Fer, 25/10). La app de Google de Laucen (un cliente OAuth de un proyecto de
--- Google Cloud con la API de Google Ads, y el token de desarrollador si la cuenta lo pide): una sola fila, la carga el
--- dueño del sistema en Informes › Embudo de publicidad. Termina en _credencial: el asistente no la lee.
+-- Google Cloud con la API de Google Ads): una sola fila, la carga el dueño del sistema en Informes › Embudo de
+-- publicidad. Termina en _credencial: el asistente no la lee.
 create table if not exists google_ads_app_credencial (
   id               int primary key check (id = 1),
   client_id        text not null default '',
   client_secret    text not null default '',
-  developer_token  text,
   actualizado_ts   timestamptz not null default now()
 );
 alter table google_ads_app_credencial enable row level security;
+-- La Google Ads API ya no pide token de desarrollador (manda el nivel de acceso del proyecto de Google Cloud).
+alter table google_ads_app_credencial drop column if exists developer_token;
 -- Lo último que contestó Google cuando una conexión no encontró cuentas o falló: para diagnosticar, nunca se muestra.
 alter table google_ads_app_credencial add column if not exists ultimo_error text;
 alter table google_ads_app_credencial add column if not exists ultimo_error_ts timestamptz;
