@@ -28,18 +28,18 @@ export default function SubirImagen({ name, valor, organizacionId, etiqueta, alt
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <input type="hidden" name={name} value={link} form={form} />
       {link
         // eslint-disable-next-line @next/next/no-img-element
         ? <img src={link} alt={etiqueta} className={`${alto} max-w-full object-contain rounded border border-[#E3E9F0] bg-[#FAFBFC] mb-1`} />
         : <p className="text-[11px] text-[#5C6B76] mb-1">Sin {etiqueta.toLowerCase()}.</p>}
       <div className="flex flex-wrap gap-1">
-        <label className={`${SUAVE} cursor-pointer ${subiendo ? "opacity-60" : ""}`}>
+        <label className={`${SUAVE} cursor-pointer whitespace-nowrap ${subiendo ? "opacity-60" : ""}`}>
           {subiendo ? "Subiendo…" : link ? "Cambiar" : "Subir imagen"}
           <input type="file" accept="image/*" onChange={elegir} disabled={subiendo} className="hidden" />
         </label>
-        {link && <button type="button" onClick={() => setLink("")} className={BORRAR}>Quitar</button>}
+        {link && <button type="button" onClick={() => setLink("")} className={`${BORRAR} whitespace-nowrap`}>Quitar</button>}
       </div>
       {motivo && <p role="alert" className="text-[11px] text-[#C03420] mt-1">{motivo}</p>}
     </div>
