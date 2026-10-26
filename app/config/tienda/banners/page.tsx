@@ -1,7 +1,8 @@
 // Banners de la tienda: las imágenes grandes de arriba de la portada, todas las
 // que se quieran, en dos familias (clara y oscura) que se turnan cada 12 horas
 // y cada semana invierten cuál va primero (lib/tienda/banners.ts). Cada banner
-// es para todas las marcas de la tienda o para una sola, y puede llevar un link.
+// es para todas las marcas de la tienda o para una sola, para la compu, el celular o las dos, y puede
+// llevar un link. Alta: se eligen varias imágenes de una y después dónde van (Fer, 26/10).
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -11,7 +12,7 @@ import Pestanas from "@/app/componentes/Pestanas";
 import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { bannersDe, destinosDeBanner, turnoDeBanners, FAMILIAS, esFamilia, type FamiliaBanner } from "@/lib/tienda/banners";
+import { bannersDe, destinosDeBanner, turnoDeBanners, FAMILIAS, PANTALLAS, esFamilia, type FamiliaBanner, type PantallaBanner } from "@/lib/tienda/banners";
 import SubirImagen from "../SubirImagen";
 import SubirVarias from "./SubirVarias";
 import FiltroDonde from "./FiltroDonde";
@@ -59,11 +60,16 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
       ) : (
         <>
           <AltaNueva texto="Nuevo banner" sinBoton>
-            <form action={accionAgregarBanners} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start text-xs">
+            <form action={accionAgregarBanners} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start text-xs">
               <input type="hidden" name="canal_id" value={tienda.id} />{vuelta}
-              <div className="sm:col-span-3"><span className={ETIQUETA}>Imágenes para la compu (podés elegir varias: cada una queda como un banner)</span>
+              <div className="sm:col-span-4"><span className={ETIQUETA}>1. Las imágenes (elegí todas las que quieras: cada una queda como un banner)</span>
                 <SubirVarias name="imagen" organizacionId={s.org.id} />
-                <span className="block text-[11px] text-[#5C6B76] mt-1">Para la compu, 1920 × 420 (se ve entera, a todo el ancho). La del celular (1200 × 400) se agrega después, en cada banner de la lista, con «Subir para el celular»; sin ella, el celular usa la misma. El último cuarto de abajo, sin texto: se funde con el fondo y la primera fila de productos sube encima.</span></div>
+                <span className="block text-[11px] text-[#5C6B76] mt-1">Medidas: para la compu, 1920 × 420; para el celular, 1200 × 400. El último cuarto de abajo, sin texto: se funde con el fondo y la primera fila de productos sube encima.</span></div>
+              <span className="sm:col-span-4 text-[11px] font-semibold text-[#5C6B76]">2. Dónde van (vale para todas las que elegiste; después se cambia cada una con el lápiz)</span>
+              <label><span className={ETIQUETA}>Pantalla</span>
+                <select name="pantalla" defaultValue="todas" className={`${CAMPO} w-full`}>
+                  {(Object.keys(PANTALLAS) as PantallaBanner[]).map((x) => <option key={x} value={x}>{PANTALLAS[x]}</option>)}
+                </select></label>
               <label><span className={ETIQUETA}>Familia</span>
                 <select name="familia" defaultValue={familia} className={`${CAMPO} w-full`}>
                   {(Object.keys(FAMILIAS) as FamiliaBanner[]).map((f) => <option key={f} value={f}>{FAMILIAS[f]}</option>)}
@@ -71,7 +77,7 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
               <label><span className={ETIQUETA}>Se ve en</span>{elegirDestino({ name: "dominio_id", valor: donde })}</label>
               <label><span className={ETIQUETA}>Link (vacío: no lleva a ningún lado)</span>
                 <input name="link" placeholder="/buscar?ofertas=1 o https://…" className={`${CAMPO} w-full`} /></label>
-              <div className="sm:col-span-3"><BotonEnviar clase={PRIMARIO} corriendo="Agregando…">Agregar banners</BotonEnviar></div>
+              <div className="sm:col-span-4"><BotonEnviar clase={PRIMARIO} corriendo="Agregando…">Agregar banners</BotonEnviar></div>
             </form>
           </AltaNueva>
 
@@ -100,8 +106,8 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
               <thead className={THEAD}>
                 <tr>
                   <th className={TH} title="Orden en que pasan">N.º</th>
-                  <th className={TH}>Compu</th>
-                  <th className={TH} title="Imagen para el celular (sin ella, la misma de la compu)">Celular</th>
+                  <th className={TH}>Imagen</th>
+                  <th className={TH}>Pantalla</th>
                   <th className={TH}>Se ve en</th>
                   <th className={TH}>Link</th>
                   <th className={TH}>Activo</th>
@@ -121,8 +127,13 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                       <td className={`${TDN} text-[#5C6B76]`}>
                         <form id={form} action={accionGuardarBanner}><input type="hidden" name="id" value={b.id} />{vuelta}</form>{i + 1}
                       </td>
-                      <td className={`${TD} min-w-52`}><SubirImagen name="imagen" valor={b.imagen} organizacionId={s.org.id} etiqueta="Imagen para la compu" alto="h-12" form={form} /></td>
-                      <td className={`${TD} min-w-52`}><SubirImagen name="imagen_celular" valor={b.imagen_celular} organizacionId={s.org.id} etiqueta="Imagen para el celular" alto="h-12" form={form} /></td>
+                      <td className={`${TD} min-w-52`}><SubirImagen name="imagen" valor={b.imagen} organizacionId={s.org.id} etiqueta="Imagen" alto="h-12" form={form} /></td>
+                      <td className={`${TD} w-40`}>
+                        <label className="block"><span className={ETIQUETA}>Pantalla</span>
+                          <select name="pantalla" defaultValue={b.pantalla} form={form} className={`${CAMPO} w-full`}>
+                            {(Object.keys(PANTALLAS) as PantallaBanner[]).map((x) => <option key={x} value={x}>{PANTALLAS[x]}</option>)}
+                          </select></label>
+                      </td>
                       <td className={`${TD} w-56 space-y-1`}>
                         {elegirDestino({ name: "dominio_id", valor: b.dominio_id, form })}
                         <label className="block"><span className={ETIQUETA}>Familia</span>
@@ -150,9 +161,8 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                         </a>
                       </td>
                       <td className={TD}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {b.imagen_celular ? <img src={b.imagen_celular} alt="" className={MINIATURA} />
-                          : <Link href={aca({ editar: b.id })} scroll={false} className={`${SUAVE} inline-block whitespace-nowrap`}>Subir para el celular</Link>}
+                        {PANTALLAS[b.pantalla]}
+                        {b.imagen_celular && b.pantalla !== "compu" && <span className="block text-[11px] text-[#5C6B76]">En el celular, con otra imagen</span>}
                       </td>
                       <td className={TD}>{nombreDestino(b.dominio_id)}</td>
                       <td className={`${TD} max-w-56 truncate`} title={b.link ?? undefined}>

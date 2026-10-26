@@ -389,6 +389,19 @@ create table if not exists tienda_banner (
   creado_ts        timestamptz not null default now()
 );
 create index if not exists tienda_banner_orden on tienda_banner (canal_id, familia, orden);
+-- Para qué pantalla es cada banner (Fer, 26/10): la compu, el celular o las dos. Se elige al subirlo.
+alter table tienda_banner add column if not exists pantalla text not null default 'todas' check (pantalla in ('todas', 'compu', 'celular'));
+-- Banners que vienen del Google Drive de la organización (Fer, 26/10: los cargó Code desde su carpeta de
+-- banners). La imagen del banner apunta a /api/tienda/banner-drive/<id del archivo>: la primera vez se baja del
+-- Drive, se pasa a WebP y queda acá; desde ahí se sirve de la base, sin volver al Drive.
+create table if not exists tienda_banner_archivo (
+  id               text primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  tipo             text not null,
+  contenido        bytea not null,
+  creado_ts        timestamptz not null default now()
+);
+alter table tienda_banner_archivo enable row level security;
 alter table tienda_banner enable row level security;
 select erp_politica_org('tienda_banner');
 -- Los tres casilleros de antes (canal.config banner, banner_2, banner_3 y los de cada marca en

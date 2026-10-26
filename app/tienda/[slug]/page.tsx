@@ -73,9 +73,11 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
   const tarjetas = new Map((await aTarjetas(t, [...todos.values()])).map((x) => [x.id, x]));
   const de = (l: ProductoBase[]) => l.map((p) => tarjetas.get(p.id)!).filter(Boolean);
 
-  const banners = (await bannersDeLaPortada(t.canalId, t.marcaId)).map((b) => ({
-    src: b.imagen, celular: b.imagen_celular, alt: c.bajada || nombre, href: b.link?.startsWith("/") ? r(b.link) : b.link,
-  }));
+  // Una tanda para la compu y otra para el celular (cada banner dice para qué pantalla es).
+  const portada = await bannersDeLaPortada(t.canalId, t.marcaId);
+  const aBanner = (b: (typeof portada.compu)[number]) => ({ src: b.imagen, alt: c.bajada || nombre, href: b.link?.startsWith("/") ? r(b.link) : b.link });
+  const banners = portada.compu.map(aBanner);
+  const bannersCelular = portada.celular.map(aBanner);
   // La primera fila que se ve es la que sube sobre el banner.
   const primera = [destacados, novedades, ofertas, vendidos].findIndex((l) => l.length > 0);
   const plata = (n: number) => `$\u00a0${formatearNumero(n, "entero")}`;
@@ -108,7 +110,10 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
       {/* Banners a todo el ancho. */}
       {/* Pegado al encabezado y con la primera fila subiendo sobre su borde de abajo (Fer, 24/10: le sobraba lugar). */}
       <div className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
-        {banners.length ? <Banners banners={banners} /> : (
+        {banners.length ? <>
+          <div className="md:hidden"><Banners banners={bannersCelular} /></div>
+          <div className="hidden md:block"><Banners banners={banners} /></div>
+        </> : (
           <div className="relative aspect-[3/1] overflow-hidden bg-[var(--marca)] lg:aspect-auto lg:h-[340px]">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,.55),transparent_60%)]" />
             <div className="relative mx-auto flex h-full max-w-[1200px] items-center gap-6 px-6 pb-[6%] text-[var(--marca-texto)] lg:pb-24">

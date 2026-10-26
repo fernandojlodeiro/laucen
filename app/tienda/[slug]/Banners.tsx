@@ -1,8 +1,8 @@
 "use client";
 
 // Banners de la portada: pasan solos cada 6 segundos; flechas en la compu y
-// puntitos abajo. Con una sola imagen, queda fija. Cada uno puede traer su
-// imagen para el celular y un link (de afuera: en otra pestaña). El pie se
+// puntitos abajo. Con una sola imagen, queda fija. Cada uno puede traer un link
+// (de afuera: en otra pestaña). La portada pone una tanda para la compu y otra para el celular. El pie se
 // funde con el fondo de la página: la primera fila de productos sube encima.
 // Siempre a todo el ancho (Fer, 26/10). El alto sale de la proporción de la imagen, con un tope en la compu:
 // la de la compu hecha a 1920 × 420 se ve entera; una más alta (3 a 1) se recorta un poco arriba y abajo.
@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DIFUMINADO } from "./difuminado";
 
-export type Banner = { src: string; celular?: string | null; alt: string; href?: string | null };
+export type Banner = { src: string; alt: string; href?: string | null };
 
 /** El alto máximo en la compu: más que esto empuja los productos fuera de la pantalla. */
 const ALTO_MAXIMO = 420;
@@ -20,7 +20,7 @@ const ALTO_MAXIMO = 420;
 export default function Banners({ banners }: { banners: Banner[] }) {
   const [i, setI] = useState(0);
   const [pausa, setPausa] = useState(false);
-  // Ancho / alto de la primera imagen (la que eligió el navegador: la de la compu o la del celular).
+  // Ancho / alto de la primera imagen.
   const [proporcion, setProporcion] = useState(3);
   const primera = useRef<HTMLImageElement>(null);
   const medir = (img: HTMLImageElement | null) => { if (img?.naturalWidth && img.naturalHeight) setProporcion(img.naturalWidth / img.naturalHeight); };
@@ -40,13 +40,9 @@ export default function Banners({ banners }: { banners: Banner[] }) {
       onMouseEnter={() => setPausa(true)} onMouseLeave={() => setPausa(false)}
       role="region" aria-roledescription="carrusel" aria-label="Novedades de la tienda">
       {banners.map((b, k) => {
-        const fuente = b.celular ? <source media="(max-width: 767px)" srcSet={b.celular} /> : null;
         const img = (
-          <picture>
-            {fuente}
-            <img ref={k === 0 ? primera : undefined} onLoad={k === 0 ? (e) => medir(e.currentTarget) : undefined}
-              src={b.src} alt={b.alt} loading={k === 0 ? "eager" : "lazy"} className="h-full w-full object-cover" />
-          </picture>
+          <img ref={k === 0 ? primera : undefined} onLoad={k === 0 ? (e) => medir(e.currentTarget) : undefined}
+            src={b.src} alt={b.alt} loading={k === 0 ? "eager" : "lazy"} className="h-full w-full object-cover" />
         );
         const afuera = !!b.href && /^https?:\/\//.test(b.href);
         return (
