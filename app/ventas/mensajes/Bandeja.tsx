@@ -223,7 +223,8 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
     alCambiar();
   }
   async function pedirle() {
-    if (!texto.trim() || trabajando) return;
+    if (trabajando) return;
+    if (!texto.trim()) { setAviso(null); setError(`Escribí en la caja qué querés que haga ${nombreIa} y volvé a apretar «Pedirle a ${nombreIa}».`); caja.current?.focus(); return; }
     setTrabajando("pedirle"); setError(null); setAviso(null);
     const r = await accionPedirleIa(chat.clave, texto);
     setTrabajando("");
@@ -300,7 +301,7 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
               )}
               {/* Lo de la caja como indicación para la IA: ella le escribe al cliente siguiéndola (Fer, 26/10). */}
               {chat.ia && chat.origen !== "ml" && (
-                <button type="button" onClick={pedirle} disabled={!!trabajando || !texto.trim()} className={SUAVE}
+                <button type="button" onClick={pedirle} disabled={!!trabajando} className={SUAVE}
                   title={`Escribí en la caja qué querés que haga ${nombreIa} (no le llega al cliente) y ella le escribe`}>
                   {trabajando === "pedirle" ? `${nombreIa} está escribiendo…` : `Pedirle a ${nombreIa}`}
                 </button>
