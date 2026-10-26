@@ -31,7 +31,7 @@ export const TODAS_LAS_FECHAS = "todas";
 export function filtrosPedidos(sp: SP) {
   // La última semana sólo de entrada: con un estado elegido (ej. los pendientes de la barra) o un
   // cliente (desde su ficha), sin fechas = todas.
-  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente && sp.reserva !== "1";
+  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente && sp.reserva !== "1" && sp.seg !== "1";
   const semana = rangoDeAtajo("7dias", hoyArgentina());
   return {
     // Sin elegir, todos (Fer, 6/10); "pendientes" sigue andando (lo usa el contador de la barra).
@@ -47,6 +47,8 @@ export function filtrosPedidos(sp: SP) {
     canceladas: sp.canc === "1",
     // «Reservados sin pagar» (Fer, 7/10; lo usa la fila del tablero): guardan stock y vencen solos.
     reserva: sp.reserva === "1",
+    // «Sin pagar, en seguimiento» (Fer, 25/10): los que reciben los avisos automáticos (lib/pedidos/seguimiento.ts).
+    seguimiento: sp.seg === "1",
   };
 }
 
@@ -59,6 +61,7 @@ export function filtrosEnlace(sp: SP) {
     hasta: sp.desde === undefined && sp.hasta === undefined ? null : f.hasta || null,
     conPendiente: null, canceladas: null, pend: f.conPendiente ? "1" : null, canc: f.canceladas ? "1" : null,
     reserva: f.reserva ? "1" : null,
+    seguimiento: null, seg: f.seguimiento ? "1" : null,
   };
 }
 
@@ -85,6 +88,15 @@ const textoFactura = (x: FacturaLista) => `${nombreTipo(x.tipo)} ${numeroCbte(x.
 /** En pantalla, corto (Fer, 7/10): la letra y el número, sin "Factura" ni el punto de venta ("B 1234"). */
 const facturaCorta = (x: FacturaLista) => `${nombreTipo(x.tipo).slice(-1)} ${x.n ?? "…"}`;
 
+// Los avisos del seguimiento de un pedido sin pagar (lib/pedidos/seguimiento.ts), en orden, y si el cliente escribió después.
+const TIPOS_AVISO = "('recibido', 'pago_incompleto', 'recordatorio', 'ultimo_dia', 'reserva_anulada')";
+const SQL_AVISOS = `(select string_agg(case q.tipo when 'recibido' then 'recibido' when 'pago_incompleto' then 'pago sin completar' when 'recordatorio' then 'recordatorio'
+    when 'ultimo_dia' then 'último día' else 'reserva anulada' end || ' ' || to_char(q.creado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI'), ', ' order by q.creado_ts)
+  from correo_cola q where q.pedido_id = p.id and q.tipo in ${TIPOS_AVISO}
+    and (q.wa_estado = 'enviado' or exists (select 1 from correo_enviado e where e.organizacion_id = q.organizacion_id and e.clave = 'pedido:' || q.pedido_id || ':' || q.tipo and e.salio)))`;
+const SQL_CONTESTO = `exists (select 1 from chat ch where ch.organizacion_id = p.organizacion_id and ch.canal = 'whatsapp'
+  and (ch.cliente_id = p.cliente_id or ch.externo = cl.whatsapp)
+  and ch.ultimo_entrante_ts > (select min(q.creado_ts) from correo_cola q where q.pedido_id = p.id and q.tipo in ${TIPOS_AVISO}))`;
 const CARGOS_ML = sqlCargosMl("p");
 const CARGOS_ML_USD = sqlCargosMlUsd("p");
 const UNIDADES = "coalesce((select sum(l.cantidad) from pedido_linea l where l.pedido_id = p.id), 0)";
@@ -141,7 +153,9 @@ const CAMPOS: Campo[] = [
     celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} />
       {f.freno_cc ? <span className="text-[11px] text-[#C03420] font-semibold" title={`Frenado por la cuenta corriente: ${String(f.freno_cc)}`}>frenado por cuenta corriente</span> : null}
       {/* Sin pagar con stock guardado: hasta cuándo (en rojo si vence hoy o mañana). */}
-      {f.reserva_hasta ? <span className={`text-[11px] ${Number(f.reserva_faltan) <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`} title="Stock reservado sin pagar: al terminar ese día se cancela solo">reserva hasta {String(f.reserva_hasta)}</span> : null}</span>,
+      {f.reserva_hasta ? <span className={`text-[11px] ${Number(f.reserva_faltan) <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`} title="Stock reservado sin pagar: al terminar ese día se cancela solo">reserva hasta {String(f.reserva_hasta)}</span> : null}
+      {/* Los avisos automáticos que se le mandaron al cliente y si contestó por WhatsApp después. */}
+      {f.avisos ? <span className="text-[11px] text-[#5C6B76]">avisos: {String(f.avisos)}{f.contesto ? <b className="text-[#1F6E4A]"> · contestó</b> : null}</span> : null}</span>,
   },
   {
     // «A cobrar» (efectivo al retirar): los viejos con pago pendiente en efectivo también.
@@ -210,7 +224,8 @@ export const LISTA_PEDIDOS: Lista = {
   siempre: `p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts, p.moneda moneda_pedido,
     case when ${sqlReservaSinPagar("p")} then to_char(p.reserva_hasta, 'DD/MM') end reserva_hasta,
     case when ${sqlReservaSinPagar("p")} then (p.reserva_hasta - (now() at time zone 'America/Argentina/Buenos_Aires')::date)::int end reserva_faltan,
-    case when p.estado_pago = 'a_convenir' then cc_motivo_freno(p.id) end freno_cc`,
+    case when p.estado_pago = 'a_convenir' then cc_motivo_freno(p.id) end freno_cc,
+    ${SQL_AVISOS} avisos, ${SQL_CONTESTO} contesto`,
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
     const valores: unknown[] = [ctx.org];
@@ -223,6 +238,7 @@ export const LISTA_PEDIDOS: Lista = {
     else if (f.estado) agregar((p) => `p.estado = ${p}`, f.estado);
     if (f.conPendiente) donde.push(SQL_ALGO_PENDIENTE);
     if (f.reserva) donde.push(sqlReservaSinPagar("p"));
+    if (f.seguimiento) donde.push("p.estado = 'nuevo' and pedido_en_seguimiento(p.id)");
     // Sin las canceladas, salvo que se tilde «Incluye canceladas» o se elija ese estado.
     if (!f.canceladas && f.estado !== "cancelado") donde.push("p.estado <> 'cancelado'");
     if (f.pago) agregar((p) => `${sqlEstadoPago("p")} = ${p}`, f.pago);
@@ -246,7 +262,7 @@ export const LISTA_PEDIDOS: Lista = {
       valores,
       // Los pendientes, del más viejo al más nuevo (se preparan en orden de llegada).
       // Los reservados, del que vence antes al último.
-      orden: f.estado === "pendientes" ? "p.fecha, p.id" : f.reserva ? "p.reserva_hasta, p.id" : "p.fecha desc, p.id desc",
+      orden: f.estado === "pendientes" ? "p.fecha, p.id" : f.reserva || f.seguimiento ? "coalesce(p.reserva_vence_ts::date, p.reserva_hasta), p.id" : "p.fecha desc, p.id desc",
     };
   },
 };

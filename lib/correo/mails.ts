@@ -14,6 +14,7 @@ import { nombreTienda, tiendaDelCanal, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca, urlTienda } from "@/lib/tienda/dominios-tienda";
 import { enviarMail, escapar, plantilla, type Resultado } from "@/lib/correo/mailer";
 import { cuentasDe, type CuentaTransferencia } from "@/lib/tienda/medios";
+import { esSeguimiento, sigueCorrespondiendo, reservaLegible, type TipoSeguimiento } from "@/lib/pedidos/seguimiento";
 
 const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null, whatsapp: t.config.whatsapp ?? null });
 const remitenteDe = (t: Tienda) => ({ nombre: nombreTienda(t), email: t.config.email ?? null });
@@ -43,7 +44,9 @@ async function datosPedido(org: string, pedidoId: number) {
   const p = await una<DatosPedido>(`
     select p.id::int, p.codigo_seguimiento codigo, p.moneda, case when p.moneda = 'USD' then p.total_usd else p.total_ars end total,
            coalesce(p.datos_externos #>> '{tienda,contacto,email}', cl.email) email,
-           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre, p.datos_externos #>> '{tienda,medio}' medio,
+           coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre,
+           -- Un pedido cargado a mano no tiene el medio de la tienda: «Transferencia» cuenta como transferencia.
+           coalesce(p.datos_externos #>> '{tienda,medio}', case when p.medio_pago ilike 'transfer%' then 'transferencia' end) medio,
            me.nombre metodo, me.tipo metodo_tipo, p.costo_envio_ars costo_envio, p.envio
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
@@ -62,8 +65,9 @@ function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string }[
     <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700;white-space:nowrap">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
 }
 
-/** Los avisos del pedido: recibido, pagado, despachado o listo para retirar. */
-export async function mailPedido(org: string, pedidoId: number, tipo: "recibido" | "pagado" | "despachado" | "listo_retirar", nota?: string | null): Promise<Resultado> {
+/** Los avisos del pedido: recibido, pagado, despachado o listo para retirar, y los del seguimiento de un pedido
+ *  sin pagar (lib/pedidos/seguimiento.ts): pago sin completar, recordatorio, último día y reserva anulada. */
+export async function mailPedido(org: string, pedidoId: number, tipo: "pagado" | "despachado" | "listo_retirar" | TipoSeguimiento, nota?: string | null): Promise<Resultado> {
   const d = await datosPedido(org, pedidoId);
   if (!d?.p.email) return { ok: false, motivo: "sin_mail" };
   const t = await tiendaParaPedido(org, pedidoId);
@@ -71,19 +75,53 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
   const { p, lineas } = d;
   const marca = await marcaDe(t);
   const seguimiento = p.codigo ? await urlTienda(t, `/pedido/${p.codigo}`) : null;
-  const boton = seguimiento ? { texto: "Ver mi pedido", url: seguimiento } : undefined;
+  let boton = seguimiento ? { texto: "Ver mi pedido", url: seguimiento } : undefined;
   let asunto: string, titulo: string, cuerpo: string;
+  const medioDe = async () => p.medio ? una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(
+    "select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
+    [org, t.canalId, p.medio]) : null;
+  const tarjeta = p.medio === "payway" || p.medio === "mercadopago";
   if (tipo === "recibido") {
-    const medio = p.medio ? await una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(
-      "select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
-      [org, t.canalId, p.medio]) : null;
+    const medio = await medioDe();
+    const reserva = tarjeta ? null : await reservaLegible(p.id);
     asunto = `Recibimos tu pedido #${p.id}`;
     titulo = "¡Recibimos tu pedido!";
     cuerpo = `<p>${saludo(p.nombre)} gracias por tu compra en ${escapar(marca.nombre)}. Este es tu pedido <b>#${p.id}</b>:</p>${tablaLineas(lineas, p)}
       ${medio ? `<p>Medio de pago: <b>${escapar(medio.nombre)}</b>.</p>` : ""}
+      ${reserva ? `<p>Te guardamos los productos hasta <b>${escapar(reserva)}</b>.</p>` : ""}
       ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
       ${p.metodo ? `<p>Entrega: <b>${escapar(p.metodo)}</b>.</p>` : ""}
-      <p>Te vamos a avisar por acá cada novedad.</p>`;
+      <p>Con el botón de abajo ves lo que compraste, cómo pagarlo y cómo recibirlo. Te vamos a avisar por acá cada novedad.</p>`;
+  } else if (tipo === "pago_incompleto") {
+    const reserva = await reservaLegible(p.id);
+    asunto = `Tu pedido #${p.id}: el pago no se completó`;
+    titulo = "El pago no se completó";
+    cuerpo = `<p>${saludo(p.nombre)} recibimos tu pedido <b>#${p.id}</b>, pero el pago no llegó a completarse. Te guardamos los productos por 24 horas${reserva ? ` (hasta ${escapar(reserva)})` : ""}.</p>
+      ${tablaLineas(lineas, p)}
+      <p>Con el botón de abajo podés volver a intentarlo o elegir otra forma de pago. Si preferís pagar de una forma que no viste en la página, respondé este mail o escribinos por WhatsApp y lo vemos juntos.</p>`;
+    if (boton) boton = { ...boton, texto: "Elegir cómo pagar" };
+  } else if (tipo === "recordatorio") {
+    const medio = await medioDe();
+    const reserva = await reservaLegible(p.id);
+    asunto = `Todavía no nos llegó el pago de tu pedido #${p.id}`;
+    titulo = "Todavía no nos llegó el pago";
+    cuerpo = `<p>${saludo(p.nombre)} todavía no nos llegó el pago de tu pedido <b>#${p.id}</b>. Te seguimos guardando los productos${reserva ? ` hasta <b>${escapar(reserva)}</b>` : ""}.</p>
+      ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
+      <p>Si ya pagaste, respondé este mail con el comprobante. Si necesitás otra forma de pago, escribinos y te ayudamos.</p>`;
+  } else if (tipo === "ultimo_dia") {
+    const medio = await medioDe();
+    asunto = `Hoy es el último día de la reserva de tu pedido #${p.id}`;
+    titulo = "Hoy es el último día de tu reserva";
+    cuerpo = `<p>${saludo(p.nombre)} hoy es el último día de la reserva de tu pedido <b>#${p.id}</b>. Si no recibimos el pago, mañana se liberan los productos.</p>
+      ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
+      <p>Si ya pagaste, respondé este mail con el comprobante y lo confirmamos enseguida.</p>`;
+  } else if (tipo === "reserva_anulada") {
+    asunto = `Liberamos la reserva de tu pedido #${p.id}`;
+    titulo = "Liberamos tu reserva";
+    cuerpo = `<p>${saludo(p.nombre)} como no recibimos el pago, liberamos la reserva de tu pedido <b>#${p.id}</b>.</p>
+      ${tablaLineas(lineas, p)}
+      <p>Si todavía lo querés, respondé este mail o escribinos por WhatsApp y te ayudamos a armarlo de nuevo.</p>`;
+    boton = undefined;
   } else if (tipo === "pagado") {
     asunto = `Tu pago del pedido #${p.id} está confirmado`;
     titulo = "¡Pago confirmado!";
@@ -215,7 +253,7 @@ export async function alAutorizarMail(org: string, comprobanteId: number): Promi
  *  si el cliente eligió WhatsApp, también por WhatsApp (lib/mensajes/avisos-pedido.ts); cada canal con sus
  *  reintentos: el mail hasta 5, el WhatsApp cada 10 minutos durante 3 días (plantilla en aprobación). */
 export async function procesarCola(org: string | null, hastaMs: number): Promise<{ enviados: number; fallidos: number }> {
-  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar"; nota: string | null;
+  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar" | TipoSeguimiento; nota: string | null;
     falta_mail: boolean; falta_wa: boolean }>(`
     select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa from correo_cola
      where (${SQL_FALTA_MAIL} or ${SQL_FALTA_WA}) and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
@@ -223,6 +261,12 @@ export async function procesarCola(org: string | null, hastaMs: number): Promise
   const { avisarPorWhatsapp } = await import("@/lib/mensajes/avisos-pedido");
   for (const f of filas) {
     if (Date.now() > hastaMs) break;
+    // Un aviso del seguimiento que ya no hace falta (el pedido se pagó o cambió) no sale por ningún lado.
+    if (esSeguimiento(f.tipo) && !(await sigueCorrespondiendo(f.pedido_id, f.tipo))) {
+      await consulta(`update correo_cola set hecho_ts = coalesce(hecho_ts, now()), wa_hecho_ts = coalesce(wa_hecho_ts, now()),
+                             wa_estado = coalesce(wa_estado, 'no_corresponde'), wa_detalle = coalesce(wa_detalle, 'El pedido ya se pagó o cambió.') where id = $1`, [f.id]);
+      continue;
+    }
     if (f.falta_mail) {
       const r = await mailPedido(f.organizacion_id, f.pedido_id, f.tipo, f.nota).catch((e) => ({ ok: false, motivo: e instanceof Error ? e.message : String(e) }) as Resultado);
       // Sin mail del cliente no hay nada que reintentar; sin configurar, se reintenta después (hasta 5).

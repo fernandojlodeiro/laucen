@@ -66,7 +66,8 @@ export async function imagen(doc: PDFDocument, url: string | null | undefined, l
 
 type Linea = { cantidad: number; titulo: string; sku: string | null; ars: number; usd: number; lista_ars: number | null; lista_usd: number | null; descuento: number; foto: string | null; iva_pct: number };
 
-export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Moneda): Promise<{ pdf: Uint8Array; nombre: string }> {
+/** `publico`: para el comprador (la página del pedido de la tienda): sin las observaciones, que pueden ser internas. */
+export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Moneda, o: { publico?: boolean } = {}): Promise<{ pdf: Uint8Array; nombre: string }> {
   const p = await una<{ id: number; fecha: string; vigencia: string | null; estado: string; canal_id: number; total_ars: number; total_usd: number;
     envio_ars: number; notas: string | null; envio: { metodo?: string | null; direccion?: Record<string, string | null> | null } | null;
     cliente: string | null; razon_social: string | null; cuit: string | null; doc_tipo: string | null; doc_nro: string | null; cond_iva: string | null;
@@ -245,7 +246,7 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
 
   // ── Notas y condiciones ──
   const condiciones = [
-    ...(p.notas ? [`Observaciones: ${p.notas}`] : []),
+    ...(p.notas && !o.publico ? [`Observaciones: ${p.notas}`] : []),
     esPresupuesto ? `Presupuesto válido hasta el ${fecha(p.vigencia)}. Pasada esa fecha, los precios pueden cambiar.` : null,
     esPresupuesto ? "Precios sujetos a disponibilidad de stock al momento de confirmar la compra." : null,
     `Precios en ${moneda === "ARS" ? "pesos argentinos" : "dólares estadounidenses"}${discrimina ? ", sin IVA; el IVA se discrimina abajo" : ", con IVA incluido"}.`,

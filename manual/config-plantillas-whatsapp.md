@@ -20,7 +20,7 @@ Menú **Configuración › Plantillas de WhatsApp**.
 ## Qué hay en la pantalla
 
 - **Las de Laucen**: una caja por plantilla, con
-  - el nombre ("Factura", "Pago confirmado", "Pedido en camino", "Listo para retirar") y cuándo sale;
+  - el nombre ("Factura", "Pago confirmado", "Pedido en camino", "Listo para retirar", y las del seguimiento de un pedido sin pagar: "Pedido recibido (sin pagar)", "Pago sin completar", "Recordatorio de pago", "Último día de la reserva", "Reserva anulada") y cuándo sale;
   - el estado en Meta: **"Sin mandar"** (gris), **"En revisión"** (ámbar), **"Aprobada"** (verde), **"Rechazada"** (rojo, con el motivo), **"Pausada"** o **"Desactivada"**. Si Meta la pasó a la categoría de publicidad, lo avisa en naranja (cada mensaje cuesta más);
   - el texto como lo lee el cliente, con un nombre y un número de ejemplo, y el botón entre corchetes;
   - **"Mandar a Meta"** si todavía no se mandó, o **"Volver a mandar a Meta"** si está rechazada o pausada.

@@ -8,6 +8,7 @@ import { una, ErrorErp } from "@/lib/erp/base";
 import { crearPedido, cambiarEstado, type LineaEntrada } from "@/lib/pedidos";
 import { confirmarPago, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 import { DIAS_VIGENCIA } from "@/lib/pedidos/presupuestos";
+import { encolarRecibido } from "@/lib/pedidos/seguimiento";
 
 /** Canales donde se carga un pedido a mano: todos menos Mercado Libre (sus
  *  pedidos entran solos) y las ventas históricas. */
@@ -123,5 +124,7 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
     await cambiarEstado(org, creado.pedidoId, "pagado", usuarioId, "a cuenta corriente");
   }
   if (creado.reservo && p.pago !== "pagado") await avisarStockMl(org, creado.pedidoId);
+  // Sin pagar: el cliente recibe el pedido, la reserva y cómo pagar, y después los recordatorios (Fer, 25/10).
+  if (p.pago === "a_convenir") await encolarRecibido(org, creado.pedidoId).catch((e) => console.error("[seguimiento] recibido", creado.pedidoId, e));
   return { pedidoId: creado.pedidoId, totalArs: creado.total.ars };
 }

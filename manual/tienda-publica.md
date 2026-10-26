@@ -85,7 +85,11 @@ La abre el link del pedido (por su código, sin necesidad de cuenta):
 - Según el medio: cómo transferir (total e instrucciones, y "Avisanos por WhatsApp cuando transfieras"), cómo pagar en efectivo, el formulario de tarjeta de Payway, o "Reintentar con Mercado Pago" / "¿No llegaste a pagar? Pagá ahora".
 - **Seguimiento del envío** (transportista, estado, número de seguimiento, fecha estimada), cuando hay.
 - **Detalle**: productos, ahorro ("Ahorraste $ … : ya está aplicado en los precios"), envío, total, medio de pago y dirección de entrega.
+- **"¿Querés pagar de otra forma?"** (botón, mientras el pedido de la tienda no está pago, ni en preparación, ni facturado): se abre ahí mismo la lista de formas de pago de la tienda (sin cuenta corriente; efectivo, sólo si retira), con la elegida marcada, y si hay esquema de cuotas, **"Con tarjeta de crédito, en"** con las cuotas y su interés. **"Elegir esta forma de pago"** vuelve a calcular el total con la nueva (descuento de contado, interés de las cuotas, precios de hoy) sin tocar lo reservado. Con Mercado Pago va directo a pagar; con tarjeta, aparece el formulario de la tarjeta; con transferencia o efectivo, cómo pagar, y la reserva vuelve a ser de días desde ese momento. En el historial del pedido queda "El cliente cambió la forma de pago a …".
+- **"Descargar en PDF"** (botón, abajo): el pedido en PDF, como el presupuesto (empresa, cliente, productos con foto, total en letras), sin las observaciones internas.
 - **"Creá tu cuenta en un clic"**: una contraseña de 8 caracteres o más y **"Crear mi cuenta"**.
+
+El mismo link abre también un **pedido cargado a mano** (el que le llega al cliente en los avisos del seguimiento): ve el detalle, los datos para transferir si eligió transferencia y el PDF; la forma de pago no se cambia desde ahí (los precios fueron pactados).
 
 ### Mi cuenta
 
