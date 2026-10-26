@@ -49,11 +49,14 @@ export function turnoDeBanners(ahora = new Date()): { familia: FamiliaBanner; ha
  *  para ese dominio (o, si no hay, los de la otra). `marcaId`: el dominio de otra marca por
  *  donde se entró; sin él, el principal. */
 export async function bannersDeLaPortada(canalId: number, marcaId: number | null | undefined, ahora = new Date()): Promise<{ compu: Banner[]; celular: Banner[] }> {
+  // Una tienda de otra marca sin banners propios muestra los de la principal (Fer, 26/10).
   const filas = await consulta<Banner>(`
+    with d as (select (select id from tienda_dominio where canal_id = $1 and principal) principal),
+         e as (select case when $2::bigint is not null and exists (select 1 from tienda_banner where canal_id = $1 and activo and dominio_id = $2)
+                           then $2::bigint else d.principal end dominio from d)
     select id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo
-      from tienda_banner
-     where canal_id = $1 and activo
-       and (dominio_id is null or dominio_id = coalesce($2::bigint, (select id from tienda_dominio where canal_id = $1 and principal)))
+      from tienda_banner, e
+     where canal_id = $1 and activo and (dominio_id is null or dominio_id = e.dominio)
      order by orden, id`, [canalId, marcaId ?? null]);
   const { familia } = turnoDeBanners(ahora);
   const delTurno = (lista: Banner[]) => { const t = lista.filter((b) => b.familia === familia); return t.length ? t : lista.filter((b) => b.familia !== familia); };

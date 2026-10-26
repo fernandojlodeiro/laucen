@@ -30,6 +30,14 @@ Menú **Configuración › Tienda web › Banners de la tienda**. Si hay más de
 3. Elegí la **pantalla** («Compu y celular», «Sólo compu» o «Sólo celular»), la **familia**, en qué tienda **se ve** («Todas las tiendas» o una en particular) y, si querés, el **link**. Vale para todas las imágenes que elegiste.
 4. Apretá **Agregar banners**. Van al final de la familia.
 
+### Traer los banners desde el Google Drive
+Con el Google Drive conectado ([Google Drive](/config/google-drive)), cada tienda puede tener su carpeta de banners:
+1. En el recuadro **«Desde el Google Drive»**, pegá el link de la carpeta de cada tienda («Todas las tiendas», la principal o una de otra marca).
+2. Adentro de esa carpeta: una carpeta **«Escritorio»** (las de la compu) y otra **«Celulares»**. En el nombre de cada imagen, **«Clara»** u **«Oscura»** (por ejemplo «Envios_Clara_1920x420.png»); también sirven carpetas «Claros» y «Oscuros» adentro.
+3. Apretá **«Leer Drive»**. Dice cuántos se sumaron, cuántos se reemplazaron y cuántos se borraron, y avisa si una imagen no dice si es Clara u Oscura.
+
+Cada vez que cambies algo en el Drive, volvé a apretar «Leer Drive»: las imágenes nuevas se suman al final de su familia, las que cambiaste se reemplazan y las que sacaste se borran de la tienda. Los banners subidos a mano no se tocan. El orden, el link y el interruptor de cada banner se cambian en la lista, como los demás.
+
 ### Cambiar uno
 Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantalla, la tienda, la familia y el link. **Grabar** lo guarda; **Cancelar** deja todo como estaba. Si lo pasás a la otra familia, va al final de esa.
 
@@ -44,7 +52,7 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantal
 - **Cada semana se invierte el orden:** si esta semana a la mañana va la Clara y a la tarde la Oscura, la semana siguiente es al revés. La semana cambia el lunes a las 0.
 - **Nunca queda vacía:** si a la familia del turno no le queda ningún banner activo para esa tienda, se ve la otra. Sin ningún banner, la portada muestra una franja con el nombre y la bajada de la tienda.
 - **No hace falta que las familias tengan la misma cantidad.**
-- **Tienda donde se ve:** «Todas las tiendas» se ve en la tienda principal y en cada dominio de otra marca. Uno elegido para una tienda se ve sólo ahí, junto con los de todas, en el orden de la lista.
+- **Tienda donde se ve:** «Todas las tiendas» se ve en la tienda principal y en cada dominio de otra marca. Uno elegido para una tienda se ve sólo ahí, junto con los de todas, en el orden de la lista. Una tienda de otra marca que no tiene banners propios muestra los de la principal.
 - **Link:** vacío, el banner no lleva a ningún lado. Si empieza con «/» lleva a una página de la tienda (por ejemplo «/buscar?ofertas=1»); si es la dirección de otro sitio (https://…), se abre en otra pestaña.
 - **Pantalla:** cada banner es para **«Compu y celular»**, **«Sólo compu»** o **«Sólo celular»**. En la compu pasan los de compu y los de las dos; en el celular, los de celular y los de las dos. Si para una pantalla no hay ninguno (en la familia del turno ni en la otra), se usan los de la otra pantalla.
 - **Medidas:** **1920 × 420** las de compu y **1200 × 400** las de celular. El banner va siempre a todo el ancho y toma el alto de la imagen (en la compu, hasta 420): con esas medidas se ve entero; una imagen más alta se recorta un poco arriba y abajo.

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, id, texto } from "@/lib/erp/acciones";
+import { grabarCarpeta, leerBannersDelDrive } from "@/lib/tienda/banners-drive";
 import { agregarBanners, guardarBanner, activarBanner, borrarBanner, moverBanner, esFamilia, esPantalla } from "@/lib/tienda/banners";
 
 /** Vuelve a la pantalla como estaba (tienda, familia y filtro), sin la edición abierta. */
@@ -52,4 +53,17 @@ export async function accionBorrarBanner(fd: FormData) {
 export async function accionMoverBanner(fd: FormData) {
   const s = await entrarErp("tienda_config");
   await intentar(volver(fd), async () => { await moverBanner(s.org.id, id(fd), fd.get("paso") === "-1" ? -1 : 1); listo(); });
+}
+
+/** «Leer Drive» (Fer, 26/10): graba las carpetas que se pegaron y trae los banners de ahí. */
+export async function accionLeerDrive(fd: FormData) {
+  const s = await entrarErp("tienda_config");
+  await intentar(volver(fd), async () => {
+    const canal = id(fd, "canal_id");
+    for (const k of fd.getAll("destino").map(String)) await grabarCarpeta(s.org.id, canal, k === "todas" ? null : Number(k) || null, texto(fd, `carpeta_${k}`));
+    const r = await leerBannersDelDrive(s.org.id, canal);
+    listo();
+    const partes = [r.agregados && `${r.agregados} nuevos`, r.reemplazados && `${r.reemplazados} reemplazados`, r.borrados && `${r.borrados} borrados`].filter(Boolean);
+    return `Listo: ${partes.length ? partes.join(", ") : "no había nada nuevo"}.${r.avisos.length ? ` Ojo: ${[...new Set(r.avisos)].join(" ")}` : ""}`;
+  });
 }
