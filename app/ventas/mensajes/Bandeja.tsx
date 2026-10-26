@@ -281,9 +281,9 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
         ) : (
           <>
             <div className="flex items-end gap-2">
-              <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1} canalId={chat.escribir.canalId ?? undefined} plan={chat.escribir.plan ?? null}
+              <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1} canalId={chat.escribir.canalId ?? undefined} plan={chat.escribir.plan ?? null} web={chat.escribir.web}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(min-width: 768px)").matches) { e.preventDefault(); void enviar(); } }}
-                placeholder={chat.ia?.prendida ? "Escribí un mensaje (la IA sigue atendiendo; apagala si lo tomás vos). Con # buscás una publicación…" : "Escribí un mensaje. Con # buscás una publicación…"}
+                placeholder={chat.ia?.prendida ? `Escribí un mensaje (la IA sigue atendiendo; apagala si lo tomás vos). Con # buscás ${chat.escribir.web ? "un producto de la tienda" : "una publicación"}…` : `Escribí un mensaje. Con # buscás ${chat.escribir.web ? "un producto de la tienda" : "una publicación"}…`}
                 className="w-full resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-sm md:text-xs bg-white overflow-hidden" />
               <button type="button" onClick={enviar} disabled={!!trabajando || !texto.trim() || pasado} className={PRIMARIO}>{trabajando === "enviar" ? "Mandando…" : "Enviar"}</button>
             </div>

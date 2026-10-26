@@ -18,7 +18,7 @@ import { clienteClaude, hayClaude } from "@/lib/claude";
 import { AVISO_DERIVAR, ahoraYHorario, buscarEnInternet, guardarHallazgo, productoParaBuscar, REGLA_MARCAS } from "@/lib/datos-internet";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
+import { nombreTienda, tiendaDeOrg, type Tienda } from "@/lib/tienda/tienda";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { catalogoDe, envioDe, estadoCriollo, filtrarPorTexto } from "@/app/tienda/[slug]/catalogo";
 import { configMensajes, gastoMensajesDelMes, type ConfigMensajes } from "./config";
@@ -128,14 +128,6 @@ const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: "object", properties: { caso: { type: "integer" }, como: { type: "string" } }, required: ["caso", "como"] },
   },
 ];
-
-/** La tienda web de la organización (la primera activa), si tiene. */
-export async function tiendaDeOrg(org: string): Promise<Tienda | null> {
-  const f = await una<{ id: number }>("select id::int from canal where organizacion_id = $1 and tipo = 'web_minorista' and estado <> 'archivado' order by (estado = 'activo') desc, id limit 1", [org]);
-  if (!f) return null;
-  const { tiendaDelCanal } = await import("@/lib/tienda/tienda");
-  return tiendaDelCanal(org, f.id);
-}
 
 async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promise<string> {
   const lineas: string[] = [`- Te llamás ${c.nombre}.`, `- ${await ahoraYHorario(chat.organizacionId)}`];

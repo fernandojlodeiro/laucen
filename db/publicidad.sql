@@ -211,3 +211,9 @@ create table if not exists google_ads_credencial (
   estado           text not null default 'activo' check (estado in ('activo', 'desconectado'))
 );
 alter table google_ads_credencial enable row level security;
+
+-- Cada cuenta de anuncios conectada lleva `leer` (Fer, 26/10): si entra al embudo. Las conectadas antes, todas leídas.
+update meta_ads_credencial set cuentas = (select jsonb_agg(case when c ? 'leer' then c else c || '{"leer": true}' end) from jsonb_array_elements(cuentas) c)
+ where exists (select 1 from jsonb_array_elements(cuentas) c where not c ? 'leer');
+update google_ads_credencial set cuentas = (select jsonb_agg(case when c ? 'leer' then c else c || '{"leer": true}' end) from jsonb_array_elements(cuentas) c)
+ where exists (select 1 from jsonb_array_elements(cuentas) c where not c ? 'leer');

@@ -57,13 +57,14 @@ export function urlDeConexion(app: AppMeta, redirectUri: string, estado: string)
   return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${qs}`;
 }
 
-export type CuentaAnuncios = { id: string; nombre: string; moneda: string };
+/** leer: si entra al embudo (se destilda la de otro negocio que administra la misma persona). */
+export type CuentaAnuncios = { id: string; nombre: string; moneda: string; leer: boolean };
 
 /** Las cuentas publicitarias que compartió en el diálogo: primero por /me/adaccounts; si viene vacío, por lo que dice el
  *  propio permiso (debug_token: los ids de ads_read), como en CadaMes. */
 async function cuentasDelToken(app: AppMeta, token: string): Promise<CuentaAnuncios[]> {
   const leer = (d: Record<string, unknown>): CuentaAnuncios => ({
-    id: String(d.id ?? ""), nombre: String(d.name ?? d.id ?? ""), moneda: String(d.account_currency ?? "ARS"),
+    id: String(d.id ?? ""), nombre: String(d.name ?? d.id ?? ""), moneda: String(d.account_currency ?? "ARS"), leer: true,
   });
   const me = await pedir(`${GRAPH}/me/adaccounts?${new URLSearchParams({ fields: "id,name,account_currency", limit: "100", access_token: token })}`);
   const lista = me.ok ? ((me.data?.data ?? []) as Record<string, unknown>[]).map(leer).filter((c) => c.id) : [];
@@ -85,7 +86,9 @@ export async function conectarAnunciosMeta(org: string, app: AppMeta, code: stri
   const r = await pedir(`${GRAPH}/oauth/access_token?${new URLSearchParams({ client_id: app.appId, client_secret: app.appSecret, redirect_uri: redirectUri, code })}`);
   const token = String(r.data?.access_token ?? "");
   if (!r.ok || !token) { console.error("[meta-ads] canje", motivoCrudo(r)); return "canje"; }
-  const cuentas = await cuentasDelToken(app, token);
+  const antes = await una<{ cuentas: CuentaAnuncios[] }>("select cuentas from meta_ads_credencial where organizacion_id = $1", [org]);
+  // Al volver a conectar, cada cuenta que ya estaba sigue como estaba (leída o no).
+  const cuentas = (await cuentasDelToken(app, token)).map((c) => ({ ...c, leer: antes?.cuentas.find((a) => a.id === c.id)?.leer ?? true }));
   console.log("[meta-ads] %d cuenta(s) publicitaria(s): %s", cuentas.length, cuentas.map((c) => c.nombre).join(", ") || "ninguna");
   if (!cuentas.length) return "sin_cuentas";
   await consulta(`
@@ -101,6 +104,16 @@ export const conexionMeta = (org: string) => una<ConexionMeta>(`
   select cuentas, conectado_ts::text "conectadoTs", lectura_ts::text "lecturaTs", lectura_estado "lecturaEstado"
     from meta_ads_credencial where organizacion_id = $1 and estado = 'activo'`, [org]);
 
+/** Leer o no una cuenta publicitaria. Al dejar de leerla se borra lo que se había leído de ella (vuelve al tildarla). */
+export async function elegirCuentaMeta(org: string, id: string, leer: boolean): Promise<void> {
+  await consulta(`
+    update meta_ads_credencial set cuentas = (select jsonb_agg(case when c ->> 'id' = $2 then c || jsonb_build_object('leer', $3::boolean) else c end)
+                                                from jsonb_array_elements(cuentas) c)
+     where organizacion_id = $1`, [org, id, leer]);
+  if (!leer) await consulta("delete from anuncio_dia where organizacion_id = $1 and plataforma = 'meta' and cuenta_id = $2", [org, id]);
+  else await leerAnunciosMeta(org).catch((e) => console.error("[meta-ads] lectura", e));
+}
+
 export async function desconectarAnunciosMeta(org: string): Promise<void> {
   await consulta("update meta_ads_credencial set estado = 'desconectado' where organizacion_id = $1", [org]);
 }
@@ -114,7 +127,7 @@ export async function leerAnunciosMeta(org: string, dias = 30): Promise<{ filas:
   if (!c) return { filas: 0, estado: "sin_conexion" };
   const hasta = new Date(), desde = new Date(hasta.getTime() - dias * 86_400_000);
   let filas = 0, estado = "ok";
-  for (const cuenta of c.cuentas) {
+  for (const cuenta of c.cuentas.filter((x) => x.leer)) {
     let url: string | undefined = `${GRAPH}/${cuenta.id}/insights?${new URLSearchParams({
       level: "ad", fields: "ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,account_currency",
       time_range: JSON.stringify({ since: fechaIso(desde), until: fechaIso(hasta) }), time_increment: "1", limit: "500", access_token: c.token,

@@ -6,8 +6,8 @@ import { entrarErp } from "@/app/componentes/erp";
 import { intentar } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
 import { ErrorErp } from "@/lib/erp/base";
-import { desconectarAnunciosMeta, leerAnunciosMeta } from "@/lib/publicidad/meta-ads";
-import { desconectarGoogleAds, guardarAppGoogleAds, leerGoogleAds } from "@/lib/publicidad/google-ads";
+import { desconectarAnunciosMeta, elegirCuentaMeta, leerAnunciosMeta } from "@/lib/publicidad/meta-ads";
+import { desconectarGoogleAds, elegirCuentaGoogle, guardarAppGoogleAds, leerGoogleAds } from "@/lib/publicidad/google-ads";
 import { texto } from "@/lib/erp/acciones";
 
 const VOLVER = "/informes/embudo-publicidad";
@@ -33,7 +33,21 @@ export async function accionDesconectarGoogle() {
   });
 }
 
-/** La app de Google de Laucen (cliente OAuth y token de desarrollador): sólo el dueño del sistema. Las claves no se
+/** Leer o no una cuenta de anuncios conectada (la caja «Leer» de cada cuenta). */
+export async function accionElegirCuenta(fd: FormData) {
+  const s = await entrarErp("publicidad_ver");
+  await intentar(VOLVER, async () => {
+    const plataforma = texto(fd, "plataforma");
+    const id = (texto(fd, "cuenta") ?? "").trim();
+    if (!/^[\w-]{1,40}$/.test(id) || (plataforma !== "meta" && plataforma !== "google")) throw new ErrorErp("No se sabe qué cuenta.");
+    const leer = fd.get("valor") === "1";
+    await (plataforma === "meta" ? elegirCuentaMeta : elegirCuentaGoogle)(s.org.id, id, leer);
+    revalidatePath(VOLVER);
+    return leer ? "Listo: esa cuenta vuelve a entrar al embudo." : "Listo: esa cuenta ya no entra al embudo.";
+  });
+}
+
+/** La app de Google de Laucen (el cliente OAuth): sólo el dueño del sistema. Las claves no se
  *  vuelven a mostrar; vacías, quedan las que estaban. */
 export async function accionGuardarAppGoogle(fd: FormData) {
   await entrarErp("publicidad_ver");
@@ -44,9 +58,7 @@ export async function accionGuardarAppGoogle(fd: FormData) {
     if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new ErrorErp("El ID de cliente de Google termina en «.apps.googleusercontent.com» (Google Cloud › APIs y servicios › Credenciales).");
     const secreto = (texto(fd, "client_secret") ?? "").trim();
     if (secreto && !/^[\w-]{10,80}$/.test(secreto)) throw new ErrorErp("El secreto del cliente no tiene la forma de los de Google.");
-    const devToken = (texto(fd, "developer_token") ?? "").trim();
-    if (devToken && !/^[\w-]{10,60}$/.test(devToken)) throw new ErrorErp("El token de desarrollador no tiene la forma de los de Google Ads.");
-    await guardarAppGoogleAds({ clientId, clientSecret: secreto || null, developerToken: devToken || null });
+    await guardarAppGoogleAds({ clientId, clientSecret: secreto || null });
     const { appGoogleAds } = await import("@/lib/publicidad/google-ads");
     if (!(await appGoogleAds())) throw new ErrorErp("Falta el secreto del cliente.");
     revalidatePath(VOLVER);

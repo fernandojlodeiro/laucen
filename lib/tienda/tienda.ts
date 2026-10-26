@@ -63,5 +63,11 @@ export async function tiendaDelCanal(org: string, canalId: number): Promise<Tien
   return f ? aTienda(f) : null;
 }
 
+/** La tienda web de la organización (la primera activa), si tiene. */
+export async function tiendaDeOrg(org: string): Promise<Tienda | null> {
+  const f = await una<{ id: number }>("select id::int from canal where organizacion_id = $1 and tipo = 'web_minorista' and estado <> 'archivado' order by (estado = 'activo') desc, id limit 1", [org]);
+  return f ? tiendaDelCanal(org, f.id) : null;
+}
+
 export const nombreTienda = (t: Tienda) => t.config.nombre || t.nombreCanal;
 export const rutaTienda = (t: Tienda, resto = "") => `/tienda/${t.slug}${resto}`;

@@ -81,7 +81,7 @@ Lo que se conteste desde la app de Instagram también aparece en la conversació
 ### Contestar vos un chat
 1. Abrí el chat.
 2. Si vas a atenderlo vos, **apagá el interruptor de la IA** de ese chat (si no, la IA puede contestar también).
-3. Escribí y apretá **"Enviar"**. Para pasarle el link de una de tus publicaciones, escribí **#** y el nombre del producto, y elegí una de la lista (ver «Citar una de tus publicaciones con #» en [Mercado Libre en Mensajes](/ventas/mensajes/internet)). Si tenía casos en espera sin dueño, quedan a tu nombre.
+3. Escribí y apretá **"Enviar"**. Para pasarle el link de un producto de la tienda web, escribí **#** y el nombre del producto, y elegí uno de la lista (ver «Citar un producto con #» en [Mercado Libre en Mensajes](/ventas/mensajes/internet)). Si tenía casos en espera sin dueño, quedan a tu nombre.
 4. Cuando termines, si querés que la IA siga, prendé el interruptor. Si el cliente quedó esperando respuesta, contesta en el momento.
 
 ### Contestar Mercado Libre y reclamos desde acá

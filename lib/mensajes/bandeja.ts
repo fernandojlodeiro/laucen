@@ -225,7 +225,7 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
     aviso: null,
     escribir: {
       puede: abierta, porQueNo: abierta ? null : `Pasaron más de 24 horas desde el último mensaje del cliente: ${canal} no deja escribirle desde acá. Cuando vuelva a escribir, seguís desde acá.`,
-      tope: 4096, ayuda: null, proponer: false, sugerencia: null, canalId: null,
+      tope: 4096, ayuda: null, proponer: false, sugerencia: null, web: true, canalId: null,
     },
   };
 }
@@ -270,7 +270,7 @@ async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null>
     })),
     aviso: c.ia_estado && AVISO_IA[c.ia_estado] && (c.sugerencia || c.ia_estado !== "falta_dato") ? AVISO_IA[c.ia_estado] : null,
     escribir: {
-      puede: true, porQueNo: null, tope: 350, proponer: true, sugerencia: c.sugerencia || null, canalId: c.canal_id,
+      puede: true, porQueNo: null, tope: 350, proponer: true, sugerencia: c.sugerencia || null, web: false, canalId: c.canal_id,
       ayuda: `Hasta 350 caracteres (el límite de Mercado Libre). Sin teléfonos ni mails.${c.firma ? ` Se agrega la firma «${c.firma}».` : ""}`,
     },
   };
@@ -330,7 +330,7 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
     aviso: pendiente && q.ia_estado && AVISO_IA[q.ia_estado] ? AVISO_IA[q.ia_estado] : null,
     escribir: {
       puede: pendiente, porQueNo: pendiente ? null : "Ya está respondida.", tope: 2000, proponer: pendiente, sugerencia: pendiente ? q.sugerencia || null : null,
-      canalId: q.canal_id, plan: q.tipo ? planDe(q.tipo, q.tags, q.terms) : null,
+      web: false, canalId: q.canal_id, plan: q.tipo ? planDe(q.tipo, q.tags, q.terms) : null,
       ayuda: `Hasta 2.000 caracteres. Sin teléfonos, mails ni links de afuera.${q.firma ? ` Se agrega la firma «${q.firma}».` : ""}`,
     },
     comprador: { cliente, anteriores },
@@ -370,8 +370,9 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
       quien: m.de === "ml" ? "Mercado Libre" : m.de === "vendedor" ? m.quien ?? "Vendedor" : null,
     })),
     aviso: null,
-    // Con #, las publicaciones de la cuenta del reclamo (si es de Mercado Libre).
-    escribir: { puede: !porQueNo, porQueNo, tope: 2000, proponer: false, sugerencia: null, canalId: r.origen === "mercadolibre" ? r.canal_id : null,
+    // Con #: en un reclamo de Mercado Libre, las publicaciones de su cuenta; si es de la web o del local, la tienda web.
+    escribir: { puede: !porQueNo, porQueNo, tope: 2000, proponer: false, sugerencia: null,
+      web: r.origen !== "mercadolibre", canalId: r.origen === "mercadolibre" ? r.canal_id : null,
       ayuda: "Le llega al comprador dentro del reclamo de Mercado Libre. Sale en unos segundos (por la cola de Mercado Libre)." },
   };
 }

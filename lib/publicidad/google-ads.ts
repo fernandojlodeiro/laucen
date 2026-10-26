@@ -2,9 +2,12 @@
 // cada organización conecte su propia cuenta.
 //
 // «Conectar Google Ads»: el permiso de Google (OAuth, alcance adwords, offline) con la app de Google de Laucen —un cliente
-// OAuth de un proyecto de Google Cloud con la API de Google Ads habilitada, y el token de desarrollador si la cuenta lo
-// pide— que carga el dueño del sistema (google_ads_app_credencial). Se guarda el refresh token y las cuentas que se ven
-// con él: las que se administran directo y, si es una cuenta administradora (MCC), las de abajo.
+// OAuth de un proyecto de Google Cloud con la API de Google Ads habilitada— que carga el dueño del sistema
+// (google_ads_app_credencial). Desde 2026 la API no pide token de desarrollador: lo que deja leer cuentas reales es el
+// «nivel de acceso» del proyecto de Google Cloud (Explorador o más; en Prueba, sólo cuentas de prueba). Se guarda el
+// refresh token y las cuentas que se ven con él: las que se administran directo y, si es una cuenta administradora
+// (MCC), las de abajo. Cada cuenta se puede dejar de leer (`leer`: Fer, 26/10 — la misma persona puede administrar
+// cuentas de otro negocio).
 //
 // La lectura: el gasto, las veces que se vio y los clics, por anuncio y por día (ad_group_ad), más las campañas de
 // máximo rendimiento (Performance Max, que no tienen anuncios sueltos: van como un anuncio «c:<campaña>») → anuncio_dia.
@@ -18,27 +21,26 @@ const API = "https://googleads.googleapis.com/v25";
 const AUTORIZAR = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-export type AppGoogle = { clientId: string; clientSecret: string; developerToken: string | null };
+export type AppGoogle = { clientId: string; clientSecret: string };
 
 export async function appGoogleAds(): Promise<AppGoogle | null> {
-  const f = await una<{ client_id: string; client_secret: string; developer_token: string | null }>(
-    "select client_id, client_secret, developer_token from google_ads_app_credencial where id = 1").catch(() => null);
-  return f?.client_id && f.client_secret ? { clientId: f.client_id, clientSecret: f.client_secret, developerToken: f.developer_token || null } : null;
+  const f = await una<{ client_id: string; client_secret: string }>(
+    "select client_id, client_secret from google_ads_app_credencial where id = 1").catch(() => null);
+  return f?.client_id && f.client_secret ? { clientId: f.client_id, clientSecret: f.client_secret } : null;
 }
 
-export async function datosAppGoogleAds(): Promise<{ clientId: string | null; hayClave: boolean; hayToken: boolean }> {
-  const f = await una<{ client_id: string; client_secret: string; developer_token: string | null }>(
-    "select client_id, client_secret, developer_token from google_ads_app_credencial where id = 1").catch(() => null);
-  return { clientId: f?.client_id || null, hayClave: !!f?.client_secret, hayToken: !!f?.developer_token };
+export async function datosAppGoogleAds(): Promise<{ clientId: string | null; hayClave: boolean }> {
+  const f = await una<{ client_id: string; client_secret: string }>(
+    "select client_id, client_secret from google_ads_app_credencial where id = 1").catch(() => null);
+  return { clientId: f?.client_id || null, hayClave: !!f?.client_secret };
 }
 
-export async function guardarAppGoogleAds(d: { clientId: string; clientSecret: string | null; developerToken: string | null }): Promise<void> {
+export async function guardarAppGoogleAds(d: { clientId: string; clientSecret: string | null }): Promise<void> {
   await consulta(`
-    insert into google_ads_app_credencial (id, client_id, client_secret, developer_token) values (1, $1, coalesce(nullif($2, ''), ''), nullif($3, ''))
+    insert into google_ads_app_credencial (id, client_id, client_secret) values (1, $1, coalesce(nullif($2, ''), ''))
     on conflict (id) do update set client_id = excluded.client_id,
-      client_secret = coalesce(nullif($2, ''), google_ads_app_credencial.client_secret),
-      developer_token = coalesce(nullif($3, ''), google_ads_app_credencial.developer_token), actualizado_ts = now()`,
-  [d.clientId.trim(), (d.clientSecret ?? "").trim(), (d.developerToken ?? "").trim()]);
+      client_secret = coalesce(nullif($2, ''), google_ads_app_credencial.client_secret), actualizado_ts = now()`,
+  [d.clientId.trim(), (d.clientSecret ?? "").trim()]);
 }
 
 /** Lee la respuesta como texto y después JSON: una página de error HTML no tira un «Unexpected token» sin sentido. */
@@ -62,12 +64,8 @@ async function tokenDeAcceso(app: AppGoogle, refreshToken: string): Promise<stri
   return String(d.access_token);
 }
 
-function encabezados(app: AppGoogle, token: string, login?: string | null): Record<string, string> {
-  return {
-    Authorization: `Bearer ${token}`, "Content-Type": "application/json",
-    ...(app.developerToken ? { "developer-token": app.developerToken } : {}),
-    ...(login ? { "login-customer-id": login } : {}),
-  };
+function encabezados(token: string, login?: string | null): Record<string, string> {
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(login ? { "login-customer-id": login } : {}) };
 }
 
 async function buscar(app: AppGoogle, token: string, cliente: string, query: string, login?: string | null): Promise<Record<string, unknown>[]> {
@@ -75,7 +73,7 @@ async function buscar(app: AppGoogle, token: string, cliente: string, query: str
   let pagina: string | undefined;
   do {
     const r = await fetch(`${API}/customers/${cliente}/googleAds:search`, {
-      method: "POST", headers: encabezados(app, token, login), body: JSON.stringify({ query, ...(pagina ? { pageToken: pagina } : {}) }),
+      method: "POST", headers: encabezados(token, login), body: JSON.stringify({ query, ...(pagina ? { pageToken: pagina } : {}) }),
     });
     const d = await comoJson(r);
     if (!r.ok) throw new Error(`google ads ${cliente}: ${JSON.stringify(d).slice(0, 400)}`);
@@ -85,11 +83,12 @@ async function buscar(app: AppGoogle, token: string, cliente: string, query: str
   return filas;
 }
 
-export type CuentaGoogle = { id: string; nombre: string; moneda: string; login: string | null };
+/** leer: si entra al embudo (se destilda la de otro negocio que administra la misma persona). */
+export type CuentaGoogle = { id: string; nombre: string; moneda: string; login: string | null; leer: boolean };
 
 /** Las cuentas que se ven con el permiso: las directas que no son administradoras y, de las administradoras, las de abajo. */
 async function cuentasDelPermiso(app: AppGoogle, token: string, errores: string[]): Promise<CuentaGoogle[]> {
-  const r = await fetch(`${API}/customers:listAccessibleCustomers`, { headers: encabezados(app, token) });
+  const r = await fetch(`${API}/customers:listAccessibleCustomers`, { headers: encabezados(token) });
   const d = await comoJson(r);
   if (!r.ok) throw new Error(`google cuentas: ${JSON.stringify(d).slice(0, 300)}`);
   const ids = ((d.resourceNames ?? []) as string[]).map((n) => n.split("/")[1]).filter(Boolean);
@@ -99,11 +98,11 @@ async function cuentasDelPermiso(app: AppGoogle, token: string, errores: string[
       const [c] = await buscar(app, token, id, "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager FROM customer");
       const cu = c?.customer as { id?: string; descriptiveName?: string; currencyCode?: string; manager?: boolean } | undefined;
       if (!cu) continue;
-      if (!cu.manager) { out.set(id, { id, nombre: cu.descriptiveName || id, moneda: cu.currencyCode || "ARS", login: null }); continue; }
+      if (!cu.manager) { out.set(id, { id, nombre: cu.descriptiveName || id, moneda: cu.currencyCode || "ARS", login: null, leer: true }); continue; }
       const hijos = await buscar(app, token, id, "SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, customer_client.manager FROM customer_client WHERE customer_client.level <= 1", id);
       for (const h of hijos) {
         const cc = h.customerClient as { id?: string; descriptiveName?: string; currencyCode?: string; manager?: boolean } | undefined;
-        if (cc?.id && !cc.manager && !out.has(String(cc.id))) out.set(String(cc.id), { id: String(cc.id), nombre: cc.descriptiveName || String(cc.id), moneda: cc.currencyCode || "ARS", login: id });
+        if (cc?.id && !cc.manager && !out.has(String(cc.id))) out.set(String(cc.id), { id: String(cc.id), nombre: cc.descriptiveName || String(cc.id), moneda: cc.currencyCode || "ARS", login: id, leer: true });
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
@@ -120,10 +119,11 @@ async function anotarError(texto: string): Promise<void> {
   await consulta("update google_ads_app_credencial set ultimo_error = $1, ultimo_error_ts = now() where id = 1", [texto.slice(0, 2000)]).catch(() => {});
 }
 
-/** Google pide el token de desarrollador en cada llamada a la API de Google Ads: sin él (o sin aprobar) no deja leer. */
-const faltaToken = (errores: string[]) => errores.some((e) => /DEVELOPER_TOKEN|developer.token/i.test(e));
+/** El proyecto de Google Cloud en nivel «Prueba» sólo deja leer cuentas de prueba: con una real, Google contesta con
+ *  un error de acceso o de token de desarrollador. */
+const faltaAcceso = (errores: string[]) => errores.some((e) => /DEVELOPER_TOKEN|developer.token|TEST_ACCOUNT|ACCESS_LEVEL/i.test(e));
 
-export async function conectarGoogleAds(org: string, app: AppGoogle, code: string, redirectUri: string): Promise<"ok" | "canje" | "sin_cuentas" | "sin_refresh" | "token"> {
+export async function conectarGoogleAds(org: string, app: AppGoogle, code: string, redirectUri: string): Promise<"ok" | "canje" | "sin_cuentas" | "sin_refresh" | "acceso"> {
   const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ code, client_id: app.clientId, client_secret: app.clientSecret, redirect_uri: redirectUri, grant_type: "authorization_code" }) });
   const d = await comoJson(r);
@@ -135,13 +135,16 @@ export async function conectarGoogleAds(org: string, app: AppGoogle, code: strin
     const m = e instanceof Error ? e.message : String(e);
     console.error("[google-ads]", m);
     await anotarError(m);
-    return faltaToken([m]) ? "token" : "canje";
+    return faltaAcceso([m]) ? "acceso" : "canje";
   }
   console.log("[google-ads] %d cuenta(s): %s", cuentas.length, cuentas.map((c) => c.nombre).join(", ") || "ninguna");
   if (!cuentas.length) {
     await anotarError(errores.length ? errores.join("\n") : "listAccessibleCustomers sin cuentas");
-    return faltaToken(errores) ? "token" : "sin_cuentas";
+    return faltaAcceso(errores) ? "acceso" : "sin_cuentas";
   }
+  // Al volver a conectar, cada cuenta que ya estaba sigue como estaba (leída o no).
+  const antes = await una<{ cuentas: CuentaGoogle[] }>("select cuentas from google_ads_credencial where organizacion_id = $1", [org]);
+  cuentas = cuentas.map((c) => ({ ...c, leer: antes?.cuentas.find((a) => a.id === c.id)?.leer ?? true }));
   await consulta(`
     insert into google_ads_credencial (organizacion_id, refresh_token, cuentas) values ($1, $2, $3::jsonb)
     on conflict (organizacion_id) do update set refresh_token = excluded.refresh_token, cuentas = excluded.cuentas, conectado_ts = now(),
@@ -153,6 +156,16 @@ export async function conectarGoogleAds(org: string, app: AppGoogle, code: strin
 export type ConexionGoogle = { cuentas: CuentaGoogle[]; lecturaTs: string | null; lecturaEstado: string | null };
 export const conexionGoogle = (org: string) => una<ConexionGoogle>(`
   select cuentas, lectura_ts::text "lecturaTs", lectura_estado "lecturaEstado" from google_ads_credencial where organizacion_id = $1 and estado = 'activo'`, [org]);
+
+/** Leer o no una cuenta. Al dejar de leerla se borra lo que se había leído de ella (se vuelve a leer al tildarla). */
+export async function elegirCuentaGoogle(org: string, id: string, leer: boolean): Promise<void> {
+  await consulta(`
+    update google_ads_credencial set cuentas = (select jsonb_agg(case when c ->> 'id' = $2 then c || jsonb_build_object('leer', $3::boolean) else c end)
+                                                  from jsonb_array_elements(cuentas) c)
+     where organizacion_id = $1`, [org, id, leer]);
+  if (!leer) await consulta("delete from anuncio_dia where organizacion_id = $1 and plataforma = 'google' and cuenta_id = $2", [org, id]);
+  else await leerGoogleAds(org).catch((e) => console.error("[google-ads] lectura", e));
+}
 
 export async function desconectarGoogleAds(org: string): Promise<void> {
   await consulta("update google_ads_credencial set estado = 'desconectado' where organizacion_id = $1", [org]);
@@ -176,7 +189,7 @@ export async function leerGoogleAds(org: string, dias = 30): Promise<{ filas: nu
     await consulta("update google_ads_credencial set lectura_ts = now(), lectura_estado = 'rechazo' where organizacion_id = $1", [org]);
     return { filas: 0, estado: "rechazo" };
   }
-  for (const cuenta of c.cuentas) {
+  for (const cuenta of c.cuentas.filter((x) => x.leer)) {
     try {
       const acum = new Map<string, FilaAnuncio>();
       const sumar = (f: FilaAnuncio) => {

@@ -17,7 +17,8 @@ import { paginarEnMemoria } from "@/lib/lista";
 import { embudo, type FilaEmbudo } from "@/lib/publicidad/embudo";
 import { conexionMeta, datosAppMetaAnuncios } from "@/lib/publicidad/meta-ads";
 import { PARAMETROS_META } from "@/lib/publicidad/atribucion";
-import { accionDesconectarGoogle, accionDesconectarMeta, accionGuardarAppGoogle, accionLeerAnuncios } from "./acciones";
+import { accionDesconectarGoogle, accionDesconectarMeta, accionElegirCuenta, accionGuardarAppGoogle, accionLeerAnuncios } from "./acciones";
+import CasillaAccion from "@/app/componentes/CasillaAccion";
 import { conexionGoogle, datosAppGoogleAds } from "@/lib/publicidad/google-ads";
 import { PARAMETROS_GOOGLE } from "@/lib/publicidad/atribucion";
 import { sosVos } from "@/lib/admin";
@@ -36,7 +37,7 @@ const VUELTA_GOOGLE: Record<string, { ok: boolean; texto: string }> = {
   canje: { ok: false, texto: "Google no terminó de dar el permiso o no dejó ver las cuentas. Probá de nuevo en un rato." },
   sin_refresh: { ok: false, texto: "Google no dio el permiso permanente. Probá de nuevo: en la cuenta de Google, quitale el acceso a Laucen y volvé a conectar." },
   sin_cuentas: { ok: false, texto: "Con esa cuenta de Google no se ve ninguna cuenta de Google Ads. Probá con la que administra los anuncios." },
-  token: { ok: false, texto: "Google todavía no deja leer los anuncios desde Laucen: falta el token de desarrollador en «La app de Google de Laucen», abajo de todo." },
+  acceso: { ok: false, texto: "Google todavía no deja leer cuentas reales desde Laucen: el proyecto de Google Cloud de la app tiene que tener el nivel de acceso «Explorador» o más." },
   sinpermiso: { ok: false, texto: "Tu rol no puede conectar los anuncios." },
   sinapp: { ok: false, texto: "La conexión con Google todavía no está lista del lado de Laucen." },
 };
@@ -53,7 +54,7 @@ const VUELTA_META: Record<string, { ok: boolean; texto: string }> = {
   estado: { ok: false, texto: "La conexión tardó demasiado o vino de otro lado. Empezala de nuevo." },
   canje: { ok: false, texto: "Meta no terminó de dar el permiso. Probá de nuevo en un rato." },
   sin_cuentas: { ok: false, texto: "No se compartió ninguna cuenta publicitaria. Probá de nuevo y tildá la cuenta de anuncios del negocio." },
-  token: { ok: false, texto: "Google todavía no deja leer los anuncios desde Laucen: falta el token de desarrollador en «La app de Google de Laucen», abajo de todo." },
+  acceso: { ok: false, texto: "Google todavía no deja leer cuentas reales desde Laucen: el proyecto de Google Cloud de la app tiene que tener el nivel de acceso «Explorador» o más." },
   sinpermiso: { ok: false, texto: "Tu rol no puede conectar los anuncios." },
   sinapp: { ok: false, texto: "La conexión con Meta todavía no está lista del lado de Laucen." },
 };
@@ -160,7 +161,8 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
           <p className="font-semibold">Meta (Facebook e Instagram)</p>
           {meta ? (
             <>
-              <p className="text-[#5C6B76]">Conectada: {meta.cuentas.map((c) => c.nombre).join(", ")}. {meta.lecturaTs ? `Leído el ${new Date(meta.lecturaTs).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}; se vuelve a leer solo cada 3 horas.` : "Todavía sin leer."}</p>
+              <p className="text-[#5C6B76]">{meta.lecturaTs ? `Leído el ${cuando(meta.lecturaTs)}; se vuelve a leer solo cada 3 horas.` : "Todavía sin leer."}</p>
+              <Cuentas plataforma="meta" cuentas={meta.cuentas} />
               <div className="flex flex-wrap gap-2 mt-1">
                 <a href="/api/meta-ads/conectar/ir" className={SUAVE}>Volver a conectar</a>
                 <BotonConfirmar accion={accionDesconectarMeta} campos={{}} clase={SUAVE} texto="Desconectar" corriendo="Desconectando…" pregunta="¿Desconectar los anuncios de Meta? Lo ya leído queda." />
@@ -180,7 +182,8 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
           <p className="font-semibold">Google Ads</p>
           {google ? (
             <>
-              <p className="text-[#5C6B76]">Conectada: {google.cuentas.map((c) => c.nombre).join(", ")}. {google.lecturaTs ? `Leído el ${new Date(google.lecturaTs).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}; se vuelve a leer solo cada 3 horas.` : "Todavía sin leer."}</p>
+              <p className="text-[#5C6B76]">{google.lecturaTs ? `Leído el ${cuando(google.lecturaTs)}; se vuelve a leer solo cada 3 horas.` : "Todavía sin leer."}</p>
+              <Cuentas plataforma="google" cuentas={google.cuentas} />
               <div className="flex flex-wrap gap-2 mt-1">
                 <a href="/api/google-ads/conectar/ir" className={SUAVE}>Volver a conectar</a>
                 <BotonConfirmar accion={accionDesconectarGoogle} campos={{}} clase={SUAVE} texto="Desconectar" corriendo="Desconectando…" pregunta="¿Desconectar Google Ads? Lo ya leído queda." />
@@ -203,27 +206,42 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
             <BotonesFicha editando={editandoG} ver="/informes/embudo-publicidad" editar="/informes/embudo-publicidad?editar=google" form="app-google" />
           </TituloSeccion>
           <div className={`${CAJA} text-xs space-y-2`}>
-            <p className="text-[11px] text-[#5C6B76]">El cliente OAuth de Google por el que cada organización conecta su Google Ads (un proyecto de Google Cloud con la «Google Ads API» habilitada). Sólo la ve el dueño del sistema. En el cliente OAuth, en «URIs de redireccionamiento autorizados»: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/google-ads/conectar/callback`}</code></p>
+            <p className="text-[11px] text-[#5C6B76]">El cliente OAuth de Google por el que cada organización conecta su Google Ads (un proyecto de Google Cloud con la «Google Ads API» habilitada y su nivel de acceso en «Explorador» o más). Sólo la ve el dueño del sistema. En el cliente OAuth, en «URIs de redireccionamiento autorizados»: <code className="bg-[#F7F9FB] px-1">{`${urlPanel()}/api/google-ads/conectar/callback`}</code></p>
             {editandoG ? (
-              <form id="app-google" action={accionGuardarAppGoogle} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <form id="app-google" action={accionGuardarAppGoogle} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label><span className={ETIQUETA}>ID de cliente</span>
                   <input name="client_id" defaultValue={appG.clientId ?? ""} autoFocus className={`${CAMPO} w-full font-mono`} /></label>
                 <label><span className={ETIQUETA}>Secreto del cliente</span>
                   <input name="client_secret" type="password" autoComplete="off" placeholder={appG.hayClave ? "Cargado (vacío: queda el que está)" : ""} className={`${CAMPO} w-full font-mono`} /></label>
-                <label><span className={ETIQUETA}>Token de desarrollador (si lo pide)</span>
-                  <input name="developer_token" type="password" autoComplete="off" placeholder={appG.hayToken ? "Cargado (vacío: queda el que está)" : ""} className={`${CAMPO} w-full font-mono`} /></label>
               </form>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Dato etiqueta="ID de cliente">{appG.clientId}</Dato>
                 <Dato etiqueta="Secreto del cliente">{appG.hayClave ? "Cargado" : null}</Dato>
-                <Dato etiqueta="Token de desarrollador">{appG.hayToken ? "Cargado" : null}</Dato>
               </div>
             )}
           </div>
         </>
       )}
     </Pantalla>
+  );
+}
+
+/** Fecha y hora de una lectura, en 24 horas. */
+const cuando = (ts: string) => new Date(ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/** Las cuentas de anuncios conectadas, cada una con su caja «Leer» (Fer, 26/10: la misma persona puede administrar
+ *  cuentas de otro negocio, que no tienen que entrar al embudo). */
+function Cuentas({ plataforma, cuentas }: { plataforma: "meta" | "google"; cuentas: { id: string; nombre: string; leer: boolean }[] }) {
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {cuentas.map((c) => (
+        <li key={c.id}>
+          <CasillaAccion accion={accionElegirCuenta} campos={{ plataforma, cuenta: c.id }} activa={c.leer}
+            etiqueta={`${c.nombre}${c.leer ? "" : " (no entra al embudo)"}`} ayuda="Destildala si es de otro negocio: su gasto no se suma." />
+        </li>
+      ))}
+    </ul>
   );
 }
 

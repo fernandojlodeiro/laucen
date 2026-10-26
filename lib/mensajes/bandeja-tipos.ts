@@ -92,7 +92,9 @@ export type ChatAbierto = {
     proponer: boolean;
     /** Lo que ya propuso la IA (viene escrito en la caja). */
     sugerencia: string | null;
-    /** Para citar publicaciones con # (las de esa cuenta de ML; null = todas). */
+    /** Para citar con #: fuera de Mercado Libre, los productos de la tienda web (Fer, 26/10); en ML, las publicaciones de
+     *  esa cuenta (canalId; null = todas). */
+    web: boolean;
     canalId: number | null;
     /** En una pregunta, el plan de su publicación: con #, las del mismo plan salen primero. */
     plan?: string | null;

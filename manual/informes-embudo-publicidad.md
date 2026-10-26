@@ -20,8 +20,8 @@ Menú **Informes › Embudo de publicidad** ([Embudo de publicidad](/informes/em
 - Arriba, el período (**Hoy, Ayer, Últimos 7 días, Este mes, Último mes…** o dos fechas a mano; de entrada, este mes) y el total invertido y vendido con publicidad. Arriba a la derecha, **"Conectar anuncios de Meta"** y **"Conectar Google Ads"** (mientras no estén conectados) y **"Leer los anuncios ahora"** (cuando hay alguno conectado).
 - **Por canal**: una fila por cada cuenta de Mercado Libre con publicidad, **Meta (Facebook e Instagram)**, **Google**, **TikTok**, **Otras campañas** (si hubo ventas desde links con utm de otra cosa) y **Tienda web sin anuncio** (para comparar). Columnas: **Invertido**, **Vieron** (veces que se vio un anuncio), **Clics**, **Escrib.** (chats de WhatsApp o Instagram que empezaron desde un anuncio), **Ventas**, **Vendido**, **Costo/venta** (invertido ÷ ventas) y **Retorno** (vendido ÷ invertido: «3,5 x» quiere decir que volvieron $ 3,50 por cada peso). Al pasar el mouse por el título de cada columna, qué cuenta.
 - **Anuncios de Meta y Google (N)**: cada anuncio (con «Meta» o «Google» adelante) con su campaña y las mismas columnas, de a 50.
-- **Conexiones**: la cuenta de anuncios de Meta y la de Google Ads conectadas (cada una con **"Volver a conectar"** y **"Desconectar"**, que pregunta ahí mismo), lo que hay que poner en los anuncios para saber de cuál vino cada venta, y el estado de TikTok.
-- **«La app de Google de Laucen»** (sólo la ve el dueño del sistema): el cliente de Google por el que se conecta Google Ads de cada organización, con el lápiz para cargarlo.
+- **Conexiones**: las cuentas de anuncios de Meta y de Google Ads conectadas, cada una con su caja **Leer** (destildala si es de otro negocio que administra la misma persona: deja de leerse y su gasto sale del embudo; al volver a tildarla se lee de nuevo), cuándo se leyeron, **"Volver a conectar"** y **"Desconectar"** (que pregunta ahí mismo), lo que hay que poner en los anuncios para saber de cuál vino cada venta, y el estado de TikTok.
+- **«La app de Google de Laucen»** (sólo la ve el dueño del sistema): el cliente de Google (ID de cliente y secreto) por el que se conecta Google Ads de cada organización, con el lápiz para cargarlo.
 
 ## Cómo se hace
 
@@ -35,7 +35,7 @@ Menú **Informes › Embudo de publicidad** ([Embudo de publicidad](/informes/em
 2. Se abre Google: entrá con la cuenta de Google que administra los anuncios y aceptá el permiso. Es sólo para **leer**: Laucen no cambia nada en las campañas.
 3. Volvés con el aviso "¡Google Ads conectado!". Si la cuenta es administradora de otras, se leen todas las de abajo. Se vuelve a leer solo cada 3 horas.
 
-Si vuelve con «falta el token de desarrollador»: Google pide ese token para dejar leer los anuncios desde un sistema. Se saca de una **cuenta administradora de Google Ads** (gratis), en su **Centro de API**, y la cuenta de anuncios tiene que estar vinculada a esa administradora. Se pega en **«La app de Google de Laucen»**, con el lápiz, y se vuelve a conectar.
+Si vuelve con «Google todavía no deja leer cuentas reales»: el proyecto de Google Cloud de la app de Google de Laucen tiene que tener el **nivel de acceso «Explorador»** o más (en la consola de Google Cloud, en la Google Ads API). En «Prueba» sólo deja leer cuentas de prueba.
 
 ### Que cada venta de la web sepa de qué anuncio vino
 En cada anuncio de Meta, en **«Parámetros de URL»** (al armar el anuncio, en «Seguimiento»), pegá el texto que muestra la pantalla en **Conexiones**. Así, cuando alguien entra a la tienda desde ese anuncio y compra, el pedido queda con el anuncio. Sin eso, la venta igual cuenta para Meta (por el código que Meta agrega a los links), pero no para un anuncio en particular.
