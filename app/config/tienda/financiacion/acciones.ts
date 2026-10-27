@@ -8,7 +8,8 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { leerNumero } from "@/lib/numeros";
-import { financiacionDe, MEDIOS_CONTADO, type PlanEscala } from "@/lib/tienda/financiacion";
+import { esPromo, financiacionDe, MEDIOS_CONTADO, type PlanEscala } from "@/lib/tienda/financiacion";
+import { normalizarDias } from "@/lib/dias-semana";
 
 const BASE = "/config/tienda/financiacion";
 
@@ -38,11 +39,10 @@ export async function accionGuardarFinanciacion(fd: FormData) {
       return [d, h];
     };
     const planes: PlanEscala[] = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 30; i++) {
       const cuotas = leerNumero(fd.get(`cuotas_${i}`));
       if (cuotas == null) continue;
       if (!Number.isInteger(cuotas) || cuotas < 2 || cuotas > 24) throw new ErrorErp("Las cuotas van de 2 a 24 (para un pago no hace falta plan).");
-      if (planes.some((p) => p.cuotas === cuotas)) throw new ErrorErp(`El plan de ${cuotas} cuotas está repetido.`);
       const pct = (k: string, nombre: string) => {
         const v = leerNumero(fd.get(`${k}_${i}`)) ?? 0;
         if (v < 0 || v > 300) throw new ErrorErp(`${nombre} va de 0 a 300 %.`);
@@ -53,14 +53,19 @@ export async function accionGuardarFinanciacion(fd: FormData) {
       const codigo = leerNumero(fd.get(`codigo_${i}`));
       if (codigo != null && (!Number.isInteger(codigo) || codigo < 1 || codigo > 999)) throw new ErrorErp("El código de Payway es un número entero (ej. 13 o 16).");
       const [vdesde, vhasta] = fechas(`vdesde_${i}`, `vhasta_${i}`, `El plan de ${cuotas} cuotas`);
-      planes.push({ cuotas, desde, costo_pct: pct("costo", "El costo del plan"), interes_pct: pct("interes", "El interés al cliente"), codigo_payway: codigo,
-        medio: fd.get(`medio_${i}`) === "mercadopago" ? "mercadopago" : "payway", vigente_desde: vdesde, vigente_hasta: vhasta });
+      const plan: PlanEscala = { cuotas, desde, costo_pct: pct("costo", "El costo del plan"), interes_pct: pct("interes", "El interés al cliente"), codigo_payway: codigo,
+        medio: fd.get(`medio_${i}`) === "mercadopago" ? "mercadopago" : "payway", vigente_desde: vdesde, vigente_hasta: vhasta, dias: normalizarDias(fd.getAll(`dias_${i}`)) };
+      // Por cuotas: un solo plan base (sin fechas ni días) y todos por el mismo medio.
+      const mismas = planes.filter((p) => p.cuotas === cuotas);
+      if (!esPromo(plan) && mismas.some((p) => !esPromo(p))) throw new ErrorErp(`En ${cuotas} cuotas hay dos planes base (sin fechas ni días): uno de los dos tiene que ser una promoción, con su vigencia o sus días.`);
+      if (mismas.some((p) => p.medio !== plan.medio)) throw new ErrorErp(`Los planes de ${cuotas} cuotas tienen que cobrarse todos por el mismo medio.`);
+      planes.push(plan);
     }
     const descuento = leerNumero(fd.get("descuento_pct")) ?? 0;
     if (descuento < 0 || descuento > 90) throw new ErrorErp("El descuento va de 0 a 90 %.");
     const medios = MEDIOS_CONTADO.map((m) => m.clave).filter((k) => fd.get(`medio_${k}`));
     const [ddesde, dhasta] = fechas("descuento_desde", "descuento_hasta", "el descuento contado");
-    await grabar(s.org.id, canal, { ...antes, planes: planes.sort((a, b) => a.cuotas - b.cuotas), descuento_pct: descuento, medios_descuento: medios,
+    await grabar(s.org.id, canal, { ...antes, planes: financiacionDe({ planes }).planes, descuento_pct: descuento, medios_descuento: medios,
       descuento_desde: ddesde, descuento_hasta: dhasta });
     await guardarVsMl(s.org.id, canal, fd);
     return "Grabado. La tienda ya muestra el esquema nuevo.";

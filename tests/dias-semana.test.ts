@@ -61,3 +61,26 @@ test("financiacionHoy (Fer, 27/10): sin fechas no vence; fuera de fecha, el plan
   assert.equal(dic.descuento_pct, 0);
   assert.deepEqual(financiacionHoy(f, new Date("2026-10-21T15:00:00Z")).planes.map((p) => p.cuotas), [6, 12], "el de 3 todavía no empezó");
 });
+
+test("planesDelDia (Fer, 27/10): base MiPyME y promociones encima; rige la de días, después la de fechas, después el base", async () => {
+  const { financiacionDe, financiacionHoy, codigoPayway } = await import("@/lib/tienda/financiacion");
+  const f = financiacionDe({
+    activo: true,
+    planes: [
+      { cuotas: 3, medio: "payway", codigo_payway: 13, costo_pct: 9.91 },
+      { cuotas: 3, medio: "payway", codigo_payway: 3, costo_pct: 8.94, vigente_desde: "2026-10-22", vigente_hasta: "2026-11-30" },
+      { cuotas: 3, medio: "payway", codigo_payway: 3, costo_pct: 3, vigente_desde: "2026-10-28", vigente_hasta: "2026-12-28", dias: [3, 6] },
+      { cuotas: 6, medio: "payway", codigo_payway: 16, costo_pct: 16.02 },
+      { cuotas: 6, medio: "payway", codigo_payway: 6, costo_pct: 13.16, vigente_desde: "2026-10-22", vigente_hasta: "2026-11-30" },
+      { cuotas: 12, medio: "mercadopago", costo_pct: 4.6 },
+    ],
+  });
+  const costos = (d: string) => financiacionHoy(f, new Date(d)).planes.map((p) => `${p.cuotas}:${p.costo_pct}`);
+  assert.deepEqual(costos("2026-10-27T15:00:00Z"), ["3:8.94", "6:13.16", "12:4.6"], "martes 27/10: las promos del 39 %");
+  assert.deepEqual(costos("2026-10-28T15:00:00Z"), ["3:3", "6:13.16", "12:4.6"], "miércoles 28/10: tasa 0 en 3");
+  assert.deepEqual(costos("2026-12-01T15:00:00Z"), ["3:9.91", "6:16.02", "12:4.6"], "martes 1/12: MiPyME");
+  assert.deepEqual(costos("2026-12-02T15:00:00Z"), ["3:3", "6:16.02", "12:4.6"], "miércoles 2/12: tasa 0 en 3, MiPyME en 6");
+  assert.equal(codigoPayway(financiacionHoy(f, new Date("2026-12-01T15:00:00Z")), 3), 13);
+  assert.equal(codigoPayway(financiacionHoy(f, new Date("2026-12-01T15:00:00Z")), 6), 16);
+  assert.equal(codigoPayway(financiacionHoy(f, new Date("2026-11-03T15:00:00Z")), 6), 6);
+});

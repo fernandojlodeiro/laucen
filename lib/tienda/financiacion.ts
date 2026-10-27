@@ -20,18 +20,26 @@
 //   - Descuento por pago contado: un % para transferencia, efectivo y/o débito
 //     (débito = Payway con tarjeta de débito, en un pago).
 //   - Vigencia (Fer, 27/10): cada plan y el descuento contado pueden tener «vale desde» y «hasta»
-//     (hora argentina). Sin fechas, no vencen nunca. Fuera de fecha, el plan no se ofrece y el
-//     descuento no se aplica (financiacionTienda los saca; la pantalla de configuración los ve todos).
+//     (hora argentina); un plan, además, días de la semana. Sin fechas ni días, no vence nunca.
+//   - Plan base y promociones (Fer, 27/10): para una misma cantidad de cuotas puede haber un plan
+//     base (sin fechas ni días: ej. 3 cuotas MiPyME, código 13) y promociones encima (ej. la de
+//     TNA 39 % hasta el 30/11, o la de tasa 0 % miércoles y sábados). Rige la promoción vigente hoy
+//     (la que tiene días antes que la que sólo tiene fechas; a igualdad, la de menor costo); si no
+//     hay, el base; si tampoco, esas cuotas no se ofrecen. financiacionTienda deja uno por cuotas;
+//     la pantalla de configuración los ve todos.
 
 import type { Tienda } from "@/lib/tienda/tienda";
-import { fechaAR } from "@/lib/dias-semana";
+import { fechaAR, normalizarDias, valeElDia } from "@/lib/dias-semana";
 
 export type MedioPlan = "payway" | "mercadopago";
 export type PlanEscala = {
   cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null; medio: MedioPlan;
-  /** Vigencia, "AAAA-MM-DD" (null = sin límite). */
-  vigente_desde?: string | null; vigente_hasta?: string | null;
+  /** Vigencia, "AAAA-MM-DD" (null = sin límite), y días de la semana (1 = lunes … 7; null = todos). */
+  vigente_desde?: string | null; vigente_hasta?: string | null; dias?: number[] | null;
 };
+
+/** Una promoción (tiene fechas o días); sin nada, el plan base de esas cuotas. */
+export const esPromo = (p: PlanEscala) => !!(p.vigente_desde || p.vigente_hasta || p.dias?.length);
 export type MedioContado = "transferencia" | "efectivo" | "debito";
 export type Financiacion = {
   activo: boolean; planes: PlanEscala[]; descuento_pct: number; medios_descuento: MedioContado[];
@@ -71,27 +79,38 @@ const num = (x: unknown, min: number, max: number) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
 };
 
-/** Lo guardado, limpio: planes de 2 a 24 cuotas sin repetir, ordenados. */
+/** Lo guardado, limpio: planes de 2 a 24 cuotas, ordenados por cuotas y, en cada una, el base primero. */
 export function financiacionDe(x: unknown): Financiacion {
   const f = (x ?? {}) as Partial<Financiacion>;
-  const vistos = new Set<number>();
   const planes = (Array.isArray(f.planes) ? f.planes : [])
     .map((p) => ({ cuotas: Math.trunc(num(p?.cuotas, 0, 24)), desde: num(p?.desde, 0, 1e12), costo_pct: num(p?.costo_pct, 0, 300), interes_pct: num(p?.interes_pct, 0, 300),
       codigo_payway: Number.isInteger(Number(p?.codigo_payway)) && Number(p?.codigo_payway) > 0 && Number(p?.codigo_payway) < 1000 ? Number(p?.codigo_payway) : null,
       medio: (p?.medio === "mercadopago" ? "mercadopago" : "payway") as MedioPlan,
-      vigente_desde: fechaO(p?.vigente_desde), vigente_hasta: fechaO(p?.vigente_hasta) }))
-    .filter((p) => p.cuotas >= 2 && !vistos.has(p.cuotas) && vistos.add(p.cuotas))
-    .sort((a, b) => a.cuotas - b.cuotas);
+      vigente_desde: fechaO(p?.vigente_desde), vigente_hasta: fechaO(p?.vigente_hasta), dias: normalizarDias(p?.dias) }))
+    .filter((p) => p.cuotas >= 2)
+    .sort((a, b) => a.cuotas - b.cuotas || Number(esPromo(a)) - Number(esPromo(b)) || (a.vigente_desde ?? "").localeCompare(b.vigente_desde ?? ""));
   const medios = (Array.isArray(f.medios_descuento) ? f.medios_descuento : []).filter((m): m is MedioContado => MEDIOS_CONTADO.some((x) => x.clave === m));
   return { activo: !!f.activo, planes, descuento_pct: num(f.descuento_pct, 0, 90), medios_descuento: medios,
     descuento_desde: fechaO(f.descuento_desde), descuento_hasta: fechaO(f.descuento_hasta) };
 }
 
-/** El esquema que rige hoy en la tienda: sin los planes fuera de fecha y, si el descuento contado no está en fecha, sin él. */
-export function financiacionHoy(f: Financiacion, ahora = new Date()): Financiacion {
+/** El plan que rige ese día para cada cantidad de cuotas (la promoción vigente o el base). */
+export function planesDelDia(planes: PlanEscala[], ahora = new Date()): PlanEscala[] {
   const hoy = fechaAR(ahora);
-  return { ...f, planes: f.planes.filter((p) => vigente(p.vigente_desde, p.vigente_hasta, hoy)),
-    descuento_pct: vigente(f.descuento_desde, f.descuento_hasta, hoy) ? f.descuento_pct : 0 };
+  const valen = planes.filter((p) => vigente(p.vigente_desde, p.vigente_hasta, hoy) && valeElDia(p.dias, ahora));
+  const rango = (p: PlanEscala) => (p.dias?.length ? 0 : esPromo(p) ? 1 : 2);
+  const porCuotas = new Map<number, PlanEscala>();
+  for (const p of valen) {
+    const ya = porCuotas.get(p.cuotas);
+    if (!ya || rango(p) < rango(ya) || (rango(p) === rango(ya) && p.costo_pct < ya.costo_pct)) porCuotas.set(p.cuotas, p);
+  }
+  return [...porCuotas.values()].sort((a, b) => a.cuotas - b.cuotas);
+}
+
+/** El esquema que rige hoy en la tienda: un plan por cuotas (promoción o base) y, si el descuento contado no está en fecha, sin él. */
+export function financiacionHoy(f: Financiacion, ahora = new Date()): Financiacion {
+  return { ...f, planes: planesDelDia(f.planes, ahora),
+    descuento_pct: vigente(f.descuento_desde, f.descuento_hasta, fechaAR(ahora)) ? f.descuento_pct : 0 };
 }
 
 export const financiacionTienda = (t: Tienda) => financiacionHoy(financiacionDe(t.config.financiacion));
