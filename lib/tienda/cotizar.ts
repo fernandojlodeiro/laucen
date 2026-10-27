@@ -87,6 +87,9 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
        and (desde is null or desde <= current_date) and (hasta is null or hasta >= current_date)
      order by prioridad desc, id`, [org, t.canalId]);
   let huboDescuento = false, cerrado = false;
+  // Lo que se descuenta por la forma de pago (reglas de medio de pago y descuento del medio): no cuenta
+  // para el envío gratis (Fer, 27/10: el que paga por transferencia no pierde el envío por el 10 %).
+  let descuentoDelPago = 0;
   for (const r of reglas) {
     const c = r.condicion, a = r.accion;
     const objetivo = (l: (typeof lineas)[number]) =>
@@ -109,6 +112,7 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (importe <= 0) continue;
     for (const l of afectadas) l.montoFinal = r2(l.montoFinal - importe * (l.montoFinal / base));
     descuentos.push({ nombre: r.nombre, importe });
+    if (c.tipo === "medio_pago") descuentoDelPago += importe;
     huboDescuento = true;
     if (!r.acumulable) cerrado = true;
   }
@@ -120,10 +124,14 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (pct) {
       const base = lineas.reduce((s, l) => s + l.montoFinal, 0);
       const importe = r2(base * pct / 100);
+      descuentoDelPago += importe;
       for (const l of lineas) l.montoFinal = r2(l.montoFinal * (1 - pct / 100));
       descuentos.push({ nombre: `${pct > 0 ? "Descuento" : "Recargo"} por pagar con ${m!.nombre}`, importe });
     }
   }
+
+  // Para el envío gratis: lo que compra antes de los descuentos por la forma de pago (y sin el interés de las cuotas, que va abajo).
+  const paraEnvioGratis = r2(lineas.reduce((s, l) => s + l.montoFinal, 0) + descuentoDelPago);
 
   // Cuotas con tarjeta de crédito (Payway), con el esquema prendido: todos sus planes; el interés del plan elegido se suma a los productos (queda en el pedido
   // y en la factura, y es lo que se cobra).
@@ -157,7 +165,7 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     let costo = m.tipo === "tarifa_fija" ? Number(m.costo_ars)
       : m.tipo === "por_provincia" ? Number(m.tarifas?.[op.provincia ?? ""] ?? m.tarifas?.["*"] ?? m.costo_ars) : 0;
     let sinCp = false, plazoDias: number | null = null;
-    const gratis = envioBonificado || (m.gratis_desde_ars != null && productos >= Number(m.gratis_desde_ars));
+    const gratis = envioBonificado || (m.gratis_desde_ars != null && paraEnvioGratis >= Number(m.gratis_desde_ars));
     if (esOca && !gratis) {
       // OCA cotiza en pesos con el peso y las medidas del carrito; "Costo $" del método se suma (embalaje).
       if (!op.codigoPostal?.trim()) sinCp = true;
