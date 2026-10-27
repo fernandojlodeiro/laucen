@@ -105,7 +105,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
     // Si está en la pantalla de lo que entró (o de lo que se resolvió: cambió la cantidad), se actualiza sola
     // (WhatsApp ya se actualiza por su cuenta). Si está escribiendo, espera.
     const { ruta: r, ver: v } = donde.current;
-    if ([...entraron, ...cambiaron].some((c) => c.clave !== "whatsapp" && esPantallaDe(c.clave, r, v)) && !escribiendo()) router.refresh();
+    if ([...entraron, ...cambiaron].some((c) => c.clave !== "atender" && esPantallaDe(c.clave, r, v)) && !escribiendo()) router.refresh();
 
     // Lo que la IA no contestó: con la ventana apagada, queda como avisado sin mostrarse.
     if (e.ventana.length) {

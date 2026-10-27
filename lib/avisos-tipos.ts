@@ -1,12 +1,17 @@
 // Tipos y reglas de los avisos de la barra de estado, sin base: los usa
 // también el navegador (app/componentes/marco/AvisosVivos.tsx).
 
+/** Los tipos de aviso (la ventana de prepo, los avisos de Windows y Configuración › Mis avisos). */
 export type ClaveContador = "reclamos" | "mensajes" | "preguntas" | "whatsapp" | "pedidos" | "facturas";
+
+/** Los contadores de la barra de estado (Fer, 27/10): los mensajes de todos los canales van juntos en «Para atender». */
+export type ClaveBarra = "atender" | "pedidos" | "facturas";
+export const CLAVES_BARRA: ClaveBarra[] = ["atender", "pedidos", "facturas"];
 
 /** Un contador de la barra de estado. `marca` crece cuando entra algo nuevo;
  *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto); `persona`: cuántas esperan a una persona
  *  del equipo porque la IA las derivó (van aparte, en amarillo). */
-export type Contador = { clave: ClaveContador; texto: string; n: number | null; href?: string; marca: number; nuevo: boolean; persona?: number };
+export type Contador = { clave: ClaveBarra; texto: string; n: number | null; href?: string; marca: number; nuevo: boolean; persona?: number };
 
 /** Lo que la ventana muestra de prepo: un pedido nuevo, o algo que la IA no contestó. */
 export type AvisoIa = {
@@ -42,15 +47,12 @@ export const cadaMinValido = (n: unknown) => Math.min(CADA_MIN_MAX, Math.max(1, 
 export type EstadoAvisos = { contadores: Contador[]; ventana: AvisoIa[]; prefs: Prefs };
 
 /** ¿La pantalla en la que está el usuario es la de ese contador? (entrar ahí = verlo) */
-export function esPantallaDe(clave: ClaveContador, ruta: string, ver: string | null): boolean {
+export function esPantallaDe(clave: ClaveBarra, ruta: string, ver: string | null): boolean {
   switch (clave) {
-    case "reclamos": return ruta === "/ventas/reclamos" && (ver === null || ver === "abiertos" || ver === "mediacion");
+    // La bandeja de Mensajes junta todo (Fer, 25/10 y 27/10).
+    case "atender": return ruta === "/ventas/mensajes";
     case "pedidos": return ruta === "/ventas/pedidos" && ver !== "facturas";
     // Facturas retenidas por la revisión antes de facturar (lib/facturacion/revision.ts).
     case "facturas": return ruta === "/ventas/pedidos" && ver === "facturas";
-    case "preguntas":
-    case "mensajes":
-    case "whatsapp": return ruta === "/ventas/mensajes";
-    // La bandeja de Mensajes junta todo (Fer, 25/10): los avisos de derivaciones se ven ahí.
   }
 }

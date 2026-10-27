@@ -155,7 +155,7 @@ function armar(items: AvisoIa[]): Aviso {
   return {
     titulo: `${items.length} cosas te necesitan en Laucen`,
     texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.texto}`.slice(0, 90)).join("\n"),
-    url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera"
+    url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=atender"
       : items.every((a) => a.tipo === "reclamos") ? "/ventas/reclamos" : "/ventas/mensajes",
   };
 }

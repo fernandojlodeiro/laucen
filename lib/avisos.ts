@@ -14,7 +14,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { contadoresEstado, marcaDe, SQL_RECLAMO_A_ATENDER } from "@/lib/erp/contadores";
 import { TIPOS_RECLAMO, esTipoReclamo } from "@/lib/reclamos";
 import type { PermisoKey } from "@/lib/permisos";
-import { cadaMinValido, TIPOS_AVISO, VENTANA_TODO, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
+import { cadaMinValido, TIPOS_AVISO, VENTANA_TODO, type AvisoIa, type ClaveBarra, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
 import { sqlPedidoPendiente } from "@/lib/pedidos";
 import { SQL_DERIVADA_ESPERA } from "@/lib/mercadolibre/sql-mensajes";
 import { formatear, type Moneda } from "@/lib/moneda";
@@ -65,8 +65,8 @@ export async function subirMarca(usuario: string, org: string, columna: "visto" 
 }
 
 /** El usuario entró a la pantalla de ese contador: lo que hay hasta ahora queda visto. */
-export async function marcarVisto(usuario: string, org: string, clave: ClaveContador): Promise<void> {
-  await subirMarca(usuario, org, "visto", clave, await marcaDe(org, clave));
+export async function marcarVisto(usuario: string, org: string, clave: ClaveBarra, puede: (p: PermisoKey) => boolean): Promise<void> {
+  await subirMarca(usuario, org, "visto", clave, await marcaDe(org, clave, puede));
 }
 
 /** El usuario cerró la ventana: lo que se le mostró no se le vuelve a abrir. */

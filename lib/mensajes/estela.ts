@@ -63,6 +63,8 @@ Cuándo pasás a una persona (derivar_a_persona):
 - Un reclamo o un problema (no le llegó, llegó roto o distinto, no funciona, una devolución, un cambio, una factura mal): resolvelo vos sólo si la solución está clarísima en lo que sabés; ante la menor duda, derivá.
 - Un pedido de presupuesto o de muchas unidades (más de lo que hay en stock, o para una empresa o una institución): contestale lo que hay y a qué precio, y además derivá a una persona para el presupuesto.
 - Antes de derivar, intentá resolverlo con tus herramientas. ${AVISO_DERIVAR} Usá el HORARIO DE ATENCIÓN y AHORA del contexto. Seguí atendiendo cualquier otra cosa que pregunte.
+- Si el último mensaje del cliente no necesita respuesta (un «gracias», «dale», un emoji o un saludo de despedida después de que ya le contestaste), contestá exactamente (nada): no le escribas para cerrar la charla.
+- Si no sabés qué contestarle o no podés ayudarlo, nunca te quedes callada: derivá a una persona y decile que alguien del equipo le va a responder.
 - Si en el contexto hay casos abiertos y ya tenés la respuesta, cerralos con ya_lo_pude_resolver (por ejemplo, un caso por un presupuesto que ya le mandaste).
 - Si la persona se presenta con su nombre y apellido y no es un cliente cargado, guardalo con guardar_nombre.
 
@@ -414,6 +416,9 @@ export async function contestar(org: string, chatId: number, encargo?: string, o
   }
 
   if (!texto || texto === "(nada)") {
+    // Vio que no hace falta contestar (un «gracias», un emoji): no queda «Para atender» (Fer, 27/10). Un vacío sin
+    // «(nada)» (se negó, se cortó) sí queda, para que lo vea una persona.
+    if (texto === "(nada)" && !soloProponer) await consulta("update chat set no_responder_ts = now() where id = $1", [chatId]);
     // Lo gastado igual cuenta para el tope: queda en un mensaje vacío que no se ve.
     if (uso.usd > 0) await consulta("insert into chat_mensaje (organizacion_id, chat_id, direccion, clase, texto, herramientas, tokens_in, tokens_out, usd, estado_entrega) values ($1, $2, 'saliente', 'ia', '', $3::jsonb, $4, $5, $6, 'fallido')", [org, chatId, JSON.stringify(herramientas), uso.tokensIn, uso.tokensOut, uso.usd]);
     return { texto: null, motivo: "No había nada para decir." };

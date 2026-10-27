@@ -4,7 +4,7 @@ menu: Ventas › Mensajes
 ruta: /ventas/mensajes
 rutas: /ventas/mensajes, /ventas/mensajes/probar, /ventas/mensajes/configuracion
 permiso: mensajes_ver
-resumen: La bandeja de todo lo que escriben los clientes, tipo WhatsApp Web: WhatsApp, mensajes y preguntas de Mercado Libre y reclamos, en una sola lista. Contesta la IA; lo que deriva a una persona queda «En espera» para atenderlo ahí mismo, también desde el celular. Probar la IA, conectar el WhatsApp y configurarla.
+resumen: La bandeja de todo lo que escriben los clientes, tipo WhatsApp Web: WhatsApp, mensajes y preguntas de Mercado Libre y reclamos, en una sola lista. Contesta la IA; lo que espera a una persona queda «Para atender» para atenderlo ahí mismo, también desde el celular. Probar la IA, conectar el WhatsApp y configurarla.
 ---
 
 ## Para qué sirve
@@ -16,39 +16,42 @@ Junta en **una sola bandeja** todo lo que escriben los clientes, venga de donde 
 - ❓ **preguntas de Mercado Libre**;
 - ⚠️ **reclamos**.
 
-Se mezcla la **lista**, no las charlas: cada conversación es una persona por un canal, y cada una se contesta con las reglas de su canal (las 24 horas de WhatsApp, los 350 caracteres de los mensajes de Mercado Libre, etc.). Contestan solas la IA de la tienda (de fábrica se llama Estela) en WhatsApp y la IA de Mercado Libre en mensajes y preguntas (ver [Mercado Libre en Mensajes](/ventas/mensajes/internet)); lo que no pueden resolver lo **derivan a una persona** y queda **En espera** para atenderlo acá. Si un cliente de WhatsApp o Instagram escribe y pasa un minuto y medio sin respuesta (con la IA prendida), la IA lo vuelve a intentar sola; si tampoco puede, el chat queda **En espera** con el caso «La IA no contestó el último mensaje».
+Se mezcla la **lista**, no las charlas: cada conversación es una persona por un canal, y cada una se contesta con las reglas de su canal (las 24 horas de WhatsApp, los 350 caracteres de los mensajes de Mercado Libre, etc.). Contestan solas la IA de la tienda (de fábrica se llama Estela) en WhatsApp y la IA de Mercado Libre en mensajes y preguntas (ver [Mercado Libre en Mensajes](/ventas/mensajes/internet)); lo que no pueden resolver lo **derivan a una persona** y queda **Para atender**. Si un cliente de WhatsApp o Instagram escribe y pasa un minuto y medio sin respuesta (con la IA prendida), la IA lo vuelve a intentar sola; si tampoco puede, el chat queda **Para atender** con el caso «La IA no contestó el último mensaje».
 
 La IA de WhatsApp sabe los productos, precios y stock de la tienda web, los envíos y medios de pago, lo que le escribas en "Lo que sabe para los clientes" y el estado de los pedidos de ese cliente. El número sigue andando en el teléfono (coexistencia): lo que contesten desde el teléfono también aparece acá.
 
 ## Cómo se llega
 
 - Menú **Ventas › Mensajes** ([Mensajes](/ventas/mensajes)).
-- En el celular, el botón **💬 Mensajes** de la barra de abajo (el primero), con el número en amarillo de lo que espera a una persona.
+- En el celular, el botón **💬 Mensajes** de la barra de abajo (el primero), con el número en amarillo de lo que hay para atender.
+- En la computadora, el contador **"Para atender"** de la barra de estado: abre la bandeja en esa pestaña.
 - Tocando un aviso de la computadora o del celular: abre directo esa conversación.
 
 Tiene estas pestañas:
-- **En espera (N)**: la bandeja. N = lo que espera a una persona.
+- **Conversaciones (N)**: la bandeja. N = lo que hay para atender.
 - **Probar la IA** ([Probar la IA](/ventas/mensajes/probar)): chatear con la IA de WhatsApp como si fueras un cliente.
 - **Datos de internet (N)** ([Datos de internet](/ventas/mensajes/internet)): lo que la IA buscó en internet y agregó a las fichas de los productos. Con el permiso de preguntas y mensajes de Mercado Libre.
 - **Configuración** ([Configuración de WhatsApp](/ventas/mensajes/configuracion)): conectar el número y configurar la IA. Pide el permiso «Configurar los mensajes».
 
 ## Qué hay en la pantalla
 
-**A la izquierda, la lista** de conversaciones, la más nueva primero. Cada una con su inicial y el **logo del canal** (WhatsApp, Instagram, Mercado Libre para mensajes y preguntas, ⚠️ reclamo), el nombre (el cliente, el comprador, o «Pregunta: …» con la publicación), debajo de dónde es (teléfono, cuenta de Mercado Libre, pedido, reclamo), el último mensaje (🤖 si lo mandó la IA, ✓ si una persona) y las marcas **👤 En espera** (amarilla), **Persona** (la atiende una persona) y el punto verde de **sin responder**.
+**A la izquierda, la lista** de conversaciones, la más nueva primero. Cada una con su inicial y el **logo del canal** (WhatsApp, Instagram, Mercado Libre para mensajes y preguntas, ⚠️ reclamo), el nombre (el cliente, el comprador, o «Pregunta: …» con la publicación), debajo de dónde es (teléfono, cuenta de Mercado Libre, pedido, reclamo), el último mensaje (🤖 si lo mandó la IA, ✓ si una persona) y las marcas **👤 En espera** (amarilla: tiene un caso abierto, una derivación o un reclamo para atender), **Estela apagada** (con el nombre que tenga la IA; en Mercado Libre, **IA apagada**: ese chat lo atiende una persona) y el punto verde de **sin responder**.
 
 Arriba a la derecha, **"Traer preguntas ahora"**: pide a Mercado Libre en el momento las preguntas sin responder de todas las cuentas (y actualiza las que se contestaron desde Mercado Libre).
 
 Arriba de la lista:
 - el buscador (nombre, teléfono, producto, número de pack…);
-- las pestañas **En espera** (lo que la IA derivó a una persona, las preguntas a las que le faltó un dato y los reclamos para atender; abre en esta si hay algo esperando, y si no en **Todos**), **Sin responder** (el último mensaje es del cliente), **Todos** y **Con persona** (la IA no contesta), cada una con su cuenta;
+- dos pestañas, cada una con su cuenta (cambiar de pestaña cierra la conversación abierta):
+  - **Para atender**: lo que espera a una persona. Entra: un chat de WhatsApp o Instagram con un caso abierto, o donde el cliente escribió y nadie le contestó (con la IA apagada en ese chat, enseguida; con la IA prendida, al minuto y medio); un mensaje de Mercado Libre sin responder o derivado; una pregunta a la que a la IA le faltó un dato o que lleva media hora sin respuesta; y los reclamos para atender. No entra un «gracias» o un emoji que la IA vio que no necesita respuesta. Abre en esta si hay algo; si no, en Todos.
+  - **Todos**: todas las conversaciones, la más nueva primero.
 - los botoncitos por canal, con cuántas hay de cada uno en la pestaña elegida: **Todo**, el logo de **WhatsApp**, el de **Instagram**, el de Mercado Libre con **Mensajes** (la charla con el comprador después de la venta) y con **Preguntas**, y **Reclamos**. Aparecen los canales que tienen algo.
 
 Cada persona ve los canales que su rol puede ver: WhatsApp con «Mensajes», Mercado Libre con «Preguntas y mensajes de Mercado Libre», reclamos con «Reclamos y devoluciones». Entran los mensajes de Mercado Libre de los últimos 60 días, las preguntas sin responder (y las respondidas de la última semana) y los reclamos abiertos (y los cerrados en los últimos 15 días); buscando, entra todo, lo viejo también.
 
 **A la derecha, la conversación abierta** (en el celular tapa la pantalla, con **←** para volver a la lista):
-- Arriba: el nombre y de dónde es (tocándolo, en el celular, se ven los enlaces), los **enlaces** (ficha del cliente, pedido, la venta, la ficha del producto, la publicación ↗, la ficha del reclamo), **📝 Notas** (en WhatsApp: notas internas que el cliente no ve) y el **interruptor de la IA** de esa conversación (en WhatsApp y en mensajes de Mercado Libre).
+- Arriba: el nombre y de dónde es (tocándolo, en el celular, se ven los enlaces), los **enlaces** (ficha del cliente, pedido, la venta, la ficha del producto, la publicación ↗, la ficha del reclamo), **"✓ Terminado"** (cuando está Para atender, en WhatsApp, Instagram y mensajes de Mercado Libre: no hay nada más que decirle; sale de Para atender, se cierran sus casos abiertos y la IA vuelve a atender esa conversación; si la persona vuelve a escribir, aparece de nuevo), **📝 Notas** (en WhatsApp: notas internas que el cliente no ve) y el **interruptor de la IA** de esa conversación (en WhatsApp y en mensajes de Mercado Libre).
 - En una **pregunta**: si el comprador ya nos compró, el cartel verde **«Ya nos compró: N compras, la última el …»** (lleva a la ficha del cliente o a sus compras), y **«Ver sus preguntas anteriores (N)»**, con lo que preguntó antes en cualquier cuenta y lo que se le contestó.
-- Lo que está **En espera**: en WhatsApp, cada caso con su motivo y **"Resolver"**; en Mercado Libre, «Derivada a una persona» (sale de En espera cuando le escribís); en un reclamo, «Reclamo para atender» con el plazo.
+- Lo que está **En espera**: en WhatsApp, cada caso con su motivo y **"Resolver"**; en Mercado Libre, «Derivada a una persona» (sale de Para atender cuando le escribís o tocás «Terminado»); en un reclamo, «Reclamo para atender» con el plazo.
 - Los mensajes: los del cliente a la izquierda; los nuestros a la derecha, marcados 🤖 (la IA), con el nombre de quien lo mandó, «📱 Desde el teléfono» o «Desde Mercado Libre»; los de Mercado Libre en un reclamo, en el medio. ✓ enviado, ✓✓ entregado, ✓✓ celeste leído; **NO ENTREGADO** con el motivo. Debajo de cada respuesta de la IA, y de toda respuesta a una pregunta, **"Corregir a la IA"**.
 - Abajo: el cuadro para escribir, **"Enviar"** (en la computadora, Enter envía y Mayúscula+Enter es renglón nuevo; en el celular, el botón) y, en Mercado Libre, **"Proponer con IA"** y la cuenta de caracteres. Si ya hay una respuesta propuesta por la IA, viene escrita en el cuadro. En WhatsApp e Instagram, **"🤖 Pedirle a Estela"** (con el nombre que tenga la IA): abre un cuadro aparte, violeta, **«Indicación para Estela — no le llega al cliente»**.
 - Si no se le puede escribir, el motivo en lugar del cuadro (pasaron las 24 horas de WhatsApp, la pregunta ya está respondida, Mercado Libre no deja mandar un mensaje en ese reclamo).
@@ -95,7 +98,7 @@ Lo que se conteste desde la app de Instagram también aparece en la conversació
 
 ### Atender lo derivado desde el celular
 1. Tocá el aviso del celular (ver la guía [Avisos en el celular](/manuales/guia-celular)) o el botón **💬 Mensajes** de la barra de abajo.
-2. Se abre en **En espera**: tocá la conversación.
+2. Se abre en **Para atender**: tocá la conversación.
 3. Contestá abajo y **"Enviar"**. Con **←** volvés a la lista.
 
 ### Prender o apagar la IA desde el teléfono
@@ -105,9 +108,14 @@ Escribile al cliente desde el teléfono un mensaje que empiece con la **marca** 
 Contestar desde el teléfono sin la marca no cambia nada: la IA sigue atendiendo.
 
 ### Resolver algo que quedó en espera
-1. Pestaña **En espera** y abrí la conversación.
+1. Pestaña **Para atender** y abrí la conversación.
 2. Atendé al cliente (apagá la IA del chat si hace falta).
 3. En el caso, apretá **"Resolver"**, escribí cómo se resolvió (opcional) y **"Listo"**.
+
+### Dar por terminada una conversación
+Cuando ya no hay nada más que decirle (contestó «gracias», mandó un emoji, ya se resolvió todo):
+1. Abrí la conversación en **Para atender**.
+2. Arriba, **"✓ Terminado"**. Sale de Para atender, se cierran sus casos abiertos y la IA vuelve a atender ese chat. Si la persona vuelve a escribir, aparece de nuevo.
 
 ### Corregir a la IA
 Debajo de cada mensaje que mandó la IA está **"Corregir a la IA"**: escribís qué estuvo mal y cuál es lo correcto, **"Ver la propuesta antes de grabar"** muestra cómo quedan los datos técnicos del producto del que se hablaba y/o una regla nueva para la IA de la empresa, y **"Grabar"** lo deja. No le manda nada al cliente.
@@ -119,7 +127,7 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 - **Otros productos**: si el cliente pide productos distintos, la IA los busca en el catálogo de la tienda (con sus herramientas de búsqueda) y le pasa el link de la tienda de los que tienen stock. Si no hay o no tienen stock, dice lo que indiquen las [Respuestas de la IA](/config/respuestas-ia) de la empresa (por ejemplo, que por el momento no hay stock y que está por ingresar).
 
-- **La IA contesta siempre**, salvo que: esté apagada para todos (Configuración), el interruptor de ese chat esté apagado, se haya llegado al tope de gasto del mes, o haya contestado más de lo permitido en la última hora en ese chat. En los dos últimos casos deja el chat **En espera** con el motivo.
+- **La IA contesta siempre**, salvo que: esté apagada para todos (Configuración), el interruptor de ese chat esté apagado, se haya llegado al tope de gasto del mes, o haya contestado más de lo permitido en la última hora en ese chat. En los dos últimos casos deja el chat **Para atender** con el motivo.
 - **Espera a que el cliente termine de escribir**: si manda varios mensajes seguidos, contesta una sola vez después del último (de fábrica, 12 segundos).
 - **Qué sabe**: productos, precios y stock de la tienda web (los mismos que ve el comprador, con el link para comprar); envíos, retiro y medios de pago de la tienda; horario, dirección, garantía y devoluciones de Configuración › Tienda web; y lo que escribas en "Lo que sabe". No inventa productos, precios ni plazos.
 - **Datos técnicos que no están en la ficha**: si preguntan una característica de un producto (compatibilidad, protocolos, medidas, potencia…) que no está en la ficha ni en sus datos técnicos, la IA la busca en internet, en el modelo exacto (primero la web del fabricante o su hoja de datos). Si lo encontró seguro, contesta normal; con alguna duda, contesta y aclara que ese dato no figura en la ficha y que lo buscó en internet, con el link de la fuente; si las fuentes no coinciden, cuenta los dos datos con sus fuentes, pide disculpas y lo pasa a una persona; si no lo encontró, lo dice y lo pasa a una persona. Lo encontrado se agrega solo a los datos técnicos del producto (se ve también en la pestaña [Datos de internet](/ventas/mensajes/internet)), para no volver a buscarlo; cada búsqueda cuenta para el tope de gasto del mes.
@@ -147,7 +155,7 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 **¿Y si el cliente manda el comprobante de la transferencia?** Si tiene un pedido sin pagar, la foto o el PDF queda en el pedido y se busca la transferencia en Mercado Pago. Si aparece, el pago queda registrado y se le contesta «¡Gracias! Recibimos tu pago del pedido #…». Ver [Pedidos](/ventas/pedidos).
 
-**¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **En espera** con el asunto. En la barra de abajo sube el contador **"WhatsApp"** y, si lo elegiste en [Mis avisos](/config/avisos), suena y se abre sola una ventana con el chat y el botón **"Ir a responder"**.
+**¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **Para atender** con el asunto. En la barra de abajo sube el contador **"Para atender"** y, si lo elegiste en [Mis avisos](/config/avisos), suena y se abre sola una ventana con el chat y el botón **"Ir a responder"**.
 
 ## Relacionado
 

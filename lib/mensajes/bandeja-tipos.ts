@@ -10,14 +10,12 @@
 
 export type Origen = "whatsapp" | "instagram" | "prueba" | "ml" | "pregunta" | "reclamo";
 
-/** Qué hay que hacer: las pestañas de arriba de la lista. */
-export type FiltroBandeja = "todos" | "en_espera" | "sin_responder" | "persona";
+/** Las pestañas de arriba de la lista (Fer, 27/10: eran cuatro y se pisaban). */
+export type FiltroBandeja = "atender" | "todos";
 
 export const FILTROS: { clave: FiltroBandeja; texto: string; ayuda: string }[] = [
-  { clave: "en_espera", texto: "En espera", ayuda: "Lo que la IA derivó a una persona, y los reclamos para atender" },
-  { clave: "sin_responder", texto: "Sin responder", ayuda: "El último mensaje es del cliente" },
+  { clave: "atender", texto: "Para atender", ayuda: "Lo que espera a una persona: lo que la IA derivó, lo que nadie contestó y los reclamos" },
   { clave: "todos", texto: "Todos", ayuda: "Todas las conversaciones, la más nueva primero" },
-  { clave: "persona", texto: "Con persona", ayuda: "Las que atiende una persona (la IA no contesta)" },
 ];
 
 export const esFiltro = (x: unknown): x is FiltroBandeja => FILTROS.some((f) => f.clave === x);
@@ -57,8 +55,10 @@ export type FilaBandeja = {
   detalle: string;
   ultimo: string; ultimoClase: string; ultimoTs: string;
   sinResponder: boolean;
-  /** Espera a una persona: la IA la derivó, o es un reclamo para atender. */
+  /** Tiene un caso abierto: la IA la derivó, o es un reclamo para atender (la marca amarilla). */
   enEspera: boolean;
+  /** Entra en «Para atender» (lib/mensajes/sql-atender.ts). */
+  paraAtender: boolean;
   /** La atiende una persona: la IA no contesta sola. */
   atiendePersona: boolean;
 };
@@ -80,6 +80,8 @@ export type ChatAbierto = {
   clave: string; origen: Origen; nombre: string; detalle: string; enlaces: Enlace[];
   /** El interruptor de la IA de esta conversación (null: no tiene, ej. un reclamo). */
   ia: { prendida: boolean } | null;
+  /** Está «Para atender» y se puede dar por terminada (WhatsApp, Instagram y mensajes de Mercado Libre). */
+  terminar: boolean;
   /** Notas internas (sólo los chats de WhatsApp/Instagram). */
   notas: string | null;
   casos: CasoVista[];

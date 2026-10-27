@@ -6,11 +6,9 @@
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { estadoAvisos, marcarVisto, marcarAvisado } from "@/lib/avisos";
-import { TIPOS_AVISO, type ClaveContador } from "@/lib/avisos-tipos";
+import { CLAVES_BARRA, type ClaveBarra } from "@/lib/avisos-tipos";
 
 export const dynamic = "force-dynamic";
-
-const CLAVES: ClaveContador[] = TIPOS_AVISO;
 
 export async function GET(req: Request) {
   const s = await sesionActual();
@@ -28,7 +26,8 @@ export async function POST(req: Request) {
   if (!s) return Response.json({ ok: false }, { status: 401 });
   const cuerpo = (await req.json().catch(() => ({}))) as { visto?: unknown; avisado?: unknown };
   try {
-    if (CLAVES.includes(cuerpo.visto as ClaveContador)) await marcarVisto(s.usuario.id, s.org.id, cuerpo.visto as ClaveContador);
+    const puede = (p: Parameters<typeof tienePermiso>[1]) => tienePermiso(s.permisos, p);
+    if (CLAVES_BARRA.includes(cuerpo.visto as ClaveBarra)) await marcarVisto(s.usuario.id, s.org.id, cuerpo.visto as ClaveBarra, puede);
     if (cuerpo.avisado && typeof cuerpo.avisado === "object") await marcarAvisado(s.usuario.id, s.org.id, cuerpo.avisado as Record<string, number>);
   } catch {
     return Response.json({ ok: false }, { status: 503 });

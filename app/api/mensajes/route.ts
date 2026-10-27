@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const sello = p.get("sello");
   if (sello && sello === (await selloDe(s.org.id))) return Response.json({ igual: true });
-  const filtro = esFiltro(p.get("filtro")) ? p.get("filtro") as "todos" : "en_espera";
+  const filtro = esFiltro(p.get("filtro")) ? p.get("filtro") as "todos" : "atender";
   const origen = esFiltroOrigen(p.get("origen")) ? p.get("origen") as "todos" : "todos";
   return Response.json(await fotoBandeja(s.org.id, puede, filtro, origen, p.get("q") ?? "", p.get("con")));
 }

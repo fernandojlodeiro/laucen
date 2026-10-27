@@ -21,7 +21,7 @@ En los dos casos, cuando el producto vuelve, **"Recibir devolución"** abre la r
 ## Cómo se llega
 
 - Menú **Ventas › Reclamos y devoluciones**.
-- El contador **"Reclamos"** de la barra de estado (abajo): cuántos hay para atender. Se pinta de amarillo cuando entra uno nuevo o un mensaje nuevo en uno abierto, y según lo elegido en [Mis avisos](/config/avisos) suena y abre una ventana con el reclamo.
+- El contador **"Para atender"** de la barra de estado (abajo) los cuenta junto con los mensajes que esperan a una persona, y abre [Mensajes](/ventas/mensajes). Se pinta de amarillo cuando entra algo nuevo, y según lo elegido en [Mis avisos](/config/avisos) suena y abre una ventana con el reclamo.
 - La tarjeta **"Reclamos y devoluciones"** del [Panel](/panel) (sus renglones abren la lista o las pestañas En mediación y Devoluciones en camino).
 - Desde la [Cola de Mercado Libre](/config/canales/cola): las acciones de un reclamo enlazan a su ficha (por la dirección `/ventas/reclamos/ml/<número de reclamo de ML>`, que lleva directo a la ficha del reclamo en Laucen).
 

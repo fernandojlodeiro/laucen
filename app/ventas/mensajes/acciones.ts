@@ -93,6 +93,28 @@ export async function accionIaBandeja(c: string, prender: boolean): Promise<Resu
   } catch (e) { return { ok: false, error: motivoErp(e) }; }
 }
 
+/** «Terminado» (Fer, 27/10): no hay nada más que decirle a esta persona. Sale de «Para atender» hasta que vuelva a
+ *  escribir: en un chat se cierran sus casos abiertos; en Mercado Libre deja de figurar derivada. Y la IA vuelve a
+ *  atender esa conversación (si otro día escribe por otra cosa, la atiende ella). */
+export async function accionTerminar(c: string): Promise<Resultado> {
+  try {
+    const k = clave(c);
+    if (k.tipo !== "c" && k.tipo !== "m") return { ok: false, error: "Esta conversación se cierra desde su propia ficha." };
+    const s = await sesionDe(k.tipo);
+    if (k.tipo === "c") {
+      const chat = await chatPorId(s.org.id, Number(k.id));
+      if (!chat) return { ok: false, error: "No existe ese chat." };
+      await consulta("update chat_caso set resuelto_ts = now(), resolucion = $3 where organizacion_id = $1 and chat_id = $2 and resuelto_ts is null",
+        [s.org.id, chat.id, `Terminado por ${s.usuario.nombre}`]);
+      await consulta("update chat set no_responder_ts = now(), atiende_persona_desde = null where organizacion_id = $1 and id = $2", [s.org.id, chat.id]);
+    } else {
+      await consulta(`update meli_conversacion set no_responder_ts = now(), derivada_ts = null, pidio_persona_ts = null, ia_estado = null
+                       where organizacion_id = $1 and pack_id = $2`, [s.org.id, k.id]);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: motivoErp(e) }; }
+}
+
 /** «Pedirle a Estela» (Fer, 26/10): una indicación para la IA, en su propia caja (no va al cliente). «mandar»: ella
  *  escribe y manda su próximo mensaje siguiéndola (si el chat lo atendía una persona, la IA vuelve a atenderlo).
  *  «sugerir»: lo escribe y vuelve a la caja del cliente, para que la persona lo revise y lo mande con «Enviar». */

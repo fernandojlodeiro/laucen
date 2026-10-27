@@ -7,8 +7,8 @@
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { consulta, una } from "@/lib/erp/base";
 import type { PermisoKey } from "@/lib/permisos";
-import { SQL_RECLAMO_A_ATENDER } from "@/lib/erp/contadores";
-import { SQL_DERIVADA_ESPERA, SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
+import { SQL_CHAT_ATENDER, SQL_ML_ATENDER, SQL_PREGUNTA_ATENDER, SQL_RECLAMO_A_ATENDER } from "./sql-atender";
+import { SQL_DERIVADA_ESPERA } from "@/lib/mercadolibre/sql-mensajes";
 import { configMensajes } from "./config";
 import { credencialDeOrg } from "./chats";
 import { telefonoLindo, ventanaAbierta } from "./reglas";
@@ -28,7 +28,9 @@ export async function selloDe(org: string): Promise<string> {
     select concat_ws('.', (select coalesce(max(id), 0) from chat_mensaje where organizacion_id = $1),
                           (select count(*) from chat_caso where organizacion_id = $1 and resuelto_ts is null),
                           (select count(*) from chat where organizacion_id = $1 and atiende_persona_desde is not null),
-                          (select coalesce(max(extract(epoch from ultimo_ts))::bigint, 0) from chat where organizacion_id = $1),
+                          (select coalesce(max(extract(epoch from greatest(ultimo_ts, no_responder_ts)))::bigint, 0) from chat where organizacion_id = $1),
+                          -- «Para atender» también cambia con el reloj (un mensaje que pasó los 90 segundos sin respuesta): una vez por minuto.
+                          floor(extract(epoch from now()) / 60)::bigint,
                           (select count(*) from chat_mensaje where organizacion_id = $1 and estado_entrega in ('leido', 'fallido')),
                           (select coalesce(max(extract(epoch from greatest(ultimo_ts, sugerencia_ts, derivada_ts, no_responder_ts, pidio_persona_ts)))::bigint, 0)
                              from meli_conversacion where organizacion_id = $1),
@@ -47,12 +49,12 @@ function canales(puede: Puede) {
 async function filasChats(org: string, q: string): Promise<FilaBandeja[]> {
   const filas = await consulta<{
     id: number; canal: "whatsapp" | "instagram" | "prueba"; nombre: string; externo: string; cliente_nombre: string | null;
-    ultimo: string | null; ultimo_clase: string | null; ultimo_ts: string; casos: number; atiende_persona: boolean;
+    ultimo: string | null; ultimo_clase: string | null; ultimo_ts: string; casos: number; atiende_persona: boolean; atender: boolean;
   }>(`
     select ch.id::int, ch.canal, ch.nombre, ch.externo, cl.nombre cliente_nombre, ch.ultimo_ts::text,
            u.texto ultimo, u.clase ultimo_clase,
            (select count(*)::int from chat_caso k where k.chat_id = ch.id and k.resuelto_ts is null) casos,
-           ch.atiende_persona_desde is not null atiende_persona
+           ch.atiende_persona_desde is not null atiende_persona, ${SQL_CHAT_ATENDER("ch")} atender
       from chat ch
       left join cliente cl on cl.id = ch.cliente_id
       left join lateral (select texto, clase from chat_mensaje m where m.chat_id = ch.id and m.texto <> '' order by id desc limit 1) u on true
@@ -64,7 +66,7 @@ async function filasChats(org: string, q: string): Promise<FilaBandeja[]> {
     nombre: f.cliente_nombre || f.nombre || (f.canal === "prueba" ? "Prueba" : f.canal === "whatsapp" ? telefonoLindo(f.externo) : f.externo),
     detalle: f.canal === "whatsapp" ? `WhatsApp · ${telefonoLindo(f.externo)}` : f.canal === "instagram" ? "Instagram" : "Prueba desde el panel",
     ultimo: f.ultimo ?? "", ultimoClase: f.ultimo_clase ?? "", ultimoTs: f.ultimo_ts,
-    sinResponder: f.ultimo_clase === "entrante", enEspera: f.casos > 0, atiendePersona: f.atiende_persona,
+    sinResponder: f.ultimo_clase === "entrante", enEspera: f.casos > 0, paraAtender: f.atender, atiendePersona: f.atiende_persona,
   }));
 }
 
@@ -80,7 +82,7 @@ async function filasMl(org: string, q: string): Promise<FilaBandeja[]> {
   }>(`
     select c.pack_id, ca.nombre canal, coalesce(cl.nombre, mv.comprador) nombre, c.pedido_id::int, mv.titulo, c.ultimo_ts::text,
            u.texto ultimo, u.de_vendedor, u.auto, u.usuario_id is not null por_usuario,
-           ${SQL_SIN_RESPONDER("c")} sin_responder, ${SQL_DERIVADA_ESPERA("c")} derivada,
+           ${SQL_ML_ATENDER("c")} sin_responder, ${SQL_DERIVADA_ESPERA("c")} derivada,
            (c.pidio_persona_ts is not null or c.derivada_ts is not null) persona
       from meli_conversacion c
       left join canal ca on ca.id = c.canal_id
@@ -98,17 +100,17 @@ async function filasMl(org: string, q: string): Promise<FilaBandeja[]> {
     detalle: [f.canal, f.pedido_id ? `pedido ${f.pedido_id}` : null, f.titulo].filter(Boolean).join(" · "),
     ultimo: f.ultimo ?? "(adjunto)",
     ultimoClase: !f.de_vendedor ? "entrante" : f.auto ? "ia" : f.por_usuario ? "operador" : "desde_el_telefono",
-    ultimoTs: f.ultimo_ts, sinResponder: f.sin_responder, enEspera: f.derivada, atiendePersona: f.persona,
+    ultimoTs: f.ultimo_ts, sinResponder: f.sin_responder, enEspera: f.derivada, paraAtender: f.sin_responder, atiendePersona: f.persona,
   }));
 }
 
 async function filasPreguntas(org: string, q: string): Promise<FilaBandeja[]> {
   const filas = await consulta<{
     id: string; canal: string | null; texto: string; respuesta: string | null; estado: string; ts: string; ia_estado: string | null;
-    respondida_auto: boolean; titulo: string | null;
+    respondida_auto: boolean; titulo: string | null; atender: boolean;
   }>(`
     select q.id::text, ca.nombre canal, q.texto, q.respuesta, q.estado, coalesce(q.respondida_ts, q.fecha)::text ts, q.ia_estado,
-           q.respondida_auto, coalesce(mi.titulo, pu.titulo) titulo
+           q.respondida_auto, coalesce(mi.titulo, pu.titulo) titulo, ${SQL_PREGUNTA_ATENDER("q")} atender
       from meli_pregunta q
       left join canal ca on ca.id = q.canal_id
       left join publicacion pu on pu.id = q.publicacion_id
@@ -124,7 +126,7 @@ async function filasPreguntas(org: string, q: string): Promise<FilaBandeja[]> {
       nombre: f.titulo ? `Pregunta: ${f.titulo}` : "Pregunta",
       detalle: f.canal ?? "Mercado Libre",
       ultimo: pendiente ? f.texto : f.respuesta ?? "", ultimoClase: pendiente ? "entrante" : f.respondida_auto ? "ia" : "operador", ultimoTs: f.ts,
-      sinResponder: pendiente, enEspera: pendiente && f.ia_estado === "falta_dato", atiendePersona: false,
+      sinResponder: pendiente, enEspera: pendiente && f.ia_estado === "falta_dato", paraAtender: f.atender, atiendePersona: false,
     };
   });
 }
@@ -149,7 +151,7 @@ async function filasReclamos(org: string, q: string): Promise<FilaBandeja[]> {
     nombre: f.nombre || `Reclamo ${f.id}`,
     detalle: [`Reclamo ${f.id}`, f.canal ?? (f.origen === "web" ? "web" : f.origen === "local" ? "local" : null), f.pedido_id ? `pedido ${f.pedido_id}` : null].filter(Boolean).join(" · "),
     ultimo: f.ultimo ?? f.motivo ?? "", ultimoClase: f.de === "comprador" ? "entrante" : f.de === "vendedor" ? "operador" : f.de === "ml" ? "ml" : "entrante",
-    ultimoTs: f.ts, sinResponder: f.atender, enEspera: f.atender, atiendePersona: true,
+    ultimoTs: f.ts, sinResponder: f.atender, enEspera: f.atender, paraAtender: f.atender, atiendePersona: true,
   }));
 }
 
@@ -157,9 +159,7 @@ const DE_ORIGEN: Record<Exclude<FiltroOrigen, "todos">, (f: FilaBandeja) => bool
   whatsapp: (f) => f.origen === "whatsapp" || f.origen === "prueba", instagram: (f) => f.origen === "instagram",
   ml: (f) => f.origen === "ml", pregunta: (f) => f.origen === "pregunta", reclamo: (f) => f.origen === "reclamo",
 };
-const PASA: Record<FiltroBandeja, (f: FilaBandeja) => boolean> = {
-  todos: () => true, sin_responder: (f) => f.sinResponder, en_espera: (f) => f.enEspera, persona: (f) => f.atiendePersona,
-};
+const PASA: Record<FiltroBandeja, (f: FilaBandeja) => boolean> = { atender: (f) => f.paraAtender, todos: () => true };
 
 export async function fotoBandeja(org: string, puede: Puede, filtro: FiltroBandeja, origen: FiltroOrigen, q: string, abierto: string | null): Promise<FotoBandeja> {
   const ve = canales(puede);
@@ -193,9 +193,9 @@ export async function conversacionAbierta(org: string, puede: Puede, clave: stri
 export async function chatAbierto(org: string, id: number): Promise<ChatAbierto | null> {
   if (!Number.isInteger(id)) return null;
   const ch = await una<{ id: number; canal: "whatsapp" | "instagram" | "prueba"; nombre: string; externo: string; cliente_id: number | null; cliente_nombre: string | null;
-    atiende: boolean; notas: string; ultimo_entrante_ts: string | null }>(`
+    atiende: boolean; notas: string; ultimo_entrante_ts: string | null; atender: boolean }>(`
     select ch.id::int, ch.canal, ch.nombre, ch.externo, ch.cliente_id::int, cl.nombre cliente_nombre, ch.atiende_persona_desde is not null atiende,
-           ch.notas, ch.ultimo_entrante_ts::text
+           ch.notas, ch.ultimo_entrante_ts::text, ${SQL_CHAT_ATENDER("ch")} atender
       from chat ch left join cliente cl on cl.id = ch.cliente_id where ch.organizacion_id = $1 and ch.id = $2`, [org, id]);
   if (!ch) return null;
   const [mensajes, casos] = await Promise.all([
@@ -215,7 +215,7 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
     nombre: ch.cliente_nombre || ch.nombre || (ch.canal === "prueba" ? "Prueba" : ch.canal === "whatsapp" ? telefonoLindo(ch.externo) : ch.externo),
     detalle: ch.canal === "whatsapp" ? `WhatsApp · ${telefonoLindo(ch.externo)}${ch.cliente_id ? "" : " · no es cliente cargado"}` : ch.canal === "instagram" ? "Instagram" : "Prueba desde el panel",
     enlaces: ch.cliente_id ? [{ texto: "Ficha del cliente", href: `/ventas/clientes/${ch.cliente_id}` }] : [],
-    ia: ch.canal === "prueba" ? null : { prendida: !ch.atiende }, notas: ch.notas,
+    ia: ch.canal === "prueba" ? null : { prendida: !ch.atiende }, notas: ch.notas, terminar: ch.atender && ch.canal !== "prueba",
     casos: casos.map((c) => ({ id: c.id, asunto: c.asunto, motivo: c.motivo, abiertoTs: c.abierto_ts, asignado: c.asignado, resolver: true })),
     mensajes: mensajes.map((m) => ({
       id: String(m.id), clase: m.clase, texto: m.texto, ts: m.ts, estado: m.estado, motivo: m.motivo, quien: m.quien, usd: m.usd,
@@ -238,10 +238,11 @@ const AVISO_IA: Record<string, string> = {
 
 async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null> {
   const c = await una<{ pack_id: string; canal_id: number | null; canal: string | null; firma: string | null; pedido_id: number | null; nombre: string | null;
-    venta_id: number | null; titulo: string | null; sugerencia: string | null; ia_estado: string | null; persona: boolean; derivada: boolean; producto_id: number | null }>(`
+    venta_id: number | null; titulo: string | null; sugerencia: string | null; ia_estado: string | null; persona: boolean; derivada: boolean; producto_id: number | null;
+    atender: boolean }>(`
     select c.pack_id, c.canal_id::int, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, coalesce(cl.nombre, mv.comprador) nombre,
            mv.venta_id, mv.titulo, c.sugerencia, c.ia_estado, (c.pidio_persona_ts is not null or c.derivada_ts is not null) persona,
-           ${SQL_DERIVADA_ESPERA("c")} derivada,
+           ${SQL_DERIVADA_ESPERA("c")} derivada, ${SQL_ML_ATENDER("c")} atender,
            (select v.producto_id::int from pedido_linea l join variacion v on v.id = l.variacion_id where l.pedido_id = c.pedido_id order by l.id limit 1) producto_id
       from meli_conversacion c left join canal ca on ca.id = c.canal_id left join pedido p on p.id = c.pedido_id
       left join cliente cl on cl.id = p.cliente_id ${VENTA_DEL_PACK("c")}
@@ -260,8 +261,8 @@ async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null>
       ...(c.venta_id ? [{ texto: "Ver la venta", href: `/ventas/historial/${c.venta_id}` }] : []),
       ...(c.producto_id ? [{ texto: "Ficha del producto", href: `/catalogo/productos/${c.producto_id}` }] : []),
     ],
-    ia: { prendida: !c.persona }, notas: null,
-    casos: c.derivada ? [{ id: 0, asunto: "Derivada a una persona", motivo: "La IA le avisó al comprador que una persona del equipo le va a responder. Sale de «En espera» cuando le escribas.", abiertoTs: "", asignado: null, resolver: false }] : [],
+    ia: { prendida: !c.persona }, notas: null, terminar: c.atender,
+    casos: c.derivada ? [{ id: 0, asunto: "Derivada a una persona", motivo: "La IA le avisó al comprador que una persona del equipo le va a responder. Sale de «Para atender» cuando le escribas o toques «Terminado».", abiertoTs: "", asignado: null, resolver: false }] : [],
     mensajes: mensajes.map((m) => ({
       id: m.id, texto: m.texto ?? "(adjunto)", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [],
       clase: !m.de_vendedor ? "entrante" : m.auto ? "ia" : m.usuario ? "operador" : "desde_el_telefono",
@@ -326,7 +327,7 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
       ...(q.permalink ? [{ texto: "Ver la publicación", href: q.permalink, afuera: true }] : []),
       ...(q.producto_id ? [{ texto: "Ficha del producto", href: `/catalogo/productos/${q.producto_id}` }] : []),
     ],
-    ia: null, notas: null, casos: [], mensajes,
+    ia: null, notas: null, terminar: false, casos: [], mensajes,
     aviso: pendiente && q.ia_estado && AVISO_IA[q.ia_estado] ? AVISO_IA[q.ia_estado] : null,
     escribir: {
       puede: pendiente, porQueNo: pendiente ? null : "Ya está respondida.", tope: 2000, proponer: pendiente, sugerencia: pendiente ? q.sugerencia || null : null,
@@ -362,7 +363,7 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
       ...(r.pedido_id ? [{ texto: `Pedido ${r.pedido_id}`, href: `/ventas/pedidos/${r.pedido_id}` }] : []),
       ...(r.cliente_id ? [{ texto: "Ficha del cliente", href: `/ventas/clientes/${r.cliente_id}` }] : []),
     ],
-    ia: null, notas: null,
+    ia: null, notas: null, terminar: false,
     casos: r.atender ? [{ id: 0, asunto: "Reclamo para atender", motivo: r.vence ? `Hay que responder antes del ${r.vence}.` : "Está esperando que lo atiendas.", abiertoTs: "", asignado: null, resolver: false }] : [],
     mensajes: mensajes.map((m) => ({
       id: String(m.id), texto: m.texto || "(adjunto)", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [],

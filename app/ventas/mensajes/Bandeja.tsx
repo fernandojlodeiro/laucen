@@ -1,7 +1,7 @@
 "use client";
 // La bandeja de Mensajes, tipo WhatsApp Web (como la Bandeja de CadaMes; Fer, 25/10): todas las conversaciones de los
 // clientes —WhatsApp, Instagram, mensajes y preguntas de Mercado Libre, reclamos— en una lista, la más nueva primero,
-// con pestañas por lo que hay que hacer (En espera · Sin responder · Todos · Con persona) y botoncitos por canal; a la
+// con dos pestañas —Para atender (lo que espera a una persona) y Todos— y botoncitos por canal; a la
 // derecha, la conversación abierta. Pregunta al servidor cada 5 segundos con una conversación abierta (10 sin abrir)
 // y sólo baja todo si algo cambió.
 //
@@ -14,7 +14,7 @@ import {
   FILTROS, ORIGENES, NOMBRE_ORIGEN,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
 } from "@/lib/mensajes/bandeja-tipos";
-import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionPedirleIa, accionProponerBandeja, accionResolverCaso } from "./acciones";
+import { accionEnviarBandeja, accionIaBandeja, accionNotas, accionPedirleIa, accionProponerBandeja, accionResolverCaso, accionTerminar } from "./acciones";
 import Llave from "./Llave";
 import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
 import CorregirIa from "@/app/componentes/CorregirIa";
@@ -74,7 +74,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
   useEffect(() => {
     const url = new URL(window.location.href);
     if (abierto) url.searchParams.set("con", abierto); else url.searchParams.delete("con");
-    if (filtro === "en_espera") url.searchParams.delete("filtro"); else url.searchParams.set("filtro", filtro);
+    if (filtro === "atender") url.searchParams.delete("filtro"); else url.searchParams.set("filtro", filtro);
     if (origen === "todos") url.searchParams.delete("origen"); else url.searchParams.set("origen", origen);
     window.history.replaceState(null, "", url);
   }, [abierto, filtro, origen]);
@@ -90,7 +90,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
         <header className="px-3 pt-3 pb-2 border-b border-[#F0F3F8]">
           <p className="text-xs text-[#5C6B76]">
             {!foto.conectado && <span className="text-[#8a6100]">WhatsApp sin conectar. </span>}
-            {foto.cuantos.en_espera > 0 ? <b className="text-[#8a6100]">{foto.cuantos.en_espera} en espera de una persona. </b> : "Nada en espera. "}
+            {foto.cuantos.atender > 0 ? <b className="text-[#8a6100]">{foto.cuantos.atender} para atender. </b> : "Nada para atender. "}
             {foto.iaActiva ? `${foto.nombreIa} está atendiendo.` : `${foto.nombreIa} está apagada.`}
           </p>
           <label className="relative block mt-2">
@@ -101,7 +101,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
           </label>
           <div className="flex items-end gap-0.5 mt-2 shadow-[inset_0_-1px_0_#D5DDE5] overflow-x-auto" role="tablist">
             {FILTROS.map((f) => (
-              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => setFiltro(f.clave)} title={f.ayuda}
+              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => { if (f.clave !== filtro) { setFiltro(f.clave); setAbierto(null); } }} title={f.ayuda}
                 className={`shrink-0 rounded-t-lg border px-2 py-1.5 text-xs md:text-[11px] font-semibold ${filtro === f.clave
                   ? "bg-white border-[#D5DDE5] border-b-white shadow-[inset_0_2px_0_#16577F] text-[#16577F]"
                   : "bg-gradient-to-b from-[#FBFCFD] to-[#E4E9EE] border-[#D5DDE5] text-[#5C6B76]"}`}>
@@ -126,7 +126,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
         <div className="flex-1 overflow-y-auto">
           {foto.filas.length === 0 && (
             <p className="text-xs text-[#5C6B76] p-4">
-              {filtro === "en_espera" ? "No hay nada esperando a una persona. 🎉" : filtro === "todos" ? "Cuando un cliente escriba, la conversación aparece acá." : "No hay conversaciones en esta pestaña."}
+              {filtro === "atender" ? "No hay nada esperando a una persona. 🎉" : "Cuando un cliente escriba, la conversación aparece acá."}
             </p>
           )}
           {foto.filas.map((f) => (
@@ -148,7 +148,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
                   </span>
                   <span className="ml-auto flex shrink-0 gap-1">
                     {f.enEspera && <span className="rounded-full bg-[#FFC94D] text-[#3A2A00] text-[10px] font-bold px-1.5">👤 En espera</span>}
-                    {!f.enEspera && f.atiendePersona && f.origen !== "reclamo" && <span className="rounded-full bg-[#EEF3F8] text-[#16577F] text-[10px] font-bold px-1.5">Persona</span>}
+                    {!f.enEspera && f.atiendePersona && f.origen !== "reclamo" && <span className="rounded-full bg-[#EEF3F8] text-[#16577F] text-[10px] font-bold px-1.5">{f.origen === "ml" ? "IA" : foto.nombreIa} apagada</span>}
                     {f.sinResponder && <span className="h-2.5 w-2.5 rounded-full bg-[#25D366] self-center" aria-label="Sin responder" />}
                   </span>
                 </span>
@@ -236,6 +236,17 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
     if (modo === "mandar") { setAviso(`${nombreIa} ya le escribió.`); alCambiar(); }
     else { setTexto(r.texto ?? ""); ultimaSugerencia.current = r.texto ?? null; setAviso(`${nombreIa} lo dejó escrito en la caja: revisalo y apretá «Enviar».`); setTimeout(() => caja.current?.focus(), 30); }
   }
+  // «Terminado» (Fer, 27/10): no hay nada más que decirle; sale de «Para atender» hasta que vuelva a escribir.
+  const [terminado, setTerminado] = useState(false);
+  async function terminar() {
+    if (trabajando) return;
+    setError(null);
+    const r = await accionTerminar(chat.clave);
+    if (!r.ok) { setError(r.error); return; }
+    setTerminado(true);
+    setTimeout(() => setTerminado(false), 4000);
+    alCambiar();
+  }
   async function ia(prender: boolean) {
     setError(null);
     const r = await accionIaBandeja(chat.clave, prender);
@@ -253,6 +264,8 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
           <div className="text-sm font-bold truncate">{chat.nombre}</div>
           <div className="text-[11px] text-[#5C6B76] truncate flex items-center gap-1"><LogoOrigen origen={chat.origen} clase="h-3 w-3 shrink-0" /><span className="truncate">{chat.detalle}</span></div>
         </button>
+        {terminado ? <span className="text-xs font-bold text-[#167655] px-1" role="status">✓ Terminado</span>
+          : chat.terminar && <button type="button" onClick={terminar} disabled={!!trabajando} className={SUAVE} title={`No hay nada más que decirle: sale de «Para atender»${chat.ia ? ` y ${chat.origen === "ml" ? "la IA" : nombreIa} vuelve a atender` : ""}. Si vuelve a escribir, aparece de nuevo.`}>✓ Terminado</button>}
         {chat.notas != null && <button type="button" onClick={() => setVerNotas(!verNotas)} className={SUAVE} title="Notas internas">📝<span className="hidden md:inline"> Notas</span></button>}
         {chat.ia && (
           <button type="button" role="switch" aria-checked={chat.ia.prendida} onClick={() => ia(!chat.ia!.prendida)}

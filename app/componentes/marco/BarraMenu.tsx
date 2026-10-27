@@ -12,8 +12,8 @@ import type { ItemMenu, SeccionMenu } from "@/lib/menu";
 import type { Contador } from "@/lib/avisos-tipos";
 
 /** Lo que espera a una persona (Fer, 25/10): el número amarillo del botón «Mensajes» de la barra del celular. Lo
- *  mismo que «En espera» de la bandeja: WhatsApp en espera, mensajes de ML derivados y reclamos para atender. */
-const enEspera = (cs: Contador[]) => cs.reduce((t, c) => t + (c.clave === "whatsapp" || c.clave === "reclamos" ? c.n ?? 0 : c.clave === "mensajes" ? c.persona ?? 0 : 0), 0);
+ *  mismo que «Para atender» de la bandeja (Fer, 27/10). */
+const enEspera = (cs: Contador[]) => cs.find((c) => c.clave === "atender")?.n ?? 0;
 
 const activa = (ruta: string, href?: string) => !!href && (ruta === href || ruta.startsWith(`${href}/`));
 

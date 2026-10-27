@@ -14,7 +14,7 @@ Las **preguntas** (lo que preguntan antes de comprar) y los **mensajes de posven
 ## Cómo se llega
 
 - Menú **Ventas › Mensajes**, pestaña **Datos de internet**.
-- Las preguntas y los mensajes: en [Mensajes](/ventas/mensajes), los botoncitos con el logo de Mercado Libre (**Mensajes** y **Preguntas**). Los contadores **"Preguntas"** y **"Mensajes"** de la barra de estado abren la bandeja con lo de Mercado Libre sin responder.
+- Las preguntas y los mensajes: en [Mensajes](/ventas/mensajes), los botoncitos con el logo de Mercado Libre (**Mensajes** y **Preguntas**). Lo de Mercado Libre que espera a una persona entra en el contador **"Para atender"** de la barra de estado.
 - Los interruptores **"La IA contesta sola las preguntas"** y **"…los mensajes"**: en **Mensajes › Configuración**, recuadro **Mercado Libre**.
 
 ## Qué hay en la pantalla

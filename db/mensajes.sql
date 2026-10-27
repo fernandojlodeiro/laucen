@@ -198,3 +198,8 @@ begin
 exception when others then
   raise notice 'mensajes-repaso: %', sqlerrm;
 end $$;
+
+-- «Terminado» y lo que no necesita respuesta (Fer, 27/10; lib/mensajes/sql-atender.ts): hasta cuándo el chat no espera
+-- respuesta. Lo pone el botón «Terminado» de la bandeja, y la IA cuando ve que el último mensaje no la necesita (un
+-- «gracias», un emoji). Si el cliente vuelve a escribir después, vuelve a «Para atender».
+alter table chat add column if not exists no_responder_ts timestamptz;

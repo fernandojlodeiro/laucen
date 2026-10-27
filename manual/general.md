@@ -37,10 +37,7 @@ Una franja azul fija abajo de todo, siempre visible:
 - **El interruptor de moneda** ("$" ↔ "US$"): un interruptor de verdad. Tocándolo cambiás si **vos** ves los importes en pesos o en dólares en todas las pantallas. Es una preferencia de cada usuario (y de cada organización): no cambia nada para los demás. De entrada se ve en pesos.
 - **"Dólar: $ …"**: el tipo de cambio oficial venta que rige hoy. Si pasás el mouse dice de qué fecha es y de dónde salió. Si no hay ninguno cargado dice **"sin cargar"** y es un enlace a [Tipo de cambio](/config/tipo-cambio).
 - **Contadores** (cada uno es un enlace):
-  - **"Reclamos"** → [Reclamos y devoluciones](/ventas/reclamos): los reclamos para atender (los de Mercado Libre que esperan tu respuesta y los de la web o el local que siguen abiertos).
-  - **"Mensajes"** → [Mensajes](/ventas/mensajes) con los mensajes de Mercado Libre sin responder.
-  - **"Preguntas"** → [Mensajes](/ventas/mensajes) con las preguntas de Mercado Libre sin responder.
-  - **"WhatsApp"** → [Mensajes](/ventas/mensajes) en la pestaña En espera: los chats que la IA dejó para una persona.
+  - **"Para atender"** → [Mensajes](/ventas/mensajes) en la pestaña Para atender: lo que espera a una persona en todos los canales (lo que la IA derivó, lo que nadie contestó, las preguntas trabadas y los reclamos para atender). Es el mismo número que la pestaña. Abre la bandeja en esa pestaña aunque ya estés en Mensajes.
   - **"Pedidos"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes: los pedidos a preparar. Cuenta los nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
   - **"Facturas"** (permiso Facturación) → [Pedidos](/ventas/pedidos?estado=retenidas) con el filtro «Con la factura retenida»: los pedidos que no se facturaron solos porque el comprador pidió algo para la factura que no está claro, o que piden cambiar una factura ya hecha.
   - Cuando un contador es mayor que cero, el número se resalta en blanco. Si entró algo que **todavía no viste**, se resalta en **amarillo** hasta que entrás a esa pantalla.
