@@ -116,3 +116,13 @@ test("los robots no son visitas: buscadores, vistas previas de links y revisores
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0"]) assert.equal(esRobot(ua), false, ua);
 });
+
+test("el nombre de cada robot en criollo", async () => {
+  const { nombreRobot } = await import("@/lib/tienda/robots");
+  assert.equal(nombreRobot("AdsBot-Google (+http://www.google.com/adsbot.html)"), "Google: revisor de anuncios");
+  assert.equal(nombreRobot("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"), "Google: buscador");
+  assert.equal(nombreRobot("facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"), "Meta: vista previa de links y catálogo");
+  assert.equal(nombreRobot("WhatsApp/2.23.20.0"), "WhatsApp: vista previa de un link compartido");
+  assert.equal(nombreRobot(null), "Sin nombre (no dice qué es)");
+  assert.match(nombreRobot("RaroBot/1.0 (algo)"), /^Otro: RaroBot\/1\.0/);
+});

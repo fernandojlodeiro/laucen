@@ -4,7 +4,8 @@
 // del repo, no en src/.
 
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { anotarRobot } from "@/lib/tienda/robots";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { DOMINIO_PANEL, REDIRIGEN_AL_PANEL, esDelPanel } from "@/lib/tienda/dominios";
 import { abreLaTienda, destinoDeHost } from "@/lib/tienda/dominios-tienda";
@@ -13,7 +14,7 @@ import { aGalleta, deGalleta, entradaDeVisita, esRobot, GALLETA_ENTRADAS, GALLET
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export async function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest, event: NextFetchEvent) {
   const host = req.headers.get("host")?.split(":")[0].toLowerCase() ?? "";
   // laucen.com.ar y los www: al panel (laucen.com), con la misma ruta y query.
   if (REDIRIGEN_AL_PANEL.includes(host)) {
@@ -21,7 +22,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(panel, 308);
   }
   if (!esDelPanel(host)) {
-    const r = await aLaTienda(req, host);
+    const r = await aLaTienda(req, host, event);
     if (r) return r;
   }
 
@@ -53,7 +54,7 @@ export async function middleware(req: NextRequest) {
 /** Un dominio que no es del sistema: el de una tienda (tienda_dominio, lo
  *  carga cada organización en Configuración › Tienda web) o uno desconocido.
  *  /api/ sigue llegando a la app en cualquier dominio. */
-async function aLaTienda(req: NextRequest, host: string): Promise<NextResponse | null> {
+async function aLaTienda(req: NextRequest, host: string, event: NextFetchEvent): Promise<NextResponse | null> {
   const ruta = req.nextUrl.pathname;
   if (ruta.startsWith("/api/")) return null;
   const destino = await destinoDeHost(host).catch((e) => {
@@ -74,18 +75,25 @@ async function aLaTienda(req: NextRequest, host: string): Promise<NextResponse |
   }
   if (ruta.startsWith("/tienda/")) return null;
   const r = reescribir(req, `${base}${ruta === "/" ? "" : ruta}`);
-  anotarEntrada(req, r, host);
+  anotarEntrada(req, r, host, destino.canalId, event);
   return r;
 }
 
 /** El sello del visitante (lib/publicidad/atribucion.ts): cada vez que llega a la tienda desde afuera (una página
  *  entera pedida desde otro sitio, o con el link de un anuncio) se suma esa entrada; y su id, la primera vez. */
-function anotarEntrada(req: NextRequest, r: NextResponse, host: string) {
+function anotarEntrada(req: NextRequest, r: NextResponse, host: string, canalId: number, event: NextFetchEvent) {
   const galleta = { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true, maxAge: 365 * 86_400 };
+  // Un robot no es una visita: se anota cuál pasó (lib/tienda/robots.ts), sin demorar la página.
+  const ua = req.headers.get("user-agent");
+  if (esRobot(ua)) {
+    const archivo = (req.nextUrl.pathname.split("/").pop() ?? "").includes(".");
+    if (!archivo && !req.headers.get("rsc") && !req.headers.get("next-router-prefetch")) event.waitUntil(anotarRobot(canalId, ua, req.nextUrl.pathname));
+    return;
+  }
   // Sólo la página entera (no los pedidos internos de Next al navegar ni los de adelanto).
   const dest = req.headers.get("sec-fetch-dest");
   const esPagina = dest ? dest === "document" : !req.headers.get("rsc") && !req.headers.get("next-router-prefetch") && (req.headers.get("accept") ?? "").includes("text/html");
-  if (!esPagina || esRobot(req.headers.get("user-agent"))) return;
+  if (!esPagina) return;
   // El botón de WhatsApp, los avisos del navegador y los archivos (feed, sitemap) no son una llegada a la tienda.
   const ultimo = req.nextUrl.pathname.split("/").pop() ?? "";
   if (["whatsapp", "v", "sugerencias"].includes(ultimo) || ultimo.includes(".")) return;

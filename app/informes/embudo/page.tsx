@@ -23,6 +23,7 @@ import { conexionGoogle, datosAppGoogleAds } from "@/lib/publicidad/google-ads";
 import { PARAMETROS_GOOGLE } from "@/lib/publicidad/atribucion";
 import { sosVos } from "@/lib/admin";
 import { urlPanel } from "@/lib/tienda/dominios";
+import { consulta } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -65,6 +66,12 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
   const mes = rangoDeAtajo("mes");
   const desde = FECHA.test(sp.desde ?? "") ? sp.desde! : mes.desde;
   const hasta = FECHA.test(sp.hasta ?? "") ? sp.hasta! : mes.hasta;
+  // Los robots que pasaron por la tienda en la última semana (lib/tienda/robots.ts): no cuentan como visitas.
+  const robots = await consulta<{ robot: string; veces: number; ultimo: string; pagina: string | null }>(`
+    select r.robot, sum(r.veces)::int veces, max(r.ultimo_ts)::text ultimo, (array_agg(r.ultima_pagina order by r.ultimo_ts desc))[1] pagina
+      from robot_visita r join canal c on c.id = r.canal_id
+     where c.organizacion_id = $1 and r.dia > (now() at time zone 'America/Argentina/Buenos_Aires')::date - 7
+     group by r.robot order by 2 desc`, [s.org.id]).catch(() => []);
   const [{ filas, anuncios }, meta, app, google, appG, esDueno] = await Promise.all([
     embudo(s.org.id, desde, hasta), conexionMeta(s.org.id), datosAppMetaAnuncios(), conexionGoogle(s.org.id), datosAppGoogleAds(), sosVos()]);
   const appLista = !!(app.appId && app.hayClave && app.configId);
@@ -211,6 +218,31 @@ export default async function EmbudoPublicidad({ searchParams }: { searchParams:
           <a href="/informes/embudo/lista?para=google" download className={SUAVE}>Bajar la lista para Google</a>
           <a href="/informes/embudo/lista?para=meta" download className={SUAVE}>Bajar la lista para Meta</a>
         </div>
+      </div>
+
+      <TituloSeccion titulo="Robots que pasaron por la tienda (últimos 7 días)" />
+      <div className="mb-4">
+        <p className="text-[11px] text-[#5C6B76] mb-2">
+          Programas de Google, Meta y otros que recorren la tienda: para mostrarla en los buscadores, revisar los anuncios o armar la vista previa de un link
+          compartido. No cuentan como visitas ni como consultas.
+        </p>
+        {robots.length === 0 ? <p className={`${CAJA} text-xs text-[#5C6B76]`}>Todavía no pasó ninguno (se anotan desde el 27/10).</p> : (
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Robot</th><th className={THN}>Veces</th><th className={TH}>Última vez</th><th className={TH}>Última página</th></tr></thead>
+              <tbody>
+                {robots.map((r) => (
+                  <tr key={r.robot} className={TR}>
+                    <td className={TD}>{r.robot}</td>
+                    <td className={TDN}>{entero(r.veces)}</td>
+                    <td className={TD}>{cuando(r.ultimo)}</td>
+                    <td className={`${TD} font-mono text-[11px] text-[#5C6B76] max-w-[16rem] truncate`} title={r.pagina ?? ""}>{r.pagina}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {esDueno && (

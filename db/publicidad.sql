@@ -274,3 +274,17 @@ create table if not exists meta_capi_credencial (
 alter table meta_capi_credencial enable row level security;
 -- Cuándo se le avisó la compra a Meta desde el servidor (una sola vez por pedido).
 alter table pedido add column if not exists meta_capi_ts timestamptz;
+
+-- Los robots que pasan por la tienda (Fer, 27/10; lib/tienda/robots.ts): no cuentan como visitas, se anota cuál fue y
+-- cuántas veces por día.
+create table if not exists robot_visita (
+  canal_id          bigint not null references canal(id) on delete cascade,
+  dia               date not null,
+  robot             text not null,
+  veces             int not null default 0,
+  ultima_pagina     text,
+  ultimo_navegador  text,
+  ultimo_ts         timestamptz not null default now(),
+  primary key (canal_id, dia, robot)
+);
+alter table robot_visita enable row level security;
