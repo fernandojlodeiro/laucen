@@ -10,7 +10,12 @@
 //      última hora y en el día (tienda_intento, que también es la auditoría).
 //   3. Cloudflare Turnstile, si la organización cargó sus claves
 //      (tienda_antibot; Configuración › Tienda web). Si Cloudflare no contesta,
-//      se deja pasar: una caída de ellos no puede frenar una compra real.
+//      se deja pasar: una caída de ellos no puede frenar una compra real. En el
+//      checkout, si Cloudflare rechaza, también pasa y queda «sin_turnstile» en
+//      el registro: ya pasó las capas 1 y 2, y Fer prefiere un pedido de más a
+//      perder una compra real (Fer, 27/10: un celular quedó trabado en
+//      «Verificando…»). Al ingresar, al crear la cuenta o al recuperar la
+//      contraseña, sigue cortando.
 //
 // Se usa en el checkout (crea cliente y pedido, y con efectivo reserva stock),
 // al ingresar (probar contraseñas) y al crear la cuenta después de comprar.
@@ -108,8 +113,10 @@ export async function controlarBot(t: Tienda, ruta: Ruta, fd: FormData): Promise
       from tienda_intento where ruta = $1 and ip = $2 and creado_ts > now() - interval '1 day'`, [ruta, ip]);
   if (n.hora >= regla.porHora || n.dia >= regla.porDia) await cortar("tope_ip", "Hubo demasiados intentos desde esta conexión. Probá de nuevo en un rato.");
 
-  if (!(await verificarTurnstile(t.organizacionId, String(fd.get(CAMPO_TURNSTILE) ?? ""), ip)))
+  if (!(await verificarTurnstile(t.organizacionId, String(fd.get(CAMPO_TURNSTILE) ?? ""), ip))) {
+    if (ruta === "checkout") { await registrar(t, ruta, ip, "sin_turnstile", ua); return; }
     await cortar("turnstile", "No pudimos verificar que sos una persona. Recargá la página y probá de nuevo.");
+  }
 
   await registrar(t, ruta, ip, "ok", ua);
 }
