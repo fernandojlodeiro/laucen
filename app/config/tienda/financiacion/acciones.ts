@@ -30,6 +30,13 @@ export async function accionGuardarFinanciacion(fd: FormData) {
   const canal = id(fd, "canal_id");
   await intentar(`${BASE}?canal=${canal}`, async () => {
     const antes = await actual(s.org.id, canal);
+    // Vigencia: «vale desde» y «hasta» (vacías = sin límite).
+    const fechas = (kd: string, kh: string, que: string): [string | null, string | null] => {
+      const d = String(fd.get(kd) ?? "").trim() || null, h = String(fd.get(kh) ?? "").trim() || null;
+      if ((d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) || (h && !/^\d{4}-\d{2}-\d{2}$/.test(h))) throw new ErrorErp(`Revisá las fechas: ${que}.`);
+      if (d && h && h < d) throw new ErrorErp(`${que} termina antes de empezar.`);
+      return [d, h];
+    };
     const planes: PlanEscala[] = [];
     for (let i = 0; i < 12; i++) {
       const cuotas = leerNumero(fd.get(`cuotas_${i}`));
@@ -45,13 +52,16 @@ export async function accionGuardarFinanciacion(fd: FormData) {
       if (desde < 0) throw new ErrorErp("El monto «desde» no puede ser negativo.");
       const codigo = leerNumero(fd.get(`codigo_${i}`));
       if (codigo != null && (!Number.isInteger(codigo) || codigo < 1 || codigo > 999)) throw new ErrorErp("El código de Payway es un número entero (ej. 13 o 16).");
+      const [vdesde, vhasta] = fechas(`vdesde_${i}`, `vhasta_${i}`, `El plan de ${cuotas} cuotas`);
       planes.push({ cuotas, desde, costo_pct: pct("costo", "El costo del plan"), interes_pct: pct("interes", "El interés al cliente"), codigo_payway: codigo,
-        medio: fd.get(`medio_${i}`) === "mercadopago" ? "mercadopago" : "payway" });
+        medio: fd.get(`medio_${i}`) === "mercadopago" ? "mercadopago" : "payway", vigente_desde: vdesde, vigente_hasta: vhasta });
     }
     const descuento = leerNumero(fd.get("descuento_pct")) ?? 0;
     if (descuento < 0 || descuento > 90) throw new ErrorErp("El descuento va de 0 a 90 %.");
     const medios = MEDIOS_CONTADO.map((m) => m.clave).filter((k) => fd.get(`medio_${k}`));
-    await grabar(s.org.id, canal, { ...antes, planes: planes.sort((a, b) => a.cuotas - b.cuotas), descuento_pct: descuento, medios_descuento: medios });
+    const [ddesde, dhasta] = fechas("descuento_desde", "descuento_hasta", "el descuento contado");
+    await grabar(s.org.id, canal, { ...antes, planes: planes.sort((a, b) => a.cuotas - b.cuotas), descuento_pct: descuento, medios_descuento: medios,
+      descuento_desde: ddesde, descuento_hasta: dhasta });
     await guardarVsMl(s.org.id, canal, fd);
     return "Grabado. La tienda ya muestra el esquema nuevo.";
   });

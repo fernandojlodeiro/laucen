@@ -42,3 +42,22 @@ test("bannerVale: días y desde / hasta", () => {
   assert.equal(bannerVale({ dias: [6], desde: null, hasta: null }, mie), false, "no es sábado");
   assert.equal(bannerVale({ dias: null, desde: null, hasta: null }, mie), true);
 });
+
+test("financiacionHoy (Fer, 27/10): sin fechas no vence; fuera de fecha, el plan no se ofrece y el descuento contado no se aplica", async () => {
+  const { financiacionDe, financiacionHoy } = await import("@/lib/tienda/financiacion");
+  const f = financiacionDe({
+    activo: true, descuento_pct: 10, medios_descuento: ["transferencia"], descuento_hasta: "2026-11-30",
+    planes: [
+      { cuotas: 3, medio: "payway", vigente_desde: "2026-10-22", vigente_hasta: "2026-11-30" },
+      { cuotas: 6, medio: "payway", vigente_hasta: "2026-11-30" },
+      { cuotas: 12, medio: "mercadopago" },
+    ],
+  });
+  const nov = financiacionHoy(f, new Date("2026-11-30T23:00:00Z")); // 30/11 a las 20 h de acá
+  assert.deepEqual(nov.planes.map((p) => p.cuotas), [3, 6, 12]);
+  assert.equal(nov.descuento_pct, 10);
+  const dic = financiacionHoy(f, new Date("2026-12-01T03:30:00Z")); // 1/12 a las 0:30 de acá
+  assert.deepEqual(dic.planes.map((p) => p.cuotas), [12], "Mercado Pago, sin fechas, sigue");
+  assert.equal(dic.descuento_pct, 0);
+  assert.deepEqual(financiacionHoy(f, new Date("2026-10-21T15:00:00Z")).planes.map((p) => p.cuotas), [6, 12], "el de 3 todavía no empezó");
+});

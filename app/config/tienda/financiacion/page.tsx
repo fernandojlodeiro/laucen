@@ -8,7 +8,9 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { tiendaDelCanal } from "@/lib/tienda/tienda";
-import { cuotasMpDe, financiacionDe, planDeEscala, textoContado, MEDIOS_CONTADO, type Financiacion } from "@/lib/tienda/financiacion";
+import { cuotasMpDe, financiacionDe, financiacionHoy, planDeEscala, textoContado, MEDIOS_CONTADO, type Financiacion } from "@/lib/tienda/financiacion";
+import { fechaAR } from "@/lib/dias-semana";
+import { fecha } from "@/app/ventas/formato";
 import { entrarErp, Pantalla, Avisos, BotonesFicha, TituloSeccion, editandoFicha, Dato, CAJA, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { Interruptor } from "@/app/radar/Piezas";
@@ -40,6 +42,8 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
   const editando = editandoFicha(sp);
   const aqui = tienda ? `${BASE}?canal=${tienda.id}` : BASE;
   const f = financiacionDe(tienda?.financiacion);
+  // Lo que rige hoy (sin los planes y el descuento fuera de fecha), para los ejemplos.
+  const hoy = financiacionHoy(f);
 
   // Ejemplos con productos de verdad: el más barato, dos del medio y el más caro (con stock).
   const t = tienda ? await tiendaDelCanal(s.org.id, tienda.id) : null;
@@ -144,10 +148,11 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                     <th className={`${TH} text-right`} title="Lo que te cobra el banco o la tarjeta por este plan (sólo para comparar)">Costo del plan</th>
                     <th className={`${TH} text-right`} title="Lo que paga de más el comprador (0 = sin interés)">Interés al cliente</th>
                     <th className={`${TH} text-right`} title="El número que se le manda a Payway para este plan (la «Opción en terminal» de su tabla, ej. 13 o 16). Vacío: la cantidad de cuotas">Cód. Payway</th>
+                    <th className={TH} title="Entre qué fechas se ofrece (hora argentina). Sin fechas, siempre">Vigencia</th>
                     <th className={TH}>Cómo queda</th>
                   </tr></thead>
                   <tbody>
-                    {filas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Sin planes: con el lápiz cargás 3, 6, 12 cuotas o las que quieras.</td></tr>}
+                    {filas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Sin planes: con el lápiz cargás 3, 6, 12 cuotas o las que quieras.</td></tr>}
                     {filas.map((p, i) => editando ? (
                       <tr key={i} className={TR}>
                         <td className={TDN}><CampoNumero name={`cuotas_${i}`} valor={p?.cuotas ?? null} tipo="entero" className={`${CAMPO} w-16`} placeholder={["3", "6", "12", "18"][i] ?? ""} /></td>
@@ -157,6 +162,10 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                         <td className={TDN}><CampoNumero name={`costo_${i}`} valor={p?.costo_pct ?? null} tipo="pct" className={`${CAMPO} w-20`} placeholder="0" /></td>
                         <td className={TDN}><CampoNumero name={`interes_${i}`} valor={p?.interes_pct ?? null} tipo="pct" className={`${CAMPO} w-20`} placeholder="0" /></td>
                         <td className={TDN}><CampoNumero name={`codigo_${i}`} valor={p?.codigo_payway ?? null} tipo="entero" className={`${CAMPO} w-16`} placeholder={p ? String(p.cuotas) : ""} /></td>
+                        <td className={`${TD} whitespace-nowrap`}>
+                          <input type="date" name={`vdesde_${i}`} defaultValue={p?.vigente_desde ?? ""} title="Vale desde" className={`${CAMPO} w-32`} />
+                          <span className="mx-1 text-[#5C6B76]">al</span>
+                          <input type="date" name={`vhasta_${i}`} defaultValue={p?.vigente_hasta ?? ""} title="Hasta" className={`${CAMPO} w-32`} /></td>
                         <td className={`${TD} text-[#5C6B76]`}>{p ? "" : "Nuevo plan (opcional)"}</td>
                       </tr>
                     ) : p && (
@@ -167,6 +176,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                         <td className={TDN}>{p.costo_pct ? pct(p.costo_pct) : "—"}</td>
                         <td className={TDN}>{p.medio === "mercadopago" ? <span className="text-[#5C6B76]">Lo cobra MP</span> : p.interes_pct ? pct(p.interes_pct) : "Sin interés"}</td>
                         <td className={TDN}>{p.medio === "mercadopago" ? "—" : p.codigo_payway ?? <span className="text-[#5C6B76]">{p.cuotas}</span>}</td>
+                        <td className={`${TD} whitespace-nowrap`}><Vigencia desde={p.vigente_desde} hasta={p.vigente_hasta} /></td>
                         <td className={TD}>
                           {p.medio === "mercadopago" ? <span className="text-[#5C6B76]">El comprador paga el interés de Mercado Pago{tasasMp?.has(p.cuotas) ? ` (hoy, de referencia, ${pct(tasasMp.get(p.cuotas)!)})` : ""}; vos, la comisión de un pago{p.costo_pct ? ` (${pct(p.costo_pct)})` : ""}</span>
                             : p.interes_pct === 0 ? (p.costo_pct ? <span className="text-[#5C6B76]">El {pct(p.costo_pct)} del plan lo cubre el precio</span> : <span className="text-[#5C6B76]">Sin interés</span>)
@@ -187,6 +197,13 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                   <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Descuento</span>
                     <CampoNumero name="descuento_pct" valor={f.descuento_pct || null} tipo="pct" className={`${CAMPO} w-24`} placeholder="0" /></label>
                 ) : <Dato etiqueta="Descuento" numero>{f.descuento_pct ? pct(f.descuento_pct) : null}</Dato>}
+                <div><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Vigencia</span>
+                  {editando ? <span className="whitespace-nowrap">
+                    <input type="date" name="descuento_desde" defaultValue={f.descuento_desde ?? ""} title="Vale desde" className={`${CAMPO} w-32`} />
+                    <span className="mx-1 text-[#5C6B76]">al</span>
+                    <input type="date" name="descuento_hasta" defaultValue={f.descuento_hasta ?? ""} title="Hasta" className={`${CAMPO} w-32`} /></span>
+                    : <span className="block py-1.5"><Vigencia desde={f.descuento_desde} hasta={f.descuento_hasta} /></span>}
+                  <span className="block text-[10px] text-[#5C6B76]">Sin fechas, no vence nunca.</span></div>
                 <div><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Con qué medios</span>
                   <span className="flex flex-wrap gap-3 py-1.5">
                     {MEDIOS_CONTADO.map((m) => (
@@ -214,9 +231,9 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                         <td className={`${TDN} text-[#5C6B76]`}>{p.lista > p.venta ? <s>{plata(p.lista)}</s> : null}</td>
                         <td className={TDN}>{plata(p.venta)}{p.lista > p.venta && <span className="block text-[#167655] text-[10px] font-semibold">{Math.round((1 - p.venta / p.lista) * 100)}% OFF</span>}</td>
                         <td className={TD}>
-                          <span className="block">{textoTarjeta(f, p.venta)}</span>
-                          {f.descuento_pct > 0 && f.medios_descuento.length > 0 && (
-                            <span className="block text-[#167655]">{plata(p.venta * (1 - f.descuento_pct / 100))} {textoContado(f.medios_descuento)}</span>
+                          <span className="block">{textoTarjeta(hoy, p.venta)}</span>
+                          {hoy.descuento_pct > 0 && hoy.medios_descuento.length > 0 && (
+                            <span className="block text-[#167655]">{plata(p.venta * (1 - hoy.descuento_pct / 100))} {textoContado(hoy.medios_descuento)}</span>
                           )}
                         </td>
                       </tr>
@@ -230,4 +247,12 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
       )}
     </Pantalla>
   );
+}
+
+/** «Siempre», «Desde el …», «Hasta el …» o «… al …», con «Vencido» o «Todavía no» (hora argentina). */
+function Vigencia({ desde, hasta }: { desde?: string | null; hasta?: string | null }) {
+  const hoy = fechaAR(), f = (x: string) => fecha(x + "T12:00");
+  const texto = !desde && !hasta ? "Siempre" : desde && hasta ? `${f(desde)} al ${f(hasta)}` : desde ? `Desde el ${f(desde)}` : `Hasta el ${f(hasta!)}`;
+  return <>{texto}{hasta && hasta < hoy && <span className="ml-1 font-semibold text-[#8a6100]">Vencido</span>}
+    {desde && desde > hoy && <span className="ml-1 font-semibold text-[#8a6100]">Todavía no</span>}</>;
 }

@@ -19,13 +19,25 @@
 //     suma nada de este lado); la cuota que se muestra es de referencia (lib/tienda/tasas-mp.ts).
 //   - Descuento por pago contado: un % para transferencia, efectivo y/o débito
 //     (débito = Payway con tarjeta de débito, en un pago).
+//   - Vigencia (Fer, 27/10): cada plan y el descuento contado pueden tener «vale desde» y «hasta»
+//     (hora argentina). Sin fechas, no vencen nunca. Fuera de fecha, el plan no se ofrece y el
+//     descuento no se aplica (financiacionTienda los saca; la pantalla de configuración los ve todos).
 
 import type { Tienda } from "@/lib/tienda/tienda";
+import { fechaAR } from "@/lib/dias-semana";
 
 export type MedioPlan = "payway" | "mercadopago";
-export type PlanEscala = { cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null; medio: MedioPlan };
+export type PlanEscala = {
+  cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null; medio: MedioPlan;
+  /** Vigencia, "AAAA-MM-DD" (null = sin límite). */
+  vigente_desde?: string | null; vigente_hasta?: string | null;
+};
 export type MedioContado = "transferencia" | "efectivo" | "debito";
-export type Financiacion = { activo: boolean; planes: PlanEscala[]; descuento_pct: number; medios_descuento: MedioContado[] };
+export type Financiacion = {
+  activo: boolean; planes: PlanEscala[]; descuento_pct: number; medios_descuento: MedioContado[];
+  /** Vigencia del descuento contado, "AAAA-MM-DD" (null = sin límite). */
+  descuento_desde?: string | null; descuento_hasta?: string | null;
+};
 
 export const MEDIOS_CONTADO: { clave: MedioContado; nombre: string }[] = [
   { clave: "transferencia", nombre: "Transferencia" }, { clave: "efectivo", nombre: "Efectivo" }, { clave: "debito", nombre: "Tarjeta de débito" },
@@ -47,6 +59,13 @@ export function marcasPermitidas(f: Financiacion, debito: boolean, cuotas: numbe
   return f.medios_descuento.includes("debito") ? (id) => !MARCAS_DEBITO.includes(id) : () => true;
 }
 
+const fechaO = (x: unknown) => (typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null);
+
+/** ¿Vale ese día (hora argentina)? Sin fechas, siempre. */
+export function vigente(desde: string | null | undefined, hasta: string | null | undefined, hoy = fechaAR()): boolean {
+  return (!desde || desde <= hoy) && (!hasta || hasta >= hoy);
+}
+
 const num = (x: unknown, min: number, max: number) => {
   const n = Number(x);
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
@@ -59,14 +78,23 @@ export function financiacionDe(x: unknown): Financiacion {
   const planes = (Array.isArray(f.planes) ? f.planes : [])
     .map((p) => ({ cuotas: Math.trunc(num(p?.cuotas, 0, 24)), desde: num(p?.desde, 0, 1e12), costo_pct: num(p?.costo_pct, 0, 300), interes_pct: num(p?.interes_pct, 0, 300),
       codigo_payway: Number.isInteger(Number(p?.codigo_payway)) && Number(p?.codigo_payway) > 0 && Number(p?.codigo_payway) < 1000 ? Number(p?.codigo_payway) : null,
-      medio: (p?.medio === "mercadopago" ? "mercadopago" : "payway") as MedioPlan }))
+      medio: (p?.medio === "mercadopago" ? "mercadopago" : "payway") as MedioPlan,
+      vigente_desde: fechaO(p?.vigente_desde), vigente_hasta: fechaO(p?.vigente_hasta) }))
     .filter((p) => p.cuotas >= 2 && !vistos.has(p.cuotas) && vistos.add(p.cuotas))
     .sort((a, b) => a.cuotas - b.cuotas);
   const medios = (Array.isArray(f.medios_descuento) ? f.medios_descuento : []).filter((m): m is MedioContado => MEDIOS_CONTADO.some((x) => x.clave === m));
-  return { activo: !!f.activo, planes, descuento_pct: num(f.descuento_pct, 0, 90), medios_descuento: medios };
+  return { activo: !!f.activo, planes, descuento_pct: num(f.descuento_pct, 0, 90), medios_descuento: medios,
+    descuento_desde: fechaO(f.descuento_desde), descuento_hasta: fechaO(f.descuento_hasta) };
 }
 
-export const financiacionTienda = (t: Tienda) => financiacionDe(t.config.financiacion);
+/** El esquema que rige hoy en la tienda: sin los planes fuera de fecha y, si el descuento contado no está en fecha, sin él. */
+export function financiacionHoy(f: Financiacion, ahora = new Date()): Financiacion {
+  const hoy = fechaAR(ahora);
+  return { ...f, planes: f.planes.filter((p) => vigente(p.vigente_desde, p.vigente_hasta, hoy)),
+    descuento_pct: vigente(f.descuento_desde, f.descuento_hasta, hoy) ? f.descuento_pct : 0 };
+}
+
+export const financiacionTienda = (t: Tienda) => financiacionHoy(financiacionDe(t.config.financiacion));
 
 /** Los planes que se pueden elegir al pagar: todos, cueste lo que cueste la compra ("desde" sólo
  *  decide qué se muestra en la tarjeta). Con `medio`, sólo los que se cobran por ahí. En los de
