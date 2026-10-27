@@ -82,7 +82,8 @@ Datos de la ficha: Estado (y cuántos intentos, si fue más de uno), CAE y su ve
 Si ARCA contestó algo (un rechazo, un error o una observación), aparece en un recuadro "ARCA: …".
 
 Más abajo:
-- **Líneas**: Descripción, Cantidad, Unitario (con IVA), y si discrimina IVA: IVA (alícuota), Neto, IVA $; y Total.
+- **Líneas**: Descripción, Cantidad, Unitario (con IVA), **% Bonif.** (sólo si alguna línea tiene bonificación), y si discrimina IVA: IVA (alícuota), Neto, IVA $; y Total.
+- **Bonificación**: en una venta de la tienda web con descuento (por la forma de pago, por pagar en cuotas ciertos días u otra regla comercial), cada línea va con el precio de antes del descuento y su **% Bonif.**, como lo vio el comprador al comprar; el total de la línea es el ya bonificado. El PDF de la factura muestra la misma columna.
 - **IVA por alícuota**: neto gravado e IVA de cada alícuota. En un comprobante C dice "Comprobante C: no discrimina IVA."
 - Totales: Neto, IVA, Total.
 - **"Lo que se mandó y lo que contestó ARCA (XML)"**: desplegable con el pedido enviado y la respuesta recibida, con el token y la firma de acceso ocultos.

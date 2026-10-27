@@ -53,8 +53,8 @@ export default async function DetalleComprobante({ params, searchParams }: { par
       from comprobante where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   const [lineas, notas, asociado, enMl] = await Promise.all([
-    consulta<{ id: number; descripcion: string; cantidad: number; precio_unit: number; iva_pct: number; neto: number; iva: number; total: number }>(`
-      select id::int, descripcion, cantidad::float, precio_unit::float, iva_pct::float, neto::float, iva::float, total::float
+    consulta<{ id: number; descripcion: string; cantidad: number; precio_unit: number; iva_pct: number; neto: number; iva: number; total: number; bonif_pct: number }>(`
+      select id::int, descripcion, cantidad::float, precio_unit::float, iva_pct::float, neto::float, iva::float, total::float, bonif_pct::float
         from comprobante_linea where comprobante_id = $1 and organizacion_id = $2 order by orden, id`, [cid, s.org.id]),
     consulta<Relacionado>(`select id::int, tipo_cbte, punto_venta, numero::text, estado from comprobante
                             where comprobante_asociado_id = $1 and organizacion_id = $2 order by id`, [cid, s.org.id]),
@@ -141,6 +141,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
           <thead className={THEAD}>
             <tr>
               <th className={TH}>Descripción</th><th className={THN}>Cantidad</th><th className={THN}>Unitario (con IVA)</th>
+              {lineas.some((l) => l.bonif_pct > 0) && <th className={THN} title="Descuento del carrito de la tienda (forma de pago, promociones)">% Bonif.</th>}
               {discrimina && <><th className={THN}>IVA</th><th className={THN}>Neto</th><th className={THN}>IVA $</th></>}
               <th className={THN}>Total</th>
             </tr>
@@ -151,6 +152,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
                 <td className={TD}>{l.descripcion}</td>
                 <td className={TDN}>{l.cantidad.toLocaleString("es-AR")}</td>
                 <td className={TDN}>{plata(l.precio_unit)}</td>
+                {lineas.some((x) => x.bonif_pct > 0) && <td className={TDN}>{l.bonif_pct > 0 ? pct(l.bonif_pct) : ""}</td>}
                 {discrimina && <><td className={TDN}>{pct(l.iva_pct)}</td><td className={TDN}>{plata(l.neto)}</td><td className={TDN}>{plata(l.iva)}</td></>}
                 <td className={TDN}>{plata(l.total)}</td>
               </tr>

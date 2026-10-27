@@ -95,7 +95,9 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
         localidad: d.entrega.localidad ?? undefined, provincia: d.entrega.provincia ?? undefined, codigo_postal: d.entrega.codigo_postal ?? undefined } : null,
     },
     moneda: t.moneda,
-    lineas: cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo })),
+    lineas: cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo,
+      // El precio antes de los descuentos del carrito: el pedido y la factura muestran el % de descuento (Fer, 27/10).
+      datos_externos: { tienda: { precio_venta: l.ventaUnit } } })),
     medio_pago: medio.nombre,
     estado_pago: d.medio === "cuenta_corriente" ? "a_convenir" : d.medio === "efectivo" ? "a_cobrar" : "pendiente",
     costo_envio: cot.envio.costo,

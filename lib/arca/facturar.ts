@@ -144,9 +144,15 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
   else if (dni?.length === 11) { docTipo = 80; docNro = dni; }
   if (tipo === 1 && docTipo !== 80) throw new ErrorErp("Para una factura A el cliente necesita CUIT: corregilo en la ficha del cliente.");
 
-  const lineas = await q<{ variacion_id: number | null; titulo: string; cantidad: number; unit: string; iva_pct: string | null }>(`
-    select l.variacion_id::int, l.titulo, l.cantidad, l.precio_unit_ars unit, pr.iva_pct
-      from pedido_linea l left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
+  // bonif: el % de descuento del carrito de la tienda (por la forma de pago, reglas, miércoles y sábados…), sacado del
+  // precio antes de los descuentos que guardó el checkout. La factura lo muestra como bonificación, igual que el pedido
+  // (Fer, 27/10); el importe de la línea es el mismo de siempre.
+  const lineas: { variacion_id: number | null; titulo: string; cantidad: number; unit: string; iva_pct: string | null; bonif?: number }[] = await q<{
+    variacion_id: number | null; titulo: string; cantidad: number; unit: string; iva_pct: string | null; bonif: number }>(`
+    select l.variacion_id::int, l.titulo, l.cantidad, l.precio_unit_ars unit, pr.iva_pct,
+           coalesce(round(100 * (1 - (case when pe.moneda = 'USD' then l.precio_unit_usd else l.precio_unit_ars end)
+                                    / nullif((l.datos_externos #>> '{tienda,precio_venta}')::numeric, 0)), 2), 0)::float8 bonif
+      from pedido_linea l join pedido pe on pe.id = l.pedido_id left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
      where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   if (!lineas.length) throw new ErrorErp("El pedido no tiene líneas.");
   // El envío que pagó el comprador va como una línea más (IVA 21 %).
@@ -160,7 +166,10 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
     const total = r2(Number(l.unit) * l.cantidad);
     const pct = conIva ? Number(l.iva_pct ?? 21) : 0;
     const neto = conIva ? r2(total / (1 + pct / 100)) : total;
-    return { ...l, total, iva_pct: pct, neto, iva: r2(total - neto) };
+    // Con bonificación, el precio unitario es el de antes del descuento (el total no cambia).
+    const bonif = l.bonif && l.bonif > 0 && l.bonif < 100 ? l.bonif : 0;
+    const unit = bonif ? r2(Number(l.unit) / (1 - bonif / 100)) : Number(l.unit);
+    return { ...l, unit: String(unit), bonif, total, iva_pct: pct, neto, iva: r2(total - neto) };
   });
   const t = discriminar(items, conIva);
 
@@ -175,9 +184,9 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
         JSON.stringify(conIva ? t.alicuotas.map((a) => ({ id: a.id, pct: a.pct, base: a.base, importe: a.importe })) : []), usuarioId, e.id, p.leyenda]);
     const id = Number(cb.rows[0].id);
     for (const [i, l] of items.entries()) {
-      await cx.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
-                      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [org, id, l.variacion_id, l.titulo, l.cantidad, Number(l.unit), l.iva_pct, l.neto, l.iva, l.total, i]);
+      await cx.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden, bonif_pct)
+                      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [org, id, l.variacion_id, l.titulo, l.cantidad, Number(l.unit), l.iva_pct, l.neto, l.iva, l.total, i, l.bonif]);
     }
     return id;
   };
@@ -201,8 +210,8 @@ export async function prepararNotaCredito(org: string, facturaId: number, usuari
              receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, id, $4, (now() at time zone 'America/Argentina/Buenos_Aires')::date, emisor_id, leyenda
         from comprobante where id = $1 and organizacion_id = $2 returning id`, [facturaId, org, tipoNc, usuarioId]);
     const id = Number(r.rows[0].id);
-    await c.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
-                   select organizacion_id, $2, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden from comprobante_linea where comprobante_id = $1`, [facturaId, id]);
+    await c.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden, bonif_pct)
+                   select organizacion_id, $2, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden, bonif_pct from comprobante_linea where comprobante_id = $1`, [facturaId, id]);
     return id;
   });
 }

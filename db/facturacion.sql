@@ -199,6 +199,9 @@ create table if not exists comprobante_linea (
 create index if not exists comprobante_linea_cbte on comprobante_linea (comprobante_id, orden);
 alter table comprobante_linea enable row level security;
 select erp_politica_org('comprobante_linea');
+-- Bonificación de la línea (Fer, 27/10): el % de descuento del carrito de la tienda (forma de pago, reglas). Con
+-- bonificación, precio_unit es el de antes del descuento y total, el importe ya bonificado (cantidad × precio_unit × (1 − %)).
+alter table comprobante_linea add column if not exists bonif_pct numeric(6, 2) not null default 0;
 
 -- La llave de las tareas periódicas del ERP. El job de pg_cron (creado a
 -- mano en Supabase el 2/10, nombre 'erp-tareas', cada 2 minutos) llama a

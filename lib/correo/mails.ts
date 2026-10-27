@@ -38,6 +38,8 @@ export async function tiendaParaPedido(org: string, pedidoId: number | null): Pr
 type DatosPedido = {
   id: number; codigo: string | null; moneda: Moneda; total: string; email: string | null; nombre: string | null; medio: string | null;
   metodo: string | null; metodo_tipo: string | null; costo_envio: string; envio: { direccion?: Record<string, string | null> | null; sucursal_oca?: { nombre: string; direccion: string } | null } | null;
+  /** Los descuentos del carrito de la tienda, con su nombre y % («Descuento del 10 % por pagar con Transferencia»). */
+  descuentos: { nombre: string; importe: number }[] | null;
 };
 
 async function datosPedido(org: string, pedidoId: number) {
@@ -47,20 +49,25 @@ async function datosPedido(org: string, pedidoId: number) {
            coalesce(p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre_pila, cl.nombre) nombre,
            -- Un pedido cargado a mano no tiene el medio de la tienda: «Transferencia» cuenta como transferencia.
            coalesce(p.datos_externos #>> '{tienda,medio}', case when p.medio_pago ilike 'transfer%' then 'transferencia' end) medio,
-           me.nombre metodo, me.tipo metodo_tipo, p.costo_envio_ars costo_envio, p.envio
+           me.nombre metodo, me.tipo metodo_tipo, p.costo_envio_ars costo_envio, p.envio, p.datos_externos #> '{tienda,descuentos}' descuentos
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
   if (!p) return null;
-  const lineas = await consulta<{ titulo: string; cantidad: number; unit: string }>(`
-    select titulo, cantidad::int, case when $2 = 'USD' then precio_unit_usd else precio_unit_ars end unit
+  // unit: el precio antes de los descuentos del carrito (si la tienda lo guardó), para mostrar abajo cada descuento como en el checkout.
+  const lineas = await consulta<{ titulo: string; cantidad: number; unit: string; antes: boolean }>(`
+    select titulo, cantidad::int, datos_externos #> '{tienda,precio_venta}' is not null antes, coalesce((datos_externos #>> '{tienda,precio_venta}')::numeric, case when $2 = 'USD' then precio_unit_usd else precio_unit_ars end) unit
       from pedido_linea where pedido_id = $1 order by orden, id`, [pedidoId, p.moneda]);
   return { p, lineas };
 }
 
-function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string }[], p: DatosPedido) {
+function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string; antes?: boolean }[], p: DatosPedido) {
   const filas = lineas.map((l) => `<tr><td style="padding:6px 8px 6px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere">${l.cantidad} × ${escapar(l.titulo)}</td>
     <td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${formatear(Number(l.unit) * l.cantidad, p.moneda)}</td></tr>`).join("");
-  return `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">${filas}
+  // Los descuentos (y el interés de las cuotas, en negativo), como en el resumen del checkout.
+  // Sólo si las líneas vienen con el precio de antes del descuento (si no, ya lo tienen aplicado).
+  const descuentos = (lineas.some((l) => l.antes) ? p.descuentos ?? [] : []).filter((x) => Number(x.importe) !== 0).map((x) => `<tr><td style="padding:6px 0;color:#167655">${escapar(x.nombre)}</td>
+    <td style="padding:6px 0;text-align:right;white-space:nowrap;color:#167655">${Number(x.importe) > 0 ? "−" : "+"} ${formatear(Math.abs(Number(x.importe)), p.moneda)}</td></tr>`).join("");
+  return `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">${filas}${descuentos}
     ${Number(p.costo_envio) > 0 ? `<tr><td style="padding:6px 0">Envío</td><td style="padding:6px 0;text-align:right;white-space:nowrap">${formatear(Number(p.costo_envio), "ARS")}</td></tr>` : ""}
     <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700;white-space:nowrap">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
 }

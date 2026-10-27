@@ -84,7 +84,9 @@ export async function cambiarFormaDePago(t: Tienda, codigo: string, medio: strin
   await enTransaccion(async (c) => {
     const viejas = (await c.query<{ id: string }>("select id from pedido_linea where pedido_id = $1", [p.id])).rows.map((x) => Number(x.id));
     await quitarLineas(org, p.id, viejas, "tienda", c, "cambio de forma de pago");
-    await agregarLineas(org, p.id, cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo })),
+    await agregarLineas(org, p.id, cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo,
+      // El precio antes de los descuentos del carrito: el pedido y la factura muestran el % de descuento (Fer, 27/10).
+      datos_externos: { tienda: { precio_venta: l.ventaUnit } } })),
       "tienda", c, { nota: "cambio de forma de pago" });
     const tienda = { descuentos: cot.descuentos, subtotal: cot.subtotal, medio: base, debito: medio === "payway_debito" ? true : null, cuotas: cot.cuotas ? cot.cuotas.elegidas : null };
     await c.query(`

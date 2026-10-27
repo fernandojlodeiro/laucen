@@ -50,8 +50,10 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   if (c.estado !== "autorizado") throw new ErrorErp("El comprobante todavía no tiene CAE.");
   const e = await emisorDe(org, c.emisor_id ? Number(c.emisor_id) : null);
   if (!e) throw new ErrorErp("Faltan los datos del emisor.");
-  const lineas = await consulta<{ descripcion: string; cantidad: string; precio_unit: string; iva_pct: string; neto: string; total: string }>(
-    "select descripcion, cantidad, precio_unit, iva_pct, neto, total from comprobante_linea where comprobante_id = $1 order by orden, id", [id]);
+  const lineas = await consulta<{ descripcion: string; cantidad: string; precio_unit: string; iva_pct: string; neto: string; total: string; bonif_pct: string }>(
+    "select descripcion, cantidad, precio_unit, iva_pct, neto, total, bonif_pct from comprobante_linea where comprobante_id = $1 order by orden, id", [id]);
+  // Con alguna línea bonificada (descuento del carrito de la tienda), la columna «% Bonif.» y el precio unitario de antes del descuento.
+  const conBonif = lineas.some((l) => Number(l.bonif_pct) > 0);
   const tipo = TIPOS_CBTE[c.tipo_cbte];
   const discrimina = tipo.letra === "A";
 
@@ -105,20 +107,27 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   let y = 620;
   pagina.drawRectangle({ x: 30, y: y - 4, width: 535, height: 16, color: rgb(0.9, 0.92, 0.94) });
   texto(pagina, "Descripción", 36, y, 8, fb);
-  derecha(pagina, "Cant.", 360, y, 8, fb);
-  derecha(pagina, discrimina ? "P. unit. s/IVA" : "P. unitario", 440, y, 8, fb);
-  if (discrimina) derecha(pagina, "IVA", 480, y, 8, fb);
+  const xUnit = conBonif ? 410 : 440;
+  derecha(pagina, "Cant.", conBonif ? 335 : 360, y, 8, fb);
+  derecha(pagina, discrimina ? "P. unit. s/IVA" : "P. unitario", xUnit, y, 8, fb);
+  if (conBonif) derecha(pagina, "% Bonif.", 455, y, 8, fb);
+  if (discrimina) derecha(pagina, "IVA", 490, y, 8, fb);
   derecha(pagina, discrimina ? "Subtotal s/IVA" : "Subtotal", 559, y, 8, fb);
   y -= 18;
   for (const l of lineas) {
     if (y < 190) break; // una página alcanza para los pedidos de hoy; si no, se corta (TODO: más páginas)
     const cant = Number(l.cantidad);
     const desc = limpio(l.descripcion);
-    const corte = desc.length > 62 ? desc.slice(0, 62) + "…" : desc;
+    const largo = conBonif ? 56 : 62;
+    const corte = desc.length > largo ? desc.slice(0, largo) + "…" : desc;
     texto(pagina, corte, 36, y, 8);
-    derecha(pagina, cant.toLocaleString("es-AR"), 360, y, 8);
-    derecha(pagina, pesos(discrimina ? Number(l.neto) / cant : Number(l.precio_unit)), 440, y, 8);
-    if (discrimina) derecha(pagina, `${Number(l.iva_pct)}%`, 480, y, 8);
+    derecha(pagina, cant.toLocaleString("es-AR"), conBonif ? 335 : 360, y, 8);
+    const bonif = Number(l.bonif_pct);
+    // Bonificada: el unitario es el de antes del descuento (sin IVA, en la A); si no, como siempre.
+    const unit = discrimina ? (bonif > 0 ? Number(l.precio_unit) / (1 + Number(l.iva_pct) / 100) : Number(l.neto) / cant) : Number(l.precio_unit);
+    derecha(pagina, pesos(unit), xUnit, y, 8);
+    if (conBonif) derecha(pagina, bonif > 0 ? `${bonif.toLocaleString("es-AR", { maximumFractionDigits: 2 })}%` : "", 455, y, 8);
+    if (discrimina) derecha(pagina, `${Number(l.iva_pct)}%`, 490, y, 8);
     derecha(pagina, pesos(discrimina ? Number(l.neto) : Number(l.total)), 559, y, 8);
     y -= 14;
   }
