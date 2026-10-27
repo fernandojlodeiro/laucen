@@ -27,6 +27,7 @@ import {
 } from "../../piezas";
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
+import { vistosPorElVisitante } from "@/lib/tienda/visitantes";
 import Galeria from "./Galeria";
 import Cantidad from "./Cantidad";
 
@@ -119,11 +120,15 @@ export default async function Producto({ params, searchParams }: Props) {
     !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesDisponibles(fin, { tasasMp })) : planesDe(t.organizacionId, v.id),
     envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(), contadoDe(t),
   ]);
+  const idsVistos = await vistosPorElVisitante(t.organizacionId);
   const base = catalogo.find((x) => x.id === p.id);
   const relacionadosBase = p.familia_id
     ? catalogo.filter((x) => x.id !== p.id && x.stock > 0 && arbol.cadena(x.familiaId).includes(p.familia_id!)).sort((a, b) => b.vendidos - a.vendidos || b.creado - a.creado).slice(0, 12)
     : [];
-  const [yo, relacionados] = await Promise.all([base ? aTarjetas(t, [base]) : Promise.resolve([]), aTarjetas(t, relacionadosBase)]);
+  // Lo que miró antes (Fer, 27/10, como Mercado Libre): del catálogo, que ya deja afuera lo que no se puede vender.
+  const porId = new Map(catalogo.map((x) => [x.id, x]));
+  const vistosBase = idsVistos.filter((i) => i !== p.id).map((i) => porId.get(i)).filter((x): x is NonNullable<typeof x> => !!x).slice(0, 12);
+  const [yo, relacionados, vistos] = await Promise.all([base ? aTarjetas(t, [base]) : Promise.resolve([]), aTarjetas(t, relacionadosBase), aTarjetas(t, vistosBase)]);
   const masVendido = yo[0]?.masVendido ?? false;
   const plan = fin.activo ? (v ? planDeEscala(fin, v.venta) : null) : planParaMostrar(planes);
   const cuotasMp = fin.activo && v ? cuotasMpDe(fin, v.venta) : null;
@@ -365,6 +370,15 @@ export default async function Producto({ params, searchParams }: Props) {
             <h2 className="text-xl font-normal text-[var(--texto)] sm:text-2xl">Productos relacionados</h2>
             <Carrusel etiqueta="Productos relacionados" ancho="w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[19%]">
               {relacionados.map((x) => <TarjetaProducto key={x.id} t={t} p={x} />)}
+            </Carrusel>
+          </section>
+        )}
+
+        {vistos.length > 0 && (
+          <section className="space-y-3 border-t border-[var(--linea)] p-4 sm:p-6">
+            <h2 className="text-xl font-normal text-[var(--texto)] sm:text-2xl">Viste antes</h2>
+            <Carrusel etiqueta="Viste antes" ancho="w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[19%]">
+              {vistos.map((x) => <TarjetaProducto key={x.id} t={t} p={x} />)}
             </Carrusel>
           </section>
         )}

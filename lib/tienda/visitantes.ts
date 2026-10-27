@@ -37,3 +37,18 @@ export async function unirVisitante(org: string, visitante: string | null, a: { 
     update visitante set cliente_id = coalesce($3, cliente_id), chat_id = coalesce($4, chat_id), ultimo_ts = now()
      where organizacion_id = $1 and id = $2`, [org, visitante, a.clienteId ?? null, a.chatId ?? null]).catch((e) => console.error("[visitantes] unir", e));
 }
+
+/** Los productos que miró este visitante, del último al primero, sin repetir (Fer, 27/10: «Lo que viste» en la portada y
+ *  «Viste antes» en la ficha, como Mercado Libre). Sólo los ids: quien lo muestra los cruza con el catálogo, que ya
+ *  respeta las reglas de la web (activo, con precio, con stock). Sin galleta o si algo falla, no hay nada. */
+export async function vistosPorElVisitante(org: string, limite = 24): Promise<number[]> {
+  try {
+    const { visitante } = await visitaActual();
+    if (!visitante) return [];
+    const r = await consulta<{ producto_id: number }>(`
+      select producto_id::int from visitante_evento
+       where organizacion_id = $1 and visitante = $2 and tipo = 'producto' and producto_id is not null and ts > now() - interval '90 days'
+       group by producto_id order by max(ts) desc limit $3`, [org, visitante, limite]);
+    return r.map((x) => x.producto_id);
+  } catch (e) { console.error("[visitantes] vistos", e); return []; }
+}

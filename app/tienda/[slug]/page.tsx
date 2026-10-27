@@ -17,6 +17,7 @@ import { bannersDeLaPortada } from "@/lib/tienda/banners";
 import Carrusel from "./Carrusel";
 import { headers } from "next/headers";
 import { dominioCanonico } from "@/lib/tienda/seo";
+import { vistosPorElVisitante } from "@/lib/tienda/visitantes";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ function Fila({ titulo, ver, productos, t, encima }: { titulo: string; ver?: { t
 
 export default async function InicioTienda({ params }: { params: Promise<{ slug: string }> }) {
   const t = await cargarTienda((await params).slug);
-  const [catalogo, arbol, envio, medios, cuenta, idsDestacados, idsNovedades, fuera] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t), idsDe(t.canalId, "destacados"), idsDe(t.canalId, "novedades"), familiasFueraDe(t.canalId)]);
+  const [catalogo, arbol, envio, medios, cuenta, idsDestacados, idsNovedades, fuera, idsVistos] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t), idsDe(t.canalId, "destacados"), idsDe(t.canalId, "novedades"), familiasFueraDe(t.canalId), vistosPorElVisitante(t.organizacionId)]);
   const nombre = nombreTienda(t);
   const c = t.config;
   const r = (x = "") => rutaTienda(t, x);
@@ -61,6 +62,8 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
   const porId = new Map(conStock.map((p) => [p.id, p]));
   const elegidos = (ids: number[]) => ids.map((i) => porId.get(i)).filter((p): p is ProductoBase => !!p);
   const destacados = elegidos(idsDestacados);
+  // Quien vuelve ve primero lo que miró (Fer, 27/10, como Mercado Libre); quien entra por primera vez, la portada de siempre.
+  const vistos = elegidos(idsVistos).slice(0, CANTIDAD);
   const ofertas = enPortada.filter((p) => p.lista > p.venta).sort((a, b) => b.lista / b.venta - a.lista / a.venta).slice(0, CANTIDAD);
   const vendidos = enPortada.filter((p) => p.vendidos > 0).sort((a, b) => b.vendidos - a.vendidos).slice(0, CANTIDAD);
   const novedades = idsNovedades.length ? elegidos(idsNovedades) : [...enPortada].sort((a, b) => b.creado - a.creado || b.id - a.id).slice(0, CANTIDAD);
@@ -69,7 +72,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
     f, productos: enPortada.filter((p) => arbol.cadena(p.familiaId).includes(f.id)).sort((a, b) => b.vendidos - a.vendidos || b.creado - a.creado).slice(0, CANTIDAD),
   }));
   const todos = new Map<number, ProductoBase>();
-  for (const l of [destacados, ofertas, vendidos, novedades, ...porCategoria.map((x) => x.productos)]) for (const p of l) todos.set(p.id, p);
+  for (const l of [vistos, destacados, ofertas, vendidos, novedades, ...porCategoria.map((x) => x.productos)]) for (const p of l) todos.set(p.id, p);
   const tarjetas = new Map((await aTarjetas(t, [...todos.values()])).map((x) => [x.id, x]));
   const de = (l: ProductoBase[]) => l.map((p) => tarjetas.get(p.id)!).filter(Boolean);
 
@@ -79,7 +82,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
   const banners = portada.compu.map(aBanner);
   const bannersCelular = portada.celular.map(aBanner);
   // La primera fila que se ve es la que sube sobre el banner.
-  const primera = [destacados, novedades, ofertas, vendidos].findIndex((l) => l.length > 0);
+  const primera = [vistos, destacados, novedades, ofertas, vendidos].findIndex((l) => l.length > 0);
   const plata = (n: number) => `$\u00a0${formatearNumero(n, "entero")}`;
 
   const atajos = [
@@ -133,10 +136,11 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
         <div className={`${CAJA} ${ENCIMA} px-4 py-12 text-center text-[var(--texto-2)]`}>Pronto vas a encontrar productos acá.</div>
       )}
 
-      <Fila t={t} titulo="Destacados" productos={de(destacados)} encima={primera === 0} />
-      <Fila t={t} titulo="Novedades" ver={{ texto: "Ver todo", href: r("/buscar") }} productos={de(novedades)} encima={primera === 1} />
-      <Fila t={t} titulo="Ofertas" ver={{ texto: "Ver todas", href: `${r("/buscar")}?ofertas=1` }} productos={de(ofertas)} encima={primera === 2} />
-      <Fila t={t} titulo="Más vendidos" ver={{ texto: "Ver más", href: `${r("/buscar")}?orden=vendidos` }} productos={de(vendidos)} encima={primera === 3} />
+      <Fila t={t} titulo="Lo que viste" productos={de(vistos)} encima={primera === 0} />
+      <Fila t={t} titulo="Destacados" productos={de(destacados)} encima={primera === 1} />
+      <Fila t={t} titulo="Novedades" ver={{ texto: "Ver todo", href: r("/buscar") }} productos={de(novedades)} encima={primera === 2} />
+      <Fila t={t} titulo="Ofertas" ver={{ texto: "Ver todas", href: `${r("/buscar")}?ofertas=1` }} productos={de(ofertas)} encima={primera === 3} />
+      <Fila t={t} titulo="Más vendidos" ver={{ texto: "Ver más", href: `${r("/buscar")}?orden=vendidos` }} productos={de(vendidos)} encima={primera === 4} />
 
       {raices.length > 0 && (
         <section className="space-y-3">

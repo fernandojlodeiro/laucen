@@ -40,7 +40,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 ### Portada
 
 - Los **banners** que pasan solos, de la familia que está al aire ([Banners de la tienda](/config/tienda/carrusel); si no hay ninguno, una franja con el nombre, la bajada y "Ver todos los productos").
-- Carruseles: **Destacados** (primero, subiendo sobre el pie de los banners, que se funde con el fondo) y **Novedades** (los que elijas, o los últimos cargados), los dos en [Portada de la tienda](/config/tienda/portada); después **Ofertas**, **Más vendidos** (ventas de todos los canales), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos. Las categorías marcadas en Portada de la tienda como "no salen en la portada" quedan afuera de las filas que se arman solas y de la grilla.
+- Carruseles: **Lo que viste** (sólo para quien ya entró antes desde ese navegador: los últimos productos que miró, del más reciente al más viejo; va primero, subiendo sobre el pie de los banners), **Destacados** (primero si no hay «Lo que viste», subiendo sobre el pie de los banners, que se funde con el fondo) y **Novedades** (los que elijas, o los últimos cargados), los dos en [Portada de la tienda](/config/tienda/portada); después **Ofertas**, **Más vendidos** (ventas de todos los canales), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos. Las categorías marcadas en Portada de la tienda como "no salen en la portada" quedan afuera de las filas que se arman solas y de la grilla.
 - Al pie, cinco **atajos** chicos: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
 
 ### Listados (buscar, categoría, ofertas, más vendidos)
@@ -59,7 +59,8 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
 - La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
 - "Medios de pago" con las cuotas y los descuentos por medio; con el esquema de [Cuotas y descuentos](/config/tienda/financiacion), el recuadro "Precio según cómo pagues" (cada forma de pago con su precio y su % OFF). (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
-- Abajo: **Productos relacionados** (de la misma categoría, con stock), **Características del producto** y **Descripción**.
+- Abajo: **Productos relacionados** (de la misma categoría, con stock), **Viste antes** (los otros productos que esa persona miró antes desde ese navegador, si hay), **Características del producto** y **Descripción**.
+- En «Lo que viste» y «Viste antes» sólo aparece lo que se puede vender en la web (activo, con precio y con stock).
 
 ### Carrito
 
