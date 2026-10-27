@@ -315,10 +315,14 @@ create table if not exists tienda_intento (
   canal_id         bigint references canal(id) on delete cascade,
   ruta             text not null,
   ip               text not null,
-  resultado        text not null check (resultado in ('ok', 'trampa', 'muy_rapido', 'vencido', 'turnstile', 'tope_ip')),
+  resultado        text not null,
   user_agent       text,
   creado_ts        timestamptz not null default now()
 );
+-- «sin_turnstile»: una compra que Cloudflare no verificó y pasó igual (lib/tienda/antibot.ts, Fer 27/10).
+alter table tienda_intento drop constraint if exists tienda_intento_resultado_check;
+alter table tienda_intento add constraint tienda_intento_resultado_check
+  check (resultado in ('ok', 'trampa', 'muy_rapido', 'vencido', 'turnstile', 'tope_ip', 'sin_turnstile'));
 create index if not exists tienda_intento_ip on tienda_intento (ruta, ip, creado_ts);
 create index if not exists tienda_intento_org on tienda_intento (organizacion_id, creado_ts);
 alter table tienda_intento enable row level security;
