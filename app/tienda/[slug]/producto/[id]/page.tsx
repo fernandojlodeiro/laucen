@@ -365,20 +365,20 @@ export default async function Producto({ params, searchParams }: Props) {
           </aside>
         </div>
 
+        {vistos.length > 0 && (
+          <section className="space-y-3 border-t border-[var(--linea)] p-4 sm:p-6">
+            <h2 className="text-xl font-normal text-[var(--texto)] sm:text-2xl">Lo que ya estuviste viendo</h2>
+            <Carrusel etiqueta="Lo que ya estuviste viendo" ancho="w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[19%]">
+              {vistos.map((x) => <TarjetaProducto key={x.id} t={t} p={x} />)}
+            </Carrusel>
+          </section>
+        )}
+
         {relacionados.length > 0 && (
           <section className="space-y-3 border-t border-[var(--linea)] p-4 sm:p-6">
             <h2 className="text-xl font-normal text-[var(--texto)] sm:text-2xl">Productos relacionados</h2>
             <Carrusel etiqueta="Productos relacionados" ancho="w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[19%]">
               {relacionados.map((x) => <TarjetaProducto key={x.id} t={t} p={x} />)}
-            </Carrusel>
-          </section>
-        )}
-
-        {vistos.length > 0 && (
-          <section className="space-y-3 border-t border-[var(--linea)] p-4 sm:p-6">
-            <h2 className="text-xl font-normal text-[var(--texto)] sm:text-2xl">Viste antes</h2>
-            <Carrusel etiqueta="Viste antes" ancho="w-[46%] sm:w-[31%] md:w-[23.5%] lg:w-[19%]">
-              {vistos.map((x) => <TarjetaProducto key={x.id} t={t} p={x} />)}
             </Carrusel>
           </section>
         )}

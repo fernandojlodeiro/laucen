@@ -38,8 +38,8 @@ export async function unirVisitante(org: string, visitante: string | null, a: { 
      where organizacion_id = $1 and id = $2`, [org, visitante, a.clienteId ?? null, a.chatId ?? null]).catch((e) => console.error("[visitantes] unir", e));
 }
 
-/** Los productos que miró este visitante, del último al primero, sin repetir (Fer, 27/10: «Lo que viste» en la portada y
- *  «Viste antes» en la ficha, como Mercado Libre). Sólo los ids: quien lo muestra los cruza con el catálogo, que ya
+/** Los productos que miró este visitante, del último al primero, sin repetir (Fer, 27/10: «Lo que ya estuviste viendo» en la portada y
+ *  en la ficha, como Mercado Libre). Sólo los ids: quien lo muestra los cruza con el catálogo, que ya
  *  respeta las reglas de la web (activo, con precio, con stock). Sin galleta o si algo falla, no hay nada. */
 export async function vistosPorElVisitante(org: string, limite = 24): Promise<number[]> {
   try {
