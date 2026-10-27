@@ -42,6 +42,9 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
   const [cortado, setCortado] = useState(false);
   const fallos = useRef(0);
   const ahora = useRef({ filtro, origen, abierto, sello: foto.sello, busca });
+  // Al cambiar de pestaña o de canal se abre la primera de la lista (Fer, 27/10: quedaba a la vista una de otro canal).
+  // En el celular no: ahí la conversación tapa la lista.
+  const elegirPrimera = useRef(false);
   useEffect(() => { ahora.current = { filtro, origen, abierto, sello: foto.sello, busca }; });
 
   const traer = useCallback(async (deCero = false) => {
@@ -58,6 +61,13 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
       const d = await res.json();
       fallos.current = 0; setCortado(false);
       if (!d.igual) setFoto(d as FotoBandeja);
+      // Sólo con la respuesta de la pestaña y el canal que están elegidos ahora (una vieja que llega tarde no cuenta).
+      const ya = ahora.current;
+      if (deCero && elegirPrimera.current && a.filtro === ya.filtro && a.origen === ya.origen && !a.abierto) {
+        elegirPrimera.current = false;
+        const primera = (d as FotoBandeja).filas[0]?.clave;
+        if (primera && window.matchMedia("(min-width: 768px)").matches) setAbierto(primera);
+      }
     } catch {
       fallos.current += 1;
       if (fallos.current >= 2) setCortado(true);
@@ -101,7 +111,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
           </label>
           <div className="flex items-end gap-0.5 mt-2 shadow-[inset_0_-1px_0_#D5DDE5] overflow-x-auto" role="tablist">
             {FILTROS.map((f) => (
-              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => { if (f.clave !== filtro) { setFiltro(f.clave); setAbierto(null); } }} title={f.ayuda}
+              <button key={f.clave} type="button" role="tab" aria-selected={filtro === f.clave} onClick={() => { if (f.clave !== filtro) { setFiltro(f.clave); setAbierto(null); elegirPrimera.current = true; } }} title={f.ayuda}
                 className={`shrink-0 rounded-t-lg border px-2 py-1.5 text-xs md:text-[11px] font-semibold ${filtro === f.clave
                   ? "bg-white border-[#D5DDE5] border-b-white shadow-[inset_0_2px_0_#16577F] text-[#16577F]"
                   : "bg-gradient-to-b from-[#FBFCFD] to-[#E4E9EE] border-[#D5DDE5] text-[#5C6B76]"}`}>
@@ -112,7 +122,7 @@ export default function Bandeja({ inicial, filtroInicial, origenInicial, abierto
           {origenes.length > 2 && (
             <div role="group" className="flex flex-wrap gap-1 mt-2" aria-label="Por canal">
               {origenes.map((o) => (
-                <button key={o.clave} type="button" onClick={() => setOrigen(o.clave)} aria-pressed={origen === o.clave} title={o.nombre}
+                <button key={o.clave} type="button" onClick={() => { if (o.clave !== origen) { setOrigen(o.clave); setAbierto(null); elegirPrimera.current = true; } }} aria-pressed={origen === o.clave} title={o.nombre}
                   className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${origen === o.clave ? "bg-[#16577F] border-[#16577F] text-white" : "bg-white border-[#D5DDE5] text-[#5C6B76]"}`}>
                   <LogoOrigen origen={o.clave} />
                   {o.texto ? <span>{o.texto}</span> : <span className="sr-only">{o.nombre}</span>}

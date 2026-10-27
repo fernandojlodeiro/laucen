@@ -41,7 +41,7 @@ Arriba a la derecha, **"Traer preguntas ahora"**: pide a Mercado Libre en el mom
 
 Arriba de la lista:
 - el buscador (nombre, teléfono, producto, número de pack…);
-- dos pestañas, cada una con su cuenta (cambiar de pestaña cierra la conversación abierta):
+- dos pestañas, cada una con su cuenta (en la computadora, al cambiar de pestaña o de canal se abre la primera conversación de la lista; en el celular vuelve a la lista):
   - **Para atender**: lo que espera a una persona. Entra: un chat de WhatsApp o Instagram con un caso abierto, o donde el cliente escribió y nadie le contestó (con la IA apagada en ese chat, enseguida; con la IA prendida, al minuto y medio); un mensaje de Mercado Libre sin responder o derivado; una pregunta a la que a la IA le faltó un dato o que lleva media hora sin respuesta; y los reclamos para atender. No entra un «gracias» o un emoji que la IA vio que no necesita respuesta. Abre en esta si hay algo; si no, en Todos.
   - **Todos**: todas las conversaciones, la más nueva primero.
 - los botoncitos por canal, con cuántas hay de cada uno en la pestaña elegida: **Todo**, el logo de **WhatsApp**, el de **Instagram**, el de Mercado Libre con **Mensajes** (la charla con el comprador después de la venta) y con **Preguntas**, y **Reclamos**. Aparecen los canales que tienen algo.
