@@ -13,9 +13,12 @@
 // Y es para una pantalla (Fer, 26/10): la compu, el celular o las dos. La portada arma dos tandas, una
 // para cada pantalla; si a una no le toca ninguno, usa la de la otra. (Un banner viejo puede traer
 // además imagen_celular: en el celular se ve ésa.)
+// Y puede tener días de la semana y desde / hasta (Fer, 27/10: el de la promo de miércoles y sábados):
+// fuera de esos días no está, como si estuviera apagado (hora argentina).
 
 import type { QueryResultRow } from "pg";
 import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
+import { valeElDia, fechaAR, normalizarDias } from "@/lib/dias-semana";
 
 export type FamiliaBanner = "clara" | "oscura";
 export const FAMILIAS: Record<FamiliaBanner, string> = { clara: "Clara", oscura: "Oscura" };
@@ -27,8 +30,17 @@ export const esPantalla = (x: unknown): x is PantallaBanner => x === "todas" || 
 
 export type Banner = {
   id: number; dominio_id: number | null; familia: FamiliaBanner; pantalla: PantallaBanner; imagen: string; imagen_celular: string | null;
-  link: string | null; orden: number; activo: boolean;
+  link: string | null; orden: number; activo: boolean; dias: number[] | null; desde: string | null; hasta: string | null;
 };
+
+const COLUMNAS = `id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo, dias,
+  to_char(desde, 'YYYY-MM-DD') desde, to_char(hasta, 'YYYY-MM-DD') hasta`;
+
+/** ¿Sale hoy? Por sus días de la semana y su desde / hasta (hora argentina). */
+export function bannerVale(b: Pick<Banner, "dias" | "desde" | "hasta">, ahora = new Date()): boolean {
+  const hoy = fechaAR(ahora);
+  return valeElDia(b.dias, ahora) && (!b.desde || b.desde <= hoy) && (!b.hasta || b.hasta >= hoy);
+}
 
 const HORA_AR = -3; // Argentina no cambia la hora en verano
 const DIA = 86_400_000;
@@ -54,10 +66,10 @@ export async function bannersDeLaPortada(canalId: number, marcaId: number | null
     with d as (select (select id from tienda_dominio where canal_id = $1 and principal) principal),
          e as (select case when $2::bigint is not null and exists (select 1 from tienda_banner where canal_id = $1 and activo and dominio_id = $2)
                            then $2::bigint else d.principal end dominio from d)
-    select id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo
+    select ${COLUMNAS}
       from tienda_banner, e
      where canal_id = $1 and activo and (dominio_id is null or dominio_id = e.dominio)
-     order by orden, id`, [canalId, marcaId ?? null]);
+     order by orden, id`, [canalId, marcaId ?? null]).then((x) => x.filter((b) => bannerVale(b, ahora)));
   const { familia } = turnoDeBanners(ahora);
   const delTurno = (lista: Banner[]) => { const t = lista.filter((b) => b.familia === familia); return t.length ? t : lista.filter((b) => b.familia !== familia); };
   const compu = delTurno(filas.filter((b) => b.pantalla !== "celular"));
@@ -68,7 +80,7 @@ export async function bannersDeLaPortada(canalId: number, marcaId: number | null
 /** Todos los banners de la tienda (para la pantalla de configuración). */
 export async function bannersDe(org: string, canalId: number): Promise<Banner[]> {
   return consulta<Banner>(`
-    select id::int, dominio_id::int, familia, pantalla, imagen, imagen_celular, link, orden::int, activo
+    select ${COLUMNAS}
       from tienda_banner where organizacion_id = $1 and canal_id = $2 order by familia, orden, id`, [org, canalId]);
 }
 
@@ -123,17 +135,24 @@ export async function agregarBanners(org: string, canalId: number, datos: { imag
   return imagenes.length;
 }
 
-export async function guardarBanner(org: string, id: number, datos: { imagen: string | null; familia: FamiliaBanner; pantalla: PantallaBanner; dominioId: number | null; link: string | null }) {
+export async function guardarBanner(org: string, id: number, datos: {
+  imagen: string | null; familia: FamiliaBanner; pantalla: PantallaBanner; dominioId: number | null; link: string | null;
+  dias?: unknown[]; desde?: string | null; hasta?: string | null;
+}) {
   const b = await una<{ canal_id: number; familia: FamiliaBanner }>("select canal_id::int, familia from tienda_banner where id = $1 and organizacion_id = $2", [id, org]);
   if (!b) throw new ErrorErp("Ese banner ya no existe.");
   const imagen = imagenValida(datos.imagen);
   if (!imagen) throw new ErrorErp("El banner necesita una imagen.");
   const dominio = await dominioValido(org, b.canal_id, datos.dominioId);
   const link = linkValido(datos.link);
+  const fecha = (x: string | null | undefined) => { const v = x?.trim() || null; if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new ErrorErp("Revisá las fechas del banner."); return v; };
+  const desde = fecha(datos.desde), hasta = fecha(datos.hasta);
+  if (desde && hasta && hasta < desde) throw new ErrorErp("El banner termina antes de empezar.");
   // Si cambia de familia, va al final de la otra.
   await consulta(`update tienda_banner set imagen = $3, pantalla = $4, dominio_id = $5, link = $6, familia = $7,
-      orden = case when familia = $7 then orden else (select coalesce(max(orden), 0) + 1 from tienda_banner where canal_id = $8 and familia = $7) end
-    where id = $1 and organizacion_id = $2`, [id, org, imagen, datos.pantalla, dominio, link, datos.familia, b.canal_id]);
+      orden = case when familia = $7 then orden else (select coalesce(max(orden), 0) + 1 from tienda_banner where canal_id = $8 and familia = $7) end,
+      dias = $9::smallint[], desde = $10, hasta = $11
+    where id = $1 and organizacion_id = $2`, [id, org, imagen, datos.pantalla, dominio, link, datos.familia, b.canal_id, normalizarDias(datos.dias), desde, hasta]);
 }
 
 export async function activarBanner(org: string, id: number, activo: boolean) {

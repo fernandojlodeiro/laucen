@@ -11,13 +11,14 @@ import { CONDICIONES, ACCIONES, type FormaCondicion, type TipoAccion } from "./c
 const CAMPO = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white";
 const ETIQUETA = "block text-[11px] font-semibold text-[#5C6B76] mb-0.5";
 
-export default function CamposRegla({ forma, cantidad, sku, familiaId, familiaEtiqueta, monto, medio, accion, valor, medios }: {
-  forma?: FormaCondicion; cantidad?: number | null; sku?: string | null; familiaId?: number | null; familiaEtiqueta?: string | null; monto?: number | null; medio?: string | null;
+export default function CamposRegla({ forma, cantidad, sku, familiaId, familiaEtiqueta, monto, medio, cuotas, accion, valor, medios }: {
+  forma?: FormaCondicion; cantidad?: number | null; sku?: string | null; familiaId?: number | null; familiaEtiqueta?: string | null; monto?: number | null; medio?: string | null; cuotas?: number | null;
   accion?: TipoAccion; valor?: number | null;
   medios: { tipo: string; nombre: string }[];
 }) {
   const [f, setF] = useState<FormaCondicion>(forma ?? "cantidad_familia");
   const [a, setA] = useState<TipoAccion>(accion ?? "descuento_pct");
+  const [md, setMd] = useState(medio ?? "transferencia");
   const porCantidad = f.startsWith("cantidad_");
   return (
     <>
@@ -43,9 +44,13 @@ export default function CamposRegla({ forma, cantidad, sku, familiaId, familiaEt
       )}
       {f === "medio_pago" && (
         <label><span className={ETIQUETA}>Medio de pago</span>
-          <select name="medio" defaultValue={medio ?? "transferencia"} className={`${CAMPO} w-full`}>
+          <select name="medio" value={md} onChange={(e) => setMd(e.target.value)} className={`${CAMPO} w-full`}>
             {medios.map((m) => <option key={m.tipo} value={m.tipo}>{m.nombre}</option>)}
           </select></label>
+      )}
+      {f === "medio_pago" && md === "payway" && (
+        <label><span className={ETIQUETA}>En cuotas</span>
+          <CampoNumero name="cuotas" valor={cuotas ?? null} tipo="entero" placeholder="cualquiera" className={`${CAMPO} w-full`} /></label>
       )}
       <label><span className={ETIQUETA}>Acción</span>
         <select name="accion" value={a} onChange={(e) => setA(e.target.value as TipoAccion)} className={`${CAMPO} w-full`}>

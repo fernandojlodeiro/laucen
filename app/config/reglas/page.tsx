@@ -20,6 +20,8 @@ import { fecha } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import CamposRegla from "./CamposRegla";
+import CasillasDias from "@/app/componentes/CasillasDias";
+import { textoDias } from "@/lib/dias-semana";
 import { enCriollo, formaDe, type Condicion, type Accion, type TipoAccion } from "./comun";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_REGLAS } from "./lista";
@@ -30,7 +32,7 @@ export const dynamic = "force-dynamic";
 const BASE = "/config/reglas";
 type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Regla = {
-  id: number; nombre: string; activa: boolean; condicion: Condicion; accion: Accion; desde: string | null; hasta: string | null;
+  id: number; nombre: string; activa: boolean; condicion: Condicion; accion: Accion; desde: string | null; hasta: string | null; dias: number[] | null;
   acumulable: boolean; prioridad: number; producto_id: number | null; familia_id: number | null; producto: string | null; sku: string | null; familia: string | null; medio: string | null;
 };
 
@@ -44,7 +46,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   const base = await LISTA_REGLAS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const [reglas, mediosDb] = await Promise.all([
     consulta<Regla>(`
-      select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta,
+      select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta, r.dias,
              r.acumulable, r.prioridad, p.id::int producto_id, f.id::int familia_id, p.titulo producto, p.sku_base sku, f.nombre familia, m.nombre medio
         from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores),
     consulta<{ tipo: string; nombre: string }>("select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by orden, id", [s.org.id]),
@@ -66,6 +68,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
     <>
       <label><span className={ETIQUETA}>Vale desde</span><input type="date" name="desde" defaultValue={r?.desde ?? ""} className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={r?.hasta ?? ""} className={`${CAMPO} w-full`} /></label>
+      <div className="col-span-2"><span className={ETIQUETA}>Días (ninguno = todos)</span><CasillasDias valor={r?.dias} /></div>
       <label><span className={ETIQUETA}>Prioridad</span><CampoNumero name="prioridad" valor={r?.prioridad ?? 0} tipo="entero" className={`${CAMPO} w-full`} /></label>
       <label className="col-span-2 flex items-center gap-1.5 text-xs pt-4">
         <input type="checkbox" name="acumulable" defaultChecked={r?.acumulable ?? true} className="h-4 w-4" /> Acumulable: se suma con otras promociones
@@ -74,7 +77,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   );
 
   return (
-    <Pantalla acciones={<><AccionesExcel lista={LISTA_REGLAS} org={s.org.id} /><BotonNuevo texto="Nueva regla" /></>} titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis" ancho="max-w-6xl">
+    <Pantalla acciones={<><AccionesExcel lista={LISTA_REGLAS} org={s.org.id} /><BotonNuevo texto="Nueva regla" /></>} titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago o cuotas, por días de la semana y envío gratis" ancho="max-w-6xl">
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva regla" sinBoton>
         <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
@@ -106,7 +109,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
                     <label className="col-span-2"><span className={ETIQUETA}>Nombre</span>
                       <input name="nombre" defaultValue={r.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
                     <CamposRegla forma={formaDe(r.condicion)} cantidad={r.condicion.cantidad} sku={r.sku} familiaId={r.condicion.familia_id}
-                      monto={r.condicion.monto} medio={r.condicion.medio} accion={r.accion.tipo as TipoAccion} valor={r.accion.valor}
+                      monto={r.condicion.monto} medio={r.condicion.medio} cuotas={r.condicion.cuotas} accion={r.accion.tipo as TipoAccion} valor={r.accion.valor}
                       familiaEtiqueta={caminoEditada} medios={medios} />
                     <Fechas r={r} />
                     <div className="col-span-2 sm:col-span-6 flex gap-2">
@@ -124,6 +127,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
                   {r.familia_id && <Link href={url("/catalogo/productos", { familia: r.familia_id })} className="ml-1.5 text-[#16577F] hover:underline">ver familia</Link>}</td>
                 <td className={TD}><Interruptor accion={accionActivarRegla} prendido={r.activa} campos={{ id: String(r.id) }} etiqueta={r.activa ? "Sí" : "No"} /></td>
                 <td className={`${TD} whitespace-nowrap`}>{vigencia(r)}
+                  {r.dias?.length ? <span className="block text-[11px] text-[#5C6B76]">{textoDias(r.dias)}</span> : null}
                   {r.hasta && r.hasta < hoy && <> <Estado texto="Vencida" tono="gris" /></>}
                   {r.desde && r.desde > hoy && <> <Estado texto="Todavía no" tono="amarillo" /></>}</td>
                 <td className={TD}>{r.acumulable ? "Se suma" : "No se suma"}</td>

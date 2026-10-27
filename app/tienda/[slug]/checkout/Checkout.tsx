@@ -322,7 +322,8 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                   {elegido && x.tipo === "payway" && resumen.cuotas && resumen.cuotas.planes.length > 0 && (() => {
                     // Las cuotas como en Mercado Libre: una fila por opción con la cuota grande y el total.
                     const c = resumen.cuotas, envio = resumen.envio?.costo ?? 0;
-                    const total = (i: number) => Math.round((c.productos * (1 + i / 100) + envio) * 100) / 100;
+                    // Con su descuento por pagar en esas cuotas, si una regla lo da (ej. miércoles y sábados en 3 cuotas).
+                    const total = (i: number, n: number) => Math.round(((c.productos - (c.descuentoPorCuotas?.[n] ?? 0)) * (1 + i / 100) + envio) * 100) / 100;
                     const opciones = [{ cuotas: 1, interes_pct: 0 }, ...c.planes];
                     return (
                       <fieldset className="ml-8 mt-3">
@@ -330,7 +331,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                         <p className="-mt-0.5 mb-1.5 text-xs text-gray-500">En cuotas, con Visa o Mastercard de crédito. Con otra tarjeta, en cuotas por Mercado Pago.</p>
                         <div className="divide-y divide-[var(--linea)] overflow-hidden rounded-md border border-[var(--linea)]">
                           {opciones.map((o) => {
-                            const t = total(o.interes_pct), cuota = Math.round((t / o.cuotas) * 100) / 100, marcada = cuotas === o.cuotas;
+                            const t = total(o.interes_pct, o.cuotas), cuota = Math.round((t / o.cuotas) * 100) / 100, marcada = cuotas === o.cuotas;
                             return (
                               <label key={o.cuotas} className={`flex cursor-pointer items-center gap-3 px-3 py-3 ${marcada ? "bg-[color-mix(in_srgb,var(--boton)_8%,white)]" : "bg-white"}`}>
                                 <input type="radio" name="cuotas" value={o.cuotas} checked={marcada} className="h-4 w-4 accent-[var(--boton)]"
@@ -339,6 +340,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                                   <span className="block text-[15px] text-[var(--texto)]">{o.cuotas === 1 ? "1 pago de " : `${o.cuotas} cuotas de `}<b className="whitespace-nowrap">{precio(cuota, m)}</b></span>
                                   {o.cuotas > 1 && <span className="block text-xs text-gray-500">Total {precio(t, m)}</span>}
                                 </span>
+                                {(c.descuentoPorCuotas?.[o.cuotas] ?? 0) > 0 && <span className="rounded bg-[var(--verde)] px-1.5 py-0.5 text-xs font-semibold text-white">{Math.round(100 * c.descuentoPorCuotas[o.cuotas] / c.productos)} % OFF</span>}
                                 {o.cuotas > 1 && o.interes_pct === 0 && <span className="text-sm font-semibold text-[var(--verde)]">Sin interés</span>}
                               </label>
                             );

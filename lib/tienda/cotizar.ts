@@ -30,13 +30,18 @@ export type Cotizacion = {
   total: number;
   sinStock: string[];
   /** Con el esquema de cuotas prendido y pagando con tarjeta de crédito (Payway): los planes que le
-   *  tocan a la compra, lo que suman los productos antes del interés y las cuotas elegidas. */
-  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; elegidas: number } | null;
+   *  tocan a la compra, lo que suman los productos antes del interés (y del descuento por pagar en N cuotas),
+   *  ese descuento para cada cantidad de cuotas que lo tiene y las cuotas elegidas. */
+  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; descuentoPorCuotas: Record<number, number>; elegidas: number } | null;
 };
 
 type Regla = { id: number; nombre: string; condicion: Record<string, unknown>; accion: Record<string, unknown>; acumulable: boolean };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
+const numPct = (x: number) => x.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+/** El nombre de un descuento con su %, para que se lea en el resumen y en el pedido (Fer, 27/10). */
+const conPct = (nombre: string, a: Record<string, unknown>) =>
+  a.tipo === "descuento_pct" && !nombre.includes("%") ? `${nombre} (${numPct(Number(a.valor ?? 0))} %)` : nombre;
 
 export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: string | null; cuotas?: number | null; metodoEnvioId?: number | null; provincia?: string | null; codigoPostal?: string | null } = {}): Promise<Cotizacion> {
   const org = t.organizacionId;
@@ -82,16 +87,26 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
 
   // Reglas comerciales.
   const reglas = await consulta<Regla>(`
-    select id::int, nombre, condicion, accion, acumulable from regla_comercial
+    with hoy as (select (now() at time zone 'America/Argentina/Buenos_Aires')::date d)
+    select id::int, nombre, condicion, accion, acumulable from regla_comercial, hoy
      where organizacion_id = $1 and activa and (canal_id is null or canal_id = $2)
-       and (desde is null or desde <= current_date) and (hasta is null or hasta >= current_date)
+       and (desde is null or desde <= hoy.d) and (hasta is null or hasta >= hoy.d)
+       -- Días de la semana (1 = lunes … 7 = domingo, hora argentina); sin días, todos.
+       and (coalesce(cardinality(dias), 0) = 0 or extract(isodow from hoy.d)::int = any(dias))
      order by prioridad desc, id`, [org, t.canalId]);
   let huboDescuento = false, cerrado = false;
   // Lo que se descuenta por la forma de pago (reglas de medio de pago y descuento del medio): no cuenta
   // para el envío gratis (Fer, 27/10: el que paga por transferencia no pierde el envío por el 10 %).
   let descuentoDelPago = 0;
+  // Las de un medio en N cuotas (ej. miércoles y sábados −10 % en 3 cuotas) se aplican después, con las
+  // cuotas: así el checkout muestra cada opción con su descuento.
+  const porCuotas: { r: Regla; vale: boolean }[] = [];
   for (const r of reglas) {
     const c = r.condicion, a = r.accion;
+    if (c.tipo === "medio_pago" && Number(c.cuotas) > 1) {
+      if (op.medio && op.medio === c.medio && a.tipo !== "envio_bonificado") porCuotas.push({ r, vale: !cerrado && (r.acumulable || !huboDescuento) });
+      continue;
+    }
     const objetivo = (l: (typeof lineas)[number]) =>
       c.producto_id ? l.productoId === Number(c.producto_id) : c.familia_id ? l.familias.includes(Number(c.familia_id)) : true;
     let cumple = false;
@@ -111,7 +126,7 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     importe = r2(importe);
     if (importe <= 0) continue;
     for (const l of afectadas) l.montoFinal = r2(l.montoFinal - importe * (l.montoFinal / base));
-    descuentos.push({ nombre: r.nombre, importe });
+    descuentos.push({ nombre: conPct(r.nombre, a), importe });
     if (c.tipo === "medio_pago") descuentoDelPago += importe;
     huboDescuento = true;
     if (!r.acumulable) cerrado = true;
@@ -126,12 +141,28 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
       const importe = r2(base * pct / 100);
       descuentoDelPago += importe;
       for (const l of lineas) l.montoFinal = r2(l.montoFinal * (1 - pct / 100));
-      descuentos.push({ nombre: `${pct > 0 ? "Descuento" : "Recargo"} por pagar con ${m!.nombre}`, importe });
+      descuentos.push({ nombre: `${pct > 0 ? "Descuento" : "Recargo"} del ${numPct(Math.abs(pct))} % por pagar con ${m!.nombre}`, importe });
     }
   }
 
   // Para el envío gratis: lo que compra antes de los descuentos por la forma de pago (y sin el interés de las cuotas, que va abajo).
   const paraEnvioGratis = r2(lineas.reduce((s, l) => s + l.montoFinal, 0) + descuentoDelPago);
+
+  // Descuento por pagar en N cuotas (regla de un medio con cuotas): el de la primera regla que vale para esas cuotas.
+  const productosAntesDeCuotas = r2(lineas.reduce((s, l) => s + l.montoFinal, 0));
+  const descuentoCuotas = (n: number) => {
+    const x = porCuotas.find((y) => y.vale && Number(y.r.condicion.cuotas) === n);
+    if (!x || productosAntesDeCuotas <= 0) return null;
+    const a = x.r.accion, v = Math.max(0, Number(a.valor ?? 0));
+    const importe = r2(a.tipo === "descuento_pct" ? productosAntesDeCuotas * Math.min(100, v) / 100 : Math.min(productosAntesDeCuotas, v));
+    return importe > 0 ? { nombre: conPct(x.r.nombre, a), importe } : null;
+  };
+  const elegidas = Math.trunc(Number(op.cuotas)) || 1;
+  const dc = descuentoCuotas(elegidas);
+  if (dc) {
+    for (const l of lineas) l.montoFinal = r2(l.montoFinal - dc.importe * (l.montoFinal / productosAntesDeCuotas));
+    descuentos.push(dc);
+  }
 
   // Cuotas con tarjeta de crédito (Payway), con el esquema prendido: todos sus planes; el interés del plan elegido se suma a los productos (queda en el pedido
   // y en la factura, y es lo que se cobra).
@@ -140,7 +171,6 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
   if (fin.activo && op.medio === "payway") {
     const planes = planesDisponibles(fin, { medio: "payway" });
     const productosSinInteres = r2(lineas.reduce((s, l) => s + l.montoFinal, 0));
-    const elegidas = Math.trunc(Number(op.cuotas)) || 1;
     const plan = planes.find((p) => p.cuotas === elegidas);
     if (elegidas > 1 && !plan) throw new ErrorErp("Esa cantidad de cuotas no está disponible para esta compra. Elegí otra.");
     if (plan && plan.interes_pct > 0) {
@@ -148,7 +178,9 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
       for (const l of lineas) l.montoFinal = r2(l.montoFinal * (1 + plan.interes_pct / 100));
       descuentos.push({ nombre: `Interés por pagar en ${plan.cuotas} cuotas`, importe: -importe });
     }
-    cuotas = { planes, productos: productosSinInteres, elegidas: plan ? elegidas : 1 };
+    const descuentoPorCuotas: Record<number, number> = {};
+    for (const n of [1, ...planes.map((p) => p.cuotas)]) { const d = descuentoCuotas(n); if (d) descuentoPorCuotas[n] = d.importe; }
+    cuotas = { planes, productos: productosAntesDeCuotas, descuentoPorCuotas, elegidas: plan ? elegidas : 1 };
   }
   for (const l of lineas) { l.finalUnit = r2(l.montoFinal / l.cantidad); }
   const productos = r2(lineas.reduce((s, l) => s + l.finalUnit * l.cantidad, 0));

@@ -5,6 +5,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
 import { CONDICIONES, ACCIONES, type Condicion, type Accion } from "./comun";
+import { normalizarDias } from "@/lib/dias-semana";
 
 const VOLVER = "/config/reglas";
 const MEDIOS = ["mercadopago", "payway", "transferencia", "efectivo", "cuenta_corriente"];
@@ -43,6 +44,10 @@ async function leer(org: string, fd: FormData) {
     const medio = String(fd.get("medio") ?? "");
     if (!MEDIOS.includes(medio)) throw new ErrorErp("Elegí el medio de pago.");
     condicion = { tipo: "medio_pago", medio };
+    // Con tarjeta de crédito, opcional: sólo pagando en esa cantidad de cuotas.
+    const cuotas = medio === "payway" ? entero(fd, "cuotas") : null;
+    if (cuotas != null && (cuotas < 1 || cuotas > 24)) throw new ErrorErp("Las cuotas van de 2 a 24 (vacío: cualquier cantidad).");
+    if (cuotas && cuotas > 1) condicion.cuotas = cuotas;
   }
 
   const tipoAccion = String(fd.get("accion") ?? "");
@@ -58,16 +63,16 @@ async function leer(org: string, fd: FormData) {
   const desde = texto(fd, "desde"), hasta = texto(fd, "hasta");
   if ((desde && !FECHA.test(desde)) || (hasta && !FECHA.test(hasta))) throw new ErrorErp("Revisá las fechas de vigencia.");
   if (desde && hasta && hasta < desde) throw new ErrorErp("La vigencia termina antes de empezar.");
-  return { nombre, condicion, accion, desde, hasta, acumulable: tildado(fd, "acumulable"), prioridad: entero(fd, "prioridad") ?? 0 };
+  return { nombre, condicion, accion, desde, hasta, dias: normalizarDias(fd.getAll("dias")), acumulable: tildado(fd, "acumulable"), prioridad: entero(fd, "prioridad") ?? 0 };
 }
 
 export async function accionCrearRegla(fd: FormData) {
   const s = await entrarErp("reglas_ver");
   await intentar(VOLVER, async () => {
     const r = await leer(s.org.id, fd);
-    await consulta(`insert into regla_comercial (organizacion_id, canal_id, nombre, activa, condicion, accion, desde, hasta, acumulable, prioridad)
-                    values ($1, null, $2, true, $3::jsonb, $4::jsonb, $5, $6, $7, $8)`,
-      [s.org.id, r.nombre, JSON.stringify(r.condicion), JSON.stringify(r.accion), r.desde, r.hasta, r.acumulable, r.prioridad]);
+    await consulta(`insert into regla_comercial (organizacion_id, canal_id, nombre, activa, condicion, accion, desde, hasta, acumulable, prioridad, dias)
+                    values ($1, null, $2, true, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9::smallint[])`,
+      [s.org.id, r.nombre, JSON.stringify(r.condicion), JSON.stringify(r.accion), r.desde, r.hasta, r.acumulable, r.prioridad, r.dias]);
     revalidatePath(VOLVER);
     return "Regla creada (activa).";
   });
@@ -78,9 +83,9 @@ export async function accionGuardarRegla(fd: FormData) {
   await intentar(VOLVER, async () => {
     const r = await leer(s.org.id, fd);
     const filas = await consulta(`
-      update regla_comercial set nombre = $3, condicion = $4::jsonb, accion = $5::jsonb, desde = $6, hasta = $7, acumulable = $8, prioridad = $9
+      update regla_comercial set nombre = $3, condicion = $4::jsonb, accion = $5::jsonb, desde = $6, hasta = $7, acumulable = $8, prioridad = $9, dias = $10::smallint[]
        where id = $1 and organizacion_id = $2 returning id`,
-      [id(fd), s.org.id, r.nombre, JSON.stringify(r.condicion), JSON.stringify(r.accion), r.desde, r.hasta, r.acumulable, r.prioridad]);
+      [id(fd), s.org.id, r.nombre, JSON.stringify(r.condicion), JSON.stringify(r.accion), r.desde, r.hasta, r.acumulable, r.prioridad, r.dias]);
     if (!filas.length) throw new ErrorErp("Esa regla no existe.");
     revalidatePath(VOLVER);
     return "Guardado.";

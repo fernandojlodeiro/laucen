@@ -31,7 +31,7 @@ export type Resumen = {
   costos: Record<number, { costo: number; bonificado: boolean; aConvenir: boolean; sinCp?: boolean; plazoDias?: number | null } | null>;
   moneda: "ARS" | "USD";
   /** Planes de cuotas de la compra con tarjeta de crédito (esquema de cuotas prendido), o null. */
-  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; elegidas: number } | null;
+  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; descuentoPorCuotas: Record<number, number>; elegidas: number } | null;
 };
 
 export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, metodos?: MetodoEnvio[]): Promise<Resumen> {

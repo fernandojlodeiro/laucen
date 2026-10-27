@@ -12,7 +12,10 @@ import Pestanas from "@/app/componentes/Pestanas";
 import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { bannersDe, destinosDeBanner, turnoDeBanners, FAMILIAS, PANTALLAS, esFamilia, type FamiliaBanner, type PantallaBanner } from "@/lib/tienda/banners";
+import CasillasDias from "@/app/componentes/CasillasDias";
+import { fecha } from "@/app/ventas/formato";
+import { textoDias } from "@/lib/dias-semana";
+import { bannersDe, bannerVale, destinosDeBanner, turnoDeBanners, FAMILIAS, PANTALLAS, esFamilia, type FamiliaBanner, type PantallaBanner } from "@/lib/tienda/banners";
 import SubirImagen from "../SubirImagen";
 import SubirVarias from "./SubirVarias";
 import FiltroDonde from "./FiltroDonde";
@@ -132,13 +135,14 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                   <th className={TH}>Pantalla</th>
                   <th className={TH}>Se ve en</th>
                   <th className={TH}>Link</th>
+                  <th className={TH} title="Días de la semana y fechas en que sale (hora argentina)">Cuándo</th>
                   <th className={TH}>Activo</th>
                   <th className={TH} />
                 </tr>
               </thead>
               <tbody>
                 {filas.length === 0 && (
-                  <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>
+                  <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>
                     Sin banners en la familia {FAMILIAS[familia]}{donde ? " para esa tienda" : ""}. En su turno se ve la otra familia{todos.length ? "" : " (y sin ninguna, la portada muestra el nombre y la bajada de la tienda)"}.
                   </td></tr>
                 )}
@@ -164,6 +168,12 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                           </select></label>
                       </td>
                       <td className={TD}><input name="link" form={form} defaultValue={b.link ?? ""} placeholder="/buscar?ofertas=1 o https://…" className={`${CAMPO} w-full min-w-48`} /></td>
+                      <td className={`${TD} w-48 space-y-1`}>
+                        <span className={ETIQUETA}>Días (ninguno = todos)</span>
+                        <CasillasDias valor={b.dias} form={form} />
+                        <label className="block"><span className={ETIQUETA}>Desde</span><input type="date" name="desde" form={form} defaultValue={b.desde ?? ""} className={`${CAMPO} w-full`} /></label>
+                        <label className="block"><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" form={form} defaultValue={b.hasta ?? ""} className={`${CAMPO} w-full`} /></label>
+                      </td>
                       <td className={TD} />
                       <td className={`${TD} text-right whitespace-nowrap`}>
                         <span className="inline-flex gap-1">
@@ -190,6 +200,11 @@ export default async function BannersTienda({ searchParams }: { searchParams: Pr
                       <td className={`${TD} max-w-56 truncate`} title={b.link ?? undefined}>
                         {b.link ? b.link.startsWith("/") ? b.link : <a href={b.link} target="_blank" rel="noreferrer" className="text-[#16577F]">{b.link.replace(/^https?:\/\//, "")} ↗</a>
                           : <span className="text-[#5C6B76]">Sin link</span>}
+                      </td>
+                      <td className={`${TD} whitespace-nowrap`}>
+                        {textoDias(b.dias)}
+                        {(b.desde || b.hasta) && <span className="block text-[11px] text-[#5C6B76]">{b.desde ? `Desde el ${fecha(b.desde + "T12:00")}` : ""}{b.desde && b.hasta ? " " : ""}{b.hasta ? `hasta el ${fecha(b.hasta + "T12:00")}` : ""}</span>}
+                        {b.activo && !bannerVale(b) && <span className="block text-[11px] font-semibold text-[#8a6100]">Hoy no sale</span>}
                       </td>
                       <td className={TD}>
                         <Interruptor compacto accion={accionActivarBanner} prendido={b.activo} campos={{ id: String(b.id), ...camposVuelta }} etiqueta={b.activo ? "Sí" : "No"} />

@@ -12,7 +12,7 @@ export const CONDICIONES = {
   cantidad_familia: "Comprando N o más unidades de una familia",
   cantidad_cualquiera: "Comprando N o más unidades (de cualquier producto)",
   monto_minimo: "Compras desde $ X",
-  medio_pago: "Pagando con un medio",
+  medio_pago: "Pagando con un medio (y, con tarjeta, en N cuotas)",
 } as const;
 export type FormaCondicion = keyof typeof CONDICIONES;
 
@@ -23,7 +23,7 @@ export const ACCIONES = {
 } as const;
 export type TipoAccion = keyof typeof ACCIONES;
 
-export type Condicion = { tipo: string; cantidad?: number; producto_id?: number; familia_id?: number; monto?: number; medio?: string };
+export type Condicion = { tipo: string; cantidad?: number; producto_id?: number; familia_id?: number; monto?: number; medio?: string; cuotas?: number };
 export type Accion = { tipo: string; valor?: number };
 
 /** De la condición guardada, la forma que muestra el selector. */
@@ -40,7 +40,7 @@ export function enCriollo(c: Condicion, a: Accion, nombres: { producto?: string 
   const cond = forma === "cantidad_producto" ? `${num(c.cantidad)} o más de ${nombres.producto ?? "un producto que ya no existe"}`
     : forma === "cantidad_familia" ? `${num(c.cantidad)} o más de Familia ${nombres.familia ?? "(borrada)"}`
     : forma === "cantidad_cualquiera" ? `${num(c.cantidad)} o más unidades`
-    : forma === "medio_pago" ? `Pagando con ${nombres.medio ?? c.medio}`
+    : forma === "medio_pago" ? `Pagando con ${nombres.medio ?? c.medio}${c.cuotas && c.cuotas > 1 ? ` en ${num(c.cuotas)} cuotas` : ""}`
     : `Compras desde ${pesos(c.monto ?? 0)}`;
   const acc = a.tipo === "descuento_pct" ? `${num(a.valor, 1)} % de descuento`
     : a.tipo === "descuento_fijo" ? `${pesos(a.valor ?? 0)} de descuento`

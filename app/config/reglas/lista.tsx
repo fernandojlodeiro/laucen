@@ -4,6 +4,7 @@
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, type Lista } from "@/lib/listas/tipos";
 import { enCriollo } from "./comun";
+import { textoDias } from "@/lib/dias-semana";
 
 export const LISTA_REGLAS: Lista = {
   pantalla: "reglas",
@@ -23,6 +24,7 @@ export const LISTA_REGLAS: Lista = {
     { clave: "activa", titulo: "Activa", sql: "r.activa", formato: "sino" },
     campoFecha("desde", "Desde", "r.desde", { dia: true }),
     campoFecha("hasta", "Hasta", "r.hasta", { dia: true }),
+    { clave: "dias", titulo: "Días", sql: "r.dias", orden: false, valor: (f) => textoDias(f.dias) },
     { clave: "acumulable", titulo: "Acumulable", sql: "r.acumulable", formato: "sino" },
     { clave: "prioridad", titulo: "Prioridad", sql: "r.prioridad", formato: "entero" },
   ],

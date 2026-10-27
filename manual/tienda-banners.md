@@ -4,7 +4,7 @@ menu: Configuración › Tienda web › Banners de la tienda
 ruta: /config/tienda/carrusel
 rutas: /config/tienda/carrusel
 permiso: tienda_config
-resumen: Cargar las imágenes grandes de arriba de la portada de la tienda web, todas las que quieras, en dos familias (clara y oscura) que se turnan solas, con su link y la tienda donde se ven.
+resumen: Cargar las imágenes grandes de arriba de la portada de la tienda web, todas las que quieras, en dos familias (clara y oscura) que se turnan solas, con su link, la tienda donde se ven y, si querés, los días y las fechas en que salen.
 ---
 
 ## Para qué sirve
@@ -20,7 +20,7 @@ Menú **Configuración › Tienda web › Banners de la tienda**. Si hay más de
 - Un recuadro que dice **qué familia se ve ahora** y hasta cuándo.
 - Dos pestañas, **Clara** y **Oscura**, con la cantidad de banners de cada una entre paréntesis. La que se está viendo en la tienda dice «al aire».
 - **Se ven en**: filtra la lista por tienda (los de esa tienda más los que son para todas).
-- La lista de la familia elegida, en el orden en que pasan: número, la imagen (al tocarla se abre entera), la imagen para el celular, en qué tienda se ve, el link y el interruptor **Activo**. A la derecha, ▲ ▼ para cambiar el orden, el lápiz y el tacho.
+- La lista de la familia elegida, en el orden en que pasan: número, la imagen (al tocarla se abre entera), la imagen para el celular, en qué tienda se ve, el link, **Cuándo** (los días en que sale, «Todos los días» si no se eligieron, y las fechas; «Hoy no sale» si hoy no le toca) y el interruptor **Activo**. A la derecha, ▲ ▼ para cambiar el orden, el lápiz y el tacho.
 
 ## Cómo se hace
 
@@ -39,7 +39,7 @@ Con el Google Drive conectado ([Google Drive](/config/google-drive)), cada tiend
 Cada vez que cambies algo en el Drive, volvé a apretar «Leer Drive»: las imágenes nuevas se suman al final de su familia, las que cambiaste se reemplazan y las que sacaste se borran de la tienda. Los banners subidos a mano no se tocan. El orden, el link y el interruptor de cada banner se cambian en la lista, como los demás.
 
 ### Cambiar uno
-Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantalla, la tienda, la familia y el link. **Grabar** lo guarda; **Cancelar** deja todo como estaba. Si lo pasás a la otra familia, va al final de esa.
+Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantalla, la tienda, la familia, el link y cuándo sale (las casillas de **Días** L M M J V S D y **Desde** / **Hasta**). **Grabar** lo guarda; **Cancelar** deja todo como estaba. Si lo pasás a la otra familia, va al final de esa.
 
 ### Ordenarlos, apagarlos o borrarlos
 - Con ▲ ▼ lo subís o bajás un lugar dentro de su familia.
@@ -48,6 +48,7 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantal
 
 ## Criterios y reglas
 
+- **Cuándo sale:** con días tildados, el banner sale sólo esos días (de 0 a 24, hora argentina); sin ninguno, todos los días. Con **Desde** / **Hasta**, sólo entre esas fechas. Fuera de eso es como si estuviera apagado (y cuenta así para «Nunca queda vacía»). Sirve para el banner de una promoción de ciertos días, por ejemplo la de [Reglas comerciales](/config/reglas) de miércoles y sábados.
 - **Turnos:** el día se parte en dos, de 0 a 12 y de 12 a 24 (hora argentina). En un turno se ve una familia y en el otro, la otra.
 - **Cada semana se invierte el orden:** si esta semana a la mañana va la Clara y a la tarde la Oscura, la semana siguiente es al revés. La semana cambia el lunes a las 0.
 - **Nunca queda vacía:** si a la familia del turno no le queda ningún banner activo para esa tienda, se ve la otra. Sin ningún banner, la portada muestra una franja con el nombre y la bajada de la tienda.
@@ -61,7 +62,7 @@ Apretá el **lápiz** de su fila: ahí mismo podés cambiar la imagen, la pantal
 
 ## Preguntas frecuentes
 
-**Cargué un banner y no lo veo en la tienda.** Fijate que esté activo, que sea de la familia que está al aire (lo dice el recuadro de arriba) y que se vea en esa tienda.
+**Cargué un banner y no lo veo en la tienda.** Fijate que esté activo, que hoy le toque (columna «Cuándo»), que sea de la familia que está al aire (lo dice el recuadro de arriba) y que se vea en esa tienda.
 
 ## Relacionado
 

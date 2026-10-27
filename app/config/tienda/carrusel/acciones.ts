@@ -35,6 +35,7 @@ export async function accionGuardarBanner(fd: FormData) {
   await intentar(volver(fd), async () => {
     await guardarBanner(s.org.id, id(fd), {
       imagen: texto(fd, "imagen"), familia: familiaDe(fd), pantalla: pantallaDe(fd), dominioId: dominioDe(fd), link: texto(fd, "link"),
+      dias: fd.getAll("dias"), desde: texto(fd, "desde"), hasta: texto(fd, "hasta"),
     });
     listo();
   });

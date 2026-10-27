@@ -4,7 +4,7 @@ menu: Tienda web › Reglas comerciales
 ruta: /config/reglas
 rutas: /config/reglas
 permiso: reglas_ver
-resumen: Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis, con vigencia, prioridad y si se acumulan.
+resumen: Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago o por pagar en N cuotas, y envío gratis, con vigencia, días de la semana, prioridad y si se acumulan.
 ---
 
 ## Para qué sirve
@@ -28,7 +28,7 @@ No afectan a Mercado Libre (allá el descuento por volumen está en [Precios en 
 - **Regla**: el nombre.
 - **Qué hace**: la regla en criollo («3 o más de PL-001 (Placa…) → 10 % de descuento»), con enlace «ver producto» o «ver familia».
 - **Activa**: un interruptor para prenderla o apagarla.
-- **Vigencia**: «Siempre», «Desde el …», «Hasta el …» o «… al …». Marca «Vencida» si ya pasó y «Todavía no» si no empezó.
+- **Vigencia**: «Siempre», «Desde el …», «Hasta el …» o «… al …». Marca «Vencida» si ya pasó y «Todavía no» si no empezó. Si vale sólo algunos días, abajo dice cuáles («Miércoles y sábados»).
 - **Acumulable**: «Se suma» / «No se suma».
 - **Prioridad**: número.
 - El **lápiz** (edita en la misma fila, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar?» con Sí / No).
@@ -42,9 +42,10 @@ Abajo: «Mayor prioridad = se aplica primero. Una regla no acumulable que se cum
   - «Comprando N o más unidades de una familia» → «Unidades (N)» y «Familia» (buscador).
   - «Comprando N o más unidades (de cualquier producto)» → «Unidades (N)».
   - «Compras desde $ X» → «Desde $».
-  - «Pagando con un medio» → «Medio de pago» (Mercado Pago, Payway, transferencia, efectivo, cuenta corriente, con el nombre que tengan en [Medios de pago](/config/medios-pago)).
+  - «Pagando con un medio (y, con tarjeta, en N cuotas)» → «Medio de pago» (Mercado Pago, Payway, transferencia, efectivo, cuenta corriente, con el nombre que tengan en [Medios de pago](/config/medios-pago)). Con la tarjeta de crédito aparece además **«En cuotas»**: vacío vale para cualquier cantidad; con un número (por ejemplo 3), sólo pagando en esas cuotas.
 - **Acción**: «% de descuento» (con «Descuento %»), «$ de descuento» (con «Descuento $») o «Envío gratis».
 - **Vale desde** y **Hasta** (fechas, opcionales).
+- **Días**: casillas L M M J V S D. Sin ninguna tildada, vale todos los días; tildando algunas, sólo esos días (hora argentina).
 - **Prioridad** (número, 0 de entrada).
 - Caja **«Acumulable: se suma con otras promociones»** (tildada de entrada).
 
@@ -54,7 +55,7 @@ Abajo: «Mayor prioridad = se aplica primero. Una regla no acumulable que se cum
 1. **«Nueva regla»**.
 2. Poné el **Nombre**, elegí la **Condición** y completá sus datos.
 3. Elegí la **Acción** y el valor.
-4. Si es por tiempo limitado, poné **Vale desde** / **Hasta**.
+4. Si es por tiempo limitado, poné **Vale desde** / **Hasta**; si es sólo algunos días de la semana, tildá los **Días**.
 5. Ajustá **Prioridad** y **Acumulable**.
 6. **«Crear»**. Queda **activa** («Regla creada (activa).»).
 
@@ -71,11 +72,11 @@ Apagá el interruptor de **Activa** en su fila. Para volver a usarla, prendelo.
 Las reglas las aplica el cálculo del carrito de la tienda (el mismo para carrito, checkout y pedido). En orden:
 
 1. **Precio de partida:** cada línea arranca en su **precio de venta** de la lista de la tienda (ya con el descuento propio del producto o la familia, si tiene).
-2. **Qué reglas entran:** las **activas** y **vigentes hoy** (desde ≤ hoy ≤ hasta; las fechas vacías no limitan). Se recorren de **mayor a menor prioridad**; a igual prioridad, la creada primero.
+2. **Qué reglas entran:** las **activas**, **vigentes hoy** (desde ≤ hoy ≤ hasta; las fechas vacías no limitan) y, si tienen días, **del día de hoy**. Todo en hora argentina. Se recorren de **mayor a menor prioridad**; a igual prioridad, la creada primero.
 3. **Cuándo se cumple cada condición:**
    - Por cantidad: se suman las unidades del carrito **del producto**, **de la familia** (incluye sus subfamilias) o **de todo**, según la regla, y tiene que llegar a N.
    - Por monto: se compara con lo que **va quedando** del carrito después de los descuentos de las reglas anteriores (antes del descuento del medio de pago y sin envío).
-   - Por medio de pago: si el cliente eligió ese medio.
+   - Por medio de pago: si el cliente eligió ese medio. Con «En cuotas», además, que pague con tarjeta en esa cantidad de cuotas.
 4. **Envío gratis:** si se cumple, el envío queda bonificado. Esta acción **siempre** se aplica cuando se cumple la condición, sin importar «acumulable» ni otras reglas.
 5. **Descuentos y acumulación:**
    - Una regla **no acumulable** se saltea si ya se aplicó antes algún descuento; y si se aplica, **corta** todas las reglas de descuento que vienen después.
@@ -85,9 +86,10 @@ Las reglas las aplica el cálculo del carrito de la tienda (el mismo para carrit
    - Reglas por monto y por medio de pago: sobre **todo el carrito**.
    - Siempre sobre lo que va quedando después de las reglas anteriores (los descuentos se encadenan, no se suman sobre el precio original).
    - «% de descuento»: ese % de la base (tope 100 %). «$ de descuento»: ese importe, sin pasar la base. El descuento se reparte entre las líneas en proporción a su importe. Se redondea a centavos.
-7. **Después de las reglas**, se aplica el **descuento (o recargo) del medio de pago** que se cargó en [Medios de pago](/config/medios-pago), sobre lo que quedó. Esto no depende de las reglas ni de «acumulable».
-8. **Envío:** se cobra según el método de envío elegido ([Métodos de envío](/config/envios)), salvo que una regla lo bonifique o el total de productos llegue al «gratis desde» del método.
-9. Cada descuento aparece en el carrito con el **nombre de la regla** y su importe; el precio final de cada línea es el que queda en el pedido.
+7. **Después de las reglas**, se aplica el **descuento (o recargo) del medio de pago** que se cargó en [Medios de pago](/config/medios-pago) o en [Cuotas y descuentos](/config/tienda/financiacion), sobre lo que quedó. Esto no depende de las reglas ni de «acumulable».
+8. **Reglas por cuotas:** las de «En cuotas» van al final, sobre lo que quedó, y antes del interés de las cuotas (si el plan tiene). En el checkout, cada opción de cuotas se muestra ya con su descuento y la marca «N % OFF». Si dos valen para las mismas cuotas, entra la de más prioridad. Como piden pagar con tarjeta en cuotas, nunca se suman con el descuento por transferencia, efectivo o débito: es uno o el otro.
+9. **Envío:** se cobra según el método de envío elegido ([Métodos de envío](/config/envios)), salvo que una regla lo bonifique o los productos lleguen al «gratis desde» del método. Para eso se mira lo comprado **antes de los descuentos por la forma de pago** (los del medio, las reglas por medio de pago y por cuotas): pagar con descuento no hace perder el envío gratis.
+10. Cada descuento aparece en el carrito, el checkout y el pedido con el **nombre de la regla y su %** (por ejemplo «Miércoles y sábados en 3 cuotas (10 %)»; si el nombre ya dice el %, no se repite) y su importe; el precio final de cada línea es el que queda en el pedido.
 
 Las reglas valen para la tienda web (las que se crean en esta pantalla aplican a todas las tiendas de la organización). No se usan en Mercado Libre ni en los pedidos cargados a mano.
 
@@ -112,7 +114,10 @@ No, sólo a las unidades del producto o la familia de la regla (o a todo si la r
 Lo que va quedando después de las reglas de mayor prioridad, sin el descuento del medio de pago y sin el envío.
 
 **¿Por qué una regla no se aplica?**
-Revisá que esté activa, que esté en fecha (no «Vencida» ni «Todavía no»), su prioridad y si una no acumulable de más prioridad la cortó.
+Revisá que esté activa, que esté en fecha (no «Vencida» ni «Todavía no»), que hoy sea uno de sus días, su prioridad y si una no acumulable de más prioridad la cortó.
+
+**¿Cómo armo «miércoles y sábados −10 % pagando en 3 cuotas»?**
+Nueva regla → Condición «Pagando con un medio (y, con tarjeta, en N cuotas)» → Medio de pago: la tarjeta de crédito → En cuotas: 3 → Acción «% de descuento» 10 → Días: tildá M (miércoles) y S (sábado) → Vale desde / Hasta según la promoción. Para el banner de esos días, en [Banners de la tienda](/config/tienda/carrusel) tildá los mismos días.
 
 **¿Sirve para Mercado Libre?**
 No. Para Mercado Libre está el descuento por volumen en [Precios en Mercado Libre](/catalogo/precios-ml).

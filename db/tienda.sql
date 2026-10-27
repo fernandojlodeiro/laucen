@@ -87,6 +87,9 @@ create table if not exists regla_comercial (
 );
 alter table regla_comercial enable row level security;
 select erp_politica_org('regla_comercial');
+-- Días de la semana en que vale (Fer, 27/10: «miércoles y sábados −10 % en 3 cuotas»): 1 = lunes …
+-- 7 = domingo, hora argentina; null = todos. Una condición medio_pago puede llevar además "cuotas".
+alter table regla_comercial add column if not exists dias smallint[];
 
 -- Los pagos de la tienda (Mercado Pago, Payway, y la confirmación manual de
 -- transferencias y efectivo).
@@ -395,6 +398,11 @@ create table if not exists tienda_banner (
 create index if not exists tienda_banner_orden on tienda_banner (canal_id, familia, orden);
 -- Para qué pantalla es cada banner (Fer, 26/10): la compu, el celular o las dos. Se elige al subirlo.
 alter table tienda_banner add column if not exists pantalla text not null default 'todas' check (pantalla in ('todas', 'compu', 'celular'));
+-- Cuándo sale (Fer, 27/10: el banner de la promo de miércoles y sábados): días de la semana (1 = lunes …
+-- 7 = domingo, hora argentina; null = todos) y desde / hasta (null = sin límite).
+alter table tienda_banner add column if not exists dias smallint[];
+alter table tienda_banner add column if not exists desde date;
+alter table tienda_banner add column if not exists hasta date;
 -- Banners que vienen del Google Drive de la organización (Fer, 26/10: los cargó Code desde su carpeta de
 -- banners). La imagen del banner apunta a /api/tienda/imagen/<id del archivo>: la primera vez se baja del
 -- Drive, se pasa a WebP y queda acá; desde ahí se sirve de la base, sin volver al Drive.
