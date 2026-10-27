@@ -8,7 +8,7 @@ import { cookies, headers } from "next/headers";
 import { NextResponse, after } from "next/server";
 import { consulta } from "@/lib/erp/base";
 import { tiendaPorSlug, nombreTienda } from "@/lib/tienda/tienda";
-import { atribucionDe, codigoRef, conCodigo } from "@/lib/publicidad/atribucion";
+import { atribucionDe, codigoRef, conCodigo, esRobot } from "@/lib/publicidad/atribucion";
 import { registrarEvento, visitaActual } from "@/lib/tienda/visitantes";
 import { enviarAMeta, fbcDe } from "@/lib/tienda/meta-capi";
 import { whatsappDe } from "../catalogo";
@@ -21,6 +21,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   if (!t || !numero) return NextResponse.redirect(new URL("/", req.url), 302);
   const sp = new URL(req.url).searchParams;
   const texto = (sp.get("t") ?? "").trim().slice(0, 300) || `Hola ${nombreTienda(t)}, tengo una consulta.`;
+  // Un robot que sigue el link: va a WhatsApp sin anotar nada.
+  if (esRobot(req.headers.get("user-agent"))) return NextResponse.redirect(`https://wa.me/${numero}?text=${encodeURIComponent(texto)}`, 302);
   // La página donde lo tocó: la manda el botón (?p=) y, si no, el navegador (referer).
   const pagina = (sp.get("p")?.startsWith("/") ? sp.get("p") : req.headers.get("referer"))?.slice(0, 500) ?? null;
   const producto = Number(/\/producto\/(\d+)/.exec(pagina ?? "")?.[1]) || null;

@@ -3,9 +3,9 @@
 // (galleta lc_visitante, la pone el middleware). Cuando compra se une al cliente; cuando escribe desde el botón de
 // WhatsApp, al chat. Nunca tira: si algo falla, va al log y la tienda sigue.
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { consulta } from "@/lib/erp/base";
-import { credito, deGalleta, GALLETA_ENTRADAS, GALLETA_VISITANTE, type Entradas } from "@/lib/publicidad/atribucion";
+import { credito, deGalleta, esRobot, GALLETA_ENTRADAS, GALLETA_VISITANTE, type Entradas } from "@/lib/publicidad/atribucion";
 
 export type TipoEvento = "visita" | "producto" | "carrito" | "checkout" | "whatsapp" | "compra";
 
@@ -19,7 +19,7 @@ export async function visitaActual(): Promise<{ visitante: string | null; entrad
 export async function registrarEvento(org: string, tipo: TipoEvento, o: { productoId?: number | null; pedidoId?: number | null; pagina?: string | null } = {}): Promise<void> {
   try {
     const { visitante, entradas } = await visitaActual();
-    if (!visitante) return;
+    if (!visitante || esRobot((await headers()).get("user-agent"))) return;
     await consulta(`
       insert into visitante (organizacion_id, id, primera) values ($1, $2, $3::jsonb)
       on conflict (organizacion_id, id) do update set ultimo_ts = now(), primera = coalesce(visitante.primera, excluded.primera)`,

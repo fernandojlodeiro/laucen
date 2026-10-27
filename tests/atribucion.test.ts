@@ -107,3 +107,12 @@ test("el sufijo recomendado de Google: plataforma y anuncio ({creative} es el id
   assert.equal(g?.plataforma, "google");
   assert.equal(g?.anuncio_id, "678901234567");
 });
+
+test("los robots no son visitas: buscadores, vistas previas de links y revisores de anuncios", async () => {
+  const { esRobot } = await import("@/lib/publicidad/atribucion");
+  for (const ua of ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "AdsBot-Google (+http://www.google.com/adsbot.html)",
+    "facebookexternalhit/1.1", "WhatsApp/2.23.20.0", "curl/8.4.0", null, ""]) assert.equal(esRobot(ua), true, String(ua));
+  for (const ua of ["Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0"]) assert.equal(esRobot(ua), false, ua);
+});

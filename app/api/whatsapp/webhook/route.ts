@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         const quien = conQuienHablaban(eco);
         await anotarEvento("eco", eco, org, quien || null);
         if (!quien) continue;
-        const dijo = loQueDijo(eco);
+        const dijo = sacarCodigo(loQueDijo(eco)).limpio;
         const chat = await chatDe(org, "whatsapp", quien);
         if (dijo) await guardarMensaje({ org, chatId: chat.id, clase: "desde_el_telefono", texto: dijo, wamid: eco.id ?? null, estado: "enviado" });
         const cfg = await configMensajes(org);

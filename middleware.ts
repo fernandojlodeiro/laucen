@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 import { DOMINIO_PANEL, REDIRIGEN_AL_PANEL, esDelPanel } from "@/lib/tienda/dominios";
 import { abreLaTienda, destinoDeHost } from "@/lib/tienda/dominios-tienda";
-import { aGalleta, deGalleta, entradaDeVisita, GALLETA_ENTRADAS, GALLETA_VISITANTE, sumarEntrada } from "@/lib/publicidad/atribucion";
+import { aGalleta, deGalleta, entradaDeVisita, esRobot, GALLETA_ENTRADAS, GALLETA_VISITANTE, sumarEntrada } from "@/lib/publicidad/atribucion";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -85,7 +85,7 @@ function anotarEntrada(req: NextRequest, r: NextResponse, host: string) {
   // Sólo la página entera (no los pedidos internos de Next al navegar ni los de adelanto).
   const dest = req.headers.get("sec-fetch-dest");
   const esPagina = dest ? dest === "document" : !req.headers.get("rsc") && !req.headers.get("next-router-prefetch") && (req.headers.get("accept") ?? "").includes("text/html");
-  if (!esPagina) return;
+  if (!esPagina || esRobot(req.headers.get("user-agent"))) return;
   // El botón de WhatsApp, los avisos del navegador y los archivos (feed, sitemap) no son una llegada a la tienda.
   const ultimo = req.nextUrl.pathname.split("/").pop() ?? "";
   if (["whatsapp", "v", "sugerencias"].includes(ultimo) || ultimo.includes(".")) return;

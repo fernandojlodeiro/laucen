@@ -125,6 +125,11 @@ export function atribucionDeReferral(r: unknown, ahora = new Date()): Atribucion
 /** Un chat que no vino de la tienda ni de un anuncio. */
 export const directo = (ahora = new Date()): Atribucion => ({ ...sinDatos("directo", null, ahora), primera: null, visitante: null, desde: "directo" });
 
+/** Los robots (buscadores, vistas previas de links, revisores de anuncios) recorren la tienda y siguen el botón de
+ *  WhatsApp: no son visitas ni consultas. */
+export const esRobot = (ua: string | null | undefined) =>
+  !ua || /bot\b|bot\/|crawl|spider|slurp|facebookexternalhit|facebot|preview|headless|lighthouse|adsbot|mediapartners|google-|whatsapp|telegram|curl|wget|python|axios|node-fetch|go-http|java\//i.test(ua);
+
 // ── El sello en la galleta ─────────────────────────────────────────────
 
 const TIPOS: TipoEntrada[] = ["anuncio", "campana", "organico", "mercadolibre", "social", "referido", "directo"];
