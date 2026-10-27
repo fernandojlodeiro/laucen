@@ -84,6 +84,8 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
   const [resumen, setResumen] = useState(inicial);
   const [errorCot, setErrorCot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Cada intento que falla pide un pase nuevo de Cloudflare (el de antes ya se usó).
+  const [vueltaAntibot, setVueltaAntibot] = useState(0);
   // A dónde lo mandamos al confirmar: la pasarela de Mercado Pago, el pago con tarjeta (Payway) o el pedido.
   const [yendo, setYendo] = useState<null | "mercadopago" | "payway" | "pedido">(null);
   const [calculando, empezarCalculo] = useTransition();
@@ -129,12 +131,14 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
         const r = await confirmarCompra(fd);
         if ("error" in r) {
           setError(r.error);
+          setVueltaAntibot((v) => v + 1);
           setTimeout(() => cajaError.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
         } else {
           setYendo(/mercadopago/i.test(r.ir) ? "mercadopago" : /[?&]pagar=1/.test(r.ir) ? "payway" : "pedido");
           window.location.assign(r.ir);
         }
       } catch {
+        setVueltaAntibot((v) => v + 1);
         setError("No pudimos confirmar la compra. Revisá tu conexión y probá de nuevo.");
       }
     });
@@ -393,7 +397,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
         <div ref={cajaError}>
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
         </div>
-        <Antibot marca={antibot.marca} siteKey={antibot.siteKey} />
+        <Antibot marca={antibot.marca} siteKey={antibot.siteKey} vuelta={vueltaAntibot} />
         <button type="submit" disabled={ocupado || !medios.length || !metodos.some((x) => x.disponible)}
           className="inline-flex h-12 w-full items-center justify-center rounded-md bg-[var(--boton)] text-base font-semibold text-white transition-colors hover:bg-[var(--boton-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {yendo ? "Te estamos llevando…" : enviando ? "Confirmando…" : "Confirmar compra"}
