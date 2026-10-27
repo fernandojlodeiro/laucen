@@ -16,7 +16,7 @@ Junta en **una sola bandeja** todo lo que escriben los clientes, venga de donde 
 - ❓ **preguntas de Mercado Libre**;
 - ⚠️ **reclamos**.
 
-Se mezcla la **lista**, no las charlas: cada conversación es una persona por un canal, y cada una se contesta con las reglas de su canal (las 24 horas de WhatsApp, los 350 caracteres de los mensajes de Mercado Libre, etc.). Contestan solas la IA de la tienda (de fábrica se llama Estela) en WhatsApp y la IA de Mercado Libre en mensajes y preguntas (ver [Mercado Libre en Mensajes](/ventas/mensajes/internet)); lo que no pueden resolver lo **derivan a una persona** y queda **En espera** para atenderlo acá.
+Se mezcla la **lista**, no las charlas: cada conversación es una persona por un canal, y cada una se contesta con las reglas de su canal (las 24 horas de WhatsApp, los 350 caracteres de los mensajes de Mercado Libre, etc.). Contestan solas la IA de la tienda (de fábrica se llama Estela) en WhatsApp y la IA de Mercado Libre en mensajes y preguntas (ver [Mercado Libre en Mensajes](/ventas/mensajes/internet)); lo que no pueden resolver lo **derivan a una persona** y queda **En espera** para atenderlo acá. Si un cliente de WhatsApp o Instagram escribe y pasa un minuto y medio sin respuesta (con la IA prendida), la IA lo vuelve a intentar sola; si tampoco puede, el chat queda **En espera** con el caso «La IA no contestó el último mensaje».
 
 La IA de WhatsApp sabe los productos, precios y stock de la tienda web, los envíos y medios de pago, lo que le escribas en "Lo que sabe para los clientes" y el estado de los pedidos de ese cliente. El número sigue andando en el teléfono (coexistencia): lo que contesten desde el teléfono también aparece acá.
 

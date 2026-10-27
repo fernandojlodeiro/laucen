@@ -23,6 +23,7 @@ export const RUTAS_PUBLICAS = [
   "/api/erp/tareas",
   // Los avisos por mail de los pedidos de la tienda: la llama pg_cron con erp_llave.
   "/api/correo/cola",
+  "/api/mensajes/repaso",
   // La llama la base (pg_net) al cambiar el stock; se autentica con erp_llave.
   "/api/erp/stock",
   // La tienda web es pública (sus compradores no son usuarios del sistema).

@@ -168,3 +168,33 @@ end $$;
 alter table ig_app_credencial add column if not exists fb_app_id text;
 alter table ig_app_credencial add column if not exists fb_app_secret text;
 alter table ig_app_credencial add column if not exists ads_config_id text;
+
+-- El repaso de lo que quedó sin contestar (Fer, 27/10: a Kari la IA no le contestó más). La IA espera unos segundos
+-- antes de contestar por si el cliente sigue escribiendo (chat_espera); si en esa espera se corta el servidor (una
+-- actualización, por ejemplo), el mensaje queda sin nadie que lo conteste. pg_cron mira cada minuto si hay un chat con
+-- la IA prendida cuyo último mensaje es del cliente y lleva más de 90 segundos sin respuesta, y llama a
+-- /api/mensajes/repaso (lib/mensajes/repaso.ts). repaso_ts: hasta cuándo ya se repasó (así no lo intenta cada minuto).
+alter table chat add column if not exists repaso_ts timestamptz;
+
+do $$
+declare
+  j record;
+  cmd text := $cmd$
+  select net.http_get(
+    url := 'https://laucen.vercel.app/api/mensajes/repaso?clave=' || (select clave from public.erp_llave where id = 1),
+    timeout_milliseconds := 60000
+  ) where exists (select 1 from public.chat ch
+     where ch.canal in ('whatsapp', 'instagram') and ch.atiende_persona_desde is null
+       and ch.ultimo_entrante_ts between now() - interval '1 hour' and now() - interval '90 seconds'
+       and (ch.repaso_ts is null or ch.repaso_ts < ch.ultimo_entrante_ts)
+       and not exists (select 1 from public.chat_mensaje m where m.chat_id = ch.id and m.clase <> 'entrante' and m.ts > ch.ultimo_entrante_ts))
+$cmd$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'mensajes-repaso';
+  if not found then perform cron.schedule('mensajes-repaso', '* * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'mensajes-repaso: %', sqlerrm;
+end $$;
