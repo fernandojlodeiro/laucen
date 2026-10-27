@@ -62,8 +62,10 @@ export function EventoPublicidad({ evento, unaVez, conversionGoogle, comprador }
 
 /** El clic en el botón de WhatsApp (todo link con data-whatsapp, Fer 26/10): «whatsapp_click» en Google Analytics (con el
  *  producto, si es una ficha) y «Contact» en Meta y TikTok. Lo que cuenta en el Embudo no depende de esto: lo anota
- *  Laucen al pasar por /whatsapp, aunque el navegador corte estas etiquetas. Va en todas las tiendas, midan o no. */
-export function ClicsDeWhatsapp() {
+ *  Laucen al pasar por /whatsapp, aunque el navegador corte estas etiquetas. Va en todas las tiendas, midan o no.
+ *  Con `googleDesdeElServidor` (el dominio tiene la clave de GA4, lib/tienda/ga4-mp.ts), el whatsapp_click lo manda
+ *  /whatsapp y acá no: desde el navegador no llegaba (bitácora #924) y, si llegara, contaría dos veces. */
+export function ClicsDeWhatsapp({ googleDesdeElServidor = false }: { googleDesdeElServidor?: boolean }) {
   useEffect(() => {
     const alClic = (e: MouseEvent) => {
       const a = (e.target as HTMLElement | null)?.closest?.("a[data-whatsapp]") as HTMLAnchorElement | null;
@@ -73,13 +75,13 @@ export function ClicsDeWhatsapp() {
       const evento = `wa-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
       try { const u = new URL(a.href); u.searchParams.set("p", location.pathname); u.searchParams.set("e", evento); a.href = u.toString(); } catch { /* queda como estaba */ }
       const producto = /\/producto\/(\d+)/.exec(location.pathname)?.[1];
-      if (window.dataLayer) gtag("event", "whatsapp_click", { page_location: location.href, ...(producto ? { item_id: producto } : {}) });
+      if (window.dataLayer && !googleDesdeElServidor) gtag("event", "whatsapp_click", { page_location: location.href, ...(producto ? { item_id: producto } : {}) });
       window.fbq?.("track", "Contact", {}, { eventID: evento });
       window.ttq?.track("Contact", {});
     };
     document.addEventListener("click", alClic, true);
     return () => document.removeEventListener("click", alClic, true);
-  }, []);
+  }, [googleDesdeElServidor]);
   return null;
 }
 

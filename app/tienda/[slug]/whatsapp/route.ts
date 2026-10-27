@@ -2,7 +2,8 @@
 // Anota el clic con lo acreditado a esa visita (el sello de entradas del visitante y la regla de los 30 días,
 // lib/publicidad/atribucion.ts), la página y el producto, y manda a WhatsApp con un código invisible al final del texto.
 // Cuando entra ese mensaje, el chat se queda con ese origen (anotarOrigen, lib/mensajes/chats.ts). Le avisa el clic a
-// Meta desde el servidor («Contact», con el mismo id que el píxel). Anda aunque el navegador corte Google y Meta.
+// Meta desde el servidor («Contact», con el mismo id que el píxel) y a Google Analytics («whatsapp_click», si el dominio
+// tiene la clave: lib/tienda/ga4-mp.ts). Anda aunque el navegador corte Google y Meta.
 
 import { cookies, headers } from "next/headers";
 import { NextResponse, after } from "next/server";
@@ -11,6 +12,7 @@ import { tiendaPorSlug, nombreTienda } from "@/lib/tienda/tienda";
 import { atribucionDe, codigoRef, conCodigo, esRobot } from "@/lib/publicidad/atribucion";
 import { registrarEvento, visitaActual } from "@/lib/tienda/visitantes";
 import { enviarAMeta, fbcDe } from "@/lib/tienda/meta-capi";
+import { enviarAGa4 } from "@/lib/tienda/ga4-mp";
 import { whatsappDe } from "../catalogo";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +41,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   }
   await registrarEvento(t.organizacionId, "whatsapp", { productoId: producto, pagina });
 
+  const [h, c] = [await headers(), await cookies()];
+  const host = h.get("host");
+  after(() => enviarAGa4(host, { nombre: "whatsapp_click", galleta: (n) => c.get(n)?.value,
+    params: { page_location: `https://${host}${pagina?.startsWith("/") ? pagina : ""}`, ...(producto ? { item_id: String(producto) } : {}) } }));
   const evento = sp.get("e");
   if (evento && /^[\w-]{6,40}$/.test(evento)) {
-    const [h, c] = [await headers(), await cookies()];
-    const host = h.get("host");
     const anuncio = entradas?.anuncios.filter((a) => a.plataforma === "meta").at(-1);
     const datos = { ip: h.get("x-forwarded-for")?.split(",")[0].trim() ?? null, navegador: h.get("user-agent"),
       fbp: c.get("_fbp")?.value ?? null, fbc: fbcDe(c.get("_fbc")?.value, anuncio?.clid, anuncio?.ts) };

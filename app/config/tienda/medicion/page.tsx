@@ -41,9 +41,10 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
   const aqui = `${BASE}?canal=${tienda.id}`;
   const t = (await tiendaDelCanal(s.org.id, tienda.id))!;
   // Los dominios que abren la tienda (el principal y los de otra marca); los que redirigen no miden nada.
-  const dominios = await consulta<{ id: number; dominio: string; principal: boolean; marca: string | null; publicidad: unknown; capi: boolean }>(`
+  const dominios = await consulta<{ id: number; dominio: string; principal: boolean; marca: string | null; publicidad: unknown; capi: boolean; ga4: boolean }>(`
     select id::int, dominio, principal, marca ->> 'nombre' marca, publicidad,
-           exists (select 1 from meta_capi_credencial k where k.dominio_id = tienda_dominio.id) capi from tienda_dominio
+           exists (select 1 from meta_capi_credencial k where k.dominio_id = tienda_dominio.id) capi,
+           exists (select 1 from ga4_mp_credencial k where k.dominio_id = tienda_dominio.id) ga4 from tienda_dominio
      where organizacion_id = $1 and canal_id = $2 and (principal or marca ->> 'nombre' is not null) order by principal desc, dominio`, [s.org.id, tienda.id]);
   const conf = configFeedDe(tienda.feed);
   const [reglas, productos] = await Promise.all([
@@ -110,6 +111,11 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
                       <Dato etiqueta="Etiqueta de conversión (compra)">{p.google.conversion_label}</Dato>
                       <Dato etiqueta="ID de Google Analytics">{p.google.ga4_id}</Dato>
                     </>}
+                    {editando ? (
+                      <label className="sm:col-start-2 sm:col-span-3"><span className={ETIQUETA}>Clave secreta de Google Analytics (opcional)</span>
+                        <input form={form} name="ga4_secreto" type="password" autoComplete="off" placeholder={d.ga4 ? "Cargada (vacío: queda la que está)" : ""} className={`${CAMPO} w-full font-mono`} />
+                        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Con la clave, los clics en WhatsApp le llegan a Google Analytics desde Laucen: desde el navegador se pierden, porque la persona se va a WhatsApp en el mismo toque. Se saca en Google Analytics › Administrar › Flujos de datos › la web › Secretos de la API de Measurement Protocol.</span></label>
+                    ) : <div className="sm:col-start-2 sm:col-span-3"><Dato etiqueta="Clave secreta de Google Analytics">{d.ga4 ? "Cargada" : null}</Dato></div>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start border-b border-[#EEF1F4] pb-3">
                     <div className="pt-1">{llave("meta", p.meta.activo, "Meta")}</div>

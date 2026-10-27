@@ -4,6 +4,7 @@
 // Google, Meta y TikTok de cada dominio y lo que entra a los catálogos.
 
 import { revalidatePath } from "next/cache";
+import { SECRETO_GA4 } from "@/lib/tienda/ga4-mp";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
@@ -55,6 +56,13 @@ export async function accionGuardarPublicidad(fd: FormData) {
       if (!/^[A-Za-z0-9_-]{40,400}$/.test(capi)) throw new ErrorErp("El token de la API de conversiones de Meta es una sola tira larga de letras y números.");
       await consulta(`insert into meta_capi_credencial (dominio_id, token) values ($1, $2)
                       on conflict (dominio_id) do update set token = excluded.token, actualizado_ts = now()`, [dominio, capi]);
+    }
+    // La clave del Measurement Protocol de Google Analytics: igual que el token de Meta (ga4_mp_credencial).
+    const ga4 = String(fd.get("ga4_secreto") ?? "").trim();
+    if (ga4) {
+      if (!SECRETO_GA4.test(ga4)) throw new ErrorErp("La clave secreta de Google Analytics es una tira de letras y números, sin espacios.");
+      await consulta(`insert into ga4_mp_credencial (dominio_id, secreto) values ($1, $2)
+                      on conflict (dominio_id) do update set secreto = excluded.secreto, actualizado_ts = now()`, [dominio, ga4]);
     }
     return "Grabado. La tienda ya usa estas etiquetas (puede tardar un minuto).";
   });

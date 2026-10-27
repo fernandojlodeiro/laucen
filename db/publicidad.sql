@@ -288,3 +288,12 @@ create table if not exists robot_visita (
   primary key (canal_id, dia, robot)
 );
 alter table robot_visita enable row level security;
+
+-- La clave secreta del Measurement Protocol de Google Analytics, por dominio (Cowork, 27/10; lib/tienda/ga4-mp.ts): con
+-- ella, el clic en WhatsApp le llega a GA4 desde Laucen. Como el token de Meta: aparte, y nunca vuelve a la pantalla.
+create table if not exists ga4_mp_credencial (
+  dominio_id      bigint primary key references tienda_dominio(id) on delete cascade,
+  secreto         text not null,
+  actualizado_ts  timestamptz not null default now()
+);
+alter table ga4_mp_credencial enable row level security;
