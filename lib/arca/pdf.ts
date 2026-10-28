@@ -78,9 +78,11 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   // a la izquierda y los datos del emisor bajan un poco y se aprietan.
   const logo = await logoDe(doc, org, e.logo);
   if (logo) {
-    // Hasta 42 de alto y sin llegar al recuadro de la letra.
-    const k = Math.min(225 / logo.width, 42 / logo.height);
-    pagina.drawImage(logo, { x: 40, y: 808 - logo.height * k, width: logo.width * k, height: logo.height * k });
+    // Hasta 34 de alto (Fer, 28/10: un 20 % más chico que antes) y centrado en el blanco de arriba a la
+    // izquierda: entre el borde y el recuadro de la letra (x 30–277) y entre el borde y la razón social (y 812–764).
+    const k = Math.min(180 / logo.width, 34 / logo.height);
+    const ancho = logo.width * k, alto = logo.height * k;
+    pagina.drawImage(logo, { x: 153.5 - ancho / 2, y: 788 - alto / 2, width: ancho, height: alto });
   }
   const y0 = logo ? [754, 744, 735, 726, 717, 708] : [790, 760, 748, 736, 724, 712];
   texto(pagina, e.razon_social, 40, y0[0], logo ? 11 : 13, fb);
