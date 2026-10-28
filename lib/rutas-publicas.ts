@@ -54,6 +54,8 @@ export const RUTAS_PUBLICAS = [
   "/api/avisos/push",
   // La exportación de Mercado Pago: la pide la base (pg_net) con erp_llave; sólo lee de Mercado Pago.
   "/api/mercadopago/exportacion",
+  // El diagnóstico de Apify: lo pide la base (pg_net) con erp_llave; lee corridas y prueba búsquedas de unos centavos.
+  "/api/diagnostico/apify",
   "/sw-avisos.js",
   // Lo que pide el celular para instalar Laucen (app/manifest.ts).
   "/manifest.webmanifest",
