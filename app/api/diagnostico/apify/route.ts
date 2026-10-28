@@ -67,7 +67,17 @@ export async function GET(req: Request) {
         cantidad: r.cantidad, entrada: r.entrada, precio: r.precio, claves: items[0] ? Object.keys(items[0]).slice(0, 40) : [],
         ejemplo: items.slice(0, 3).map((x) => ({ titulo: x.title ?? x.name, precio: x.price ?? x.currentPrice, url: x.url ?? x.permalink ?? x.link })) });
     }
-    return Response.json({ error: "accion: runs, probar, tienda o actor" });
+    if (q.get("accion") === "correr") {
+      // Una herramienta con la entrada exacta (JSON en ?entrada=), hasta 30 resultados y tope US$ 0,25.
+      const actor = q.get("actor") ?? "";
+      if (!/^[\w.-]+~[\w.-]+$/.test(actor)) return Response.json({ error: "actor inválido" });
+      const t0 = Date.now();
+      const c = await correrConEntrada(actor, JSON.parse(q.get("entrada") ?? "{}"), { max: 30, esperaSeg: 200, topeUsd: 0.25 });
+      const items = c.items as Record<string, unknown>[];
+      return Response.json({ actor, estado: c.estado, mensaje: c.mensaje, error: c.error, costo: c.costoUsd, cobros: c.cobros, segundos: Math.round((Date.now() - t0) / 1000),
+        cantidad: items.length, ejemplo: items.slice(0, 2).map((x) => ({ titulo: x.title ?? x.name, precio: x.price, vendedor: x.sellerName ?? x.vendor_name, url: x.url ?? x.url_item })) });
+    }
+    return Response.json({ error: "accion: runs, probar, tienda, actor o correr" });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
