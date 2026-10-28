@@ -14,6 +14,9 @@ import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
 import { verInactivos } from "@/app/componentes/Inactivos";
+import FotosProducto from "@/app/componentes/FotosProducto";
+import TituloCorto from "@/app/componentes/TituloCorto";
+import { formatearNumero } from "@/lib/numeros";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -25,12 +28,13 @@ const LIMITE = 100;
 /** Los últimos movimientos que se ven en la caja; el resto, en /stock/movimientos. */
 const MOVIMIENTOS = 20;
 
-type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; ok?: string; error?: string };
+type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; kits?: string; disp?: string; ok?: string; error?: string };
 
 type Variacion = {
   id: number; sku: string; codigo_barras: string | null; titulo: string; kit: boolean; stock_minimo: number | null;
   cantidad: number; reservado: number; disponible: number; producto_id: number;
   ubicaciones: { deposito: string; ubicacion: string; cantidad: number }[] | null;
+  fotos: string[] | null; clasica: number | null;
 };
 
 const negativo = (n: number) => (n < 0 ? "text-[#C03420] font-semibold" : "");
@@ -46,6 +50,10 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
   const ina = cajaInactivos ? "1" : null;
+  // Fer (28/10): los kits, apagado de entrada (?kits=1 los muestra); sólo con disponible, prendido de entrada (?disp=0 muestra todo).
+  const conKits = sp.kits === "1";
+  const soloDisp = sp.disp !== "0";
+  const kits = conKits ? "1" : null, disp = soloDisp ? null : "0";
   const patrones = parametroBusqueda(q, comienza);
   // Lo escrito (regla común, lib/busqueda.ts: todos los datos de la variación y de su producto) o el código de barras exacto.
   const coincide = `(v.codigo_barras = $3 or p.codigo_barras = $3 or ${sqlBusqueda("$2", camposVariacionYProducto("v", "p"))})`;
@@ -70,10 +78,15 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   // stock_disponible_deposito (así un kit se calcula de sus componentes).
   const variaciones = await consulta<Variacion>(`
     with v as (
-      select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id
+      select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id,
+             coalesce((select array_agg(f.url order by f.orden) from variacion_foto f where f.variacion_id = v.id),
+                      (select array_agg(f.url order by f.orden) from producto_foto f where f.producto_id = p.id)) fotos,
+             -- El precio de la lista Clásicas (la de referencia de la organización).
+             (select venta_ars from precio_de($1, v.id, (select l.id from lista_precios l where l.organizacion_id = $1
+                and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)))::float8 clasica
         from variacion v join producto p on p.id = v.producto_id
        where v.organizacion_id = $1 and v.estado <> 'archivada' and ($5 or p.estado <> 'archivado')
-         and ${coincide}
+         and ${coincide} and ($7 or not es_kit(v.id))
     ), t as (
       select v.*,
              coalesce((select sum(st.cantidad) from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
@@ -88,11 +101,11 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
                where st.variacion_id = v.id and d.estado = 'activo' and st.cantidad <> 0 and ($6::bigint is null or d.id = $6)) ubicaciones
         from v
     )
-    select id::int, sku, codigo_barras, titulo, kit, stock_minimo, cantidad, reservado, disponible, producto_id::int, ubicaciones from t
-     where ($4::text is null
+    select id::int, sku, codigo_barras, titulo, kit, stock_minimo, cantidad, reservado, disponible, producto_id::int, ubicaciones, fotos, clasica from t
+     where (not $8 or disponible > 0 or $4 = 'negativo') and ($4::text is null
             or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
             or ($4 = 'negativo' and disponible < 0))
-     order by sku limit ${LIMITE}`, [s.org.id, patrones, q, filtro, inactivos, depId]);
+     order by sku limit ${LIMITE}`, [s.org.id, patrones, q, filtro, inactivos, depId, conKits, soloDisp]);
 
   // Una variación abierta: detalle por depósito y ubicación + movimientos.
   const elegida = vId ? await una<Variacion>(`
@@ -138,16 +151,20 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const totDisp = porDeposito.reduce((a, d) => a + d.disponible, 0);
 
   return (
-    <Pantalla titulo="Consulta de stock" subtitulo="Qué hay de cada producto en cada depósito y ubicación. Disponible = cantidad − reservado.">
+    <Pantalla titulo="Consulta de stock" subtitulo="Qué hay de cada producto en cada depósito y ubicación. Disponible = cantidad − reservado." ancho="max-w-[99rem]"
+      acciones={<>
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, disp, kits: conKits ? null : "1" })} prendido={conKits} etiqueta="Muestra kits" />
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp: soloDisp ? "0" : null })} prendido={soloDisp} etiqueta="Sólo con disponible" />
+      </>}>
       <Avisos sp={sp} />
       <RecordarDeposito valor={sp.dep ?? null} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} inactivos={cajaInactivos} comienza={comienza} autoFocus={!vId} placeholder="SKU, título o código de barras" limpiar={["v"]} />
-        <InterruptorFiltro href={url(BASE, { q, contiene: cont, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
+        <InterruptorFiltro href={url(BASE, { q, contiene: cont, filtro, inactivos: ina, kits, disp, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
           prendido={todos} etiqueta="Todos los depósitos" />
         {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} />}
-        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
-        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, kits, disp, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, kits, disp, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
       </div>
 
       {elegida && (
@@ -163,7 +180,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             </div>
             <span className="flex gap-2">
               {!elegida.kit && <Link href={url("/stock/ajustes", { sku: elegida.sku })} className={SUAVE}>Ajustar</Link>}
-              <Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina })} className={SUAVE}>Cerrar</Link>
+              <Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp })} className={SUAVE}>Cerrar</Link>
             </span>
           </div>
 
@@ -171,7 +188,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             <>
               <p className="text-[11px] text-[#5C6B76] mb-2">
                 Un kit no tiene stock propio: el disponible se calcula de sus componentes (cuántos kits se pueden armar en cada depósito) y, al venderlo, se mueve el stock de cada componente.
-                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, contiene: cont, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link>{c.sobrante && " (sobra: entra al vender)"}</span>)}.
+                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, contiene: cont, kits, disp, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link>{c.sobrante && " (sobra: entra al vender)"}</span>)}.
               </p>
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>
@@ -250,27 +267,35 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Variación</th><th className={THN}>Cantidad</th><th className={THN}>Reservado</th>
-              <th className={THN}>Disponible</th><th className={THN}>Mínimo</th>
+              <th className={TH} /><th className={`${TH} w-px`}>SKU</th><th className={TH}>Variación</th><th className={THN} title="Cantidad">Cant.</th><th className={THN} title="Reservado">Res.</th>
+              <th className={THN} title="Disponible">Dispo.</th><th className={THN} title="Stock mínimo">Mín.</th>
+              <th className={THN} title="Precio de la lista Clásicas">Clásica</th><th className={`${TH} w-px`} title="Ubicación principal: donde más unidades hay">Ubic.</th>
             </tr>
           </thead>
           <tbody>
-            {variaciones.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
+            {variaciones.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
             {variaciones.map((v) => (
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
-                <td className={TD}>{v.titulo} {v.kit && <Estado texto="Kit" tono="azul" />}</td>
+                <td className={`${TD} w-px`}><FotosProducto fotos={v.fotos} titulo={v.titulo} /></td>
+                <td className={`${TD} w-px whitespace-nowrap`}><Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
+                <td className={`${TD} max-w-80`}><TituloCorto titulo={v.titulo} className="text-[12px] text-inherit" />{v.kit && <Estado texto="Kit" tono="azul" />}</td>
                 <td className={TDN}>{v.kit ? "—" : <CantidadUbicaciones cantidad={v.cantidad} ubicaciones={v.ubicaciones ?? []} />}</td>
                 <td className={TDN}>{v.kit ? "—" : v.reservado}</td>
                 <td className={`${TDN} ${negativo(v.disponible)} ${v.stock_minimo != null && v.disponible < v.stock_minimo ? "text-[#8a6100] font-semibold" : ""}`}>{v.disponible}</td>
                 <td className={TDN}>{v.stock_minimo ?? "—"}</td>
+                <td className={`${TDN} whitespace-nowrap`}>{v.clasica != null ? `$ ${formatearNumero(v.clasica, "entero")}` : "—"}</td>
+                <td className={`${TD} w-px whitespace-nowrap`}>{(() => {
+                  // La ubicación donde más hay; si hay más de un depósito, con el nombre del depósito al pasar el mouse.
+                  const u = (v.ubicaciones ?? []).reduce<NonNullable<Variacion["ubicaciones"]>[number] | null>((a, x) => (!a || x.cantidad > a.cantidad ? x : a), null);
+                  return u ? <span title={`${u.deposito} · ${u.ubicacion} (${u.cantidad})`}>{u.ubicacion}</span> : "—";
+                })()}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {variaciones.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran las primeras {LIMITE}: buscá para afinar.</p>}
-      <p className="text-[11px] text-[#5C6B76] mt-2">{todos ? "Los totales cuentan sólo los depósitos activos." : `Cantidades del depósito ${elegidoDep.nombre}.`} Tocá una cantidad para ver en qué ubicaciones está. Un kit muestra cuántos se pueden armar con sus componentes.</p>
+      <p className="text-[11px] text-[#5C6B76] mt-2">{todos ? "Los totales cuentan sólo los depósitos activos." : `Cantidades del depósito ${elegidoDep.nombre}.`} Tocá una cantidad para ver en qué ubicaciones está; «Ubic.» es donde más hay. Un kit muestra cuántos se pueden armar con sus componentes.</p>
     </Pantalla>
   );
 }

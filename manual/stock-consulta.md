@@ -29,10 +29,11 @@ También es el punto de partida para corregir un stock: desde un producto abiert
 - Interruptor **"Todos los depósitos"**: prendido, suma todos los depósitos activos. Apagado, aparece el desplegable **"Depósito"** para ver uno solo. La elección queda recordada en ese navegador: la próxima vez la pantalla abre con el último depósito elegido.
 - Interruptor **"Sólo bajo el mínimo"**: deja sólo los productos cuyo disponible está por debajo del stock mínimo cargado en el producto.
 - Interruptor **"Sólo con disponible negativo"**: deja sólo los que tienen disponible menor que cero (se vendió más de lo que había).
+- Arriba a la derecha, a la altura del título, dos interruptores más: **"Muestra kits"** (viene apagado: los kits no aparecen en la lista) y **"Sólo con disponible"** (viene prendido: sólo los productos con disponible mayor que cero; apagado, todos). Con "Sólo con disponible negativo" prendido se ven los negativos igual.
 
 ### La tabla
 
-Columnas: **SKU**, **Variación** (el título; los kits llevan la marca "Kit"), **Cantidad**, **Reservado**, **Disponible** y **Mínimo**.
+Columnas: la **foto** principal (al tocarla abre todas), **SKU**, **Variación** (el título, en dos renglones como máximo; entero al pasar el mouse; los kits llevan la marca "Kit"), **Cant.** (cantidad), **Res.** (reservado), **Dispo.** (disponible), **Mín.** (stock mínimo), **Clásica** (el precio de la lista Clásicas) y **Ubic.** (la ubicación principal: donde más unidades hay; al pasar el mouse, el depósito, la ubicación y cuántas hay). Al pasar el mouse por el título de cada columna se ve su nombre completo.
 
 - **Cantidad** es lo que hay físicamente. Tocando el número se abre un cuadrito con las ubicaciones donde está (y el depósito, si está en más de uno).
 - **Reservado** es lo comprometido con pedidos que todavía no salieron.
