@@ -79,10 +79,24 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, con_mercado: f.conMercado ? "1" : null, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
 
   return (
+    // Para ahorrar alto (Fer, 28/10): los botones arriba a la derecha, a la altura del título; el estado de la búsqueda de
+    // precio de mercado, en el renglón chico de debajo del título; los filtros en un renglón y los totales, compactos.
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
-      subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento), descontando lo que se vende en los ${f.demora} días que tarda en llegar. Sin notebooks.`}
+      subtitulo={<span title={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento), descontando lo que se vende en los ${f.demora} días que tarda en llegar. Sin notebooks.`}>
+        {tanda ? <>Precio de mercado: última búsqueda del {tanda.creado.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })},{" "}
+          {tanda.estado === "corriendo" ? <b className="text-[#16577F]">buscando: {tanda.hechos + tanda.errores} de {tanda.total}</b> : <>{tanda.hechos} de {tanda.total} con precio</>}
+          {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.</> : "Sin búsquedas de precio de mercado."}
+      </span>}
       acciones={
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
+            texto={`Buscar precio de mercado (${idsMercado.length})`}
+            pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
+          <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
+          <a href={url("/compras/sugerencia/proveedor", params)} className={VERDE} title="Sólo lo que hay que comprar de esta lista: foto, SKU, título, cantidad precio (FOB de la ficha), subtotal y total">Excel para el proveedor</a>
+        </div>
+      }>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-2">
           <FiltrosConOk>
           <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="SKU o producto" limpiar={["p"]} />
           <RangoFechas desde={f.desde} hasta={f.hasta} etiqueta="Historia" limpiar={["p"]} />
@@ -102,31 +116,18 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <CasillaViva parametro="con_mercado" activo={f.conMercado} etiqueta="Calcular con el precio de mercado"
             ayuda="Todo producto que tiene precio de mercado se calcula a ese precio, como si lo vendieras al precio del más barato, lo vendas o no. Destildada, la Clásica para lo que vendés" />
           </FiltrosConOk>
-          <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
-            texto={`Buscar precio de mercado (${idsMercado.length})`}
-            pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
-          <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
-          <a href={url("/compras/sugerencia/proveedor", params)} className={VERDE} title="Sólo lo que hay que comprar de esta lista: foto, SKU, título, cantidad y una columna vacía para el precio">Excel para el proveedor</a>
-        </div>
-      }>
-      {tanda && (
-        <p className="text-xs text-[#5C6B76] mb-2">
-          Precio de mercado: última búsqueda del {tanda.creado.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })},{" "}
-          {tanda.estado === "corriendo" ? <b className="text-[#16577F]">buscando: {tanda.hechos + tanda.errores} de {tanda.total}</b> : <>{tanda.hechos} de {tanda.total} con precio</>}
-          {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.
-        </p>
-      )}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3 text-xs">
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs rounded-lg border border-[#E3E9F0] bg-white px-3 py-1.5">
         {[["Productos", `${entero(t.productos)} (${entero(t.conCosto)} con costo)`],
           ["Unidades a comprar · típico / mejor", `${entero(t.unidadesTipicas)} / ${entero(t.unidadesMejor)}`],
           ["Al proveedor (FOB) · típico", usd(t.fobTipicoUsd)],
           ["Costo puesto acá · típico / mejor", `${usd(t.inversionTipicaUsd)} / ${usd(t.inversionMejorUsd)}`],
-          ["Ganancia estimada · típico / mejor", `${pesos(t.gananciaTipica)} / ${pesos(t.gananciaMejor)}`]].map(([k, v]) => (
-          <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl p-2"><span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b></div>
+          ["Ganancia estimada · típico / mejor", `${pesos(t.gananciaTipica)} / ${pesos(t.gananciaMejor)}${tcHoy ? ` (${usd(t.gananciaTipica / tcHoy)} / ${usd(t.gananciaMejor / tcHoy)})` : ""}`]].map(([k, v]) => (
+          <span key={k} className="whitespace-nowrap"><span className="text-[#5C6B76]">{k}: </span><b className="tabular-nums">{v}</b></span>
         ))}
       </div>
       {/* Los títulos quedan fijos al desplazarse (Fer, 12/10): la tabla tiene su propio alto y se desplaza adentro. */}
-      <div className={`${CAJA_TABLA} max-h-[calc(100vh-15rem)] overflow-y-auto`}>
+      <div className={`${CAJA_TABLA} max-h-[calc(100vh-13rem)] overflow-y-auto`}>
         <table className={`${TABLA} text-[11px] [&_td]:px-1.5 [&_th]:px-1.5`}>
           <thead className={`${THEAD} sticky top-0 z-10 shadow-[0_1px_0_#E3E9F0]`}>
             <tr>
