@@ -236,7 +236,9 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                           </tr>
                           {editandoDom && (
                             <tr className={TR}><td colSpan={6} className={`${TD} bg-[#F7F9FB]`}>
-                              <form id={`dom-${d.id}`} action={accionGuardarDominio} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start text-xs">
+                              {/* Con "Redirige a" elegido, los datos de la marca se esconden (Fer, 28/10: los cargaba en el www, que redirige, y se ignoraban). */}
+                              <form id={`dom-${d.id}`} action={accionGuardarDominio}
+                                className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start text-xs [&:has(input[value=redirige]:checked)_.campos-marca]:hidden [&:has(input[value=redirige]:checked)_.aviso-redirige]:block">
                                 <input type="hidden" name="id" value={d.id} />
                                 <div className="sm:col-span-3"><span className={ETIQUETA}>Tipo</span>
                                   <span className="flex flex-wrap gap-3 py-1.5">
@@ -247,7 +249,9 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                                       {doms.filter((x) => x.id !== d.id && x.marca?.nombre).map((x) => <option key={x.id} value={x.id}>{x.dominio} ({x.marca!.nombre})</option>)}
                                     </select>
                                   </span></div>
-                                <CamposMarca m={d.marca} org={s.org.id} />
+                                <p className="aviso-redirige hidden sm:col-span-3 text-[11px] text-[#5C6B76]">
+                                  Un dominio que redirige no tiene nombre, logo ni mail propios: muestra los del dominio al que va. Para cambiarlos, usá el lápiz de ese dominio.</p>
+                                <div className="campos-marca contents"><CamposMarca m={d.marca} org={s.org.id} /></div>
                               </form>
                               <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre y logo (colores y mail: los propios si los cargás; si no, los de la tienda, con el mail en este dominio); los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
                             </td></tr>

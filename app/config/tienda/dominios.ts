@@ -185,7 +185,9 @@ export async function accionGuardarDominio(fd: FormData) {
       }
     }
     revalidatePath(VOLVER);
-    return marca ? `${f.dominio} abre la tienda como «${marca.nombre}».` : `${f.dominio} redirige.`;
+    if (marca) return `${f.dominio} abre la tienda como «${marca.nombre}».`;
+    const a = (await filaDe(s.org.id, f.id))?.destino;
+    return `${f.dominio} redirige${a ? ` a ${a}` : ""}. Su nombre, logo y mail son los de ese dominio.`;
   });
 }
 
