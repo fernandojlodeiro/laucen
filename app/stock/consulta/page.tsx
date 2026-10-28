@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { RecordarDeposito, ElegirDeposito, CantidadUbicaciones } from "./Deposito";
+import { RecordarDeposito, ElegirDeposito, CantidadUbicaciones, ReservadoPedidos } from "./Deposito";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { consulta, una } from "@/lib/erp/base";
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
@@ -14,6 +14,7 @@ import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
 import { verInactivos } from "@/app/componentes/Inactivos";
+import Pestanas from "@/app/componentes/Pestanas";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import TituloCorto from "@/app/componentes/TituloCorto";
 import { formatearNumero } from "@/lib/numeros";
@@ -25,10 +26,10 @@ export const dynamic = "force-dynamic";
 
 const BASE = "/stock/consulta";
 const LIMITE = 100;
-/** Los últimos movimientos que se ven en la caja; el resto, en /stock/movimientos. */
-const MOVIMIENTOS = 20;
+/** Tope de movimientos del historial (todos, salvo un producto con muchísimos). */
+const MOVIMIENTOS = 2000;
 
-type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; kits?: string; disp?: string; ok?: string; error?: string };
+type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; kits?: string; disp?: string; hist?: string; ok?: string; error?: string };
 
 type Variacion = {
   id: number; sku: string; codigo_barras: string | null; titulo: string; kit: boolean; stock_minimo: number | null;
@@ -38,6 +39,26 @@ type Variacion = {
 };
 
 const negativo = (n: number) => (n < 0 ? "text-[#C03420] font-semibold" : "");
+
+type Mov = {
+  id: number; fecha: string; tipo: TipoMovimiento; sku: string; origen: string | null; destino: string | null; cantidad: number;
+  referencia_tipo: string | null; referencia_id: string | null; nota: string | null; usuario: string | null; venta_reservada: boolean;
+};
+/** Cuánto cambia la cantidad física (db/stock.sql, mover_stock): una transferencia no cambia el total. */
+function efectoFisico(m: Mov): number {
+  if (m.tipo === "ingreso" || m.tipo === "devolucion") return m.cantidad;
+  if (m.tipo === "egreso" || m.tipo === "venta") return -m.cantidad;
+  if (m.tipo === "ajuste") return m.destino ? m.cantidad : -m.cantidad;
+  return 0;
+}
+/** Cuánto cambia el disponible (cantidad − reservado): además, la reserva lo baja y la liberación lo sube; la venta de
+ *  algo reservado ya no lo cambia. */
+function efectoDisponible(m: Mov): number {
+  if (m.tipo === "reserva") return -m.cantidad;
+  if (m.tipo === "liberacion") return m.cantidad;
+  if (m.tipo === "venta") return m.venta_reservada ? 0 : -m.cantidad;
+  return efectoFisico(m);
+}
 
 export default async function ConsultaStock({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("stock_ver");
@@ -80,7 +101,12 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
     with v as (
       select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id,
              coalesce((select array_agg(f.url order by f.orden) from variacion_foto f where f.variacion_id = v.id),
-                      (select array_agg(f.url order by f.orden) from producto_foto f where f.producto_id = p.id)) fotos,
+                      (select array_agg(f.url order by f.orden) from producto_foto f where f.producto_id = p.id),
+                      -- Sin fotos cargadas en Laucen, las de su publicación de Mercado Libre.
+                      (select array(select coalesce(x ->> 'secure_url', x ->> 'url') from jsonb_array_elements(m.datos_externos -> 'ml' -> 'pictures') x)
+                         from publicacion pu join meli_item m on m.publicacion_id = pu.id
+                        where pu.variacion_id = v.id and jsonb_typeof(m.datos_externos -> 'ml' -> 'pictures') = 'array'
+                          and jsonb_array_length(m.datos_externos -> 'ml' -> 'pictures') > 0 order by (m.estado = 'active') desc limit 1)) fotos,
              -- El precio de la lista Clásicas (la de referencia de la organización).
              (select venta_ars from precio_de($1, v.id, (select l.id from lista_precios l where l.organizacion_id = $1
                 and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)))::float8 clasica
@@ -132,20 +158,32 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
 
   // Movimientos: los de la variación y, si es un kit, los que hicieron sus
   // componentes al venderlo o reservarlo.
-  const movimientos = elegida ? await consulta<{
-    id: number; fecha: string; tipo: TipoMovimiento; sku: string; origen: string | null; destino: string | null; cantidad: number;
-    referencia_tipo: string | null; referencia_id: string | null; nota: string | null; usuario: string | null;
-  }>(`
+  const movimientos = elegida ? await consulta<Mov>(`
     select m.id::int, to_char(m.fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YY HH24:MI') fecha, m.tipo, v.sku,
-           (select d.nombre || ' · ' || u.codigo from ubicacion u join deposito d on d.id = u.deposito_id where u.id = m.ubicacion_origen_id) origen,
-           (select d.nombre || ' · ' || u.codigo from ubicacion u join deposito d on d.id = u.deposito_id where u.id = m.ubicacion_destino_id) destino,
+           (select d.nombre || ' · ' || case when u.es_default then 'General' else u.codigo end from ubicacion u join deposito d on d.id = u.deposito_id where u.id = m.ubicacion_origen_id) origen,
+           (select d.nombre || ' · ' || case when u.es_default then 'General' else u.codigo end from ubicacion u join deposito d on d.id = u.deposito_id where u.id = m.ubicacion_destino_id) destino,
            m.cantidad, m.referencia_tipo, m.referencia_id, m.nota,
-           case when m.usuario_id = 'sistema' then 'Sistema' else coalesce(us.nombre, us.email) end usuario
+           case when m.usuario_id = 'sistema' then 'Sistema' else coalesce(us.nombre, us.email) end usuario,
+           -- Una venta que viene de una reserva del mismo pedido no cambia el disponible (lo baja la reserva).
+           (m.tipo = 'venta' and exists (select 1 from movimiento_stock r where r.variacion_id = m.variacion_id and r.tipo = 'reserva'
+              and r.referencia_tipo = m.referencia_tipo and r.referencia_id = m.referencia_id and r.id < m.id)) venta_reservada
       from movimiento_stock m
       join variacion v on v.id = m.variacion_id
       left join usuarios us on us.id = m.usuario_id
      where m.organizacion_id = $1 and (m.variacion_id = $2 or m.kit_variacion_id = $2)
      order by m.fecha desc, m.id desc limit ${MOVIMIENTOS}`, [s.org.id, elegida.id]) : [];
+  // Historial (Fer, 28/10): «Físico» (lo que cambia la cantidad: el saldo termina en el stock que hay) o «Disponible»
+  // (además las reservas y liberaciones: termina en el disponible). El saldo se arma desde el stock de hoy hacia atrás;
+  // lo que había antes del primer movimiento registrado (una carga inicial sin movimiento) va como «Saldo anterior».
+  const hist = sp.hist === "disponible" ? "disponible" : "fisico";
+  const efecto = (m: Mov) => hist === "fisico" ? efectoFisico(m) : efectoDisponible(m);
+  const actual = elegida ? (await una<{ cantidad: number; reservado: number }>(
+    "select coalesce(sum(cantidad), 0)::int cantidad, coalesce(sum(reservado), 0)::int reservado from stock where variacion_id = $1 and organizacion_id = $2",
+    [elegida.id, s.org.id])) ?? { cantidad: 0, reservado: 0 } : { cantidad: 0, reservado: 0 };
+  const lista = movimientos.filter((m) => hist === "disponible" || (m.tipo !== "reserva" && m.tipo !== "liberacion"));
+  let saldo = hist === "fisico" ? actual.cantidad : actual.cantidad - actual.reservado;
+  const historial = lista.map((m) => { const e = efecto(m); const fila = { ...m, efecto: e, saldo }; saldo -= e; return fila; });
+  const saldoAnterior = saldo;
 
   const totDet = detalle.reduce((a, d) => ({ cantidad: a.cantidad + d.cantidad, reservado: a.reservado + d.reservado }), { cantidad: 0, reservado: 0 });
   const totDisp = porDeposito.reduce((a, d) => a + d.disponible, 0);
@@ -230,36 +268,62 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 mt-4 mb-1">
-            <h3 className="text-xs font-bold">Últimos movimientos</h3>
-            <Link href={url("/stock/movimientos", { v: elegida.id })} className={SUAVE}>Ver todos los movimientos</Link>
+            <h3 className="text-xs font-bold">Historial</h3>
+            <span className="flex flex-wrap items-center gap-2">
+              <Pestanas className="mb-0" items={[
+                { href: url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp, v: elegida.id }), activa: hist === "fisico", clave: "fisico",
+                  texto: "Físico", cuenta: movimientos.filter((m) => m.tipo !== "reserva" && m.tipo !== "liberacion").length },
+                { href: url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp, v: elegida.id, hist: "disponible" }), activa: hist === "disponible", clave: "disponible",
+                  texto: "Disponible (con reservas)", cuenta: movimientos.length },
+              ]} />
+              <Link href={url("/stock/movimientos", { v: elegida.id })} className={SUAVE}>Movimientos con filtros</Link>
+            </span>
           </div>
+          <p className="text-[11px] text-[#5C6B76] mb-1">
+            {hist === "fisico"
+              ? "Lo que cambia la cantidad que hay: ingresos, ajustes, ventas, egresos y devoluciones (las transferencias entre ubicaciones no cambian el total). El saldo termina en la cantidad de hoy."
+              : "Además, las reservas (bajan el disponible) y las liberaciones (lo suben); una venta de algo reservado ya no lo cambia. El saldo termina en el disponible de hoy."}
+            {elegida.kit && " En un kit se ven los movimientos de sus componentes."}
+          </p>
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}>
                 <tr>
                   <th className={TH}>Fecha</th><th className={TH}>Tipo</th>{elegida.kit && <th className={TH}>Componente</th>}
-                  <th className={TH}>Origen</th><th className={TH}>Destino</th><th className={THN}>Cantidad</th>
-                  <th className={TH}>Referencia</th><th className={TH}>Nota</th><th className={TH}>Usuario</th>
+                  <th className={TH}>Origen</th><th className={TH}>Destino</th><th className={TH}>Referencia</th>
+                  <th className={THN} title="Entrada">Entra</th><th className={THN} title="Salida">Sale</th>{!elegida.kit && <th className={THN}>Saldo</th>}
+                  <th className={TH}>Nota</th><th className={TH}>Usuario</th>
                 </tr>
               </thead>
               <tbody>
-                {movimientos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Sin movimientos.</td></tr>}
-                {movimientos.map((m) => (
+                {historial.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>Sin movimientos.</td></tr>}
+                {historial.map((m) => (
                   <tr key={m.id} className={TR}>
                     <td className={`${TD} whitespace-nowrap`}>{m.fecha}</td>
                     <td className={TD}>{TIPOS_MOVIMIENTO[m.tipo] ?? m.tipo}</td>
                     {elegida.kit && <td className={TD}>{m.sku}</td>}
                     <td className={TD}>{m.origen ?? "—"}</td>
                     <td className={TD}>{m.destino ?? "—"}</td>
-                    <td className={TDN}>{m.cantidad}</td>
-                    <td className={TD}>{m.referencia_tipo ? `${m.referencia_tipo.replace(/_/g, " ")}${m.referencia_id ? ` #${m.referencia_id}` : ""}` : "—"}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{m.referencia_tipo === "pedido" && m.referencia_id
+                      ? <Link href={`/ventas/pedidos/${m.referencia_id}`} className="text-[#16577F] hover:underline">pedido {m.referencia_id}</Link>
+                      : m.referencia_tipo ? `${m.referencia_tipo.replace(/_/g, " ")}${m.referencia_id ? ` #${m.referencia_id}` : ""}` : "—"}</td>
+                    <td className={`${TDN} text-[#167655]`}>{m.efecto > 0 ? m.efecto : ""}</td>
+                    <td className={`${TDN} text-[#C03420]`}>{m.efecto < 0 ? -m.efecto : m.efecto === 0 && m.tipo === "transferencia" ? <span className="text-[#5C6B76]">{m.cantidad} ↔</span> : ""}</td>
+                    {!elegida.kit && <td className={`${TDN} font-semibold ${negativo(m.saldo)}`}>{m.saldo}</td>}
                     <td className={TD}>{m.nota ?? "—"}</td>
                     <td className={TD}>{m.usuario ?? "—"}</td>
                   </tr>
                 ))}
+                {!elegida.kit && historial.length > 0 && saldoAnterior !== 0 && (
+                  <tr className={`${TR} bg-[#FAFBFC]`}>
+                    <td className={`${TD} text-[#5C6B76]`} colSpan={7}>Saldo anterior (lo que había antes del primer movimiento registrado, por ejemplo una carga inicial)</td>
+                    <td className={TDN} /><td className={`${TDN} font-semibold`}>{saldoAnterior}</td><td className={TD} colSpan={2} />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+          {movimientos.length === MOVIMIENTOS && <p className="text-[11px] text-[#5C6B76] mt-1">Se ven los últimos {MOVIMIENTOS} movimientos.</p>}
         </section>
       )}
 
@@ -267,35 +331,35 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH} /><th className={`${TH} w-px`}>SKU</th><th className={TH}>Variación</th><th className={THN} title="Cantidad">Cant.</th><th className={THN} title="Reservado">Res.</th>
-              <th className={THN} title="Disponible">Dispo.</th><th className={THN} title="Stock mínimo">Mín.</th>
-              <th className={THN} title="Precio de la lista Clásicas">Clásica</th><th className={`${TH} w-px`} title="Ubicación principal: donde más unidades hay">Ubic.</th>
+              <th className={TH} /><th className={`${TH} w-px`}>SKU</th><th className={TH}>Variación</th><th className={THN} title="Cantidad">Cant.</th><th className={THN} title="Reservado (tocalo para ver los pedidos)">Res.</th>
+              <th className={THN} title="Disponible (tocalo para ver las ubicaciones)">Dispo.</th><th className={`${TH} w-px`} title="Ubicación principal: donde más unidades hay">Ubic.</th>
+              <th className={THN} title="Precio de la lista Clásicas">Clásica</th>
             </tr>
           </thead>
           <tbody>
-            {variaciones.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
+            {variaciones.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
             {variaciones.map((v) => (
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
                 <td className={`${TD} w-px`}><FotosProducto fotos={v.fotos} titulo={v.titulo} /></td>
                 <td className={`${TD} w-px whitespace-nowrap`}><Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, kits, disp, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
                 <td className={`${TD} max-w-80`}><TituloCorto titulo={v.titulo} className="text-[12px] text-inherit" />{v.kit && <Estado texto="Kit" tono="azul" />}</td>
-                <td className={TDN}>{v.kit ? "—" : <CantidadUbicaciones cantidad={v.cantidad} ubicaciones={v.ubicaciones ?? []} />}</td>
-                <td className={TDN}>{v.kit ? "—" : v.reservado}</td>
-                <td className={`${TDN} ${negativo(v.disponible)} ${v.stock_minimo != null && v.disponible < v.stock_minimo ? "text-[#8a6100] font-semibold" : ""}`}>{v.disponible}</td>
-                <td className={TDN}>{v.stock_minimo ?? "—"}</td>
-                <td className={`${TDN} whitespace-nowrap`}>{v.clasica != null ? `$ ${formatearNumero(v.clasica, "entero")}` : "—"}</td>
+                <td className={TDN}>{v.kit ? "—" : v.cantidad}</td>
+                <td className={TDN}>{v.kit ? "—" : <ReservadoPedidos variacionId={v.id} reservado={v.reservado} />}</td>
+                <td className={`${TDN} ${negativo(v.disponible)} ${v.stock_minimo != null && v.disponible < v.stock_minimo ? "text-[#8a6100] font-semibold" : ""}`}>
+                  {v.kit ? v.disponible : <CantidadUbicaciones cantidad={v.disponible} ubicaciones={v.ubicaciones ?? []} />}</td>
                 <td className={`${TD} w-px whitespace-nowrap`}>{(() => {
-                  // La ubicación donde más hay; si hay más de un depósito, con el nombre del depósito al pasar el mouse.
+                  // La ubicación donde más hay; al pasar el mouse, el depósito, la ubicación y cuántas hay.
                   const u = (v.ubicaciones ?? []).reduce<NonNullable<Variacion["ubicaciones"]>[number] | null>((a, x) => (!a || x.cantidad > a.cantidad ? x : a), null);
                   return u ? <span title={`${u.deposito} · ${u.ubicacion} (${u.cantidad})`}>{u.ubicacion}</span> : "—";
                 })()}</td>
+                <td className={`${TDN} whitespace-nowrap`}>{v.clasica != null ? `$ ${formatearNumero(v.clasica, "entero")}` : "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {variaciones.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran las primeras {LIMITE}: buscá para afinar.</p>}
-      <p className="text-[11px] text-[#5C6B76] mt-2">{todos ? "Los totales cuentan sólo los depósitos activos." : `Cantidades del depósito ${elegidoDep.nombre}.`} Tocá una cantidad para ver en qué ubicaciones está; «Ubic.» es donde más hay. Un kit muestra cuántos se pueden armar con sus componentes.</p>
+      <p className="text-[11px] text-[#5C6B76] mt-2">{todos ? "Los totales cuentan sólo los depósitos activos." : `Cantidades del depósito ${elegidoDep.nombre}.`} Tocá el disponible para ver en qué ubicaciones está y el reservado para ver los pedidos; «Ubic.» es donde más hay. Un kit muestra cuántos se pueden armar con sus componentes.</p>
     </Pantalla>
   );
 }

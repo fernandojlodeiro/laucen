@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usarCambiarParametro } from "@/app/componentes/BuscadorVivo";
+import { reservasDeVariacion, type PedidoReserva } from "./acciones";
 
 const COOKIE_DEPOSITO = "stock_deposito"; // la lee page.tsx
 
@@ -70,6 +71,70 @@ export function CantidadUbicaciones({ cantidad, ubicaciones }: { cantidad: numbe
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** El reservado de una fila: al tocarlo abre los pedidos que lo tienen reservado (Fer, 28/10). */
+export function ReservadoPedidos({ variacionId, reservado }: { variacionId: number; reservado: number }) {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [filas, setFilas] = useState<PedidoReserva[] | null>(null);
+  const [error, setError] = useState(false);
+  const boton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const cerrar = (e: Event) => { if (e.type !== "mousedown" || !boton.current?.parentElement?.contains(e.target as Node)) setPos(null); };
+    document.addEventListener("mousedown", cerrar);
+    window.addEventListener("scroll", cerrar, true);
+    return () => { document.removeEventListener("mousedown", cerrar); window.removeEventListener("scroll", cerrar, true); };
+  }, [pos]);
+
+  if (reservado <= 0) return <>{reservado}</>;
+  const abrir = () => {
+    if (pos) return setPos(null);
+    const r = boton.current!.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right - 200) });
+    setFilas(null); setError(false);
+    reservasDeVariacion(variacionId).then(setFilas, () => setError(true));
+  };
+  const plata = (n: number | null, moneda: string) => (n == null ? "—" : `${moneda === "USD" ? "US$" : "$"} ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`);
+
+  return (
+    <span>
+      <button ref={boton} type="button" onClick={abrir} title="Ver los pedidos que lo tienen reservado"
+        className="text-[#16577F] underline decoration-dotted tabular-nums">{reservado}</button>
+      {pos && (
+        <div style={{ position: "fixed", top: pos.top, right: pos.right }}
+          className="z-50 rounded-md border border-[#C9D3DD] bg-white p-2 shadow-lg text-left">
+          {error ? <p className="text-xs text-[#C03420]">No se pudieron traer los pedidos.</p>
+            : !filas ? <p className="text-xs text-[#5C6B76]">Buscando los pedidos…</p>
+            : filas.length === 0 ? <p className="text-xs text-[#5C6B76]">Ningún pedido lo tiene reservado.</p>
+            : (
+            <table className="text-xs">
+              <thead><tr className="text-[#5C6B76]">
+                <th className="pr-3 pb-1 text-left font-semibold">Pedido</th><th className="pr-3 pb-1 text-left font-semibold">Fecha</th>
+                <th className="pr-3 pb-1 text-right font-semibold" title="Cantidad reservada">Cant.</th><th className="pr-3 pb-1 text-left font-semibold">Cliente</th>
+                <th className="pr-3 pb-1 text-right font-semibold" title="Precio de venta de la unidad">Precio</th><th className="pr-3 pb-1 text-right font-semibold" title="Total del pedido">Total</th>
+                <th className="pb-1 text-left font-semibold">Canal</th>
+              </tr></thead>
+              <tbody>
+                {filas.map((p) => (
+                  <tr key={p.id} data-canal={p.canal_id ?? undefined}>
+                    <td className="pr-3 py-0.5"><a href={`/ventas/pedidos/${p.id}`} className="font-semibold text-[#16577F] hover:underline">{p.id}</a></td>
+                    <td className="pr-3 py-0.5 whitespace-nowrap">{p.fecha}</td>
+                    <td className="pr-3 py-0.5 text-right tabular-nums">{p.cantidad}</td>
+                    <td className="pr-3 py-0.5 max-w-48 truncate" title={p.cliente ?? undefined}>{p.cliente ?? "—"}</td>
+                    <td className="pr-3 py-0.5 text-right tabular-nums whitespace-nowrap">{plata(p.precio, p.moneda)}</td>
+                    <td className="pr-3 py-0.5 text-right tabular-nums whitespace-nowrap">{plata(p.total, p.moneda)}</td>
+                    <td className="py-0.5 whitespace-nowrap">{p.canal ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </span>

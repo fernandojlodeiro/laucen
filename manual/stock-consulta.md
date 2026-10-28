@@ -4,12 +4,12 @@ menu: Stock › Consulta de stock
 ruta: /stock/consulta
 rutas: /stock/consulta
 permiso: stock_ver
-resumen: Qué hay de cada producto en cada depósito y ubicación (cantidad, reservado y disponible) y sus últimos movimientos.
+resumen: Qué hay de cada producto en cada depósito y ubicación (cantidad, reservado y disponible) y su historial de movimientos (físico o con reservas).
 ---
 
 ## Para qué sirve
 
-Es la pantalla para saber cuánto hay de cada producto (de cada variación, en realidad: cada talle, color o modelo tiene su propio stock), en qué depósito y en qué ubicación está, cuánto está reservado para pedidos y cuánto queda disponible para vender. Al abrir un producto se ven también sus últimos movimientos de stock.
+Es la pantalla para saber cuánto hay de cada producto (de cada variación, en realidad: cada talle, color o modelo tiene su propio stock), en qué depósito y en qué ubicación está, cuánto está reservado para pedidos y cuánto queda disponible para vender. Al abrir un producto se ve también su historial de movimientos de stock.
 
 También es el punto de partida para corregir un stock: desde un producto abierto, el botón **"Ajustar"** lleva a [Ajustes de stock](/stock/ajustes) con el SKU ya cargado.
 
@@ -33,7 +33,7 @@ También es el punto de partida para corregir un stock: desde un producto abiert
 
 ### La tabla
 
-Columnas: la **foto** principal (al tocarla abre todas), **SKU**, **Variación** (el título, en dos renglones como máximo; entero al pasar el mouse; los kits llevan la marca "Kit"), **Cant.** (cantidad), **Res.** (reservado), **Dispo.** (disponible), **Mín.** (stock mínimo), **Clásica** (el precio de la lista Clásicas) y **Ubic.** (la ubicación principal: donde más unidades hay; al pasar el mouse, el depósito, la ubicación y cuántas hay). Al pasar el mouse por el título de cada columna se ve su nombre completo.
+Columnas: la **foto** principal (al tocarla abre todas; si el producto no tiene fotos cargadas, las de su publicación de Mercado Libre), **SKU**, **Variación** (el título, en dos renglones como máximo; entero al pasar el mouse; los kits llevan la marca "Kit"), **Cant.** (cantidad), **Res.** (reservado: **al tocarlo se abre una ventanita con los pedidos que lo tienen reservado**: número de pedido —que lleva al pedido—, fecha, cantidad reservada, cliente, precio de venta, total del pedido y canal), **Dispo.** (disponible: **al tocarlo se ven las ubicaciones** donde hay stock y cuánto en cada una; en amarillo si quedó debajo del stock mínimo), **Ubic.** (la ubicación principal: donde más unidades hay; al pasar el mouse, el depósito, la ubicación y cuántas hay) y **Clásica** (el precio de la lista Clásicas). Al pasar el mouse por el título de cada columna se ve su nombre completo.
 
 - **Cantidad** es lo que hay físicamente. Tocando el número se abre un cuadrito con las ubicaciones donde está (y el depósito, si está en más de uno).
 - **Reservado** es lo comprometido con pedidos que todavía no salieron.
@@ -51,7 +51,12 @@ Tocando el SKU se abre una caja arriba de la tabla con:
 - Botones **"Ajustar"** (no aparece en un kit) y **"Cerrar"**.
 - **Si es un producto común**: una tabla por **Depósito** y **Ubicación** con **Cantidad**, **Reservado** y **Disponible**, y una fila de **Total** si hay más de una. Aparecen también los depósitos archivados que todavía tengan algo (con la marca "Archivado"). La ubicación general de cada depósito se muestra como "General".
 - **Si es un kit**: la lista de sus componentes (cada uno se puede tocar para abrirlo) y una tabla de **Kits disponibles** por depósito, con el total.
-- **Últimos movimientos**: los 20 más nuevos, con Fecha, Tipo, Origen, Destino, Cantidad, Referencia (por ejemplo "pedido #123" o "recepcion #8"), Nota y Usuario ("Sistema" si lo hizo un proceso automático). En un kit se agrega la columna **Componente**, porque los movimientos son de sus componentes. El botón **"Ver todos los movimientos"** lleva a [Movimientos de stock](/stock/movimientos) filtrado por ese producto.
+- **Historial**: todos los movimientos del producto, del más nuevo al más viejo, en dos pestañas:
+  - **Físico**: lo que cambia la cantidad que hay (ingresos, ajustes, ventas, egresos y devoluciones; las transferencias entre ubicaciones se ven pero no cambian el total). El **Saldo** de cada renglón es la cantidad que quedó después de ese movimiento y el de arriba es la cantidad de hoy.
+  - **Disponible (con reservas)**: además las **reservas** (bajan el disponible) y las **liberaciones** (lo suben); la venta de algo que ya estaba reservado no lo cambia. El saldo termina en el disponible de hoy.
+  - Columnas: Fecha, Tipo, Origen, Destino, Referencia (el pedido lleva al pedido), **Entra**, **Sale**, **Saldo**, Nota y Usuario ("Sistema" si lo hizo un proceso automático). Si antes del primer movimiento registrado ya había stock (por ejemplo, una carga inicial), abajo de todo aparece el renglón **"Saldo anterior"**.
+  - En un kit se agrega la columna **Componente** (los movimientos son de sus componentes) y no hay saldo.
+  - El botón **"Movimientos con filtros"** lleva a [Movimientos de stock](/stock/movimientos) filtrado por ese producto.
 
 ## Cómo se hace
 
