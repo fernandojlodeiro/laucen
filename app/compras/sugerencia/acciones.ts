@@ -6,7 +6,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, numero } from "@/lib/erp/acciones";
 import { CAMPOS_VIA, guardarConfigVia, type ConfigVia } from "@/lib/compras/via";
-import { mejorDelMercado, pedirTanda } from "@/lib/compras/precio-mercado";
+import { TOPE_TODOS_USD, mejorDelMercado, pedirTanda, pedirTandaTodos } from "@/lib/compras/precio-mercado";
 import { consulta, ErrorErp, una } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
 import { after } from "next/server";
@@ -62,5 +62,17 @@ export async function accionClasicaAMercado(fd: FormData) {
     revalidateTag(`sugerencia-compra-${s.org.id}`);
     revalidatePath(LISTA);
     return `${v.sku}: la Clásica quedó en $ ${nuevo.toLocaleString("es-AR")}${p ? ` (antes $ ${Math.round(p.lista.ars).toLocaleString("es-AR")})` : ""}.`;
+  });
+}
+
+/** «Precio de mercado para todos» (Fer, 28/10): todos los productos vendidos que no tienen precio de mercado, de lo que más
+ *  plata movió a lo que menos; primero gratis con lo leído de los vendedores referentes, después en Mercado Libre, con tope
+ *  de gasto propio. */
+export async function accionPrecioMercadoTodos() {
+  const s = await entrarErp("compras_ver");
+  return deFondo(s, "precio-mercado", "Precio de mercado para todos", async () => {
+    const r = await pedirTandaTodos(s.org.id, s.usuario.id);
+    revalidatePath(LISTA);
+    return `Buscando el precio de mercado de ${r.total} productos, de lo que más plata movió a lo que menos (hasta US$ ${TOPE_TODOS_USD} de Apify). Tarda unas horas; el avance se ve debajo del título.`;
   });
 }

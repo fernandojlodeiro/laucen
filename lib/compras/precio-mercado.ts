@@ -11,7 +11,7 @@
 import { revalidateTag } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada } from "@/lib/apify";
-import { aPubEncontrada, armarEncontradas, completar, nuestras, quedaParaGastar, ultimaBusqueda, type PubEncontrada } from "@/lib/seguimiento";
+import { aPubEncontrada, armarEncontradas, completar, nuestras, parecido, quedaParaGastar, ultimaBusqueda, type PubEncontrada } from "@/lib/seguimiento";
 import { analizarBusqueda } from "@/lib/seguimiento/auto";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 import { urlPanel } from "@/lib/tienda/dominios";
@@ -41,9 +41,84 @@ export const aGuardar = (comparables: PubJuzgada[]): PubMercado[] => comparables
 
 /** Analiza lo encontrado de un producto, lo guarda (búsqueda, seguidas automáticas y números) y lo da por hecho. */
 async function cerrarProducto(org: string, productoId: number, texto: string, lista: PubEncontrada[], ts?: Date): Promise<void> {
-  const a = await analizarBusqueda(org, productoId, texto, lista, { seguir: true, ts });
+  await guardarNumeros(org, productoId, await analizarBusqueda(org, productoId, texto, lista, { seguir: true, ts }));
+}
+
+async function guardarNumeros(org: string, productoId: number, a: Awaited<ReturnType<typeof analizarBusqueda>>): Promise<void> {
   await consulta(`update precio_mercado set estado = 'ok', error = null, ts = now(), encontradas = $3, minimo = $4, p25 = $5, mediana = $6, resultados = $7::jsonb
                    where organizacion_id = $1 and producto_id = $2`, [org, productoId, a.comparables.length, a.minimo, a.p25, a.mediana, JSON.stringify(aGuardar(a.comparables))]);
+}
+
+// ── Vendedores referentes: lo ya leído, gratis (Fer, 28/10) ─────────────
+
+/** Mínimo de palabras de nuestro título que tiene que tener una publicación de un vendedor referente para pasársela a la IA,
+ *  y cuántas como mucho (las más parecidas). */
+export const PARECIDO_REFERENTE = 0.5;
+export const CANDIDATAS_REFERENTE = 10;
+
+/** Las publicaciones ya leídas de los vendedores referentes (lib/compras/vendedor-referente.ts), sin repetidas. */
+export async function publicacionesReferentes(org: string): Promise<Record<string, unknown>[]> {
+  const r = await consulta<{ x: Record<string, unknown> }>(`
+    select distinct on (coalesce(x ->> 'itemId', x ->> 'id')) x from vendedor_referente v, jsonb_array_elements(v.items) x
+     where v.organizacion_id = $1 and v.estado = 'terminada' order by coalesce(x ->> 'itemId', x ->> 'id'), v.id desc`, [org]);
+  return r.map((f) => f.x);
+}
+
+/** Las publicaciones de los referentes que se parecen a nuestro título (la mitad de las palabras o más), las más parecidas
+ *  primero. Pura. */
+export function candidatasReferentes(texto: string, pubs: Record<string, unknown>[]): Record<string, unknown>[] {
+  return pubs.map((x) => ({ x, p: parecido(texto, String(x.title ?? "")) })).filter((c) => c.p >= PARECIDO_REFERENTE)
+    .sort((a, b) => b.p - a.p).slice(0, CANDIDATAS_REFERENTE).map((c) => c.x);
+}
+
+/** Prueba un producto con lo ya leído de los referentes: si la IA encuentra iguales, queda con precio sin gastar Apify. */
+async function conReferentes(org: string, productoId: number, texto: string, pubs: Record<string, unknown>[]): Promise<boolean> {
+  const cand = candidatasReferentes(texto, pubs);
+  if (!cand.length) return false;
+  const a = await analizarBusqueda(org, productoId, texto, await armarEncontradas(org, cand), { seguir: true });
+  if (!a.comparables.length) return false;
+  await guardarNumeros(org, productoId, a);
+  return true;
+}
+
+/** Tope de gasto de Apify de la búsqueda «para todos» (Fer, 28/10: «usamos hasta ahí y vemos qué logró»). */
+export const TOPE_TODOS_USD = 50;
+
+/** Los productos para «precio de mercado para todos»: los que se vendieron en los últimos 6 años (sin notebooks) y no
+ *  tienen precio de mercado (ni búsqueda con iguales ni una seguida que compita), de lo que más plata movió (en dólares de
+ *  cada día) a lo que menos. */
+export async function productosSinMercado(org: string): Promise<{ id: number; titulo: string; usd: number | null }[]> {
+  return consulta(`
+    with ventas as (
+      select va.producto_id, (e.fecha at time zone 'America/Argentina/Buenos_Aires')::date dia, sum(coalesce(e.total, e.precio_unit * e.cantidad)) ars
+        from venta_estadistica e join variacion va on va.id = e.variacion_id
+        join producto pr on pr.id = va.producto_id left join familia fa on fa.id = pr.familia_id
+       where e.organizacion_id = $1 and e.estado not in ('cancelled', 'cancelado', 'invalid') and e.cantidad > 0
+         and e.fecha > now() - interval '6 years' and not es_notebook(pr.titulo) and not coalesce(fa.nombre ~* '^notebook', false)
+       group by 1, 2),
+    dias as (select dia, tc_del_dia($1, dia) tc from (select distinct dia from ventas) d),
+    plata as (select v.producto_id, sum(v.ars / nullif(d.tc, 0)) usd from ventas v join dias d using (dia) group by 1)
+    select p.id::int, p.titulo, plata.usd::float8 usd from plata join producto p on p.id = plata.producto_id
+     where not exists (select 1 from precio_mercado pm where pm.producto_id = p.id and pm.estado = 'ok' and pm.minimo > 0)
+       and not exists (select 1 from seguimiento_pub s where s.producto_id = p.id and s.estado = 'activa' and s.precio > 0
+                          and coalesce(s.moneda, 'ARS') = 'ARS' and s.confirmada and not s.excluido and not coalesce(s.internacional, false))
+     order by plata.usd desc nulls last, p.id`, [org]);
+}
+
+/** «Precio de mercado para todos»: una tanda con todos los que no tienen, en orden de plata, con tope de gasto propio y
+ *  probando antes, gratis, con lo leído de los vendedores referentes. */
+export async function pedirTandaTodos(org: string, usuarioId: string, topeUsd = TOPE_TODOS_USD): Promise<{ total: number }> {
+  const lista = (await productosSinMercado(org)).filter((p) => textoBusqueda(p.titulo).length >= 3);
+  if (!lista.length) throw new ErrorErp("Todos los productos ya tienen precio de mercado.");
+  const t = await una<{ id: number; token: string }>(`insert into precio_mercado_tanda (organizacion_id, total, usuario_id, tope_usd, referentes)
+    values ($1, $2, $3, $4, true) returning id::int, token::text`, [org, lista.length, usuarioId, topeUsd]);
+  await consulta(`
+    insert into precio_mercado (organizacion_id, producto_id, tanda_id, texto, estado, orden, ts)
+    select $1, (x->>'id')::bigint, $2, x->>'texto', 'pendiente', (x->>'orden')::int, null from jsonb_array_elements($3::jsonb) x
+    on conflict (organizacion_id, producto_id) do update set tanda_id = excluded.tanda_id, texto = excluded.texto, estado = 'pendiente', error = null, orden = excluded.orden, ts = null`,
+    [org, t!.id, JSON.stringify(lista.map((p, i) => ({ id: p.id, texto: textoBusqueda(p.titulo), orden: i + 1 })))]);
+  await relanzar(t!.id, t!.token);
+  return { total: lista.length };
 }
 
 /** Pide una tanda: los productos quedan pendientes y arranca la primera vuelta. Devuelve cuántos y el costo estimado. */
@@ -72,7 +147,8 @@ async function relanzar(tanda: number, token: string, extra = ""): Promise<void>
 
 /** Una vuelta de la tanda: busca de a varios productos hasta el tiempo de la vuelta y, si quedan, se relanza. */
 export async function procesarTanda(tanda: number, token: string): Promise<{ hechos: number; quedan: number; estado: string }> {
-  const t = await una<{ organizacion_id: string; estado: string }>("select organizacion_id, estado from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
+  const t = await una<{ organizacion_id: string; estado: string; tope_usd: number | null; referentes: boolean }>(
+    "select organizacion_id, estado, tope_usd::float8, referentes from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
   if (!t) throw new ErrorErp("Tanda desconocida.");
   if (t.estado !== "corriendo") return { hechos: 0, quedan: 0, estado: t.estado };
   const org = t.organizacion_id;
@@ -80,6 +156,8 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
   await consulta("update precio_mercado_tanda set actualizado_ts = now() where id = $1", [tanda]);
   const t0 = Date.now();
   let hechos = 0;
+  // Lo ya leído de los vendedores referentes, una vez por vuelta (gratis).
+  const referentes = t.referentes ? await publicacionesReferentes(org).catch(() => []) : [];
   while (Date.now() - t0 < SEGUNDOS_POR_VUELTA * 1000) {
     // Se toman de a varios marcándolos (otra vuelta en paralelo no los repite).
     const lote = await consulta<{ producto_id: number; texto: string }>(`
@@ -88,7 +166,7 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
          and (pm.organizacion_id, pm.producto_id) in (
            select organizacion_id, producto_id from precio_mercado
             where organizacion_id = $1 and tanda_id = $2 and estado = 'pendiente' and (ts is null or ts < now() - interval '10 minutes')
-            order by producto_id limit $3 for update skip locked)
+            order by orden nulls last, producto_id limit $3 for update skip locked)
       returning pm.producto_id::int, pm.texto`, [org, tanda, A_LA_VEZ]);
     if (!lote.length) break;
     const queda = await quedaParaGastar(org);
@@ -97,10 +175,23 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
       await consulta("update precio_mercado set ts = null where organizacion_id = $1 and tanda_id = $2 and estado = 'pendiente'", [org, tanda]);
       return { hechos, quedan: -1, estado: "cortada" };
     }
+    // El tope propio de la tanda (la de «para todos»): antes de gastar más de lo que queda, se corta.
+    if (t.tope_usd != null) {
+      const g = await una<{ gastado: number }>("select gastado_usd::float8 gastado from precio_mercado_tanda where id = $1", [tanda]);
+      if ((g?.gastado ?? 0) + lote.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO > t.tope_usd) {
+        await consulta("update precio_mercado_tanda set estado = 'cortada', mensaje = $2, actualizado_ts = now() where id = $1",
+          [tanda, `Se llegó al tope de esta búsqueda (US$ ${t.tope_usd}).`]);
+        await consulta("update precio_mercado set ts = null where organizacion_id = $1 and tanda_id = $2 and estado = 'pendiente'", [org, tanda]);
+        return { hechos, quedan: -1, estado: "cortada" };
+      }
+    }
     await Promise.all(lote.map(async (p) => {
+      // Primero, gratis, con lo leído de los referentes; si ahí no hay iguales, la búsqueda en Mercado Libre.
+      if (referentes.length && await conReferentes(org, p.producto_id, p.texto, referentes).catch(() => false)) return;
       const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [p.texto], maxItems: RESULTADOS_POR_BUSQUEDA, maxPagesPerQuery: 1, includeProductDetails: false },
         { max: RESULTADOS_POR_BUSQUEDA, esperaSeg: 120, topeUsd: 0.2 });
       const costo = Math.max(c.costoUsd ?? 0, c.items.length * USD_POR_RESULTADO);
+      await consulta("update precio_mercado_tanda set gastado_usd = gastado_usd + $2 where id = $1", [tanda, costo]);
       await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
         [org, p.producto_id, c.runId ?? null, costo, c.items.length, c.error ?? null]);
       // La cuenta de Apify llegó a su límite del mes: no es error del producto, la tanda se corta (queda pendiente).
@@ -152,9 +243,10 @@ export async function seguirTandas(org?: string): Promise<number> {
 }
 
 /** La última tanda de la organización (para mostrar el avance). */
-export async function ultimaTanda(org: string): Promise<{ id: number; total: number; hechos: number; errores: number; estado: string; mensaje: string | null; creado: Date } | null> {
+export async function ultimaTanda(org: string): Promise<{ id: number; total: number; hechos: number; errores: number; estado: string; mensaje: string | null; creado: Date; tope: number | null; gastado: number; conPrecio: number } | null> {
   return una(`
-    select t.id::int, t.total, t.estado, t.mensaje, t.creado_ts creado,
+    select t.id::int, t.total, t.estado, t.mensaje, t.creado_ts creado, t.tope_usd::float8 tope, t.gastado_usd::float8 gastado,
+           (select count(*)::int from precio_mercado pm where pm.tanda_id = t.id and pm.estado = 'ok' and pm.minimo > 0) "conPrecio",
            (select count(*)::int from precio_mercado pm where pm.tanda_id = t.id and pm.estado = 'ok') hechos,
            (select count(*)::int from precio_mercado pm where pm.tanda_id = t.id and pm.estado = 'error') errores
       from precio_mercado_tanda t where t.organizacion_id = $1 order by t.id desc limit 1`, [org]);

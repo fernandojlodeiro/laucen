@@ -96,3 +96,10 @@ test("cantidad del Excel del proveedor: típico, mejor o promedio de las dos cue
   assert.equal(cantidadPedido(x, "mejor"), 100);
   assert.equal(cantidadPedido(x, "promedio"), 80); // (52 + 96) / 2 = 74 → 80
 });
+
+test("vendedores referentes: candidatas por parecido del título, las más parecidas primero", async () => {
+  const { candidatasReferentes } = await import("@/lib/compras/precio-mercado");
+  const pubs = [{ title: "Cortador De Vidrio Tipo Lapiz Alta Precision" }, { title: "Lupa Vincha 5 Lentes" }, { title: "Cortador Vidrio Lapiz" }];
+  const r = candidatasReferentes("Cortador Vidrio Manual Tipo Lapiz", pubs).map((x) => x.title);
+  assert.deepEqual(r, ["Cortador De Vidrio Tipo Lapiz Alta Precision", "Cortador Vidrio Lapiz"]);
+});

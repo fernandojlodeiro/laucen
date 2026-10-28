@@ -206,6 +206,13 @@ create table if not exists precio_mercado (
   primary key (organizacion_id, producto_id)
 );
 create index if not exists precio_mercado_tanda_i on precio_mercado (tanda_id, estado);
+-- «Precio de mercado para todos» (Fer, 28/10): una tanda con tope de gasto propio (tope_usd, lo gastado en Apify en
+-- gastado_usd), que primero prueba gratis con las publicaciones ya leídas de los vendedores referentes (referentes) y
+-- busca en el orden de `orden` (lo que más plata movió primero).
+alter table precio_mercado_tanda add column if not exists tope_usd numeric(10, 2);
+alter table precio_mercado_tanda add column if not exists gastado_usd numeric(10, 4) not null default 0;
+alter table precio_mercado_tanda add column if not exists referentes boolean not null default false;
+alter table precio_mercado add column if not exists orden int;
 alter table precio_mercado enable row level security;
 select erp_politica_org('precio_mercado');
 

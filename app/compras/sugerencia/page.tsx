@@ -11,14 +11,14 @@ import { Paginado, ThOrden } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, Estado, url, editandoFicha, BotonesFicha, Dato, TituloSeccion, CAJA, CAMPO, ETIQUETA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
-import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado } from "./acciones";
+import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado, accionPrecioMercadoTodos } from "./acciones";
 import Vias from "./Vias";
 import ExcelProveedor from "./ExcelProveedor";
 import Globo, { type Cuenta } from "./Globo";
 import FiltrosConOk from "@/app/componentes/FiltrosConOk";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { SUAVE } from "@/app/botones";
-import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
+import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, TOPE_TODOS_USD, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
 import { Desplegable } from "@/app/informes/Filtros";
 import Categorias from "./Categorias";
 import { coincideBusqueda } from "@/lib/busqueda";
@@ -85,14 +85,17 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
       subtitulo={<span title={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento), descontando lo que se vende en los ${f.demora} días que tarda en llegar. Sin notebooks.`}>
         {tanda ? <>Precio de mercado: última búsqueda del {tanda.creado.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })},{" "}
-          {tanda.estado === "corriendo" ? <b className="text-[#16577F]">buscando: {tanda.hechos + tanda.errores} de {tanda.total}</b> : <>{tanda.hechos} de {tanda.total} con precio</>}
-          {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.</> : "Sin búsquedas de precio de mercado."}
+          {tanda.estado === "corriendo" ? <b className="text-[#16577F]">buscando: {tanda.hechos + tanda.errores} de {tanda.total}, {tanda.conPrecio} con precio</b> : <>{tanda.conPrecio} de {tanda.total} con precio</>}
+          {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.tope != null && ` · gastado US$ ${tanda.gastado.toFixed(2)} de US$ ${tanda.tope}`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.</> : "Sin búsquedas de precio de mercado."}
       </span>}
       acciones={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
             texto={`Buscar precio de mercado (${idsMercado.length})`}
             pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
+          <BotonTarea accion={accionPrecioMercadoTodos} tipo="precio-mercado" clase={SUAVE}
+            texto="Precio de mercado para todos"
+            pregunta={`¿Buscar el precio de mercado de todos los productos vendidos que no lo tienen, de lo que más plata movió a lo que menos? Primero gratis con lo ya leído de los vendedores referentes; después en Mercado Libre, hasta US$ ${TOPE_TODOS_USD} de Apify`} />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
           <ExcelProveedor href={url("/compras/sugerencia/proveedor", params)} opciones={CANTIDADES_PEDIDO} />
         </div>
