@@ -13,6 +13,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
 import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado } from "./acciones";
 import Vias from "./Vias";
+import Globo, { type Cuenta } from "./Globo";
 import FiltrosConOk from "@/app/componentes/FiltrosConOk";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { SUAVE } from "@/app/botones";
@@ -24,7 +25,7 @@ import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { type FilaSugerencia, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -38,6 +39,21 @@ const entero = (n: number) => formatearNumero(n, "entero");
 const fechaCorta = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : "—");
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 const dma = (iso: string) => iso.split("-").reverse().join("/");
+
+/** Lo que muestra el globo del producto: la vía y la cuenta por avión y por barco. */
+function cuentaDe(x: FilaSugerencia, tc: number | null): Cuenta {
+  const c = CATEGORIAS_VIA[x.via];
+  const via = (nombre: string, final: number | null, gan: number | null, venta: number | null, costo: number | null) => ({
+    nombre, costo: final != null && tc ? pesos(final * tc) : "—", ganancia: gan != null && tc ? pesos(gan * tc) : "—", venta: pct(venta), costoPct: pct(costo), negativa: gan != null && gan < 0,
+  });
+  return {
+    via: c.texto, viaAyuda: c.ayuda, tono: c.tono, flete: pct(x.flete_aereo_pct),
+    precio: pesos(x.precio_venta), precioDe: x.precio_base === "clasica" ? "Clásica" : x.precio_base === "mercado" ? "mercado" : x.precio_base === "ultima" ? "última venta" : "sin precio",
+    ml: pesos(x.costos_ml),
+    vias: [via("Avión", x.avion_final, x.avion_ganancia, x.avion_margen, x.avion_sobre_costo), via("Barco", x.barco_final, x.barco_ganancia, x.barco_margen, x.barco_sobre_costo)],
+    pedido: `A comprar ${entero(x.comprar_tipico)} (la cuenta da ${entero(x.comprar_exacto)}) · stock hoy ${entero(x.stock)}, al llegar ${entero(x.al_llegar)}`,
+  };
+}
 
 export default async function SugerenciaCompra({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("compras_ver");
@@ -149,6 +165,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
+                  <Globo cuenta={cuentaDe(x, tcHoy)}>
                   <span className="flex items-center gap-2 min-w-0">
                     <FotosProducto fotos={x.fotos} titulo={x.titulo} />
                     {x.producto_id ? <Link href={`/catalogo/productos/${x.producto_id}`} className="font-mono text-[#16577F] hover:underline whitespace-nowrap">{x.sku}</Link> : <span className="font-mono whitespace-nowrap">{x.sku}</span>}
@@ -159,6 +176,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                     {entero(x.ventanas)} tramos regulares de {f.dias} días
                     {x.grandes > 0 && <span className="text-[#8a6100]"> · {x.grandes} compra{x.grandes === 1 ? "" : "s"} grande{x.grandes === 1 ? "" : "s"} no considerada{x.grandes === 1 ? "" : "s"} (mayor {entero(x.mayor_grande)} u.)</span>}
                   </span>
+                  </Globo>
                 </td>
                 <td className={TDN}>{entero(x.tipico)}</td>
                 <td className={TDN}>{entero(x.mejor)}</td>
@@ -169,7 +187,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={TDN}>{entero(x.dias_con_venta)}</td>
                 <td className={TDN}>{entero(x.stock)}</td>
                 <td className={TDN}>{entero(x.al_llegar)}</td>
-                <td className={`${TDN} font-semibold`} title={`Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>
+                <td className={`${TDN} font-semibold`} title={`La cuenta da ${entero(x.comprar_exacto)}; redondeado a decenas (hasta 3 baja, desde 4 sube). Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>
                 <td className={TDN} title={x.costo_de === "avion" ? "Por avión (courier)" : x.costo_de === "barco" ? `Por barco${x.con_ncm ? ", con la NCM" : ", sin NCM cargada"}` : x.costo_de === "ficha" ? "El de la ficha (falta peso o FOB para calcular por vía)" : undefined}>
                   {usd(x.costo_usd)}{x.costo_de && <span className="block text-[10px] text-[#5C6B76]">{x.costo_de === "avion" ? "avión" : x.costo_de === "barco" ? "barco" : "ficha"}</span>}
                 </td>

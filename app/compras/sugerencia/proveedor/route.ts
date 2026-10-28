@@ -1,7 +1,7 @@
 // Excel para pedirle cotización al proveedor (pedido de Fer, 28/10): de lo que se ve en Sugerencia de compra (mismos filtros
 // y orden), sólo lo que hay que comprar, con la foto, el SKU, el título y la cantidad (la del ritmo típico, ya descontado lo
-// que va a quedar cuando llegue). El proveedor conoce los SKU: no hace falta traducir nada. Lleva una columna vacía para que
-// ponga el precio.
+// que va a quedar cuando llegue, redondeada a decenas). El proveedor conoce los SKU: no hace falta traducir nada. El precio
+// es el FOB de la ficha (para controlar o borrar antes de mandarlo), con el subtotal y el total como fórmulas de Excel.
 
 import ExcelJS from "exceljs";
 import sharp from "sharp";
@@ -53,10 +53,14 @@ export async function GET(req: NextRequest) {
     { header: "Producto", width: 60, style: { alignment: { wrapText: true, vertical: "middle" } } },
     { header: "Cantidad", width: 10, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
     { header: "Precio US$", width: 12, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
+    { header: "Subtotal US$", width: 14, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
   ];
   h.getRow(1).font = { bold: true };
   filas.forEach((x, n) => {
-    const fila = h.addRow([null, x.sku, x.titulo, x.comprar_tipico, null]);
+    // El precio: el FOB de la ficha (Fer, 28/10: lo deja o lo borra antes de mandarlo); el subtotal, una fórmula.
+    const r = n + 2;
+    const fila = h.addRow([null, x.sku, x.titulo, x.comprar_tipico, x.fob_usd,
+      { formula: `D${r}*E${r}`, result: x.fob_usd != null ? x.fob_usd * x.comprar_tipico : 0 }]);
     fila.height = LADO * 0.75 + 6; // puntos
     fila.getCell(2).alignment = { vertical: "middle" };
     const foto = fotos[n];
@@ -65,7 +69,9 @@ export async function GET(req: NextRequest) {
       h.addImage(id, { tl: { col: 0.1, row: n + 1.05 }, ext: { width: LADO, height: LADO }, editAs: "oneCell" });
     }
   });
-  h.addRow(["Total", null, `${filas.length} productos`, filas.reduce((t, x) => t + x.comprar_tipico, 0), null]).font = { bold: true };
+  const ult = filas.length + 1;
+  h.addRow(["Total", null, `${filas.length} productos`, { formula: `SUM(D2:D${ult})`, result: filas.reduce((t, x) => t + x.comprar_tipico, 0) }, null,
+    { formula: `SUM(F2:F${ult})`, result: filas.reduce((t, x) => t + (x.fob_usd ?? 0) * x.comprar_tipico, 0) }]).font = { bold: true };
 
   const buffer = await libro.xlsx.writeBuffer();
   const fecha = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
