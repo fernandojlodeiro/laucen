@@ -2,10 +2,13 @@
 // la base (pg_net) con ?clave= (tabla erp_llave) y la respuesta se lee de net._http_response. Sin llaves en la respuesta.
 //   · ?accion=runs&ids=a,b,c: de cada corrida, estado, mensaje, entrada, cuántos resultados y el final del registro (sólo lee);
 //   · ?accion=probar&q=texto: corre una búsqueda con la entrada de siempre y con la dirección del listado de Mercado Libre,
-//     hasta 30 resultados cada una (unos centavos), y cuenta lo que trae cada forma.
+//     hasta 30 resultados cada una (unos centavos), y cuenta lo que trae cada forma;
+//   · ?accion=tienda&q=mercado libre: las herramientas de la tienda de Apify que coinciden (nombre, usuarios, precio);
+//   · ?accion=actor&actor=usuario~nombre&q=texto: corre esa herramienta con la entrada armada desde su esquema (hasta 20
+//     resultados, tope US$ 0,25) y dice cuántos trajo, cuánto costó, el mensaje de estado y un ejemplo.
 
 import { pool } from "@/db";
-import { apifyToken, correrConEntrada } from "@/lib/apify";
+import { apifyToken, correrActor, correrConEntrada } from "@/lib/apify";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,7 +50,24 @@ export async function GET(req: Request) {
           ejemplo: (c.items as Record<string, unknown>[]).slice(0, 3).map((x) => ({ titulo: x.title, precio: x.price, url: x.url })) };
       })));
     }
-    return Response.json({ error: "accion: runs o probar" });
+    if (q.get("accion") === "tienda") {
+      const r = await fetch(`${API}/store?search=${encodeURIComponent(q.get("q") ?? "mercado libre")}&limit=40&token=${token}`, { cache: "no-store" }).then((x) => x.json());
+      return Response.json((r?.data?.items ?? []).map((x: Record<string, any>) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        actor: `${x.username}~${x.name}`, titulo: x.title, usuarios: x.stats?.totalUsers, usuarios30: x.stats?.totalUsers30Days,
+        modificado: x.modifiedAt, precio: x.currentPricingInfo ?? null,
+      })));
+    }
+    if (q.get("accion") === "actor") {
+      const actor = q.get("actor") ?? "";
+      if (!/^[\w.-]+~[\w.-]+$/.test(actor)) return Response.json({ error: "actor inválido" });
+      const r = await correrActor(actor, (q.get("q") ?? "").slice(0, 80), 20, 180);
+      const run = r.runId ? await fetch(`${API}/actor-runs/${r.runId}?token=${token}`, { cache: "no-store" }).then((x) => x.json()).then((x) => x.data).catch(() => null) : null;
+      const items = (r.items ?? []) as Record<string, unknown>[];
+      return Response.json({ actor, ok: r.ok, error: r.error, estado: r.estado, mensaje: run?.statusMessage, costo: r.costo_usd, segundos: r.segundos,
+        cantidad: r.cantidad, entrada: r.entrada, precio: r.precio, claves: items[0] ? Object.keys(items[0]).slice(0, 40) : [],
+        ejemplo: items.slice(0, 3).map((x) => ({ titulo: x.title ?? x.name, precio: x.price ?? x.currentPrice, url: x.url ?? x.permalink ?? x.link })) });
+    }
+    return Response.json({ error: "accion: runs, probar, tienda o actor" });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
