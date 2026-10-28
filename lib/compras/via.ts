@@ -52,9 +52,9 @@ export async function guardarConfigVia(org: string, c: ConfigVia): Promise<void>
 }
 
 export const CATEGORIAS_VIA = {
-  avion: { texto: "Avión", tono: "verde", ayuda: "El flete aéreo no pasa el umbral y deja el margen mínimo." },
-  barco: { texto: "Conviene barco", tono: "azul", ayuda: "El flete aéreo pasa el umbral, pero por avión igual deja el margen mínimo: se puede traer rápido si hace falta." },
-  no_rentable: { texto: "No rentable por avión", tono: "ambar", ayuda: "Por avión gana menos que el margen mínimo." },
+  avion: { texto: "Avión", tono: "verde", ayuda: "Por avión deja el margen mínimo o más y el flete no pasa el umbral (% del FOB)." },
+  barco: { texto: "Conviene barco", tono: "azul", ayuda: "Por avión también deja el margen mínimo o más, pero el flete pasa el umbral: por barco dejaría bastante más. Se puede traer por avión si hace falta." },
+  no_rentable: { texto: "No rentable por avión", tono: "ambar", ayuda: "Por avión gana, pero menos que el margen mínimo." },
   imposible: { texto: "Imposible por avión", tono: "rojo", ayuda: "Por avión pierde plata." },
   sin_datos: { texto: "Sin datos", tono: "gris", ayuda: "Falta el peso, el FOB o el precio de la Clásica." },
 } as const;

@@ -5,14 +5,15 @@
 // ?contiene=1) busca al principio del texto. Todo ABM lleva su buscador
 // (AGENTS.md): éste es el de siempre.
 
-import { useRef, useState, type ReactNode } from "react";
+import { useContext, useRef, useState, type ReactNode } from "react";
+import { FiltrosPendientes } from "@/app/componentes/filtros-pendientes";
 import { useRouter } from "next/navigation";
 import { AYUDA_BUSQUEDA } from "@/lib/busqueda";
 
 /** Cambia un parámetro de la dirección sin recargar la página entera. Todo
  *  cambio de búsqueda o filtro vuelve a la primera página (saca ?p= si es un
  *  número de página; en Contabilidad ?p= es la pestaña y queda). */
-export function usarCambiarParametro() {
+export function usarIrA() {
   const router = useRouter();
   return (cambios: Record<string, string | null>) => {
     const p = new URLSearchParams(window.location.search);
@@ -24,6 +25,13 @@ export function usarCambiarParametro() {
     if (destino !== window.location.pathname + window.location.search) window.dispatchEvent(new Event("laucen:cargando"));
     router.replace(destino, { scroll: false });
   };
+}
+
+/** Lo que usan los filtros: cambia la dirección en el acto o, adentro de <FiltrosConOk>, deja el cambio esperando el OK. */
+export function usarCambiarParametro() {
+  const ir = usarIrA();
+  const pendientes = useContext(FiltrosPendientes);
+  return pendientes ? pendientes.cambiar : ir;
 }
 
 /** Búsqueda al tipear (desde 2 letras), con una X para borrar, y las cajas

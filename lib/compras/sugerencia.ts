@@ -20,7 +20,10 @@ import { ordenarEnMemoria } from "@/lib/lista";
 
 /** `demora`: días desde que se pide hasta que la mercadería llega al depósito (Fer, 28/10: «por lo menos 5 semanas, cerca de
  *  40 días», aun por avión). Lo que se vende mientras tanto sale del stock de hoy. */
-export type FiltroSugerencia = { desde: string; hasta: string; dias: number; demora: number };
+export type FiltroSugerencia = { desde: string; hasta: string; dias: number; demora: number;
+  /** «Calcular con el precio de mercado» (Fer, 28/10): todo producto con precio de mercado se calcula a ese precio, como si
+   *  lo vendiera al precio del más barato, lo venda o no. */
+  conMercado: boolean };
 
 /** De entrada, lo que tarda una compra en llegar (pedido, cotización, fabricación, avión y courier hasta Córdoba). */
 export const DEMORA_LLEGADA = 40;
@@ -36,6 +39,7 @@ export function leerFiltroSugerencia(sp: Record<string, string | undefined>, hoy
     hasta: FECHA.test(sp.hasta ?? "") ? sp.hasta! : hoy,
     dias: Number.isFinite(dias) && dias >= 7 && dias <= 365 ? dias : 60,
     demora: Number.isFinite(demora) && demora >= 0 && demora <= 180 ? demora : DEMORA_LLEGADA,
+    conMercado: sp.con_mercado === "1",
   };
 }
 
@@ -201,7 +205,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
     const mj = d.producto_id != null ? mejor.get(d.producto_id) : undefined;
     const vendiendo = d.ml_activa || d.ultima_fecha >= desdeVendiendo;
-    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: mj?.precio ?? null, ultimaHoy: precioHoy });
+    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: mj?.precio ?? null, ultimaHoy: precioHoy, conMercado: f.conMercado });
     const base = pb.precio;
     const ml = base != null ? costosMl(base, comision, g) : null;
     const vv = d.variacion_id != null && d.producto_id != null
@@ -252,10 +256,10 @@ export const DIFERENCIA_REVISAR = 5;
 /** El precio de venta para calcular la ganancia (Fer, 28/10). Pura. Lo que se está vendiendo, la Clásica; lo que no, el
  *  precio de mercado (el más barato de los iguales). Si falta el que corresponde, el otro; si faltan los dos, la última
  *  venta llevada a hoy. */
-export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null }): { precio: number | null; de: FilaSugerencia["precio_base"] } {
+export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null; conMercado?: boolean }): { precio: number | null; de: FilaSugerencia["precio_base"] } {
   const cl = o.clasica != null && o.clasica > 0 ? o.clasica : null;
   const me = o.mercado != null && o.mercado > 0 ? o.mercado : null;
-  const orden: [number | null, FilaSugerencia["precio_base"]][] = o.vendiendo ? [[cl, "clasica"], [me, "mercado"]] : [[me, "mercado"], [cl, "clasica"]];
+  const orden: [number | null, FilaSugerencia["precio_base"]][] = o.vendiendo && !o.conMercado ? [[cl, "clasica"], [me, "mercado"]] : [[me, "mercado"], [cl, "clasica"]];
   for (const [p, de] of [...orden, [o.ultimaHoy, "ultima"] as [number | null, FilaSugerencia["precio_base"]]]) if (p != null) return { precio: p, de };
   return { precio: null, de: null };
 }
@@ -319,7 +323,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-13", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-14", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

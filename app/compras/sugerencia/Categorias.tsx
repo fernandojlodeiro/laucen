@@ -6,12 +6,13 @@
 
 import { useState } from "react";
 import { usarCambiarParametro } from "@/app/componentes/BuscadorVivo";
+import { usarParametro } from "@/app/componentes/filtros-pendientes";
 import type { NodoCategoria } from "@/lib/compras/sugerencia";
 
 export default function Categorias({ nodos, sinCategoria, excluidas }: { nodos: NodoCategoria[]; sinCategoria: number; excluidas: number[] }) {
   const cambiar = usarCambiarParametro();
   const [abierto, setAbierto] = useState(false);
-  const fuera = new Set(excluidas);
+  const fuera = new Set(usarParametro("sin_cat", excluidas.join(",")).split(",").filter((x) => x !== "").map(Number));
   const hijos = (padre: number | null) => nodos.filter((n) => n.padre === padre);
   const descendientes = (id: number): number[] => hijos(id).flatMap((h) => [h.id, ...descendientes(h.id)]);
   const guardar = (ids: Set<number>) => cambiar({ sin_cat: ids.size ? [...ids].join(",") : null, p: null });

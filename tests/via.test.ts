@@ -71,3 +71,9 @@ test("precio de venta: Clásica si lo vende, mercado si no; revisar si difieren 
   assert.deepEqual([...viasElegidas("avion,no_rentable,cualquiera")], ["avion", "no_rentable"]);
   assert.equal(viasElegidas(undefined).size, 0);
 });
+
+test("precio de venta: con «Calcular con el precio de mercado», el mercado aunque lo venda", async () => {
+  const { precioBase } = await import("@/lib/compras/sugerencia");
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: 3212, ultimaHoy: 2649, conMercado: true }), { precio: 3212, de: "mercado" });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: null, ultimaHoy: 2649, conMercado: true }), { precio: 2159, de: "clasica" });
+});

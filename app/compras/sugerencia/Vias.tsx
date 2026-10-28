@@ -5,11 +5,12 @@
 
 import { useState } from "react";
 import { usarCambiarParametro } from "@/app/componentes/BuscadorVivo";
+import { usarParametro } from "@/app/componentes/filtros-pendientes";
 
 export default function Vias({ opciones, elegidas }: { opciones: { clave: string; texto: string; ayuda: string; n: number }[]; elegidas: string[] }) {
   const cambiar = usarCambiarParametro();
   const [abierto, setAbierto] = useState(false);
-  const si = new Set(elegidas);
+  const si = new Set(usarParametro("via", elegidas.join(",")).split(",").flatMap((k) => (k === "rentable" ? ["avion", "barco"] : [k])).filter(Boolean));
   const guardar = (ks: Set<string>) => cambiar({ via: ks.size && ks.size < opciones.length ? opciones.map((o) => o.clave).filter((k) => ks.has(k)).join(",") : null, p: null });
   const alternar = (k: string, tildada: boolean) => {
     const ks = new Set(si.size ? si : opciones.map((o) => o.clave));

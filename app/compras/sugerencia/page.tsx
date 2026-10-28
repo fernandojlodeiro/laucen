@@ -13,6 +13,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
 import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado } from "./acciones";
 import Vias from "./Vias";
+import FiltrosConOk from "@/app/componentes/FiltrosConOk";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { SUAVE } from "@/app/botones";
 import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
@@ -59,13 +60,14 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const t = totalesSugerencia(filas);
   const idsMercado = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))].slice(0, TOPE_TANDA);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, con_mercado: f.conMercado ? "1" : null, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
 
   return (
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
       subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento), descontando lo que se vende en los ${f.demora} días que tarda en llegar. Sin notebooks.`}
       acciones={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+          <FiltrosConOk>
           <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="SKU o producto" limpiar={["p"]} />
           <RangoFechas desde={f.desde} hasta={f.hasta} etiqueta="Historia" limpiar={["p"]} />
           <Desplegable parametro="dias" etiqueta="Comprar para" valor={f.dias === 60 ? "" : String(f.dias)} limpiar={["p"]}
@@ -81,6 +83,9 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <Vias opciones={opcionesVia} elegidas={[...viasElegidas(sp.via)]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: lo que quede del stock cuando llegue la compra alcanza para los días elegidos" />
+          <CasillaViva parametro="con_mercado" activo={f.conMercado} etiqueta="Calcular con el precio de mercado"
+            ayuda="Todo producto que tiene precio de mercado se calcula a ese precio, como si lo vendieras al precio del más barato, lo vendas o no. Destildada, la Clásica para lo que vendés" />
+          </FiltrosConOk>
           <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
             texto={`Buscar precio de mercado (${idsMercado.length})`}
             pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
