@@ -4,6 +4,7 @@
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
+import sharp from "sharp";
 import { una, consulta, ErrorErp } from "@/lib/erp/base";
 import { TIPOS_CBTE, DOC_TIPOS, CONDICION_RECEPTOR_TEXTO, emisorDe } from "@/lib/arca/facturar";
 
@@ -16,18 +17,20 @@ const limpio = (s: string) => s.normalize("NFC").replace(/[^\x20-\x7E -ÿ]/g, "
 
 const cuitConGuiones = (c: string) => { const d = c.replace(/\D/g, ""); return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : c; };
 
-/** El logo de la empresa (link público de Supabase Storage), listo para
- *  dibujar. PNG o JPG; cualquier otra cosa o una falla de red → sin logo. */
-async function logoDe(doc: PDFDocument, org: string): Promise<PDFImage | null> {
+/** El logo de la razón social o, si no tiene, el de la empresa (link público de
+ *  Supabase Storage), listo para dibujar. Una falla de red o un archivo que no
+ *  es imagen → sin logo. */
+async function logoDe(doc: PDFDocument, org: string, delEmisor: string | null): Promise<PDFImage | null> {
   try {
-    const fila = await una<{ logo: string | null }>("select logo from empresa where organizacion_id = $1", [org]);
-    if (!fila?.logo || !/^https:\/\//.test(fila.logo)) return null;
-    const r = await fetch(fila.logo, { signal: AbortSignal.timeout(5000) });
+    const logo = delEmisor || (await una<{ logo: string | null }>("select logo from empresa where organizacion_id = $1", [org]))?.logo;
+    if (!logo || !/^https:\/\//.test(logo)) return null;
+    const r = await fetch(logo, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
     const b = new Uint8Array(await r.arrayBuffer());
     if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return await doc.embedPng(b);
     if (b[0] === 0xff && b[1] === 0xd8) return await doc.embedJpg(b);
-    return null;
+    // WebP u otro formato (la pantalla deja subir cualquier imagen): se pasa a PNG.
+    return await doc.embedPng(await sharp(b).png().toBuffer());
   } catch (err) {
     console.error("[pdf] no se pudo poner el logo:", err);
     return null;
@@ -71,9 +74,9 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   pagina.drawRectangle({ x: 277, y: 772, width: 40, height: 40, borderWidth: 1, borderColor: rgb(0, 0, 0), color: rgb(1, 1, 1) });
   texto(pagina, tipo.letra, 289, 785, 24, fb);
   texto(pagina, `COD. ${String(c.tipo_cbte).padStart(3, "0")}`, 283, 775, 6, f);
-  // Con logo (Configuración → Empresa), va arriba a la izquierda y los datos
-  // del emisor bajan un poco y se aprietan.
-  const logo = await logoDe(doc, org);
+  // Con logo (el de la razón social o el de Configuración → Empresa), va arriba
+  // a la izquierda y los datos del emisor bajan un poco y se aprietan.
+  const logo = await logoDe(doc, org, e.logo);
   if (logo) {
     const k = Math.min(150 / logo.width, 34 / logo.height, 1);
     pagina.drawImage(logo, { x: 40, y: 806 - logo.height * k, width: logo.width * k, height: logo.height * k });

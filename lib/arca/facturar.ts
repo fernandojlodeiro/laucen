@@ -21,6 +21,8 @@ export type Emisor = {
   cuit: string; razon_social: string; condicion_iva: "responsable_inscripto" | "monotributo" | "exento"; domicilio: string | null;
   iibb: string | null; inicio_actividades: string | null; punto_venta: number; ambiente: Ambiente;
   facturar_automatico: boolean; facturar_al: string;
+  /** El logo de esta razón social para los PDF (null = el de la empresa). */
+  logo: string | null;
 };
 
 export const TIPOS_CBTE: Record<number, { nombre: string; letra: string; nc: boolean }> = {
@@ -34,7 +36,7 @@ export const CONDICION_RECEPTOR_TEXTO: Record<number, string> = { 1: "IVA Respon
 const ALICUOTA_ID: Record<string, number> = { "0": 3, "2.5": 9, "5": 8, "10.5": 4, "21": 5, "27": 6 };
 
 const COLUMNAS_EMISOR = `id::int, nombre, es_principal, cuit, razon_social, condicion_iva, domicilio, iibb, to_char(inicio_actividades, 'YYYY-MM-DD') inicio_actividades,
-                             punto_venta, ambiente, facturar_automatico, facturar_al`;
+                             punto_venta, ambiente, facturar_automatico, facturar_al, logo`;
 
 /** Una razón social de la organización: la que se pide por id o, sin id, la principal. */
 export async function emisorDe(org: string, id?: number | null): Promise<Emisor | null> {

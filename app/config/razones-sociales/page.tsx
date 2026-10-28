@@ -16,6 +16,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
+import SubirImagen from "@/app/config/tienda/SubirImagen";
 import { LISTA_RAZONES_SOCIALES, CONDICIONES_RS } from "./lista";
 import { accionBorrarRazonSocial, accionCrearRazonSocial, accionGuardarRazonSocial, accionHacerPrincipal } from "./acciones";
 
@@ -26,11 +27,12 @@ type SP = { q?: string; contiene?: string; editar?: string; p?: string; orden?: 
 type Fila = {
   id: number; nombre: string | null; razon_social: string; cuit: string; condicion_iva: string; domicilio: string | null; iibb: string | null;
   inicio_actividades: string | null; punto_venta: number; ambiente: string; es_principal: boolean; conectada: boolean; canales: string | null;
+  logo: string | null;
 };
 
 const AYUDA = "block text-[10px] text-[#5C6B76] mt-0.5";
 
-function Campos({ e }: { e?: Fila }) {
+function Campos({ e, org }: { e?: Fila; org: string }) {
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
       <label><span className={ETIQUETA}>Nombre corto</span>
@@ -53,6 +55,9 @@ function Campos({ e }: { e?: Fila }) {
         <input name="iibb" defaultValue={e?.iibb ?? ""} className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Inicio de actividades</span>
         <input type="date" name="inicio_actividades" defaultValue={e?.inicio_actividades ?? ""} className={`${CAMPO} w-full`} /></label>
+      <div className="col-span-2"><span className={ETIQUETA}>Logo</span>
+        <SubirImagen name="logo" valor={e?.logo ?? null} organizacionId={org} etiqueta="Logo" alto="h-12" />
+        <span className={AYUDA}>Sale en las facturas y los presupuestos de esta razón social. Sin logo, va el de Empresa.</span></div>
     </div>
   );
 }
@@ -66,7 +71,7 @@ export default async function RazonesSociales({ searchParams }: { searchParams: 
   const base = await LISTA_RAZONES_SOCIALES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const filas = await consulta<Fila>(`
     select e.id::int, e.nombre, e.razon_social, e.cuit, e.condicion_iva, e.domicilio, e.iibb, to_char(e.inicio_actividades, 'YYYY-MM-DD') inicio_actividades,
-           e.punto_venta, e.ambiente, e.es_principal,
+           e.punto_venta, e.ambiente, e.es_principal, e.logo,
            exists (select 1 from arca_credencial a where a.emisor_id = e.id and a.certificado is not null) conectada,
            (select string_agg(ca.nombre, ', ' order by ca.nombre) from canal ca where ca.emisor_id = e.id) canales
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
@@ -84,7 +89,7 @@ export default async function RazonesSociales({ searchParams }: { searchParams: 
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva razón social" sinBoton>
         <form action={accionCrearRazonSocial} className="grid gap-2">
-          <Campos />
+          <Campos org={s.org.id} />
           <div><button className={PRIMARIO}>Crear</button></div>
         </form>
       </AltaNueva>
@@ -108,7 +113,7 @@ export default async function RazonesSociales({ searchParams }: { searchParams: 
                   <form action={accionGuardarRazonSocial} className="grid gap-2">
                     <input type="hidden" name="id" value={e.id} />
                     <span className="text-[11px] font-semibold text-[#5C6B76]">Razón social N.º {e.id}</span>
-                    <Campos e={e} />
+                    <Campos e={e} org={s.org.id} />
                     <div className="flex gap-2 items-center">
                       <button className={VERDE}>Guardar</button>
                       <Link href={aqui({})} className={SUAVE} scroll={false}>Cancelar</Link>
@@ -120,6 +125,8 @@ export default async function RazonesSociales({ searchParams }: { searchParams: 
               <tr key={e.id} className={TR}>
                 <td className={`${TDN} text-[#5C6B76]`}>{e.id}</td>
                 <td className={TD}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {e.logo && <img src={e.logo} alt="" className="inline-block h-5 max-w-16 object-contain mr-1.5 align-middle" />}
                   <span className="font-semibold">{e.nombre ?? e.razon_social}</span>
                   {e.es_principal && <span className="ml-1"><Estado texto="Principal" tono="azul" /></span>}
                   {e.nombre && e.nombre !== e.razon_social && <span className="block text-[11px] text-[#5C6B76]">{e.razon_social}</span>}

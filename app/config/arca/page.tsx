@@ -127,8 +127,7 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
 
       <p className="text-xs text-[#5C6B76] mt-4">
         El CUIT, la condición frente al IVA, el domicilio y Ingresos Brutos de cada razón social se cargan en{" "}
-        <Link href="/config/razones-sociales" className="font-bold underline">Razones sociales</Link>; el logo de las facturas, en{" "}
-        <Link href="/config/empresa" className="font-bold underline">Empresa</Link>.
+        <Link href="/config/razones-sociales" className="font-bold underline">Razones sociales</Link>, junto con el logo de sus facturas.
       </p>
     </Pantalla>
   );

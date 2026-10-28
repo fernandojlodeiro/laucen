@@ -108,8 +108,8 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   const derecha = (pg: PDFPage, s: string, xDer: number, y: number, tam = 9, fuente: PDFFont = f, color = rgb(0.1, 0.12, 0.15)) =>
     texto(pg, s, xDer - fuente.widthOfTextAtSize(limpio(s), tam), y, tam, fuente, color);
 
-  // Las fotos y el logo, en paralelo.
-  const [logo, ...fotos] = await Promise.all([imagen(doc, emp?.logo, 400), ...lineas.map((l) => imagen(doc, l.foto, 160))]);
+  // Las fotos y el logo (el de la razón social que factura el canal o, si no tiene, el de la empresa), en paralelo.
+  const [logo, ...fotos] = await Promise.all([imagen(doc, emisor?.logo || emp?.logo, 400), ...lineas.map((l) => imagen(doc, l.foto, 160))]);
 
   // ── Encabezado (sólo en la primera página) ──
   let pg = doc.addPage([W, H]);

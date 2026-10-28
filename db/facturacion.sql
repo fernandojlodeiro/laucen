@@ -280,3 +280,7 @@ alter table comprobante add column if not exists ml_reemplaza boolean not null d
 -- pedido.factura_con_envio: el comprador pidió que se le facture el envío que pagó (lo marca la revisión de mensajes,
 -- lib/facturacion/revision.ts). Sin esto el envío NUNCA va en la factura de una venta de Mercado Libre.
 alter table pedido add column if not exists factura_con_envio boolean not null default false;
+
+-- emisor.logo (Fer, 28/10): cada razón social con su logo para el PDF de la factura y del presupuesto.
+-- Vacío = el de Configuración › Empresa.
+alter table emisor add column if not exists logo text;

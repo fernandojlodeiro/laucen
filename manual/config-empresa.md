@@ -15,7 +15,7 @@ Es la ficha de la propia empresa. Tiene:
 - **Pedidos**: los **días de reserva sin pagar** (se edita con su lápiz).
 - **Datos fiscales**: sólo un resumen de las razones sociales (CUIT, condición IVA, punto de venta). Los datos fiscales de cada CUIT —razón social, CUIT, condición frente al IVA, domicilio comercial, Ingresos Brutos, inicio de actividades y punto de venta— se cargan y se editan en [Razones sociales](/config/razones-sociales).
 
-El logo es lo que más se ve: sale en el PDF de las facturas y en la tienda web cuando la tienda no tiene un logo propio. Los datos fiscales salen en las facturas y en el pie de la tienda web (razón social, CUIT, condición IVA y domicilio).
+El logo es lo que más se ve: sale en el PDF de las facturas y los presupuestos cuando la razón social no tiene un logo propio (se carga en [Razones sociales](/config/razones-sociales)), y en la tienda web cuando la tienda no tiene un logo propio. Los datos fiscales salen en las facturas y en el pie de la tienda web (razón social, CUIT, condición IVA y domicilio).
 
 La conexión con ARCA (el certificado, el ambiente de prueba o producción, la facturación automática) NO se maneja acá: está en [Configuración › Facturación (ARCA)](/config/arca).
 
@@ -32,7 +32,7 @@ La pantalla abre en **modo vista**: los datos se ven en sus marcos, en gris, sin
 
 A la derecha del título está el **lápiz** para editarla. Campos:
 
-- **Logo**: la imagen. Ayuda: "Sale en las facturas y en la tienda web (si la tienda no tiene uno propio)." Mejor PNG o JPG.
+- **Logo**: la imagen. Ayuda: "Sale en las facturas y los presupuestos (si la razón social no tiene uno propio) y en la tienda web (si la tienda no tiene uno propio)."
 - **Nombre de fantasía**: si está vacío, en edición se sugiere el nombre de la organización.
 - **Mail**
 - **Teléfono**
@@ -62,7 +62,7 @@ Al apretar el lápiz de Datos generales, la caja pasa a campos editables y en el
 2. En **Logo**, subí la imagen (PNG o JPG).
 3. Apretá **"Grabar"**. Arriba aparece "Guardado." y la caja vuelve a la vista.
 
-Desde ese momento las facturas nuevas salen con ese logo, y la tienda web lo usa si no tiene uno propio cargado en [Tienda web](/config/tienda).
+Desde ese momento las facturas y los presupuestos de las razones sociales sin logo propio salen con ese logo, y la tienda web lo usa si no tiene uno propio cargado en [Tienda web](/config/tienda).
 
 ### Cambiar los datos de contacto
 
@@ -86,14 +86,14 @@ Se hace en [Razones sociales](/config/razones-sociales) (y la conexión con ARCA
 - **WhatsApp**: se le sacan todos los caracteres que no son números; tiene que quedar con entre 10 y 15 dígitos.
 - **Condición IVA** (en Razones sociales): decide la letra de las facturas: Responsable inscripto emite A y B; Monotributo y Exento, C.
 - **Dónde se usa cada dato hoy**:
-  - El **logo** sale en el PDF de las facturas y es el logo de la tienda web si la tienda no tiene uno propio.
+  - El **logo** sale en el PDF de las facturas y los presupuestos si la razón social no tiene uno propio, y es el logo de la tienda web si la tienda no tiene uno propio.
   - Los **datos fiscales de la razón social principal** salen en el pie de la tienda web (razón social, CUIT, condición IVA, domicilio). En la ficha de producto de la tienda, si la principal es Responsable inscripta, se muestra "Hace factura A." Cada factura lleva los datos de la razón social que la emitió.
   - El nombre de fantasía, mail, teléfono, WhatsApp, web y dirección de "Datos generales" se guardan, pero los datos de contacto que ve el comprador en la tienda se cargan aparte, en [Tienda web](/config/tienda).
 
 ## Preguntas frecuentes
 
 **¿Dónde cambio el logo de las facturas?**
-Acá, en Datos generales → Logo. El de la tienda también sale de acá salvo que la tienda tenga uno propio.
+Si es uno solo para todas las razones sociales, acá, en Datos generales → Logo. Si cada razón social lleva el suyo, en [Razones sociales](/config/razones-sociales), con el lápiz de cada una: ése gana sobre el de acá. El de la tienda también sale de acá salvo que la tienda tenga uno propio.
 
 **Cargué el logo acá pero la tienda muestra otro. ¿Por qué?**
 Porque la tienda tiene su propio logo cargado en [Tienda web](/config/tienda); ése gana. Si lo borrás de la tienda, usa el de la empresa.

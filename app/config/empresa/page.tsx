@@ -50,7 +50,7 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
       </TituloSeccion>
       {!general ? (
         <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
-          <Dato etiqueta="Logo" className="sm:row-span-2" ayuda="Sale en las facturas y en la tienda web (si la tienda no tiene uno propio).">
+          <Dato etiqueta="Logo" className="sm:row-span-2" ayuda="Sale en las facturas y los presupuestos (si la razón social no tiene uno propio) y en la tienda web (si la tienda no tiene uno propio).">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {emp?.logo ? <img src={emp.logo} alt="Logo" className="h-20 object-contain" /> : null}
           </Dato>
@@ -68,7 +68,7 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
       <form id="ficha-general" action={accionGuardarEmpresa} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
         <div className="sm:row-span-2"><span className={ETIQUETA}>Logo</span>
           <SubirImagen name="logo" valor={emp?.logo ?? null} organizacionId={s.org.id} etiqueta="Logo" alto="h-20" />
-          <span className={AYUDA}>Sale en las facturas y en la tienda web (si la tienda no tiene uno propio). Mejor PNG o JPG.</span></div>
+          <span className={AYUDA}>Sale en las facturas y los presupuestos (si la razón social no tiene uno propio) y en la tienda web (si la tienda no tiene uno propio).</span></div>
         <label className="sm:col-span-2"><span className={ETIQUETA}>Nombre de fantasía</span>
           <input name="nombre_fantasia" autoFocus defaultValue={v("nombre_fantasia")} placeholder={s.org.nombre ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Mail</span>
