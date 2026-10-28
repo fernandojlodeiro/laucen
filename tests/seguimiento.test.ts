@@ -1,7 +1,7 @@
 // Seguimiento de publicaciones (lib/seguimiento/): cómo se lee un resultado de Apify. Sin base.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aPubEncontrada, esPack, parecido, diasHasta } from "@/lib/seguimiento";
+import { aPubEncontrada, esPack, parecido, diasHasta, stockDeApify } from "@/lib/seguimiento";
 
 test("aPubEncontrada: lo que trae el lector de Mercado Libre de Apify", () => {
   const p = aPubEncontrada({
@@ -113,4 +113,16 @@ test("simular: la referencia sin excluidas ni internacionales, y qué haría con
   assert.equal(s.filas[1].nuevo, 19900);   // sube (también subir)
   assert.equal(simular([{ sku: "A", ars: 25000 }], c, { ...p, piso: null }).filas[0].motivo, "falta el piso");
   assert.equal(simular([{ sku: "A", ars: 25000 }], [], p).referencia, null);
+});
+
+test("lectura con la herramienta nueva de Apify (modo product): estado, stock del texto y catálogo repetido", () => {
+  const x = { itemId: "MLA3959292910", url: "https://www.mercadolibre.com.ar/medidor/up/MLAU5220413906", title: "Medidor", price: 12825,
+    catalogProductId: "MLA3959292910", availability: "InStock", stockText: "+5 disponibles", soldQuantity: null, listingType: "gold_special" };
+  const p = aPubEncontrada(x)!;
+  assert.equal(p.itemId, "MLA3959292910");
+  assert.equal(p.catalogoId, null);
+  assert.equal(p.estado, "activa");
+  assert.deepEqual(stockDeApify(x), [5, null]);
+  assert.equal(aPubEncontrada({ ...x, availability: "OutOfStock" })!.estado, "pausada");
+  assert.deepEqual(stockDeApify({ stockText: "Último disponible", soldQuantity: 50 }), [1, 50]);
 });

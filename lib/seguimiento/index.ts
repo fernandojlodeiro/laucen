@@ -8,7 +8,7 @@
 // - Buscar para elegir: Apify (ACTOR_ML de lib/apify.ts), unos
 //   unos US$ 0,06 por búsqueda de 50 resultados. Se guarda la última por producto.
 // - Leer las seguidas de catálogo: la API (/products/{id}/items), gratis.
-// - Leer las seguidas comunes: Apify, por su dirección.
+// - Leer las seguidas comunes: Apify (ACTOR_ML, modo «product»), por su dirección.
 // Todo lo pago respeta el tope mensual (config 'seguimiento').
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
@@ -17,9 +17,8 @@ import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
 import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 
-const ACTOR = "scrapesage~mercadolibre-scraper";
 // Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
-const POR_RESULTADO = { busqueda: 0.0012, lectura: 0.008 };
+const POR_RESULTADO = { busqueda: 0.0012, lectura: 0.004 };
 
 // ── Configuración general ───────────────────────────────────
 
@@ -141,8 +140,12 @@ export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null
   // Un resultado con dirección /p/MLA… es un producto de catálogo: el número es el del catálogo, no el
   // de una publicación (la publicación sale de la API, con todos los que compiten).
   const enCatalogo = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? null;
-  const catalogo = enCatalogo ?? txt(x, "catalogProductId", "catalog_product_id");
-  const estadoTxt = (txt(x, "status", "itemStatus") ?? "").toLowerCase();
+  // La herramienta de Apify a veces repite el número de la publicación como «catálogo»: ése no es un catálogo.
+  const catalogoTxt = txt(x, "catalogProductId", "catalog_product_id");
+  const catalogo = enCatalogo ?? (catalogoTxt && catalogoTxt !== id ? catalogoTxt : null);
+  // El estado: el que informa la herramienta o, si no, la disponibilidad de la página (InStock / OutOfStock…).
+  const disp = (txt(x, "availability") ?? "").toLowerCase();
+  const estadoTxt = (txt(x, "status", "itemStatus") ?? (disp ? (/instock/.test(disp) ? "active" : /outofstock|soldout|discontinued/.test(disp) ? "paused" : "") : "")).toLowerCase();
   return {
     itemId: id, catalogoId: catalogo, titulo: txt(x, "title", "name") ?? "(sin título)", foto: txt(x, "image", "thumbnail", "imageUrl", "images", "pictures"),
     permalink: url, vendedor: txt(x, "sellerName", "seller", "sellerNickname"), tiendaOficial: bool(x.officialStore ?? x.isOfficialStore),
@@ -617,7 +620,8 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
     if (!grupo.length) { sinPresupuesto += tandas.slice(g + EN_PARALELO).reduce((a, t) => a + t.length, 0); break; }
     const resultados = await Promise.all(grupo.map(async ({ tanda, tope }) => ({
       tanda,
-      c: await correrConEntrada(ACTOR, { site: "MLA", startUrls: tanda.map((s) => ({ url: urlParaLeer(s) })), maxItems: tanda.length, includeProductDetails: true },
+      c: await correrConEntrada(ACTOR_ML, { mode: "product", country: "AR", productUrls: tanda.map(urlParaLeer), maxItems: tanda.length,
+        includeReviews: false, includeQuestions: false, includeVariations: false },
         { max: tanda.length, esperaSeg: ESPERA_SEG, topeUsd: tope }),
     })));
     for (const { tanda, c } of resultados) leidas += await grabarComunes(org, tanda, c);
@@ -659,9 +663,12 @@ async function grabarComunes(org: string, tanda: Seguida[], c: Awaited<ReturnTyp
 
 /** Stock y vendidos de la publicación según Apify (availableQuantity / soldQuantity; null si no vino). Pura. */
 export function stockDeApify(x: unknown): [number | null, number | null] {
-  const o = (x ?? {}) as { availableQuantity?: unknown; soldQuantity?: unknown };
+  const o = (x ?? {}) as { availableQuantity?: unknown; soldQuantity?: unknown; stockText?: unknown };
   const n = (v: unknown) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
-  return [n(o.availableQuantity), n(o.soldQuantity)];
+  // Sin availableQuantity, el texto de la página: «+5 disponibles», «Último disponible».
+  const texto = typeof o.stockText === "string" ? o.stockText : "";
+  const deTexto = /último disponible/i.test(texto) ? 1 : n(texto.match(/(\d[\d.]*)\s*disponible/i)?.[1]?.replace(/\./g, ""));
+  return [n(o.availableQuantity) ?? deTexto, n(o.soldQuantity)];
 }
 
 /** El catálogo en el que compite, según lo que trae Apify de la publicación («sku»: MLA… del producto de catálogo). Pura. */
