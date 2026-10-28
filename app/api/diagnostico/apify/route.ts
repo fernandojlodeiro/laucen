@@ -5,10 +5,12 @@
 //     hasta 30 resultados cada una (unos centavos), y cuenta lo que trae cada forma;
 //   · ?accion=tienda&q=mercado libre: las herramientas de la tienda de Apify que coinciden (nombre, usuarios, precio);
 //   · ?accion=actor&actor=usuario~nombre&q=texto: corre esa herramienta con la entrada armada desde su esquema (hasta 20
-//     resultados, tope US$ 0,25) y dice cuántos trajo, cuánto costó, el mensaje de estado y un ejemplo.
+//     resultados, tope US$ 0,25) y dice cuántos trajo, cuánto costó, el mensaje de estado y un ejemplo;
+//   · ?accion=cruce&org=uuid: rearma el cruce de Vendedores referentes (lib/compras/referentes.ts) sin gastar en Apify.
 
 import { pool } from "@/db";
 import { apifyToken, correrActor, correrConEntrada } from "@/lib/apify";
+import { armarCruce } from "@/lib/compras/referentes";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,6 +23,8 @@ export async function GET(req: Request) {
   const clave = q.get("clave");
   const ok = clave ? await pool.query("select 1 from erp_llave where id = 1 and clave = $1", [clave]) : null;
   if (!ok?.rowCount) return new Response("No", { status: 403 });
+  const org = q.get("org") ?? "";
+  if (q.get("accion") === "cruce" && /^[0-9a-f-]{36}$/i.test(org)) return Response.json(await armarCruce(org));
   const token = apifyToken();
   if (!token) return Response.json({ error: "Falta APIFY_TOKEN" });
   try {
