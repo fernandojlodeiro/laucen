@@ -97,41 +97,52 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
 
   // Totales por variación en los depósitos activos. El disponible sale de
   // stock_disponible_deposito (así un kit se calcula de sus componentes).
+  // Fer (28/10): la pantalla quedaba «Cargando…». Primero se filtra y se cortan las filas (stock sumado de una vez; sólo
+  // un kit pasa por stock_disponible_deposito) y recién a esas se les buscan título, fotos, precio y ubicaciones.
   const variaciones = await consulta<Variacion>(`
     with v as (
-      select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id,
-             coalesce((select array_agg(f.url order by f.orden) from variacion_foto f where f.variacion_id = v.id),
-                      (select array_agg(f.url order by f.orden) from producto_foto f where f.producto_id = p.id),
-                      -- Sin fotos cargadas en Laucen, las de su publicación de Mercado Libre.
-                      (select array(select coalesce(x ->> 'secure_url', x ->> 'url') from jsonb_array_elements(m.datos_externos -> 'ml' -> 'pictures') x)
-                         from publicacion pu join meli_item m on m.publicacion_id = pu.id
-                        where pu.variacion_id = v.id and jsonb_typeof(m.datos_externos -> 'ml' -> 'pictures') = 'array'
-                          and jsonb_array_length(m.datos_externos -> 'ml' -> 'pictures') > 0 order by (m.estado = 'active') desc limit 1)) fotos,
-             -- El precio de la lista Clásicas (la de referencia de la organización).
-             (select venta_ars from precio_de($1, v.id, (select l.id from lista_precios l where l.organizacion_id = $1
-                and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)))::float8 clasica
+      select v.id, v.sku, v.codigo_barras, es_kit(v.id) kit, p.stock_minimo, p.id producto_id
         from variacion v join producto p on p.id = v.producto_id
        where v.organizacion_id = $1 and v.estado <> 'archivada' and ($5 or p.estado <> 'archivado')
-         and ${coincide} and ($7 or not es_kit(v.id))
+         and ${coincide}
+    ), s as (
+      select st.variacion_id, sum(st.cantidad)::int cantidad, sum(st.reservado)::int reservado
+        from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
+       where st.organizacion_id = $1 and d.estado = 'activo' and ($6::bigint is null or d.id = $6)
+       group by 1
     ), t as (
-      select v.*,
-             coalesce((select sum(st.cantidad) from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
-                        where st.variacion_id = v.id and d.estado = 'activo' and ($6::bigint is null or d.id = $6)), 0)::int cantidad,
-             coalesce((select sum(st.reservado) from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
-                        where st.variacion_id = v.id and d.estado = 'activo' and ($6::bigint is null or d.id = $6)), 0)::int reservado,
-             coalesce((select sum(stock_disponible_deposito($1, v.id, d.id)) from deposito d
-                        where d.organizacion_id = $1 and d.estado = 'activo' and ($6::bigint is null or d.id = $6)), 0)::int disponible,
-             (select json_agg(json_build_object('deposito', d.nombre, 'ubicacion', case when u.es_default then 'General' else u.codigo end, 'cantidad', st.cantidad)
-                              order by d.nombre, u.es_default desc, u.orden_recorrido, u.codigo)
-                from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
-               where st.variacion_id = v.id and d.estado = 'activo' and st.cantidad <> 0 and ($6::bigint is null or d.id = $6)) ubicaciones
-        from v
+      select v.*, coalesce(s.cantidad, 0) cantidad, coalesce(s.reservado, 0) reservado,
+             case when v.kit then coalesce((select sum(stock_disponible_deposito($1, v.id, d.id)) from deposito d
+                                             where d.organizacion_id = $1 and d.estado = 'activo' and ($6::bigint is null or d.id = $6)), 0)::int
+                  else coalesce(s.cantidad, 0) - coalesce(s.reservado, 0) end disponible
+        from v left join s on s.variacion_id = v.id
+       where ($7 or not v.kit)
+    ), f as (
+      select * from t
+       where (not $8 or disponible > 0 or $4 = 'negativo') and ($4::text is null
+              or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
+              or ($4 = 'negativo' and disponible < 0))
+       order by sku limit ${LIMITE}
     )
-    select id::int, sku, codigo_barras, titulo, kit, stock_minimo, cantidad, reservado, disponible, producto_id::int, ubicaciones, fotos, clasica from t
-     where (not $8 or disponible > 0 or $4 = 'negativo') and ($4::text is null
-            or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
-            or ($4 = 'negativo' and disponible < 0))
-     order by sku limit ${LIMITE}`, [s.org.id, patrones, q, filtro, inactivos, depId, conKits, soloDisp]);
+    select f.id::int, f.sku, f.codigo_barras, titulo_variacion(f.id) titulo, f.kit, f.stock_minimo, f.cantidad, f.reservado, f.disponible, f.producto_id::int,
+           (select json_agg(json_build_object('deposito', d.nombre, 'ubicacion', case when u.es_default then 'General' else u.codigo end, 'cantidad', st.cantidad)
+                            order by d.nombre, u.es_default desc, u.orden_recorrido, u.codigo)
+              from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
+             where st.variacion_id = f.id and d.estado = 'activo' and st.cantidad <> 0 and ($6::bigint is null or d.id = $6)) ubicaciones,
+           coalesce((select array_agg(x.url order by x.orden) from variacion_foto x where x.variacion_id = f.id),
+                    (select array_agg(x.url order by x.orden) from producto_foto x where x.producto_id = f.producto_id),
+                    -- Sin fotos cargadas en Laucen, las de su publicación de Mercado Libre (por la clave canal + item: con
+                    -- meli_item.publicacion_id recorría la tabla entera por fila y la pantalla tardaba un minuto).
+                    (select array(select coalesce(x ->> 'secure_url', x ->> 'url') from jsonb_array_elements(mm.p) x)
+                       from (select m.datos_externos -> 'ml' -> 'pictures' p
+                               from publicacion pu join meli_item m on m.canal_id = pu.canal_id and m.item_id = pu.id_externo
+                              where pu.variacion_id = f.id and pu.id_externo is not null
+                                and jsonb_typeof(m.datos_externos -> 'ml' -> 'pictures') = 'array' and jsonb_array_length(m.datos_externos -> 'ml' -> 'pictures') > 0
+                              order by (m.estado = 'active') desc limit 1) mm)) fotos,
+           -- El precio de la lista Clásicas (la de referencia de la organización).
+           (select venta_ars from precio_de($1, f.id, (select l.id from lista_precios l where l.organizacion_id = $1
+              and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)))::float8 clasica
+      from f order by f.sku`, [s.org.id, patrones, q, filtro, inactivos, depId, conKits, soloDisp]);
 
   // Una variación abierta: detalle por depósito y ubicación + movimientos.
   const elegida = vId ? await una<Variacion>(`
