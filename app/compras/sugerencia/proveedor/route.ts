@@ -1,7 +1,8 @@
 // Excel para pedirle cotización al proveedor (pedido de Fer, 28/10): de lo que se ve en Sugerencia de compra (mismos filtros
 // y orden), sólo lo que hay que comprar, con la foto, el SKU, el título, la cantidad (la del típico, la del mejor momento o
-// el promedio, ya descontado lo que va a quedar cuando llegue, redondeada a decenas) y la categoría de vía. El proveedor conoce los SKU: no hace falta traducir nada. El precio
-// es el FOB de la ficha (para controlar o borrar antes de mandarlo), con el subtotal y el total como fórmulas de Excel.
+// el promedio, ya descontado lo que va a quedar cuando llegue, redondeada a decenas), la categoría de vía y la ganancia en
+// pesos (por unidad y total). El proveedor conoce los SKU: no hace falta traducir nada. El precio es el FOB de la ficha (para
+// controlar o borrar antes de mandarlo), con el subtotal, la ganancia total y los totales como fórmulas de Excel.
 
 import ExcelJS from "exceljs";
 import sharp from "sharp";
@@ -58,13 +59,19 @@ export async function GET(req: NextRequest) {
     { header: "Precio US$", width: 12, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
     { header: "Subtotal US$", width: 14, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
     { header: "Vía", width: 22, style: { alignment: { vertical: "middle", wrapText: true } } },
+    { header: "Ganancia por unidad $", width: 14, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
+    { header: "Ganancia total $", width: 16, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
   ];
   h.getRow(1).font = { bold: true };
   filas.forEach((x, n) => {
     // El precio: el FOB de la ficha (Fer, 28/10: lo deja o lo borra antes de mandarlo); el subtotal, una fórmula.
     const r = n + 2;
     const fila = h.addRow([null, x.sku, x.titulo, x.pedir, x.fob_usd,
-      { formula: `D${r}*E${r}`, result: x.fob_usd != null ? x.fob_usd * x.pedir : 0 }, CATEGORIAS_VIA[x.via].texto]);
+      { formula: `D${r}*E${r}`, result: x.fob_usd != null ? x.fob_usd * x.pedir : 0 }, CATEGORIAS_VIA[x.via].texto,
+      // Lo que ganaría vendiendo lo que se pide (Fer, 28/10), en pesos: la ganancia por unidad de la pantalla (precio de venta −
+      // Mercado Libre − costo puesto de su vía) por la cantidad; fórmula, para que siga a la cantidad si se cambia.
+      x.ganancia_unit != null ? Math.round(x.ganancia_unit) : null,
+      x.ganancia_unit != null ? { formula: `D${r}*H${r}`, result: Math.round(x.ganancia_unit) * x.pedir } : null]);
     fila.height = LADO * 0.75 + 6; // puntos
     fila.getCell(2).alignment = { vertical: "middle" };
     const foto = fotos[n];
@@ -76,7 +83,8 @@ export async function GET(req: NextRequest) {
   const ult = filas.length + 1;
   h.addRow(["Total", null, `${filas.length} productos`, { formula: `SUM(D2:D${ult})`, result: filas.reduce((t, x) => t + x.pedir, 0) }, null,
     { formula: `SUM(F2:F${ult})`, result: filas.reduce((t, x) => t + (x.fob_usd ?? 0) * x.pedir, 0) },
-    `Cantidad: ${CANTIDADES_PEDIDO.find(([k]) => k === cant)![1].toLowerCase()}`]).font = { bold: true };
+    `Cantidad: ${CANTIDADES_PEDIDO.find(([k]) => k === cant)![1].toLowerCase()}`, null,
+    { formula: `SUM(I2:I${ult})`, result: filas.reduce((t, x) => t + (x.ganancia_unit != null ? Math.round(x.ganancia_unit) * x.pedir : 0), 0) }]).font = { bold: true };
 
   const buffer = await libro.xlsx.writeBuffer();
   const fecha = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
