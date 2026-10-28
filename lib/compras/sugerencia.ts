@@ -12,7 +12,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
 import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 import { CATEGORIAS_VIA, calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
-import { preciosDeMercado } from "@/lib/compras/precio-mercado";
+import { mejorDelMercado, preciosDeMercado } from "@/lib/compras/precio-mercado";
 import { estadosMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { coincideBusqueda } from "@/lib/busqueda";
 import { hoyArgentina } from "@/lib/rango-fechas";
@@ -72,6 +72,8 @@ export type FilaSugerencia = {
    *  28/10) y la mediana. Y el estado del
    *  precio de mercado del producto (confirmado, sin confirmar o sin seguimiento). */
   mercado: number | null; mercado_mediana: number | null; mercado_n: number; mercado_ts: string | null; estado_mercado: EstadoMercado | null;
+  /** De dónde sale el precio de mercado (mejorDelMercado): la búsqueda de la IA o una publicación seguida, y de qué vendedor. */
+  mercado_de: "busqueda" | "seguimiento" | null; mercado_vendedor: string | null;
   /** ¿Avión o barco? (lib/compras/via.ts): FOB de la ficha, flete aéreo como % del FOB, costo final con IVA y ganancia por
    *  cada vía (US$ por unidad, sobre la Clásica), y la categoría. */
   fob_usd: number | null; via: CategoriaVia; medidas: "packing" | "ficha" | null; flete_aereo_pct: number | null; con_ncm: boolean;
@@ -182,8 +184,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     };
   });
   const productos = [...new Set(info.map((x) => x.producto_id))];
-  const [g, cfgVia, medidas, mercado, resueltos, estados] = await Promise.all([
-    grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)), preciosDeMercado(org, productos),
+  const [g, cfgVia, medidas, mercado, mejor, resueltos, estados] = await Promise.all([
+    grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)), preciosDeMercado(org, productos), mejorDelMercado(org, productos),
     costosResueltos(org, info.map((x) => ({ id: x.producto_id, familia_id: x.familia_id }))),
     estadosMercado(org, productos),
   ]);
@@ -197,8 +199,9 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const precioHoy = precioUsd != null && tcHoy ? Math.round(precioUsd * tcHoy) : null;
     const comision = d.comision_pct ?? comisionComun;
     const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
+    const mj = d.producto_id != null ? mejor.get(d.producto_id) : undefined;
     const vendiendo = d.ml_activa || d.ultima_fecha >= desdeVendiendo;
-    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: m?.minimo ?? null, ultimaHoy: precioHoy });
+    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: mj?.precio ?? null, ultimaHoy: precioHoy });
     const base = pb.precio;
     const ml = base != null ? costosMl(base, comision, g) : null;
     const vv = d.variacion_id != null && d.producto_id != null
@@ -217,13 +220,14 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       tipico: r.tipico, mejor: r.mejor, ventanas: r.ventanas, dias_con_venta: r.diasConVenta, grandes: r.grandes, mayor_grande: r.mayor,
       costo_usd: costoUsd, costo_ars: costoArs, costo_de: costoDe, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
-      precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(d.clasica, m?.minimo ?? null), variacion_id: d.variacion_id,
+      precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(d.clasica, mj?.precio ?? null), variacion_id: d.variacion_id,
       margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       ...(() => { const t = aComprar(r.tipico, f.dias, f.demora, d.stock);
         return { stock: d.stock, al_llegar: t.alLlegar, comprar_tipico: t.comprar, comprar_mejor: aComprar(r.mejor, f.dias, f.demora, d.stock).comprar }; })(),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
-      mercado: m?.minimo ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0, mercado_ts: m ? new Date(m.ts).toISOString().slice(0, 10) : null,
+      mercado: mj?.precio ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0,
+      mercado_ts: mj?.ts ? new Date(mj.ts).toISOString().slice(0, 10) : null, mercado_de: mj?.de ?? null, mercado_vendedor: mj?.vendedor ?? null,
       estado_mercado: d.producto_id != null ? estados.get(d.producto_id) ?? null : null,
       fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
@@ -315,7 +319,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-12", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-13", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

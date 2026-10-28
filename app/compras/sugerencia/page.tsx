@@ -121,7 +121,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="inversion" n desc title="A comprar × costo puesto acá">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
               <ThOrden col="clasica" n desc title={`El precio de la lista Clásica. La ganancia sale de acá si lo estás vendiendo (publicación activa en ML o venta en los últimos ${DIAS_VENDIENDO} días); si no, del precio de mercado. En ámbar si difiere más de ${DIFERENCIA_REVISAR} % del mercado`}>Clásica</ThOrden>
-              <ThOrden col="mercado" n desc title="Precio de mercado: el más barato de lo que se vende hoy en Mercado Libre, contando sólo las publicaciones que la IA juzgó iguales al producto (sin packs, ni las nuestras, ni internacionales). Al pasar el mouse, la mediana">Mercado</ThOrden>
+              <ThOrden col="mercado" n desc title="Precio de mercado: el más barato entre lo que la IA juzgó igual al producto en la búsqueda (sin packs, ni las nuestras, ni internacionales) y las publicaciones de la competencia que se siguen (pestaña Seguimiento: activas, revisadas, ni excluidas ni internacionales). Al pasar el mouse, de dónde sale">Mercado</ThOrden>
               <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy (sólo de referencia)">Últ. venta hoy</ThOrden>
               <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
               <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad: precio de venta − Mercado Libre − costo puesto acá (el de la columna Costo US$)">Ganancia</ThOrden>
@@ -178,7 +178,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                   {!x.vendiendo && <span className="block text-[10px] font-normal">no lo vendés</span>}
                 </td>
                 <td className={`${TDN} whitespace-nowrap ${x.revisar ? "bg-[#FFF4D6]" : ""} ${x.precio_base === "mercado" ? "font-semibold" : ""}`}
-                  title={x.mercado != null ? `${x.mercado_n} publicaciones iguales el ${fechaCorta(x.mercado_ts)} · la mediana ${pesos(x.mercado_mediana)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}${x.precio_base === "mercado" ? " · la ganancia sale de este precio" : ""}` : "Sin buscar"}>
+                  title={x.mercado != null ? `${x.mercado_de === "seguimiento" ? "Publicación seguida" : "Búsqueda de la IA"}${x.mercado_vendedor ? ` · ${x.mercado_vendedor}` : ""}${x.mercado_ts ? ` · leído el ${fechaCorta(x.mercado_ts)}` : ""}${x.mercado_mediana != null ? ` · mediana de la búsqueda ${pesos(x.mercado_mediana)}` : ""}${x.precio_base === "mercado" ? " · la ganancia sale de este precio" : ""}` : "Sin precio de mercado: ni la búsqueda encontró iguales ni hay publicaciones seguidas activas"}>
                   {pesos(x.mercado)}
                   {x.mercado != null && x.clasica ? <span className={`block text-[10px] ${x.revisar ? "text-[#8a6100] font-semibold" : "text-[#5C6B76]"}`}>{x.mercado >= x.clasica ? "+" : ""}{Math.round((x.mercado / x.clasica - 1) * 100)} %</span> : null}
                   {x.revisar && x.variacion_id != null && (
