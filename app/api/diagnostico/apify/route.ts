@@ -87,7 +87,9 @@ export async function GET(req: Request) {
       const c = await correrConEntrada(actor, JSON.parse(q.get("entrada") ?? "{}"), { max: 30, esperaSeg: 200, topeUsd: 0.25 });
       const items = c.items as Record<string, unknown>[];
       return Response.json({ actor, estado: c.estado, mensaje: c.mensaje, error: c.error, costo: c.costoUsd, cobros: c.cobros, segundos: Math.round((Date.now() - t0) / 1000),
-        cantidad: items.length, ejemplo: items.slice(0, 2).map((x) => ({ titulo: x.title ?? x.name, precio: x.price, vendedor: x.sellerName ?? x.vendor_name, url: x.url ?? x.url_item })) });
+        cantidad: items.length, ejemplo: items.slice(0, 2).map((x) => ({ titulo: x.title ?? x.name, precio: x.price, vendedor: x.sellerName ?? x.vendor_name, url: x.url ?? x.url_item })),
+        // Los campos de cada resultado (sin textos largos), para ver qué trae.
+        filas: items.slice(0, 5).map((x) => Object.fromEntries(Object.entries(x).filter(([, v]) => typeof v !== "object" || v === null).map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 120) : v]))) });
     }
     return Response.json({ error: "accion: runs, probar, tienda, actor o correr" });
   } catch (e) {
