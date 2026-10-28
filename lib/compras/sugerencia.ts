@@ -248,7 +248,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       mercado: mj?.precio ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0,
       mercado_ts: mj?.ts ? new Date(mj.ts).toISOString().slice(0, 10) : null, mercado_de: mj?.de ?? null, mercado_vendedor: mj?.vendedor ?? null,
       estado_mercado: d.producto_id != null ? estados.get(d.producto_id) ?? null : null,
-      fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
+      fob_usd: d.fob_usd, via: base == null ? "sin_precio" : vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
       barco_final: vv?.barco?.final ?? null, barco_ganancia: vv?.barco?.ganancia ?? null, barco_margen: vv?.barco?.margen_pct ?? null,
       avion_sobre_costo: sobreCosto(vv?.avion), barco_sobre_costo: sobreCosto(vv?.barco),
@@ -268,14 +268,16 @@ export const DIAS_VENDIENDO = 45;
 /** Diferencia entre la Clásica y el precio de mercado que se marca para revisar, en %. */
 export const DIFERENCIA_REVISAR = 5;
 
-/** El precio de venta para calcular la ganancia (Fer, 28/10). Pura. Lo que se está vendiendo, la Clásica; lo que no, el
- *  precio de mercado (el más barato de los iguales). Si falta el que corresponde, el otro; si faltan los dos, la última
- *  venta llevada a hoy. */
+/** El precio de venta para calcular la ganancia (Fer, 28/10). Pura. Lo que se está vendiendo, la Clásica (si falta, el
+ *  mercado y si no, la última venta llevada a hoy); lo que no, sólo el precio de mercado. */
 export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null; conMercado?: boolean }): { precio: number | null; de: FilaSugerencia["precio_base"] } {
   const cl = o.clasica != null && o.clasica > 0 ? o.clasica : null;
   const me = o.mercado != null && o.mercado > 0 ? o.mercado : null;
-  const orden: [number | null, FilaSugerencia["precio_base"]][] = o.vendiendo && !o.conMercado ? [[cl, "clasica"], [me, "mercado"]] : [[me, "mercado"], [cl, "clasica"]];
-  for (const [p, de] of [...orden, [o.ultimaHoy, "ultima"] as [number | null, FilaSugerencia["precio_base"]]]) if (p != null) return { precio: p, de };
+  // Lo que no se vende sólo se calcula con el mercado (Fer, 28/10): su Clásica o su última venta pueden no tener nada que
+  // ver con la realidad. Sin mercado, no hay precio («Sin precio de referencia»).
+  const orden: [number | null, FilaSugerencia["precio_base"]][] = !o.vendiendo ? [[me, "mercado"]]
+    : o.conMercado ? [[me, "mercado"], [cl, "clasica"], [o.ultimaHoy, "ultima"]] : [[cl, "clasica"], [me, "mercado"], [o.ultimaHoy, "ultima"]];
+  for (const [p, de] of orden) if (p != null) return { precio: p, de };
   return { precio: null, de: null };
 }
 
@@ -339,7 +341,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-17", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-18", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

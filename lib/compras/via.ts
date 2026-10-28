@@ -11,7 +11,11 @@
 //   · «Avión»: el flete aéreo no pasa el umbral (% del FOB) y deja al menos el margen mínimo;
 //   · «Conviene barco»: el flete aéreo pasa el umbral pero igual deja el margen mínimo (se puede traer rápido si hace falta);
 //   · «No rentable por avión»: por avión gana menos que el margen mínimo;
-//   · «Imposible por avión»: por avión pierde plata.
+//   · «Imposible por avión»: por avión pierde plata;
+//   · «No rentable» (Fer, 28/10): no rinde por avión pero no es culpa del avión: el flete aéreo es barato (menos de
+//     fleteBaratoPct del FOB) o por avión cuesta casi lo mismo que por barco (menos de diferenciaViasPct más). Hay que revisar
+//     el costo y el precio de mercado;
+//   · «Sin precio de referencia»: no se está vendiendo y no tiene precio de mercado (lo pone lib/compras/sugerencia.ts).
 // Peso y volumen: los del packing list (lib/compras/packing.ts) y, si no hay, los de la ficha (peso y medidas del paquete).
 // Sólo informa: no cambia costos ni precios.
 
@@ -26,15 +30,19 @@ export type ConfigVia = {
   /** Si el flete aéreo pasa este % del FOB, conviene barco. */ umbralFletePct: number;
   /** Sin NCM cargada: (FOB + flete) × (1 + esto). */ recargoSinDatosPct: number;
   /** Ganancia mínima sobre la Clásica para que traerlo por avión sea rentable. */ margenMinimoPct: number;
+  /** Si no rinde por avión y el flete aéreo es menos que este % del FOB, el problema no es el avión: «No rentable». */ fleteBaratoPct: number;
+  /** Si no rinde por avión y por avión cuesta menos que este % más que por barco, tampoco: «No rentable». */ diferenciaViasPct: number;
 };
-export const CONFIG_VIA: ConfigVia = { aereoUsdKg: 13, courierPct: 8, barcoUsdM3: 330, umbralFletePct: 30, recargoSinDatosPct: 30, margenMinimoPct: 10 };
+export const CONFIG_VIA: ConfigVia = { aereoUsdKg: 13, courierPct: 8, barcoUsdM3: 330, umbralFletePct: 30, recargoSinDatosPct: 30, margenMinimoPct: 10, fleteBaratoPct: 20, diferenciaViasPct: 20 };
 export const CAMPOS_VIA: [keyof ConfigVia, string, string][] = [
   ["aereoUsdKg", "Flete aéreo", "US$ por kilo cobrable"],
   ["courierPct", "Por avión (courier), impuestos y gastos", "% del FOB"],
   ["barcoUsdM3", "Flete marítimo", "US$ por metro cúbico"],
   ["umbralFletePct", "Conviene barco si el flete aéreo pasa", "% del FOB"],
   ["recargoSinDatosPct", "Por barco sin NCM cargada, impuestos y gastos", "% sobre FOB + flete"],
-  ["margenMinimoPct", "Margen mínimo por avión", "% de la Clásica"],
+  ["margenMinimoPct", "Margen mínimo por avión", "% del precio de venta"],
+  ["fleteBaratoPct", "No rentable (no es el avión) si el flete aéreo es menos de", "% del FOB"],
+  ["diferenciaViasPct", "No rentable (no es el avión) si avión cuesta menos que barco +", "%"],
 ];
 
 export async function configVia(org: string): Promise<ConfigVia> {
@@ -54,9 +62,11 @@ export async function guardarConfigVia(org: string, c: ConfigVia): Promise<void>
 export const CATEGORIAS_VIA = {
   avion: { texto: "Avión", tono: "verde", ayuda: "Por avión deja el margen mínimo o más y el flete no pasa el umbral (% del FOB)." },
   barco: { texto: "Conviene barco", tono: "azul", ayuda: "Por avión también deja el margen mínimo o más, pero el flete pasa el umbral: por barco dejaría bastante más. Se puede traer por avión si hace falta." },
-  no_rentable: { texto: "No rentable por avión", tono: "ambar", ayuda: "Por avión gana, pero menos que el margen mínimo." },
-  imposible: { texto: "Imposible por avión", tono: "rojo", ayuda: "Por avión pierde plata." },
-  sin_datos: { texto: "Sin datos", tono: "gris", ayuda: "Falta el peso, el FOB o el precio de la Clásica." },
+  no_rentable: { texto: "No rentable por avión", tono: "ambar", ayuda: "Por avión gana, pero menos que el margen mínimo, y por barco costaría bastante menos." },
+  imposible: { texto: "Imposible por avión", tono: "rojo", ayuda: "Por avión pierde plata, y por barco costaría bastante menos." },
+  revisar: { texto: "No rentable", tono: "rojo", ayuda: "No rinde por avión, pero no es culpa del avión: el flete aéreo es barato (de entrada, menos del 20 % del FOB) o por barco costaría casi lo mismo (de entrada, menos de 20 % de diferencia). Revisar el costo y el precio de mercado." },
+  sin_precio: { texto: "Sin precio de referencia", tono: "gris", ayuda: "No lo estás vendiendo y no tiene precio de mercado: no se calcula ganancia." },
+  sin_datos: { texto: "Sin datos", tono: "gris", ayuda: "Falta el peso o el FOB." },
 } as const;
 export type CategoriaVia = keyof typeof CATEGORIAS_VIA;
 
@@ -98,6 +108,9 @@ export function calcularVia(fob: number | null, m: Medidas, netoUsd: number | nu
   else if (avion.ganancia < 0) categoria = "imposible";
   else if (avion.margen_pct < cfg.margenMinimoPct) categoria = "no_rentable";
   else categoria = pct > cfg.umbralFletePct ? "barco" : "avion";
+  // No rinde por avión, pero el avión no es el problema (Fer, 28/10): flete barato o casi lo mismo que por barco.
+  const masQueBarco = barco && barco.final > 0 ? ((avion.final - barco.final) / barco.final) * 100 : null;
+  if ((categoria === "no_rentable" || categoria === "imposible") && (pct < cfg.fleteBaratoPct || (masQueBarco != null && masQueBarco < cfg.diferenciaViasPct))) categoria = "revisar";
   return { medidas: m, cobrable_kg: cobrable, flete_aereo_pct: pct, con_ncm: conNcm, avion, barco, categoria };
 }
 

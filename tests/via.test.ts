@@ -34,8 +34,13 @@ test("categorías: avión, conviene barco, no rentable, imposible, sin datos", (
   assert.equal(Math.round(b.flete_aereo_pct!), 130);
   // Volumétrico manda: 0,01 m³ × 167 = 1,67 kg aunque pese 200 g.
   assert.equal(calcularVia(10, m(200, 0.01), 60, sinNcm, CONFIG_VIA).cobrable_kg, 1.67);
-  // Gana, pero menos del 10 %: costo 10,8 + 1,3 = 12,1; neto 13 → 6,9 %.
-  assert.equal(calcularVia(10, m(100, null), 13, sinNcm, CONFIG_VIA).categoria, "no_rentable");
+  // Gana, pero menos del 10 %, con flete caro y barco mucho más barato: avión 10,8 + 13 = 23,8; barco (10 + 0,66) × 1,3 = 13,86;
+  // neto 25 → 1,2 / 25 = 4,8 %.
+  assert.equal(calcularVia(10, m(1000, 0.002), 25, sinNcm, CONFIG_VIA).categoria, "no_rentable");
+  // Gana menos del 10 % pero el flete aéreo es barato (1,3 = 13 % del FOB): no es el avión → «No rentable», a revisar.
+  assert.equal(calcularVia(10, m(100, null), 13, sinNcm, CONFIG_VIA).categoria, "revisar");
+  // Flete caro (39 %), pero por avión cuesta casi lo mismo que por barco: 14,7 contra 13,43 (+9,5 %) → a revisar.
+  assert.equal(calcularVia(10, m(300, 0.001), 15, sinNcm, CONFIG_VIA).categoria, "revisar");
   // Pierde plata por avión: 10,8 + 13 = 23,8 > 20.
   assert.equal(calcularVia(10, m(1000, null), 20, sinNcm, CONFIG_VIA).categoria, "imposible");
   assert.equal(calcularVia(null, m(100, null), 20, sinNcm, CONFIG_VIA).categoria, "sin_datos");
@@ -60,7 +65,8 @@ test("precio de venta: Clásica si lo vende, mercado si no; revisar si difieren 
   const { precioBase, paraRevisar, viasElegidas } = await import("@/lib/compras/sugerencia");
   assert.deepEqual(precioBase({ vendiendo: true, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 18513, de: "clasica" });
   assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 19549, de: "mercado" });
-  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: null, ultimaHoy: 18632 }), { precio: 18513, de: "clasica" });
+  // No lo vende y no tiene mercado: sin precio (ni la Clásica ni la última venta).
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: null, ultimaHoy: 18632 }), { precio: null, de: null });
   assert.deepEqual(precioBase({ vendiendo: true, clasica: null, mercado: null, ultimaHoy: 18632 }), { precio: 18632, de: "ultima" });
   assert.deepEqual(precioBase({ vendiendo: true, clasica: 0, mercado: null, ultimaHoy: null }), { precio: null, de: null });
   assert.equal(paraRevisar(18513, 19549), true); // +5,6 %
