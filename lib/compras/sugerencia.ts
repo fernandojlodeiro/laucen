@@ -14,7 +14,8 @@ import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 import { CATEGORIAS_VIA, calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
 import { mejorDelMercado, preciosDeMercado } from "@/lib/compras/precio-mercado";
 import { estadosMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
-import { coincideBusqueda } from "@/lib/busqueda";
+import { coincideBusqueda, parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposProductoConVariaciones } from "@/app/catalogo/busqueda";
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { ordenarEnMemoria } from "@/lib/lista";
 
@@ -375,6 +376,17 @@ export async function arbolCategorias(org: string, filas: FilaSugerencia[]): Pro
   return { nodos: [...nodos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre)), ancestros };
 }
 
+/** El buscador de la sugerencia (Fer, 28/10: «kit?start» no traía los kits que lo dicen en la descripción): como en todo el
+ *  panel, busca en TODOS los datos del producto y de sus variaciones (lib/busqueda.ts); los códigos viejos que ya no están
+ *  en el catálogo, por su SKU y su título. */
+export async function coincidenConBusqueda(org: string, q: string, comienza: boolean): Promise<(x: Pick<FilaSugerencia, "producto_id" | "sku" | "titulo">) => boolean> {
+  if (!q) return () => true;
+  const ids = new Set((await consulta<{ id: number }>(
+    `select p.id::int from producto p where p.organizacion_id = $1 and ${sqlBusqueda("$2", camposProductoConVariaciones())}`,
+    [org, parametroBusqueda(q, comienza)])).map((x) => x.id));
+  return (x) => (x.producto_id != null ? ids.has(x.producto_id) : coincideBusqueda([x.sku, x.titulo], q, comienza));
+}
+
 /** Las filas que se ven en la pantalla con los filtros de la dirección (todas las páginas, en su orden): las usan las
  *  descargas en Excel. */
 export async function filasDeLaPantalla(org: string, sp: Record<string, string | undefined>, hoy: string): Promise<{ f: FiltroSugerencia; filas: FilaSugerencia[]; tcHoy: number | null }> {
@@ -384,6 +396,7 @@ export async function filasDeLaPantalla(org: string, sp: Record<string, string |
   const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
   const categoriaFuera = (x: FilaSugerencia) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
-  const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
+  const coincide = await coincidenConBusqueda(org, q, sp.contiene !== "1");
+  const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && coincide(x));
   return { f, filas: ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), tcHoy };
 }

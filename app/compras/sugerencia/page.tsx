@@ -21,12 +21,11 @@ import { SUAVE } from "@/app/botones";
 import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, TOPE_TODOS_USD, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
 import { Desplegable } from "@/app/informes/Filtros";
 import Categorias from "./Categorias";
-import { coincideBusqueda } from "@/lib/busqueda";
 import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { type FilaSugerencia, CANTIDADES_PEDIDO, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { type FilaSugerencia, coincidenConBusqueda, CANTIDADES_PEDIDO, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -69,7 +68,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
   const categoriaFuera = (x: (typeof todas)[number]) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
-  const coincide = (x: (typeof todas)[number]) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"));
+  const enBusqueda = await coincidenConBusqueda(s.org.id, q, sp.contiene !== "1");
+  const coincide = (x: (typeof todas)[number]) => !categoriaFuera(x) && enBusqueda(x);
   const filas = filtrarMuestra(todas, sp, coincide);
   // Cuántos hay de cada vía con los demás filtros puestos.
   const sinVia = filtrarMuestra(todas, { ...sp, via: undefined }, coincide);

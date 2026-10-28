@@ -19,7 +19,7 @@ Menú **Compras › Sugerencia de compra**.
 
 - Arriba a la derecha, a la altura del título, los botones **Buscar precio de mercado**, **Descargar Excel** (lo mismo que se ve, todas las filas, con todas las columnas) y **Excel para el proveedor** (ver abajo). Debajo del título, en letra chica, cuándo fue la última búsqueda de precio de mercado y cuántos productos encontró (al pasar el mouse, qué es la pantalla).
 - Debajo, en un renglón, los filtros:
-  - buscador (SKU o producto);
+  - buscador: busca en todos los datos del producto y de sus variaciones (SKU, título, descripción, marca, modelo, código de barras…), con la regla de todos los buscadores;
   - **Historia**: el período que se estudia (de entrada, los últimos 6 años);
   - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
   - **Llega en**: cuántos días pasan desde que se arma el pedido hasta que la mercadería está en el depósito (de entrada, 40 días, lo que tarda aun por avión: cotización, fabricación, viaje y courier). Lo que se vende en esos días sale del stock de hoy. «Ya (sin demora)» compara directo contra el stock de hoy;
