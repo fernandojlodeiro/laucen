@@ -11,10 +11,11 @@ import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
 import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
 import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
-import { calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
+import { CATEGORIAS_VIA, calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
 import { preciosDeMercado } from "@/lib/compras/precio-mercado";
 import { estadosMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { coincideBusqueda } from "@/lib/busqueda";
+import { hoyArgentina } from "@/lib/rango-fechas";
 import { ordenarEnMemoria } from "@/lib/lista";
 
 /** `demora`: días desde que se pide hasta que la mercadería llega al depósito (Fer, 28/10: «por lo menos 5 semanas, cerca de
@@ -48,10 +49,16 @@ export function aComprar(paraDias: number, dias: number, demora: number, stock: 
 export type FilaSugerencia = {
   clave: string; producto_id: number | null; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean;
   tipico: number; mejor: number; ventanas: number; dias_con_venta: number; grandes: number; mayor_grande: number;
-  costo_usd: number | null; costo_ars: number | null;
+  /** El costo puesto acá por unidad (Fer, 28/10): el de la vía que le corresponde (`costo_de`): por avión (courier) si por
+   *  avión deja el margen mínimo, si no por barco (con la NCM si está cargada); sin peso o FOB, el de la ficha. */
+  costo_usd: number | null; costo_ars: number | null; costo_de: "avion" | "barco" | "ficha" | null;
   ultima_fecha: string; ultima_precio: number; ultima_tc: number | null; precio_usd: number | null; precio_hoy: number | null; clasica: number | null;
-  /** De qué precio sale la ganancia: la Clásica, o (si no tiene) la última venta llevada a hoy. */
-  precio_base: "clasica" | "ultima" | null;
+  /** De qué precio sale la ganancia (precioBase()): la Clásica, el precio de mercado o la última venta llevada a hoy. */
+  precio_base: "clasica" | "mercado" | "ultima" | null; precio_venta: number | null;
+  /** Lo está vendiendo: tiene publicación activa en Mercado Libre o vendió en los últimos DIAS_VENDIENDO días. */
+  vendiendo: boolean;
+  /** La Clásica y el precio de mercado difieren más de DIFERENCIA_REVISAR %: para revisar. */
+  revisar: boolean; variacion_id: number | null;
   comision_pct: number; costos_ml: number | null; ganancia_unit: number | null; margen_pct: number | null;
   /** La ganancia sobre el costo (lo que rinde cada peso invertido). */
   roi_pct: number | null;
@@ -61,8 +68,8 @@ export type FilaSugerencia = {
   /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
    *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
   compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
-  /** Precio de mercado (lib/compras/precio-mercado.ts) de las publicaciones que la IA juzgó iguales: el cuarto más barato
-   *  (el precio para competir; Fer, 13/10: la mediana quedaba arriba de varios vendedores) y la mediana. Y el estado del
+  /** Precio de mercado (lib/compras/precio-mercado.ts) de las publicaciones que la IA juzgó iguales: el más barato (Fer,
+   *  28/10) y la mediana. Y el estado del
    *  precio de mercado del producto (confirmado, sin confirmar o sin seguimiento). */
   mercado: number | null; mercado_mediana: number | null; mercado_n: number; mercado_ts: string | null; estado_mercado: EstadoMercado | null;
   /** ¿Avión o barco? (lib/compras/via.ts): FOB de la ficha, flete aéreo como % del FOB, costo final con IVA y ganancia por
@@ -130,7 +137,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
   const variaciones = claves.filter((k) => k.startsWith("v")).map((k) => Number(k.slice(1)));
   const fechas = [...new Set(claves.map((k) => ultima.get(k)!.dia))];
   const [info, tcs, compras] = await Promise.all([
-    consulta<{ id: number; producto_id: number; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; fob_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number }>(`
+    consulta<{ id: number; producto_id: number; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; fob_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number; ml_activa: boolean }>(`
       with lista as (select id from lista_precios where organizacion_id = $1
                       order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1)
       select va.id::int, va.producto_id::int, pr.familia_id::int, pr.proveedor_id::int, va.sku, titulo_variacion(va.id) titulo,
@@ -140,7 +147,9 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
              (select max(c.clasica_pct)::float8 from publicacion pu join canal ca on ca.id = pu.canal_id and ca.tipo = 'mercadolibre'
                 join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa where pu.variacion_id = va.id) comision_pct,
              (select pd.lista_ars from lista, precio_de($1, va.id, lista.id) pd)::float8 clasica,
-             (select coalesce(sum(st.cantidad - st.reservado), 0) from stock st where st.variacion_id = va.id)::int stock
+             (select coalesce(sum(st.cantidad - st.reservado), 0) from stock st where st.variacion_id = va.id)::int stock,
+             exists (select 1 from publicacion pu join canal ca on ca.id = pu.canal_id and ca.tipo = 'mercadolibre'
+                      where pu.variacion_id = va.id and pu.estado = 'activa') ml_activa
         from variacion va join producto pr on pr.id = va.producto_id
        where va.organizacion_id = $1 and va.id = any($2::bigint[])`, [org, variaciones]),
     consulta<{ dia: string; tc: number | null }>("select d::text dia, tc_del_dia($1, d)::float8 tc from unnest($2::date[]) d", [org, fechas]),
@@ -168,7 +177,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const v = porVariacion.get(clave);
     return {
       clave, producto_id: v?.producto_id ?? null, familia_id: v?.familia_id ?? null, proveedor_id: v?.proveedor_id ?? null, sku: v?.sku ?? clave.slice(1), titulo: v?.titulo ?? u.titulo ?? clave.slice(1), fotos: v?.fotos ?? null,
-      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, fob_usd: v?.fob_usd ?? null, variacion_id: v?.id ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null, stock: v?.stock ?? 0,
+      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, fob_usd: v?.fob_usd ?? null, variacion_id: v?.id ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null, stock: v?.stock ?? 0, ml_activa: v?.ml_activa ?? false,
       ultima_fecha: u.dia, ultima_precio: u.precio, ultima_tc: tcDe.get(u.dia) ?? null,
     };
   });
@@ -181,35 +190,41 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
   // Sin categoría conocida, la comisión más común de las categorías donde se publica.
   const conocidas = datos.map((d) => d.comision_pct).filter((x): x is number => x != null).sort((a, b) => a - b);
   const comisionComun = conocidas.length ? conocidas[Math.floor(conocidas.length / 2)] : 16.34;
+  const desdeVendiendo = new Date(Date.parse(`${hoyArgentina()}T00:00:00Z`) - DIAS_VENDIENDO * DIA).toISOString().slice(0, 10);
   const filas = datos.map((d): FilaSugerencia => {
     const r = ritmos.get(d.clave)!;
     const precioUsd = d.ultima_tc ? d.ultima_precio / d.ultima_tc : null;
     const precioHoy = precioUsd != null && tcHoy ? Math.round(precioUsd * tcHoy) : null;
-    const costoArs = d.costo_usd != null && tcHoy ? d.costo_usd * tcHoy : null;
     const comision = d.comision_pct ?? comisionComun;
-    // La ganancia sale del precio de la lista Clásica (Fer, 13/10); sin Clásica, de la última venta llevada a hoy.
-    const base = d.clasica != null && d.clasica > 0 ? d.clasica : precioHoy;
+    const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
+    const vendiendo = d.ml_activa || d.ultima_fecha >= desdeVendiendo;
+    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: m?.minimo ?? null, ultimaHoy: precioHoy });
+    const base = pb.precio;
     const ml = base != null ? costosMl(base, comision, g) : null;
-    const ganancia = base != null && costoArs != null && ml != null ? base - ml - costoArs : null;
     const vv = d.variacion_id != null && d.producto_id != null
       ? calcularVia(d.fob_usd, medidas.get(d.variacion_id) ?? { peso_g: null, cbm: null, origen: null, exacto: false },
           base != null && ml != null && tcHoy ? (base - ml) / tcHoy : null, resueltos.get(d.producto_id) ?? null, cfgVia,
           base != null && tcHoy ? base / tcHoy : null)
       : null;
+    // El costo de la vía que le corresponde: avión si por avión deja el margen mínimo; si no, barco; sin datos, la ficha.
+    const [costoUsd, costoDe]: [number | null, FilaSugerencia["costo_de"]] =
+      vv?.avion && (vv.categoria === "avion" || vv.categoria === "barco") ? [vv.avion.final, "avion"]
+        : vv?.barco ? [vv.barco.final, "barco"] : d.costo_usd != null ? [d.costo_usd, "ficha"] : [null, null];
+    const costoArs = costoUsd != null && tcHoy ? costoUsd * tcHoy : null;
+    const ganancia = base != null && costoArs != null && ml != null ? base - ml - costoArs : null;
     return {
       clave: d.clave, producto_id: d.producto_id, familia_id: d.familia_id, proveedor_id: d.proveedor_id, sku: d.sku, titulo: d.titulo, fotos: d.fotos, archivado: d.archivado,
       tipico: r.tipico, mejor: r.mejor, ventanas: r.ventanas, dias_con_venta: r.diasConVenta, grandes: r.grandes, mayor_grande: r.mayor,
-      costo_usd: d.costo_usd, costo_ars: costoArs, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
+      costo_usd: costoUsd, costo_ars: costoArs, costo_de: costoDe, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
-      precio_base: d.clasica != null && d.clasica > 0 ? "clasica" : precioHoy != null ? "ultima" : null,
+      precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(d.clasica, m?.minimo ?? null), variacion_id: d.variacion_id,
       margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       ...(() => { const t = aComprar(r.tipico, f.dias, f.demora, d.stock);
         return { stock: d.stock, al_llegar: t.alLlegar, comprar_tipico: t.comprar, comprar_mejor: aComprar(r.mejor, f.dias, f.demora, d.stock).comprar }; })(),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
-      ...(() => { const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
-        return { mercado: m?.p25 ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0, mercado_ts: m ? new Date(m.ts).toISOString().slice(0, 10) : null,
-          estado_mercado: d.producto_id != null ? estados.get(d.producto_id) ?? null : null }; })(),
+      mercado: m?.minimo ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0, mercado_ts: m ? new Date(m.ts).toISOString().slice(0, 10) : null,
+      estado_mercado: d.producto_id != null ? estados.get(d.producto_id) ?? null : null,
       fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
       barco_final: vv?.barco?.final ?? null, barco_ganancia: vv?.barco?.ganancia ?? null, barco_margen: vv?.barco?.margen_pct ?? null,
@@ -224,10 +239,32 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
 const sobreCosto = (c: { final: number; ganancia: number | null } | null | undefined) =>
   c && c.ganancia != null && c.final > 0 ? Math.round((c.ganancia / c.final) * 1000) / 10 : null;
 
+/** Días sin vender después de los cuales un producto sin publicación activa en Mercado Libre ya no se toma como «lo estoy
+ *  vendiendo» (Fer, 28/10): su Clásica puede estar vieja y la ganancia sale del precio de mercado. */
+export const DIAS_VENDIENDO = 45;
+/** Diferencia entre la Clásica y el precio de mercado que se marca para revisar, en %. */
+export const DIFERENCIA_REVISAR = 5;
+
+/** El precio de venta para calcular la ganancia (Fer, 28/10). Pura. Lo que se está vendiendo, la Clásica; lo que no, el
+ *  precio de mercado (el más barato de los iguales). Si falta el que corresponde, el otro; si faltan los dos, la última
+ *  venta llevada a hoy. */
+export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null }): { precio: number | null; de: FilaSugerencia["precio_base"] } {
+  const cl = o.clasica != null && o.clasica > 0 ? o.clasica : null;
+  const me = o.mercado != null && o.mercado > 0 ? o.mercado : null;
+  const orden: [number | null, FilaSugerencia["precio_base"]][] = o.vendiendo ? [[cl, "clasica"], [me, "mercado"]] : [[me, "mercado"], [cl, "clasica"]];
+  for (const [p, de] of [...orden, [o.ultimaHoy, "ultima"] as [number | null, FilaSugerencia["precio_base"]]]) if (p != null) return { precio: p, de };
+  return { precio: null, de: null };
+}
+
+/** ¿La Clásica y el mercado difieren más de lo tolerado? Pura. */
+export const paraRevisar = (clasica: number | null, mercado: number | null) =>
+  clasica != null && clasica > 0 && mercado != null && mercado > 0 && Math.abs(mercado / clasica - 1) * 100 > DIFERENCIA_REVISAR;
+
 export function totalesSugerencia(filas: FilaSugerencia[]) {
   const s = (f: (x: FilaSugerencia) => number | null) => filas.reduce((t, x) => t + (f(x) ?? 0), 0);
   return {
     productos: filas.length, conCosto: filas.filter((x) => x.costo_usd != null).length,
+    fobTipicoUsd: s((x) => (x.fob_usd != null ? x.fob_usd * x.comprar_tipico : null)),
     inversionTipicaUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_tipico : null)), inversionMejorUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_mejor : null)),
     gananciaTipica: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_tipico : null)), gananciaMejor: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_mejor : null)),
     unidadesTipicas: s((x) => x.comprar_tipico), unidadesMejor: s((x) => x.comprar_mejor),
@@ -247,6 +284,12 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
   avion_final: (x) => x.avion_final, barco_final: (x) => x.barco_final, avion_sobre_costo: (x) => x.avion_sobre_costo, barco_sobre_costo: (x) => x.barco_sobre_costo,
 };
 
+/** Las categorías de vía elegidas en la dirección (?via=avion,barco). Vacío = todas. Pura. */
+export function viasElegidas(v: string | undefined): Set<CategoriaVia> {
+  const ks = (v ?? "").split(",").flatMap((k) => (k === "rentable" ? ["avion", "barco"] : [k])).filter((k): k is CategoriaVia => k in CATEGORIAS_VIA);
+  return new Set(ks);
+}
+
 /** Opciones del filtro «Días con venta» (más de N). */
 export const MIN_DIAS_VENTA = [5, 10, 20, 30, 50, 100, 200];
 
@@ -259,9 +302,9 @@ export function filtrarMuestra(filas: FilaSugerencia[], sp: Record<string, strin
   const conStock = sp.con_stock === "1";
   // Proveedor preferido: un id, o «0» = los que no tienen.
   const prov = sp.prov != null && sp.prov !== "" ? Number(sp.prov) : null;
-  // Vía: una categoría, o «rentable» = las que por avión dejan el margen mínimo (Avión y Conviene barco).
-  const via = sp.via ?? "";
-  const pasaVia = (x: FilaSugerencia) => !via || (via === "rentable" ? x.via === "avion" || x.via === "barco" : x.via === via);
+  // Vía (Fer, 28/10: elegir más de una): las categorías tildadas, separadas por coma; «rentable» = Avión y Conviene barco.
+  const vias = viasElegidas(sp.via);
+  const pasaVia = (x: FilaSugerencia) => !vias.size || vias.has(x.via);
   return filas.filter((x) => (conStock || x.comprar_tipico > 0) && (prov == null || (x.proveedor_id ?? 0) === prov) && pasaVia(x) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && coincide(x));
 }
 
@@ -272,7 +315,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-11", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-12", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

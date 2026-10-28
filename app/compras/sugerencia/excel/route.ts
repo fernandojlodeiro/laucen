@@ -11,6 +11,9 @@ import { filasDeLaPantalla, totalesSugerencia, type FilaSugerencia } from "@/lib
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+/** La fila de totales, cada valor bajo la columna de ese título. */
+const totalEn = <T,>(columnas: ColumnaExcel<T>[], valores: Record<string, string | number>) => columnas.map((c) => valores[c.titulo] ?? null);
+
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
@@ -34,7 +37,9 @@ export async function GET(req: NextRequest) {
     { titulo: "Días con venta", valor: (x) => x.dias_con_venta, formato: "entero", ancho: 10 },
     { titulo: "Tramos con venta regular", valor: (x) => x.ventanas, formato: "entero", ancho: 10 },
     { titulo: "Compras grandes no consideradas", valor: (x) => (x.grandes ? `${x.grandes} (la mayor, ${x.mayor_grande} u.)` : ""), ancho: 18 },
-    { titulo: "Costo US$", valor: (x) => x.costo_usd, formato: "importe", ancho: 11 },
+    { titulo: "Costo puesto US$", valor: (x) => x.costo_usd, formato: "importe", ancho: 11 },
+    { titulo: "Costo por", valor: (x) => (x.costo_de === "avion" ? "Avión" : x.costo_de === "barco" ? "Barco" : x.costo_de === "ficha" ? "Ficha" : ""), ancho: 8 },
+    { titulo: "FOB al proveedor típico US$", valor: (x) => (x.fob_usd == null ? null : x.fob_usd * x.comprar_tipico), formato: "importe", ancho: 13 },
     { titulo: "Inversión típica US$", valor: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_tipico), formato: "importe", ancho: 13 },
     { titulo: "Inversión mejor US$", valor: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_mejor), formato: "importe", ancho: 13 },
     { titulo: "Última venta", valor: (x) => fecha(x.ultima_fecha), formato: "fecha", ancho: 11 },
@@ -43,7 +48,10 @@ export async function GET(req: NextRequest) {
     { titulo: "Precio en US$", valor: (x) => x.precio_usd, formato: "importe", ancho: 11 },
     { titulo: "Última venta a pesos de hoy $", valor: (x) => x.precio_hoy, formato: "importe", ancho: 13 },
     { titulo: "Clásica hoy $", valor: (x) => x.clasica, formato: "importe", ancho: 13 },
-    { titulo: "Ganancia calculada sobre", valor: (x) => (x.precio_base === "clasica" ? "Clásica" : x.precio_base === "ultima" ? "Última venta (sin Clásica)" : ""), ancho: 14 },
+    { titulo: "Lo estás vendiendo", valor: (x) => (x.vendiendo ? "Sí" : "No"), ancho: 9 },
+    { titulo: "Ganancia calculada sobre", valor: (x) => (x.precio_base === "clasica" ? "Clásica" : x.precio_base === "mercado" ? "Mercado" : x.precio_base === "ultima" ? "Última venta" : ""), ancho: 14 },
+    { titulo: "Precio de venta $", valor: (x) => x.precio_venta, formato: "importe", ancho: 13 },
+    { titulo: "Revisar Clásica (más de 5 % contra mercado)", valor: (x) => (x.revisar ? "Sí" : ""), ancho: 10 },
     { titulo: "Comisión ML %", valor: (x) => x.comision_pct, formato: "pct", ancho: 10 },
     { titulo: "Mercado Libre $", valor: (x) => x.costos_ml, formato: "importe", ancho: 12 },
     { titulo: "Ganancia $", valor: (x) => x.ganancia_unit, formato: "importe", ancho: 13 },
@@ -51,7 +59,7 @@ export async function GET(req: NextRequest) {
     { titulo: "% s/ costo", valor: (x) => x.roi_pct, formato: "pct", ancho: 9 },
     { titulo: "Ganancia típica $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico), formato: "importe", ancho: 14 },
     { titulo: "Ganancia mejor $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor), formato: "importe", ancho: 14 },
-    { titulo: "Mercado (cuarto más barato) $", valor: (x) => x.mercado, formato: "importe", ancho: 13 },
+    { titulo: "Mercado (el más barato) $", valor: (x) => x.mercado, formato: "importe", ancho: 13 },
     { titulo: "Mercado (mediana) $", valor: (x) => x.mercado_mediana, formato: "importe", ancho: 13 },
     { titulo: "Publicaciones iguales", valor: (x) => x.mercado_n || null, formato: "entero", ancho: 10 },
     { titulo: "Precio de mercado", valor: (x) => (x.estado_mercado ? ESTADOS_MERCADO[x.estado_mercado].texto : null), formato: "texto", ancho: 24 },
@@ -73,6 +81,7 @@ export async function GET(req: NextRequest) {
   ];
   const t = totalesSugerencia(filas);
   return respuestaExcel("Sugerencia de compra", "Sugerencia", columnas, filas,
-    [["Total", null, null, null, null, null, null, t.unidadesTipicas, t.unidadesMejor, null, null, null, null, t.inversionTipicaUsd, t.inversionMejorUsd, null, null, null, null, null, null, null, null, null, null, null, t.gananciaTipica, t.gananciaMejor],
+    [totalEn(columnas, { "SKU": "Total", "A comprar · típico": t.unidadesTipicas, "A comprar · mejor momento": t.unidadesMejor, "FOB al proveedor típico US$": t.fobTipicoUsd,
+      "Inversión típica US$": t.inversionTipicaUsd, "Inversión mejor US$": t.inversionMejorUsd, "Ganancia típica $": t.gananciaTipica, "Ganancia mejor $": t.gananciaMejor }),
       [`Período ${f.desde} a ${f.hasta}; comprar para ${f.dias} días; la compra llega en ${f.demora} días`]]);
 }

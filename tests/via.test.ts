@@ -55,3 +55,19 @@ test("a comprar: descuenta lo que se vende mientras llega la compra", async () =
   // Stock negativo cuenta como cero.
   assert.deepEqual(aComprar(30, 60, 40, -5), { alLlegar: 0, comprar: 30 });
 });
+
+test("precio de venta: Clásica si lo vende, mercado si no; revisar si difieren más de 5 %", async () => {
+  const { precioBase, paraRevisar, viasElegidas } = await import("@/lib/compras/sugerencia");
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 18513, de: "clasica" });
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 19549, de: "mercado" });
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: null, ultimaHoy: 18632 }), { precio: 18513, de: "clasica" });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: null, mercado: null, ultimaHoy: 18632 }), { precio: 18632, de: "ultima" });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 0, mercado: null, ultimaHoy: null }), { precio: null, de: null });
+  assert.equal(paraRevisar(18513, 19549), true); // +5,6 %
+  assert.equal(paraRevisar(18513, 19000), false); // +2,6 %
+  assert.equal(paraRevisar(20000, 18900), true); // −5,5 %
+  assert.equal(paraRevisar(null, 19549), false);
+  assert.deepEqual([...viasElegidas("rentable")], ["avion", "barco"]);
+  assert.deepEqual([...viasElegidas("avion,no_rentable,cualquiera")], ["avion", "no_rentable"]);
+  assert.equal(viasElegidas(undefined).size, 0);
+});

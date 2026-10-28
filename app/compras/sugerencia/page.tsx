@@ -11,7 +11,8 @@ import { Paginado, ThOrden } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, Estado, url, editandoFicha, BotonesFicha, Dato, TituloSeccion, CAJA, CAMPO, ETIQUETA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
-import { accionGuardarVia, accionPrecioMercado } from "./acciones";
+import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado } from "./acciones";
+import Vias from "./Vias";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { SUAVE } from "@/app/botones";
 import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
@@ -22,7 +23,7 @@ import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { DEMORA_LLEGADA, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -50,7 +51,11 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
   const categoriaFuera = (x: (typeof todas)[number]) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
-  const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
+  const coincide = (x: (typeof todas)[number]) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"));
+  const filas = filtrarMuestra(todas, sp, coincide);
+  // Cuántos hay de cada vía con los demás filtros puestos.
+  const sinVia = filtrarMuestra(todas, { ...sp, via: undefined }, coincide);
+  const opcionesVia = Object.entries(CATEGORIAS_VIA).map(([k, c]) => ({ clave: k, texto: c.texto, ayuda: c.ayuda, n: sinVia.filter((x) => x.via === k).length }));
   const t = totalesSugerencia(filas);
   const idsMercado = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))].slice(0, TOPE_TANDA);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
@@ -73,8 +78,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             opciones={[{ valor: "", texto: "Cualquiera" }, ...ULTIMA_VENTA_MESES.map(([m, t]) => ({ valor: String(m), texto: `En ${t}` }))]} />
           <Desplegable parametro="prov" etiqueta="Proveedor" valor={sp.prov ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todos" }, ...proveedores.map((p) => ({ valor: String(p.id), texto: p.nombre })), { valor: "0", texto: "Sin proveedor preferido" }]} />
-          <Desplegable parametro="via" etiqueta="Vía" valor={sp.via ?? ""} limpiar={["p"]}
-            opciones={[{ valor: "", texto: "Todas" }, { valor: "rentable", texto: "Rentables por avión" }, ...Object.entries(CATEGORIAS_VIA).map(([k, c]) => ({ valor: k, texto: c.texto }))]} />
+          <Vias opciones={opcionesVia} elegidas={[...viasElegidas(sp.via)]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: lo que quede del stock cuando llegue la compra alcanza para los días elegidos" />
           <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
@@ -91,10 +95,11 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3 text-xs">
         {[["Productos", `${entero(t.productos)} (${entero(t.conCosto)} con costo)`],
           ["Unidades a comprar · típico / mejor", `${entero(t.unidadesTipicas)} / ${entero(t.unidadesMejor)}`],
-          ["Inversión · típico / mejor", `${usd(t.inversionTipicaUsd)} / ${usd(t.inversionMejorUsd)}`],
+          ["Al proveedor (FOB) · típico", usd(t.fobTipicoUsd)],
+          ["Costo puesto acá · típico / mejor", `${usd(t.inversionTipicaUsd)} / ${usd(t.inversionMejorUsd)}`],
           ["Ganancia estimada · típico / mejor", `${pesos(t.gananciaTipica)} / ${pesos(t.gananciaMejor)}`]].map(([k, v]) => (
           <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl p-2"><span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b></div>
         ))}
@@ -112,16 +117,16 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="stock" n desc title="Disponible hoy">Stock</ThOrden>
               <ThOrden col="al_llegar" n desc title={`Lo que va a quedar cuando llegue la compra: el stock de hoy menos lo que se vende en ${f.demora} días al ritmo típico`}>Al llegar</ThOrden>
               <ThOrden col="comprar" n desc title={`Típico menos lo que quede al llegar (en ${f.demora} días)`}>A comprar</ThOrden>
-              <ThOrden col="costo" n desc>Costo US$</ThOrden>
-              <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
+              <ThOrden col="costo" n desc title="Costo puesto acá por unidad, de la vía que le corresponde: avión (courier) si por avión deja el margen mínimo; si no, barco (con la NCM si está cargada). Sin peso o FOB, el de la ficha">Costo US$</ThOrden>
+              <ThOrden col="inversion" n desc title="A comprar × costo puesto acá">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
-              <ThOrden col="clasica" n desc title="El precio de la lista Clásica: de acá sale la ganancia">Clásica</ThOrden>
-              <ThOrden col="mercado" n desc title="Precio de mercado: el cuarto más barato de lo que se vende hoy en Mercado Libre, contando sólo las publicaciones que la IA juzgó iguales al producto (sin packs, ni las nuestras, ni internacionales). Al pasar el mouse, la mediana">Mercado</ThOrden>
+              <ThOrden col="clasica" n desc title={`El precio de la lista Clásica. La ganancia sale de acá si lo estás vendiendo (publicación activa en ML o venta en los últimos ${DIAS_VENDIENDO} días); si no, del precio de mercado. En ámbar si difiere más de ${DIFERENCIA_REVISAR} % del mercado`}>Clásica</ThOrden>
+              <ThOrden col="mercado" n desc title="Precio de mercado: el más barato de lo que se vende hoy en Mercado Libre, contando sólo las publicaciones que la IA juzgó iguales al producto (sin packs, ni las nuestras, ni internacionales). Al pasar el mouse, la mediana">Mercado</ThOrden>
               <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy (sólo de referencia)">Últ. venta hoy</ThOrden>
               <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
-              <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
+              <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad: precio de venta − Mercado Libre − costo puesto acá (el de la columna Costo US$)">Ganancia</ThOrden>
               <ThOrden col="margen" n desc title="Ganancia sobre el precio de venta">% venta</ThOrden>
-              <ThOrden col="roi" n desc title="Ganancia sobre el costo">% costo</ThOrden>
+              <ThOrden col="roi" n desc title="Ganancia sobre el costo puesto acá">% costo</ThOrden>
               <th className={TH} title="¿Avión o barco? Según el flete aéreo y la ganancia por avión (ver abajo)">Vía</th>
               <ThOrden col="flete_aereo" n desc title={`Flete aéreo por unidad (US$ ${cfgVia.aereoUsdKg} por kilo cobrable) como % del FOB`}>Flete avión</ThOrden>
               <ThOrden col="avion_final" n desc title="Costo final por unidad puesto acá, trayéndolo por avión (courier: FOB + flete + % de courier), en pesos al oficial de hoy">Costo avión</ThOrden>
@@ -160,19 +165,29 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={TDN}>{entero(x.stock)}</td>
                 <td className={TDN}>{entero(x.al_llegar)}</td>
                 <td className={`${TDN} font-semibold`} title={`Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>
-                <td className={TDN}>{usd(x.costo_usd)}</td>
+                <td className={TDN} title={x.costo_de === "avion" ? "Por avión (courier)" : x.costo_de === "barco" ? `Por barco${x.con_ncm ? ", con la NCM" : ", sin NCM cargada"}` : x.costo_de === "ficha" ? "El de la ficha (falta peso o FOB para calcular por vía)" : undefined}>
+                  {usd(x.costo_usd)}{x.costo_de && <span className="block text-[10px] text-[#5C6B76]">{x.costo_de === "avion" ? "avión" : x.costo_de === "barco" ? "barco" : "ficha"}</span>}
+                </td>
                 <td className={TDN}>{x.costo_usd == null ? "—" : usd(x.costo_usd * x.comprar_tipico)}</td>
                 <td className={`${TD} whitespace-nowrap text-[11px] leading-tight`} title={`En dólares: ${usd(x.precio_usd)}`}>
                   {dma(x.ultima_fecha)}<span className="block">{pesos(x.ultima_precio)}</span><span className="block text-[#5C6B76]">dólar {x.ultima_tc ? formatearNumero(x.ultima_tc, "pesos") : "—"}</span>
                 </td>
-                <td className={`${TDN} font-semibold whitespace-nowrap`}>
+                <td className={`${TDN} whitespace-nowrap ${x.revisar ? "bg-[#FFF4D6]" : ""} ${x.precio_base === "clasica" ? "font-semibold" : "text-[#5C6B76]"}`}
+                  title={x.precio_base === "clasica" ? "La ganancia sale de este precio" : x.vendiendo ? undefined : `No lo estás vendiendo (sin publicación activa en ML ni ventas en ${DIAS_VENDIENDO} días): la ganancia sale del precio de mercado`}>
                   <span className="inline-flex items-center gap-1.5">{pesos(x.clasica)}{x.producto_id != null && <MarcaMercado estado={x.estado_mercado} href={`/catalogo/productos/${x.producto_id}?seccion=seguimiento`} />}</span>
+                  {!x.vendiendo && <span className="block text-[10px] font-normal">no lo vendés</span>}
                 </td>
-                <td className={`${TDN} ${x.mercado != null && x.clasica && x.mercado > x.clasica * 1.15 ? "text-[#1F7A3A] font-semibold" : ""}`}
-                  title={x.mercado != null ? `${x.mercado_n} publicaciones iguales el ${fechaCorta(x.mercado_ts)} · la mediana ${pesos(x.mercado_mediana)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}` : "Sin buscar"}>
+                <td className={`${TDN} whitespace-nowrap ${x.revisar ? "bg-[#FFF4D6]" : ""} ${x.precio_base === "mercado" ? "font-semibold" : ""}`}
+                  title={x.mercado != null ? `${x.mercado_n} publicaciones iguales el ${fechaCorta(x.mercado_ts)} · la mediana ${pesos(x.mercado_mediana)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}${x.precio_base === "mercado" ? " · la ganancia sale de este precio" : ""}` : "Sin buscar"}>
                   {pesos(x.mercado)}
+                  {x.mercado != null && x.clasica ? <span className={`block text-[10px] ${x.revisar ? "text-[#8a6100] font-semibold" : "text-[#5C6B76]"}`}>{x.mercado >= x.clasica ? "+" : ""}{Math.round((x.mercado / x.clasica - 1) * 100)} %</span> : null}
+                  {x.revisar && x.variacion_id != null && (
+                    <BotonTarea accion={accionClasicaAMercado} tipo={`clasica-mercado-${x.variacion_id}`} clase={`${SUAVE} !px-1.5 !py-0.5 !text-[10px] mt-0.5`} campos={{ variacion: String(x.variacion_id) }}
+                      texto="Usar mercado"
+                      pregunta={`¿Pasar la Clásica de ${x.sku} de ${pesos(x.clasica)} a ${pesos(Math.round(x.mercado!))}? Es un cambio de precio a mano: va también a Mercado Libre`} />
+                  )}
                 </td>
-                <td className={`${TDN} text-[#5C6B76]`} title={x.precio_base === "ultima" ? "Sin precio en la Clásica: la ganancia sale de este precio" : undefined}>
+                <td className={`${TDN} text-[#5C6B76]`} title={x.precio_base === "ultima" ? "Sin Clásica ni precio de mercado: la ganancia sale de este precio" : undefined}>
                   {pesos(x.precio_hoy)}{x.precio_base === "ultima" && <span className="text-[#8a6100]"> *</span>}
                 </td>
                 <td className={TDN} title={`Comisión ${pct(x.comision_pct)} + cargo fijo o envío`}>{pesos(x.costos_ml)}</td>
@@ -199,8 +214,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
       <Paginado total={filas.length} />
       <p className="text-[10px] text-[#5C6B76] mt-1">Calculado el {new Date(calculado).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}: el cálculo se guarda 30 minutos (filtrar, ordenar y cambiar de página no lo rehacen).</p>
       <p className="text-[11px] text-[#5C6B76] mt-2">
-        Costo = último costo de la ficha; la ganancia sale del precio de la lista Clásica (con * los que no tienen Clásica: ahí sale de la última venta). «Últ. venta hoy» = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
-        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos lo que quede del stock de hoy cuando llegue la compra (en {f.demora} días, al mismo ritmo); la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de la Clásica − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
+        Costo = costo puesto acá de la vía que le corresponde (avión si por avión deja el margen mínimo; si no, barco; sin peso o FOB, el de la ficha). Precio de venta: la Clásica si lo estás vendiendo (publicación activa en Mercado Libre o venta en los últimos {DIAS_VENDIENDO} días), si no el precio de mercado (el más barato de los iguales); en negrita el que se usa; en ámbar si difieren más de {DIFERENCIA_REVISAR} % («Usar mercado» pasa la Clásica a ese precio); con * los que no tienen ninguno de los dos (sale de la última venta). «Últ. venta hoy» = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
+        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos lo que quede del stock de hoy cuando llegue la compra (en {f.demora} días, al mismo ritmo); la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de venta − comisión, cargo fijo y envío de Mercado Libre − costo puesto acá. Es una referencia para chequear.
       </p>
       <section className="mt-6">
         <TituloSeccion titulo="¿Avión o barco?">
@@ -213,7 +228,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <p className="basis-full text-[11px] text-[#5C6B76]">
             Por unidad: flete por avión = kilos cobrables (el mayor entre el peso real y el volumétrico, volumen × 167 kg/m³) × US$ por kilo; por barco = volumen × US$ por m³.
             Peso y volumen salen del packing list de las compras y, si no hay, de la ficha. Por avión viene por courier: costo final = FOB + flete + el % de courier sobre el FOB (sin despacho).
-            Por barco, costo final con IVA: si el producto tiene NCM cargada (pestaña Costo), CIF + derechos, estadística, despachante y depósito + IVA; si no, FOB + flete más el recargo de arriba. La ganancia sale de la Clásica menos lo de Mercado Libre, en dólares al oficial de hoy.
+            Por barco, costo final con IVA: si el producto tiene NCM cargada (pestaña Costo), CIF + derechos, estadística, despachante y depósito + IVA; si no, FOB + flete más el recargo de arriba. La ganancia sale del precio de venta (la Clásica o el de mercado, como arriba) menos lo de Mercado Libre, en dólares al oficial de hoy.
             {" "}{Object.values(CATEGORIAS_VIA).map((c) => `${c.texto}: ${c.ayuda}`).join(" ")}
           </p>
         </form>
