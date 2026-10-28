@@ -63,12 +63,22 @@ test("a comprar: descuenta lo que se vende mientras llega la compra", async () =
 
 test("precio de venta: Clásica si lo vende, mercado si no; revisar si difieren más de 5 %", async () => {
   const { precioBase, paraRevisar, viasElegidas } = await import("@/lib/compras/sugerencia");
-  assert.deepEqual(precioBase({ vendiendo: true, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 18513, de: "clasica" });
-  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 19549, de: "mercado" });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 18513, de: "clasica", clasicaDudosa: false, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: 19549, ultimaHoy: 18632 }), { precio: 19549, de: "mercado", clasicaDudosa: false, mercadoDudoso: false });
   // No lo vende y no tiene mercado: sin precio (ni la Clásica ni la última venta).
-  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: null, ultimaHoy: 18632 }), { precio: null, de: null });
-  assert.deepEqual(precioBase({ vendiendo: true, clasica: null, mercado: null, ultimaHoy: 18632 }), { precio: 18632, de: "ultima" });
-  assert.deepEqual(precioBase({ vendiendo: true, clasica: 0, mercado: null, ultimaHoy: null }), { precio: null, de: null });
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 18513, mercado: null, ultimaHoy: 18632 }), { precio: null, de: null, clasicaDudosa: false, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: null, mercado: null, ultimaHoy: 18632 }), { precio: 18632, de: "ultima", clasicaDudosa: false, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 0, mercado: null, ultimaHoy: null }), { precio: null, de: null, clasicaDudosa: false, mercadoDudoso: false });
+  // SKU03025: Clásica de bloqueo ($ 599.999) para una bomba de US$ 0,44 → se usa el mercado.
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 599999, mercado: 6589, ultimaHoy: null, fobArs: 686 }), { precio: 6589, de: "mercado", clasicaDudosa: true, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 599999, mercado: 6589, ultimaHoy: null }), { precio: 6589, de: "mercado", clasicaDudosa: true, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 9000, mercado: 6589, ultimaHoy: null, fobArs: 686 }), { precio: 9000, de: "clasica", clasicaDudosa: false, mercadoDudoso: false });
+  // Un mercado por debajo del FOB en pesos no se usa.
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 1849, mercado: 10, ultimaHoy: null, fobArs: 31 }), { precio: 1849, de: "clasica", clasicaDudosa: false, mercadoDudoso: true });
+  assert.deepEqual(precioBase({ vendiendo: false, clasica: 1849, mercado: 10, ultimaHoy: null, fobArs: 31 }), { precio: null, de: null, clasicaDudosa: false, mercadoDudoso: true });
+  // Lo barato que se vende muy por encima del FOB pero en línea con el mercado sigue con su Clásica.
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 1980, mercado: 1700, ultimaHoy: null, fobArs: 6 }), { precio: 1980, de: "clasica", clasicaDudosa: false, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 599999, mercado: null, ultimaHoy: 6000, fobArs: 686 }), { precio: 599999, de: "clasica", clasicaDudosa: false, mercadoDudoso: false });
   assert.equal(paraRevisar(18513, 19549), true); // +5,6 %
   assert.equal(paraRevisar(18513, 19000), false); // +2,6 %
   assert.equal(paraRevisar(20000, 18900), true); // −5,5 %
@@ -80,8 +90,8 @@ test("precio de venta: Clásica si lo vende, mercado si no; revisar si difieren 
 
 test("precio de venta: con «Calcular con el precio de mercado», el mercado aunque lo venda", async () => {
   const { precioBase } = await import("@/lib/compras/sugerencia");
-  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: 3212, ultimaHoy: 2649, conMercado: true }), { precio: 3212, de: "mercado" });
-  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: null, ultimaHoy: 2649, conMercado: true }), { precio: 2159, de: "clasica" });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: 3212, ultimaHoy: 2649, conMercado: true }), { precio: 3212, de: "mercado", clasicaDudosa: false, mercadoDudoso: false });
+  assert.deepEqual(precioBase({ vendiendo: true, clasica: 2159, mercado: null, ultimaHoy: 2649, conMercado: true }), { precio: 2159, de: "clasica", clasicaDudosa: false, mercadoDudoso: false });
 });
 
 test("cantidad a pedir redondeada a decenas: hasta 3 baja, desde 4 sube", async () => {

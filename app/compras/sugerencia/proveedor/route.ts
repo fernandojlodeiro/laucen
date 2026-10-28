@@ -2,7 +2,8 @@
 // y orden), sólo lo que hay que comprar, con la foto, el SKU, el título, la cantidad (la del típico, la del mejor momento o
 // el promedio, ya descontado lo que va a quedar cuando llegue, redondeada a decenas), la categoría de vía y la ganancia en
 // pesos (por unidad y total). El proveedor conoce los SKU: no hace falta traducir nada. El precio es el FOB de la ficha (para
-// controlar o borrar antes de mandarlo), con el subtotal, la ganancia total y los totales como fórmulas de Excel.
+// controlar o borrar antes de mandarlo), con el subtotal, la ganancia total y los totales como fórmulas de Excel. Al final,
+// el precio de venta con que se calculó la ganancia y de dónde sale (con el mercado, el link a la publicación).
 
 import ExcelJS from "exceljs";
 import sharp from "sharp";
@@ -61,6 +62,8 @@ export async function GET(req: NextRequest) {
     { header: "Vía", width: 22, style: { alignment: { vertical: "middle", wrapText: true } } },
     { header: "Ganancia por unidad $", width: 14, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
     { header: "Ganancia total $", width: 16, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
+    { header: "Precio de venta $", width: 14, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
+    { header: "Precio de referencia", width: 40, style: { alignment: { vertical: "middle", wrapText: true } } },
   ];
   h.getRow(1).font = { bold: true };
   filas.forEach((x, n) => {
@@ -71,7 +74,11 @@ export async function GET(req: NextRequest) {
       // Lo que ganaría vendiendo lo que se pide (Fer, 28/10), en pesos: la ganancia por unidad de la pantalla (precio de venta −
       // Mercado Libre − costo puesto de su vía) por la cantidad; fórmula, para que siga a la cantidad si se cambia.
       x.ganancia_unit != null ? Math.round(x.ganancia_unit) : null,
-      x.ganancia_unit != null ? { formula: `D${r}*H${r}`, result: Math.round(x.ganancia_unit) * x.pedir } : null]);
+      x.ganancia_unit != null ? { formula: `D${r}*H${r}`, result: Math.round(x.ganancia_unit) * x.pedir } : null,
+      // De dónde sale el precio de venta; si es del mercado, el link a esa publicación (Fer, 28/10).
+      x.precio_venta != null ? Math.round(x.precio_venta) : null,
+      x.precio_base === "mercado" ? (x.mercado_url ? { text: x.mercado_url, hyperlink: x.mercado_url } : "Mercado")
+        : x.precio_base === "clasica" ? "Clásica" : x.precio_base === "ultima" ? "Última venta" : null]);
     fila.height = LADO * 0.75 + 6; // puntos
     fila.getCell(2).alignment = { vertical: "middle" };
     const foto = fotos[n];

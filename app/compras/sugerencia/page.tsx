@@ -25,7 +25,7 @@ import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { type FilaSugerencia, coincidenConBusqueda, CANTIDADES_PEDIDO, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { type FilaSugerencia, coincidenConBusqueda, CANTIDADES_PEDIDO, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, VECES_FOB_MAXIMO, VECES_MERCADO_MAXIMO, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -211,13 +211,15 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                   {dma(x.ultima_fecha)}<span className="block">{pesos(x.ultima_precio)}</span><span className="block text-[#5C6B76]">dólar {x.ultima_tc ? formatearNumero(x.ultima_tc, "pesos") : "—"}</span>
                 </td>
                 <td className={`${TDN} whitespace-nowrap ${x.revisar ? "bg-[#FFF4D6]" : ""} ${x.precio_base === "clasica" ? "font-semibold" : "text-[#5C6B76]"}`}
-                  title={x.precio_base === "clasica" ? "La ganancia sale de este precio" : x.vendiendo ? undefined : `No lo estás vendiendo (sin publicación activa en ML ni ventas en ${DIAS_VENDIENDO} días): la ganancia sale del precio de mercado`}>
-                  <span className="inline-flex items-center gap-1.5">{pesos(x.clasica)}{x.producto_id != null && <MarcaMercado estado={x.estado_mercado} href={`/catalogo/productos/${x.producto_id}?seccion=seguimiento`} />}</span>
+                  title={x.precio_base === "clasica" ? "La ganancia sale de este precio" : x.clasica_dudosa ? `Precio increíble: más de ${VECES_MERCADO_MAXIMO} veces el mercado y más de ${VECES_FOB_MAXIMO} veces el FOB. No se usa: la ganancia sale del mercado` : x.vendiendo ? undefined : `No lo estás vendiendo (sin publicación activa en ML ni ventas en ${DIAS_VENDIENDO} días): la ganancia sale del precio de mercado`}>
+                  <span className="inline-flex items-center gap-1.5"><span className={x.clasica_dudosa ? "line-through" : undefined}>{pesos(x.clasica)}</span>{x.producto_id != null && <MarcaMercado estado={x.estado_mercado} href={`/catalogo/productos/${x.producto_id}?seccion=seguimiento`} />}</span>
                   {!x.vendiendo && <span className="block text-[10px] font-normal">no lo vendés</span>}
+                  {x.vendiendo && x.clasica_dudosa && <span className="block text-[10px] font-normal text-[#8a6100]">increíble</span>}
                 </td>
                 <td className={`${TDN} whitespace-nowrap ${x.revisar ? "bg-[#FFF4D6]" : ""} ${x.precio_base === "mercado" ? "font-semibold" : ""}`}
                   title={x.mercado != null ? `${x.mercado_de === "seguimiento" ? "Publicación seguida" : "Búsqueda de la IA"}${x.mercado_vendedor ? ` · ${x.mercado_vendedor}` : ""}${x.mercado_ts ? ` · leído el ${fechaCorta(x.mercado_ts)}` : ""}${x.mercado_mediana != null ? ` · mediana de la búsqueda ${pesos(x.mercado_mediana)}` : ""}${x.precio_base === "mercado" ? " · la ganancia sale de este precio" : ""}` : "Sin precio de mercado: ni la búsqueda encontró iguales ni hay publicaciones seguidas activas"}>
-                  {pesos(x.mercado)}
+                  <span className={x.mercado_dudoso ? "line-through" : undefined}>{x.mercado_url ? <a href={x.mercado_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{pesos(x.mercado)} ↗</a> : pesos(x.mercado)}</span>
+                  {x.mercado_dudoso && <span className="block text-[10px] text-[#8a6100]" title="Más barato que el FOB: es otro producto o un error de la búsqueda. No se usa">bajo el FOB</span>}
                   {x.mercado != null && x.clasica ? <span className={`block text-[10px] ${x.revisar ? "text-[#8a6100] font-semibold" : "text-[#5C6B76]"}`}>{x.mercado >= x.clasica ? "+" : ""}{Math.round((x.mercado / x.clasica - 1) * 100)} %</span> : null}
                   {x.revisar && x.variacion_id != null && (
                     <BotonTarea accion={accionClasicaAMercado} tipo={`clasica-mercado-${x.variacion_id}`} clase={`${SUAVE} !px-1.5 !py-0.5 !text-[10px] mt-0.5`} campos={{ variacion: String(x.variacion_id) }}

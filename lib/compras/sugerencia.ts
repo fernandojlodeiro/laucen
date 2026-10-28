@@ -95,6 +95,12 @@ export type FilaSugerencia = {
   mercado: number | null; mercado_mediana: number | null; mercado_n: number; mercado_ts: string | null; estado_mercado: EstadoMercado | null;
   /** De dónde sale el precio de mercado (mejorDelMercado): la búsqueda de la IA o una publicación seguida, y de qué vendedor. */
   mercado_de: "busqueda" | "seguimiento" | null; mercado_vendedor: string | null;
+  /** La publicación del precio de mercado (la más barata de las iguales), para abrirla. */
+  mercado_url: string | null;
+  /** La Clásica no se usó por increíble (precioBase()): un precio de bloqueo, muy por encima del FOB o del mercado. */
+  clasica_dudosa: boolean;
+  /** El precio de mercado no se usó: está por debajo del FOB en pesos (otro producto o un error de la búsqueda). */
+  mercado_dudoso: boolean;
   /** ¿Avión o barco? (lib/compras/via.ts): FOB de la ficha, flete aéreo como % del FOB, costo final con IVA y ganancia por
    *  cada vía (US$ por unidad, sobre la Clásica), y la categoría. */
   fob_usd: number | null; via: CategoriaVia; medidas: "packing" | "ficha" | null; flete_aereo_pct: number | null; con_ncm: boolean;
@@ -223,7 +229,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
     const mj = d.producto_id != null ? mejor.get(d.producto_id) : undefined;
     const vendiendo = d.ml_activa || d.ultima_fecha >= desdeVendiendo;
-    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: mj?.precio ?? null, ultimaHoy: precioHoy, conMercado: f.conMercado });
+    const pb = precioBase({ vendiendo, clasica: d.clasica, mercado: mj?.precio ?? null, ultimaHoy: precioHoy, conMercado: f.conMercado,
+      fobArs: d.fob_usd != null && tcHoy ? d.fob_usd * tcHoy : null });
     const base = pb.precio;
     const ml = base != null ? costosMl(base, comision, g) : null;
     const vv = d.variacion_id != null && d.producto_id != null
@@ -243,7 +250,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       ritmo_de: r.de, vendidas: r.vendidas,
       costo_usd: costoUsd, costo_ars: costoArs, costo_de: costoDe, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
-      precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(d.clasica, mj?.precio ?? null), variacion_id: d.variacion_id,
+      precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(pb.clasicaDudosa ? null : d.clasica, pb.mercadoDudoso ? null : mj?.precio ?? null) || pb.clasicaDudosa, variacion_id: d.variacion_id,
       margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       ...(() => { const t = aComprar(r.tipico, f.dias, f.demora, d.stock);
@@ -253,6 +260,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
       mercado: mj?.precio ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0,
       mercado_ts: mj?.ts ? new Date(mj.ts).toISOString().slice(0, 10) : null, mercado_de: mj?.de ?? null, mercado_vendedor: mj?.vendedor ?? null,
+      mercado_url: mj?.url ?? null, clasica_dudosa: pb.clasicaDudosa, mercado_dudoso: pb.mercadoDudoso,
       estado_mercado: d.producto_id != null ? estados.get(d.producto_id) ?? null : null,
       fob_usd: d.fob_usd, via: base == null ? "sin_precio" : vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
@@ -274,17 +282,33 @@ export const DIAS_VENDIENDO = 45;
 /** Diferencia entre la Clásica y el precio de mercado que se marca para revisar, en %. */
 export const DIFERENCIA_REVISAR = 5;
 
+/** Una Clásica más de estas veces el precio de mercado, y a la vez más de VECES_FOB_MAXIMO veces el FOB en pesos, no es
+ *  creíble (Fer, 28/10, SKU03025: Clásica $ 599.999 para una bomba de US$ 0,44 que en el mercado está a $ 6.589): es un
+ *  precio de bloqueo o un error de carga. Las dos condiciones juntas, para no tocar lo barato que se vende muy por encima
+ *  del FOB (una resistencia de US$ 0,004 a $ 1.980) ni lo que la búsqueda emparejó con otra cosa más barata. */
+export const VECES_MERCADO_MAXIMO = 3;
+export const VECES_FOB_MAXIMO = 40;
+
+/** ¿Es creíble la Clásica? Pura. Sin precio de mercado, sí (no hay con qué reemplazarla). */
+export const clasicaCreible = (clasica: number, fobArs: number | null | undefined, mercado: number | null) =>
+  !(mercado != null && mercado > 0 && clasica > mercado * VECES_MERCADO_MAXIMO && (fobArs == null || fobArs <= 0 || clasica > fobArs * VECES_FOB_MAXIMO));
+
 /** El precio de venta para calcular la ganancia (Fer, 28/10). Pura. Lo que se está vendiendo, la Clásica (si falta, el
- *  mercado y si no, la última venta llevada a hoy); lo que no, sólo el precio de mercado. */
-export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null; conMercado?: boolean }): { precio: number | null; de: FilaSugerencia["precio_base"] } {
-  const cl = o.clasica != null && o.clasica > 0 ? o.clasica : null;
-  const me = o.mercado != null && o.mercado > 0 ? o.mercado : null;
+ *  mercado y si no, la última venta llevada a hoy); lo que no, sólo el precio de mercado. Un mercado por debajo del FOB no
+ *  se usa, ni una Clásica increíble (clasicaCreible): se sigue con el otro. */
+export function precioBase(o: { vendiendo: boolean; clasica: number | null; mercado: number | null; ultimaHoy: number | null; conMercado?: boolean; fobArs?: number | null }): { precio: number | null; de: FilaSugerencia["precio_base"]; clasicaDudosa: boolean; mercadoDudoso: boolean } {
+  // Un precio de mercado por debajo de lo que se le paga al proveedor (el FOB en pesos) es otro producto o un error de la
+  // búsqueda (Fer, 28/10): no se usa.
+  const mercadoDudoso = o.mercado != null && o.mercado > 0 && o.fobArs != null && o.fobArs > 0 && o.mercado < o.fobArs;
+  const me = o.mercado != null && o.mercado > 0 && !mercadoDudoso ? o.mercado : null;
+  const clasicaDudosa = o.clasica != null && o.clasica > 0 && !clasicaCreible(o.clasica, o.fobArs, me);
+  const cl = o.clasica != null && o.clasica > 0 && !clasicaDudosa ? o.clasica : null;
   // Lo que no se vende sólo se calcula con el mercado (Fer, 28/10): su Clásica o su última venta pueden no tener nada que
   // ver con la realidad. Sin mercado, no hay precio («Sin precio de referencia»).
   const orden: [number | null, FilaSugerencia["precio_base"]][] = !o.vendiendo ? [[me, "mercado"]]
     : o.conMercado ? [[me, "mercado"], [cl, "clasica"], [o.ultimaHoy, "ultima"]] : [[cl, "clasica"], [me, "mercado"], [o.ultimaHoy, "ultima"]];
-  for (const [p, de] of orden) if (p != null) return { precio: p, de };
-  return { precio: null, de: null };
+  for (const [p, de] of orden) if (p != null) return { precio: p, de, clasicaDudosa, mercadoDudoso };
+  return { precio: null, de: null, clasicaDudosa, mercadoDudoso };
 }
 
 /** ¿La Clásica y el mercado difieren más de lo tolerado? Pura. */
@@ -350,7 +374,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-19", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-20", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

@@ -277,14 +277,14 @@ export async function preciosDeMercado(org: string, productos: number[]): Promis
 /** El mejor precio de mercado de cada producto (Fer, 28/10): el más barato entre lo que juzgó igual la IA en la última
  *  búsqueda (precio_mercado.minimo) y las publicaciones de la competencia que se siguen (pestaña Seguimiento) que hoy
  *  compiten: activas, en pesos, revisadas, ni excluidas ni internacionales (el mismo criterio que la regla de precio). */
-export async function mejorDelMercado(org: string, productos: number[]): Promise<Map<number, { precio: number; de: "busqueda" | "seguimiento"; vendedor: string | null; ts: Date | null }>> {
+export async function mejorDelMercado(org: string, productos: number[]): Promise<Map<number, { precio: number; de: "busqueda" | "seguimiento"; vendedor: string | null; url: string | null; ts: Date | null }>> {
   if (!productos.length) return new Map();
-  const r = await consulta<{ producto_id: number; precio: number; de: "busqueda" | "seguimiento"; vendedor: string | null; ts: Date | null }>(`
-    select distinct on (producto_id) producto_id::int, precio::float8, de, vendedor, ts from (
-      select pm.producto_id, pm.minimo precio, 'busqueda' de, pm.resultados -> 0 ->> 'vendedor' vendedor, pm.ts
+  const r = await consulta<{ producto_id: number; precio: number; de: "busqueda" | "seguimiento"; vendedor: string | null; url: string | null; ts: Date | null }>(`
+    select distinct on (producto_id) producto_id::int, precio::float8, de, vendedor, url, ts from (
+      select pm.producto_id, pm.minimo precio, 'busqueda' de, pm.resultados -> 0 ->> 'vendedor' vendedor, pm.resultados -> 0 ->> 'permalink' url, pm.ts
         from precio_mercado pm where pm.organizacion_id = $1 and pm.producto_id = any($2::bigint[]) and pm.estado = 'ok' and pm.minimo > 0
       union all
-      select sp.producto_id, sp.precio, 'seguimiento', sp.vendedor, sp.leido_ts
+      select sp.producto_id, sp.precio, 'seguimiento', sp.vendedor, sp.permalink, sp.leido_ts
         from seguimiento_pub sp where sp.organizacion_id = $1 and sp.producto_id = any($2::bigint[]) and sp.estado = 'activa' and sp.precio > 0
          and coalesce(sp.moneda, 'ARS') = 'ARS' and not sp.excluido and not coalesce(sp.internacional, false) and sp.confirmada) x
      order by producto_id, precio`, [org, productos]);
