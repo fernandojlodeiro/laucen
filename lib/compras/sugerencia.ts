@@ -46,8 +46,8 @@ export function leerFiltroSugerencia(sp: Record<string, string | undefined>, hoy
 /** Lo que queda al llegar la compra y lo que hay que comprar (pura): mientras llega se vende al mismo ritmo (`paraDias` u.
  *  cada `dias` días) y eso sale del stock de hoy; lo que se compra tiene que cubrir los `dias` días después de que llega. */
 /** La cantidad a pedir, redondeada a decenas (Fer, 28/10): si la unidad es 0 a 3, baja; de 4 a 9, sube. 72 y 73 → 70;
- *  74 → 80; 12 → 10; 14 → 20; 1 a 3 → 0 (no se pide). Pura. */
-export const redondearPedido = (n: number) => (n > 0 ? Math.floor((n + 6) / 10) * 10 : 0);
+ *  74 → 80; 12 → 10; 14 → 20; de 1 a 3 → 10 (si hace falta algo, se piden 10). Pura. */
+export const redondearPedido = (n: number) => (n > 0 ? Math.max(10, Math.floor((n + 6) / 10) * 10) : 0);
 
 /** Qué cantidad va en el Excel del proveedor (Fer, 28/10): la del típico, la del mejor momento o el promedio de las dos
  *  cuentas, redondeado a decenas. Pura. */
@@ -339,7 +339,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-16", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-17", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
