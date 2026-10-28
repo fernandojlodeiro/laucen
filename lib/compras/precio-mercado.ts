@@ -21,7 +21,11 @@ const ACTOR = "scrapesage~mercadolibre-scraper";
 export const RESULTADOS_POR_BUSQUEDA = 30;
 export const USD_POR_RESULTADO = 0.002;
 /** Productos que se buscan a la vez y segundos de trabajo por vuelta (antes de relanzarse). */
-const A_LA_VEZ = 5;
+const A_LA_VEZ = 3;
+/** Mercado Libre a veces frena la búsqueda con su control anti-robots (Fer, 28/10: 17 de 20 vacías). La corrida vuelve sin
+ *  resultados y sin cobrar; el producto se reintenta a los 10 minutos, hasta estas veces. */
+export const REINTENTOS_BLOQUEO = 3;
+export const esBloqueoMl = (mensaje: string | null | undefined) => /anti-?bot|did not let this run/i.test(mensaje ?? "");
 const SEGUNDOS_POR_VUELTA = 60; // + la última tanda de búsquedas (hasta ~3 minutos): entra en los 5 minutos de la ruta
 /** Máximo de productos por tanda. */
 export const TOPE_TANDA = 300;
@@ -201,8 +205,14 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
         return;
       }
       if (!c.items.length) {
+        // Frenado por el control anti-robots de Mercado Libre: queda pendiente y se reintenta más tarde (ts = ahora: la
+        // vuelta no lo toma hasta dentro de 10 minutos), hasta REINTENTOS_BLOQUEO veces.
+        const r = esBloqueoMl(c.mensaje) ? await una<{ intentos: number }>(
+          "update precio_mercado set intentos = intentos + 1, ts = now() where organizacion_id = $1 and producto_id = $2 and intentos < $3 returning intentos",
+          [org, p.producto_id, REINTENTOS_BLOQUEO]) : null;
+        if (r) return;
         await consulta("update precio_mercado set estado = 'error', error = $3, ts = now() where organizacion_id = $1 and producto_id = $2",
-          [org, p.producto_id, c.error ? c.error.slice(0, 200) : "Sin resultados"]);
+          [org, p.producto_id, esBloqueoMl(c.mensaje) ? "Mercado Libre frenó la búsqueda (control anti-robots)" : c.error ? c.error.slice(0, 200) : "Sin resultados"]);
         return;
       }
       try {
@@ -225,7 +235,9 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
   const quedan = r?.n ?? 0;
   if (quedan > 0) {
     await consulta("update precio_mercado_tanda set actualizado_ts = now() where id = $1", [tanda]);
-    await relanzar(tanda, token);
+    // Si en esta vuelta no había nada para tomar (sólo quedan reintentos esperando), no se relanza ya: la retoma el
+    // reanudador de la base a los pocos minutos.
+    if (hechos > 0) await relanzar(tanda, token);
     return { hechos, quedan, estado: "corriendo" };
   }
   await consulta("update precio_mercado_tanda set estado = 'terminada', actualizado_ts = now() where id = $1", [tanda]);

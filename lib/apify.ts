@@ -148,6 +148,8 @@ export type Corrida = {
   cobros?: unknown;
   items: unknown[];
   error?: string;
+  /** El mensaje de estado del actor (ej. «0 results: Mercado Libre did not let this run's browser through its anti-bot check»). */
+  mensaje?: string;
 };
 
 const TERMINADO = ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"];
@@ -199,7 +201,7 @@ export async function correrConEntrada(actor: string, entrada: Record<string, un
           .then((x) => x.json()).catch(() => [])
       : [];
     return {
-      runId: run.id, estado: run.status, costoUsd: run.usageTotalUsd ?? null, cobros: run.chargedEventCounts ?? null,
+      runId: run.id, estado: run.status, costoUsd: run.usageTotalUsd ?? null, cobros: run.chargedEventCounts ?? null, mensaje: run.statusMessage ?? undefined,
       items: Array.isArray(items) ? items : [],
       error: run.status === "SUCCEEDED" ? undefined : `La corrida terminó ${run.status}`,
     };

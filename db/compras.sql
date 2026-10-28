@@ -213,6 +213,8 @@ alter table precio_mercado_tanda add column if not exists tope_usd numeric(10, 2
 alter table precio_mercado_tanda add column if not exists gastado_usd numeric(10, 4) not null default 0;
 alter table precio_mercado_tanda add column if not exists referentes boolean not null default false;
 alter table precio_mercado add column if not exists orden int;
+-- Veces que Mercado Libre frenó la búsqueda del producto con su control anti-robots (se reintenta hasta 3).
+alter table precio_mercado add column if not exists intentos int not null default 0;
 alter table precio_mercado enable row level security;
 select erp_politica_org('precio_mercado');
 
