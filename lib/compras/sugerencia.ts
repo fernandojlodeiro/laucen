@@ -70,6 +70,8 @@ export type FilaSugerencia = {
   fob_usd: number | null; via: CategoriaVia; medidas: "packing" | "ficha" | null; flete_aereo_pct: number | null; con_ncm: boolean;
   avion_final: number | null; avion_ganancia: number | null; avion_margen: number | null;
   barco_final: number | null; barco_ganancia: number | null; barco_margen: number | null;
+  /** La ganancia de cada vía sobre su costo final (Fer, 28/10). */
+  avion_sobre_costo: number | null; barco_sobre_costo: number | null;
 };
 
 /** Cuántas de las últimas compras terminadas se usan para el ritmo «según compras». */
@@ -211,11 +213,16 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
       barco_final: vv?.barco?.final ?? null, barco_ganancia: vv?.barco?.ganancia ?? null, barco_margen: vv?.barco?.margen_pct ?? null,
+      avion_sobre_costo: sobreCosto(vv?.avion), barco_sobre_costo: sobreCosto(vv?.barco),
     };
   });
   filas.sort((a, b) => b.tipico - a.tipico || b.mejor - a.mejor);
   return { filas, tcHoy };
 }
+
+/** Ganancia sobre el costo final de una vía, en %, con un decimal. Pura. */
+const sobreCosto = (c: { final: number; ganancia: number | null } | null | undefined) =>
+  c && c.ganancia != null && c.final > 0 ? Math.round((c.ganancia / c.final) * 1000) / 10 : null;
 
 export function totalesSugerencia(filas: FilaSugerencia[]) {
   const s = (f: (x: FilaSugerencia) => number | null) => filas.reduce((t, x) => t + (f(x) ?? 0), 0);
@@ -237,6 +244,7 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
   segun_compras: (x) => x.segun_compras, compras: (x) => x.ultima_compra,
   mercado: (x) => x.mercado, mercado_dif: (x) => (x.mercado != null && x.clasica ? x.mercado / x.clasica : null),
   flete_aereo: (x) => x.flete_aereo_pct, avion_margen: (x) => x.avion_margen, barco_margen: (x) => x.barco_margen,
+  avion_final: (x) => x.avion_final, barco_final: (x) => x.barco_final, avion_sobre_costo: (x) => x.avion_sobre_costo, barco_sobre_costo: (x) => x.barco_sobre_costo,
 };
 
 /** Opciones del filtro «Días con venta» (más de N). */
@@ -264,7 +272,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-10", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-11", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
@@ -300,13 +308,13 @@ export async function arbolCategorias(org: string, filas: FilaSugerencia[]): Pro
 
 /** Las filas que se ven en la pantalla con los filtros de la dirección (todas las páginas, en su orden): las usan las
  *  descargas en Excel. */
-export async function filasDeLaPantalla(org: string, sp: Record<string, string | undefined>, hoy: string): Promise<{ f: FiltroSugerencia; filas: FilaSugerencia[] }> {
+export async function filasDeLaPantalla(org: string, sp: Record<string, string | undefined>, hoy: string): Promise<{ f: FiltroSugerencia; filas: FilaSugerencia[]; tcHoy: number | null }> {
   const f = leerFiltroSugerencia(sp, hoy);
-  const { filas: todas } = await sugerenciaGuardada(org, f);
+  const { filas: todas, tcHoy } = await sugerenciaGuardada(org, f);
   const { ancestros } = await arbolCategorias(org, todas);
   const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
   const categoriaFuera = (x: FilaSugerencia) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
   const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
-  return { f, filas: ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA) };
+  return { f, filas: ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), tcHoy };
 }

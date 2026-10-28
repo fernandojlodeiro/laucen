@@ -124,14 +124,18 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="roi" n desc title="Ganancia sobre el costo">% costo</ThOrden>
               <th className={TH} title="¿Avión o barco? Según el flete aéreo y la ganancia por avión (ver abajo)">Vía</th>
               <ThOrden col="flete_aereo" n desc title={`Flete aéreo por unidad (US$ ${cfgVia.aereoUsdKg} por kilo cobrable) como % del FOB`}>Flete avión</ThOrden>
-              <ThOrden col="avion_margen" n desc title="Ganancia sobre la Clásica trayéndolo por avión (courier: FOB + flete + % de courier)">% avión</ThOrden>
-              <ThOrden col="barco_margen" n desc title="Ganancia sobre la Clásica trayéndolo por barco, con el costo final (impuestos e IVA incluidos)">% barco</ThOrden>
+              <ThOrden col="avion_final" n desc title="Costo final por unidad puesto acá, trayéndolo por avión (courier: FOB + flete + % de courier), en pesos al oficial de hoy">Costo avión</ThOrden>
+              <ThOrden col="avion_margen" n desc title="Ganancia sobre el precio de venta trayéndolo por avión">% avión</ThOrden>
+              <ThOrden col="avion_sobre_costo" n desc title="Ganancia sobre el costo final trayéndolo por avión">% c/costo avión</ThOrden>
+              <ThOrden col="barco_final" n desc title="Costo final por unidad puesto acá, trayéndolo por barco (impuestos e IVA incluidos), en pesos al oficial de hoy">Costo barco</ThOrden>
+              <ThOrden col="barco_margen" n desc title="Ganancia sobre el precio de venta trayéndolo por barco">% barco</ThOrden>
+              <ThOrden col="barco_sobre_costo" n desc title="Ganancia sobre el costo final trayéndolo por barco">% c/costo barco</ThOrden>
               <ThOrden col="ganancia" n desc title="Ganancia de lo que hay que comprar, al ritmo típico">Total típico</ThOrden>
               <ThOrden col="ganancia_mejor" n desc title="Ganancia de lo que hay que comprar, al ritmo del mejor momento">Total mejor</ThOrden>
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={24} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={28} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
@@ -179,8 +183,12 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                   <Estado texto={CATEGORIAS_VIA[x.via].texto} tono={CATEGORIAS_VIA[x.via].tono} />
                 </td>
                 <td className={TDN} title={x.fob_usd != null ? `FOB US$ ${x.fob_usd}` : "Sin FOB en la ficha"}>{pct(x.flete_aereo_pct)}</td>
-                <td className={`${TDN} ${x.avion_margen != null && x.avion_margen < 0 ? "text-[#C03420]" : ""}`} title={x.avion_final != null ? `Costo final por avión ${usd(x.avion_final)} · ganancia ${usd(x.avion_ganancia)}` : undefined}>{pct(x.avion_margen)}</td>
-                <td className={`${TDN} ${x.barco_margen != null && x.barco_margen < 0 ? "text-[#C03420]" : ""}`} title={x.barco_final != null ? `Costo final por barco ${usd(x.barco_final)} · ganancia ${usd(x.barco_ganancia)}` : undefined}>{pct(x.barco_margen)}</td>
+                <td className={TDN} title={x.avion_final != null ? `${usd(x.avion_final)} · ganancia ${usd(x.avion_ganancia)}` : undefined}>{x.avion_final != null && tcHoy ? pesos(x.avion_final * tcHoy) : "—"}</td>
+                <td className={`${TDN} ${x.avion_margen != null && x.avion_margen < 0 ? "text-[#C03420]" : ""}`}>{pct(x.avion_margen)}</td>
+                <td className={`${TDN} ${x.avion_sobre_costo != null && x.avion_sobre_costo < 0 ? "text-[#C03420]" : ""}`}>{pct(x.avion_sobre_costo)}</td>
+                <td className={TDN} title={x.barco_final != null ? `${usd(x.barco_final)} · ganancia ${usd(x.barco_ganancia)}` : undefined}>{x.barco_final != null && tcHoy ? pesos(x.barco_final * tcHoy) : "—"}</td>
+                <td className={`${TDN} ${x.barco_margen != null && x.barco_margen < 0 ? "text-[#C03420]" : ""}`}>{pct(x.barco_margen)}</td>
+                <td className={`${TDN} ${x.barco_sobre_costo != null && x.barco_sobre_costo < 0 ? "text-[#C03420]" : ""}`}>{pct(x.barco_sobre_costo)}</td>
                 <td className={`${TDN} font-semibold`}>{x.ganancia_unit == null ? "—" : pesos(x.ganancia_unit * x.comprar_tipico)}</td>
                 <td className={TDN}>{x.ganancia_unit == null ? "—" : pesos(x.ganancia_unit * x.comprar_mejor)}</td>
               </tr>

@@ -14,7 +14,7 @@ export const maxDuration = 120;
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
-  const { f, filas } = await filasDeLaPantalla(s.org.id, sp, hoyArgentina());
+  const { f, filas, tcHoy } = await filasDeLaPantalla(s.org.id, sp, hoyArgentina());
   const fecha = (iso: string) => new Date(`${iso}T00:00:00Z`);
   const columnas: ColumnaExcel<FilaSugerencia>[] = [
     { titulo: "SKU", valor: (x) => x.sku, ancho: 16, formato: "texto" },
@@ -62,10 +62,14 @@ export async function GET(req: NextRequest) {
     { titulo: "Con NCM", valor: (x) => (x.con_ncm ? "Sí" : ""), ancho: 8 },
     { titulo: "Costo final avión US$", valor: (x) => x.avion_final, formato: "importe", ancho: 12 },
     { titulo: "Ganancia avión US$", valor: (x) => x.avion_ganancia, formato: "importe", ancho: 12 },
-    { titulo: "% avión", valor: (x) => x.avion_margen, formato: "pct", ancho: 9 },
+    { titulo: "Costo final avión $", valor: (x) => (x.avion_final != null && tcHoy ? x.avion_final * tcHoy : null), formato: "importe", ancho: 12 },
+    { titulo: "% avión s/ venta", valor: (x) => x.avion_margen, formato: "pct", ancho: 9 },
+    { titulo: "% avión s/ costo", valor: (x) => x.avion_sobre_costo, formato: "pct", ancho: 9 },
     { titulo: "Costo final barco US$", valor: (x) => x.barco_final, formato: "importe", ancho: 12 },
     { titulo: "Ganancia barco US$", valor: (x) => x.barco_ganancia, formato: "importe", ancho: 12 },
-    { titulo: "% barco", valor: (x) => x.barco_margen, formato: "pct", ancho: 9 },
+    { titulo: "Costo final barco $", valor: (x) => (x.barco_final != null && tcHoy ? x.barco_final * tcHoy : null), formato: "importe", ancho: 12 },
+    { titulo: "% barco s/ venta", valor: (x) => x.barco_margen, formato: "pct", ancho: 9 },
+    { titulo: "% barco s/ costo", valor: (x) => x.barco_sobre_costo, formato: "pct", ancho: 9 },
   ];
   const t = totalesSugerencia(filas);
   return respuestaExcel("Sugerencia de compra", "Sugerencia", columnas, filas,
