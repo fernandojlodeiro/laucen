@@ -44,8 +44,8 @@ export const aGuardar = (comparables: PubJuzgada[]): PubMercado[] => comparables
 }));
 
 /** Analiza lo encontrado de un producto, lo guarda (búsqueda, seguidas automáticas y números) y lo da por hecho. */
-async function cerrarProducto(org: string, productoId: number, texto: string, lista: PubEncontrada[], ts?: Date): Promise<void> {
-  await guardarNumeros(org, productoId, await analizarBusqueda(org, productoId, texto, lista, { seguir: true, ts }));
+async function cerrarProducto(org: string, productoId: number, texto: string, lista: PubEncontrada[], ts?: Date, sinPrecioPropio = false): Promise<void> {
+  await guardarNumeros(org, productoId, await analizarBusqueda(org, productoId, texto, lista, { seguir: true, ts, sinPrecioPropio }));
 }
 
 async function guardarNumeros(org: string, productoId: number, a: Awaited<ReturnType<typeof analizarBusqueda>>): Promise<void> {
@@ -79,7 +79,7 @@ export function candidatasReferentes(texto: string, pubs: Record<string, unknown
 async function conReferentes(org: string, productoId: number, texto: string, pubs: Record<string, unknown>[]): Promise<boolean> {
   const cand = candidatasReferentes(texto, pubs);
   if (!cand.length) return false;
-  const a = await analizarBusqueda(org, productoId, texto, await armarEncontradas(org, cand), { seguir: true });
+  const a = await analizarBusqueda(org, productoId, texto, await armarEncontradas(org, cand), { seguir: true, sinPrecioPropio: true });
   if (!a.comparables.length) return false;
   await guardarNumeros(org, productoId, a);
   return true;
@@ -216,7 +216,8 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
         return;
       }
       try {
-        await cerrarProducto(org, p.producto_id, p.texto, await armarEncontradas(org, c.items as Record<string, unknown>[]));
+        // En la de «para todos» (referentes), sin el filtro de precio contra nuestra Clásica: son productos sin precio cierto.
+        await cerrarProducto(org, p.producto_id, p.texto, await armarEncontradas(org, c.items as Record<string, unknown>[]), undefined, t.referentes);
       } catch (e) {
         await consulta("update precio_mercado set estado = 'error', error = $3, ts = now() where organizacion_id = $1 and producto_id = $2",
           [org, p.producto_id, (e instanceof Error ? e.message : String(e)).slice(0, 200)]);
@@ -293,7 +294,7 @@ export async function mejorDelMercado(org: string, productos: number[]): Promise
 /** Vuelve a analizar lo ya buscado, sin pagar otra búsqueda: la última búsqueda guardada del producto o, si no hay, lo
  *  que quedó en precio_mercado. Saca las nuestras, juzga con la IA, sigue las comparables y recalcula los números.
  *  Sirve para lo buscado antes de que existiera el seguimiento automático. Devuelve cuántos productos hizo. */
-export async function reanalizarGuardados(org: string, o: { productos?: number[]; segundos?: number; antes?: Date } = {}): Promise<{ hechos: number; quedan: number }> {
+export async function reanalizarGuardados(org: string, o: { productos?: number[]; segundos?: number; antes?: Date; sinPrecioPropio?: boolean } = {}): Promise<{ hechos: number; quedan: number }> {
   const t0 = Date.now();
   const filas = await consulta<{ producto_id: number; texto: string; resultados: { itemId?: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null }[] }>(`
     select producto_id::int, texto, resultados from precio_mercado
@@ -313,7 +314,7 @@ export async function reanalizarGuardados(org: string, o: { productos?: number[]
       else lista = await completar(org, cuentas, apodos, f.resultados
         .map((r) => aPubEncontrada({ id: r.itemId, url: r.permalink, title: r.titulo, price: r.precio, sellerName: r.vendedor, currency: "ARS" }))
         .filter((x): x is PubEncontrada => !!x));
-      await cerrarProducto(org, f.producto_id, b?.texto ?? f.texto, lista, b?.ts);
+      await cerrarProducto(org, f.producto_id, b?.texto ?? f.texto, lista, b?.ts, o.sinPrecioPropio);
     } catch (e) {
       console.error("[precios-mercado] reanalizar", f.producto_id, e);
       await consulta("update precio_mercado set error = $3 where organizacion_id = $1 and producto_id = $2",
@@ -328,12 +329,16 @@ export async function reanalizarGuardados(org: string, o: { productos?: number[]
 
 /** reanalizarGuardados de la organización de una tanda (la ruta lo pide con el token de la tanda). */
 export async function reanalizarDeTanda(tanda: number, token: string, antes?: Date): Promise<number> {
-  const t = await una<{ organizacion_id: string }>("select organizacion_id from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
+  const t = await una<{ organizacion_id: string; referentes: boolean }>("select organizacion_id, referentes from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
   if (!t) throw new ErrorErp("Tanda desconocida.");
+  // La de «para todos»: se rehacen sólo sus productos que quedaron sin iguales, sin el filtro de precio contra la Clásica.
+  const productos = t.referentes ? (await consulta<{ id: number }>(
+    "select producto_id::int id from precio_mercado where tanda_id = $1 and estado = 'ok' and minimo is null", [tanda])).map((x) => x.id) : undefined;
+  if (productos && !productos.length) return 0;
   // Hasta unos minutos por vuelta (la ruta tiene 5); si quedan, se relanza. Lo que pasó queda anotado en la tanda.
   let r: { hechos: number; quedan: number };
   try {
-    r = await reanalizarGuardados(t.organizacion_id, { segundos: 180, antes });
+    r = await reanalizarGuardados(t.organizacion_id, { segundos: 180, antes, productos, sinPrecioPropio: t.referentes });
   } catch (e) {
     await consulta("update precio_mercado_tanda set mensaje = $2 where id = $1", [tanda, `Reanálisis: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`]);
     throw e;
