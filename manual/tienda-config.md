@@ -196,6 +196,7 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **Demora**: un dominio nuevo o borrado puede tardar hasta un minuto en empezar (o dejar) de abrir la tienda.
 - **Un dominio que apunta a Laucen y nadie cargó** muestra "Este dominio todavía no está configurado", nunca el panel.
 - **Logo**: si la tienda no tiene logo propio, usa el de [Empresa](/config/empresa).
+- **Logo sin margen**: el blanco o transparente que tenga la imagen alrededor del dibujo se recorta solo al mostrarlo en la tienda, así el logo llena la franja de arriba aunque la imagen sea grande (ej. 1024×747) con el dibujo en el medio. No hace falta prepararlo en un tamaño especial; conviene que sea ancho y con fondo transparente o del color de la franja.
 - **Colores**: sólo se aceptan colores válidos (formato #RRGGBB); vacío = el de siempre.
 - **Devoluciones y garantía**: hasta 1000 caracteres cada uno; si están cargados, se muestran en la ficha del producto y en la Ayuda de la tienda.
 - **Imágenes**: sólo imágenes subidas; cualquier otra dirección queda vacía.

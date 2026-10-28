@@ -71,3 +71,7 @@ export async function tiendaDeOrg(org: string): Promise<Tienda | null> {
 
 export const nombreTienda = (t: Tienda) => t.config.nombre || t.nombreCanal;
 export const rutaTienda = (t: Tienda, resto = "") => `/tienda/${t.slug}${resto}`;
+/** El logo para mostrar en la tienda: el subido a nuestro Storage, pasado por /api/tienda/logo (sin su margen
+ *  blanco o transparente, así llena la franja); otro link, tal cual. */
+export const logoSinMargen = (url: string) =>
+  url.includes("/storage/v1/object/public/") ? `/api/tienda/logo?u=${encodeURIComponent(url)}` : url;

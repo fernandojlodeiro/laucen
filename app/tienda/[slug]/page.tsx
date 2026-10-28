@@ -7,7 +7,7 @@ import Link from "next/link";
 import { mediosActivos } from "@/lib/tienda/checkout";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { formatearNumero } from "@/lib/numeros";
-import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
+import { logoSinMargen, nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
 import { familiasFueraDe, idsDe } from "@/lib/tienda/portada";
 import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBase, type Tarjeta } from "./catalogo";
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
@@ -125,7 +125,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
                 {c.bajada && <p className="mt-2 max-w-xl text-sm opacity-80 sm:text-xl">{c.bajada}</p>}
                 <Link href={r("/buscar")} className="mt-4 hidden h-11 items-center rounded-md bg-[var(--boton)] px-6 font-semibold text-white hover:bg-[var(--boton-hover)] sm:inline-flex">Ver todos los productos</Link>
               </div>
-              {c.logo && <img src={c.logo} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
+              {c.logo && <img src={logoSinMargen(c.logo)} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
             </div>
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: DIFUMINADO }} />
           </div>

@@ -11,7 +11,7 @@ import { Inter } from "next/font/google";
 import { una } from "@/lib/erp/base";
 import { leerCarrito } from "@/lib/tienda/carrito";
 import { cuentaActual } from "@/lib/tienda/cuentas";
-import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
+import { logoSinMargen, nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, arbolParaMenu, botonWhatsapp, cargarTienda } from "./catalogo";
 import { IconoCarrito, IconoWhatsapp } from "./piezas";
 import { variablesTema } from "./tema";
@@ -82,7 +82,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
   const logo = (clase: string) => (
     <Link href={r()} className={`flex shrink-0 items-center ${clase}`} aria-label={`${nombre}: inicio`}>
       {c.logo
-        ? <img src={c.logo} alt={nombre} className="h-[34px] w-auto max-w-[150px] object-contain" />
+        ? <img src={logoSinMargen(c.logo)} alt={nombre} className="h-[34px] w-auto max-w-[150px] object-contain" />
         : <span className="truncate text-xl font-bold tracking-tight text-[var(--marca-texto)]">{nombre}</span>}
     </Link>
   );
