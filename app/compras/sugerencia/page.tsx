@@ -13,6 +13,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
 import { accionClasicaAMercado, accionGuardarVia, accionPrecioMercado } from "./acciones";
 import Vias from "./Vias";
+import ExcelProveedor from "./ExcelProveedor";
 import Globo, { type Cuenta } from "./Globo";
 import FiltrosConOk from "@/app/componentes/FiltrosConOk";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
@@ -25,7 +26,7 @@ import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { type FilaSugerencia, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { type FilaSugerencia, CANTIDADES_PEDIDO, DEMORA_LLEGADA, DIAS_VENDIENDO, DIFERENCIA_REVISAR, viasElegidas, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -93,7 +94,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             texto={`Buscar precio de mercado (${idsMercado.length})`}
             pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
-          <a href={url("/compras/sugerencia/proveedor", params)} className={VERDE} title="Sólo lo que hay que comprar de esta lista: foto, SKU, título, cantidad precio (FOB de la ficha), subtotal y total">Excel para el proveedor</a>
+          <ExcelProveedor href={url("/compras/sugerencia/proveedor", params)} opciones={CANTIDADES_PEDIDO} />
         </div>
       }>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-2">
@@ -117,13 +118,17 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             ayuda="Todo producto que tiene precio de mercado se calcula a ese precio, como si lo vendieras al precio del más barato, lo vendas o no. Destildada, la Clásica para lo que vendés" />
           </FiltrosConOk>
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs rounded-lg border border-[#E3E9F0] bg-white px-3 py-1.5">
+      {/* Tarjetas de totales (Fer, 28/10: las quiere así), compactas para no comer alto. */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2 text-xs">
         {[["Productos", `${entero(t.productos)} (${entero(t.conCosto)} con costo)`],
           ["Unidades a comprar · típico / mejor", `${entero(t.unidadesTipicas)} / ${entero(t.unidadesMejor)}`],
-          ["Al proveedor (FOB) · típico", usd(t.fobTipicoUsd)],
+          ["Al proveedor (FOB) · típico / mejor", `${usd(t.fobTipicoUsd)} / ${usd(t.fobMejorUsd)}`],
           ["Costo puesto acá · típico / mejor", `${usd(t.inversionTipicaUsd)} / ${usd(t.inversionMejorUsd)}`],
-          ["Ganancia estimada · típico / mejor", `${pesos(t.gananciaTipica)} / ${pesos(t.gananciaMejor)}${tcHoy ? ` (${usd(t.gananciaTipica / tcHoy)} / ${usd(t.gananciaMejor / tcHoy)})` : ""}`]].map(([k, v]) => (
-          <span key={k} className="whitespace-nowrap"><span className="text-[#5C6B76]">{k}: </span><b className="tabular-nums">{v}</b></span>
+          ["Ganancia estimada · típico / mejor", `${pesos(t.gananciaTipica)} / ${pesos(t.gananciaMejor)}`, tcHoy ? `${usd(t.gananciaTipica / tcHoy)} / ${usd(t.gananciaMejor / tcHoy)}` : null]].map(([k, v, v2]) => (
+          <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl px-2 py-1.5">
+            <span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b>
+            {v2 && <span className="block tabular-nums text-[#5C6B76]">{v2}</span>}
+          </div>
         ))}
       </div>
       {/* Los títulos quedan fijos al desplazarse (Fer, 12/10): la tabla tiene su propio alto y se desplaza adentro. */}

@@ -49,6 +49,13 @@ export function leerFiltroSugerencia(sp: Record<string, string | undefined>, hoy
  *  74 → 80; 12 → 10; 14 → 20; 1 a 3 → 0 (no se pide). Pura. */
 export const redondearPedido = (n: number) => (n > 0 ? Math.floor((n + 6) / 10) * 10 : 0);
 
+/** Qué cantidad va en el Excel del proveedor (Fer, 28/10): la del típico, la del mejor momento o el promedio de las dos
+ *  cuentas, redondeado a decenas. Pura. */
+export type CantidadPedido = "tipico" | "mejor" | "promedio";
+export const CANTIDADES_PEDIDO: [CantidadPedido, string][] = [["tipico", "Típico"], ["mejor", "Mejor momento"], ["promedio", "Promedio de los dos"]];
+export const cantidadPedido = (x: Pick<FilaSugerencia, "comprar_tipico" | "comprar_mejor" | "comprar_exacto" | "comprar_mejor_exacto">, c: CantidadPedido) =>
+  c === "mejor" ? x.comprar_mejor : c === "promedio" ? redondearPedido(Math.round((x.comprar_exacto + x.comprar_mejor_exacto) / 2)) : x.comprar_tipico;
+
 export function aComprar(paraDias: number, dias: number, demora: number, stock: number): { alLlegar: number; comprar: number } {
   const alLlegar = Math.max(0, Math.max(0, stock) - Math.round((paraDias * demora) / dias));
   return { alLlegar, comprar: Math.max(0, paraDias - alLlegar) };
@@ -74,7 +81,7 @@ export type FilaSugerencia = {
    *  vendería en los días elegidos menos lo que quede al llegar), según el típico y el mejor momento. */
   stock: number; al_llegar: number; comprar_tipico: number; comprar_mejor: number;
   /** Lo que da la cuenta antes de redondear a decenas (redondearPedido). */
-  comprar_exacto: number;
+  comprar_exacto: number; comprar_mejor_exacto: number;
   /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
    *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
   compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
@@ -234,8 +241,9 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       ...(() => { const t = aComprar(r.tipico, f.dias, f.demora, d.stock);
-        return { stock: d.stock, al_llegar: t.alLlegar, comprar_exacto: t.comprar, comprar_tipico: redondearPedido(t.comprar),
-          comprar_mejor: redondearPedido(aComprar(r.mejor, f.dias, f.demora, d.stock).comprar) }; })(),
+        const m = aComprar(r.mejor, f.dias, f.demora, d.stock).comprar;
+        return { stock: d.stock, al_llegar: t.alLlegar, comprar_exacto: t.comprar, comprar_mejor_exacto: m, comprar_tipico: redondearPedido(t.comprar),
+          comprar_mejor: redondearPedido(m) }; })(),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
       mercado: mj?.precio ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0,
       mercado_ts: mj?.ts ? new Date(mj.ts).toISOString().slice(0, 10) : null, mercado_de: mj?.de ?? null, mercado_vendedor: mj?.vendedor ?? null,
@@ -280,6 +288,7 @@ export function totalesSugerencia(filas: FilaSugerencia[]) {
   return {
     productos: filas.length, conCosto: filas.filter((x) => x.costo_usd != null).length,
     fobTipicoUsd: s((x) => (x.fob_usd != null ? x.fob_usd * x.comprar_tipico : null)),
+    fobMejorUsd: s((x) => (x.fob_usd != null ? x.fob_usd * x.comprar_mejor : null)),
     inversionTipicaUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_tipico : null)), inversionMejorUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_mejor : null)),
     gananciaTipica: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_tipico : null)), gananciaMejor: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_mejor : null)),
     unidadesTipicas: s((x) => x.comprar_tipico), unidadesMejor: s((x) => x.comprar_mejor),
@@ -330,7 +339,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-15", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-16", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

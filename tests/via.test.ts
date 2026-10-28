@@ -82,3 +82,11 @@ test("cantidad a pedir redondeada a decenas: hasta 3 baja, desde 4 sube", async 
   const { redondearPedido } = await import("@/lib/compras/sugerencia");
   assert.deepEqual([72, 73, 74, 12, 14, 3, 4, 0, 70, 105].map(redondearPedido), [70, 70, 80, 10, 20, 0, 10, 0, 70, 110]);
 });
+
+test("cantidad del Excel del proveedor: típico, mejor o promedio de las dos cuentas", async () => {
+  const { cantidadPedido } = await import("@/lib/compras/sugerencia");
+  const x = { comprar_exacto: 52, comprar_mejor_exacto: 96, comprar_tipico: 50, comprar_mejor: 100 };
+  assert.equal(cantidadPedido(x, "tipico"), 50);
+  assert.equal(cantidadPedido(x, "mejor"), 100);
+  assert.equal(cantidadPedido(x, "promedio"), 80); // (52 + 96) / 2 = 74 → 80
+});

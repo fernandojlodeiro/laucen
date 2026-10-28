@@ -1,6 +1,6 @@
 // Excel para pedirle cotización al proveedor (pedido de Fer, 28/10): de lo que se ve en Sugerencia de compra (mismos filtros
-// y orden), sólo lo que hay que comprar, con la foto, el SKU, el título y la cantidad (la del ritmo típico, ya descontado lo
-// que va a quedar cuando llegue, redondeada a decenas). El proveedor conoce los SKU: no hace falta traducir nada. El precio
+// y orden), sólo lo que hay que comprar, con la foto, el SKU, el título, la cantidad (la del típico, la del mejor momento o
+// el promedio, ya descontado lo que va a quedar cuando llegue, redondeada a decenas) y la categoría de vía. El proveedor conoce los SKU: no hace falta traducir nada. El precio
 // es el FOB de la ficha (para controlar o borrar antes de mandarlo), con el subtotal y el total como fórmulas de Excel.
 
 import ExcelJS from "exceljs";
@@ -8,7 +8,8 @@ import sharp from "sharp";
 import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { filasDeLaPantalla, type FilaSugerencia } from "@/lib/compras/sugerencia";
+import { CANTIDADES_PEDIDO, cantidadPedido, filasDeLaPantalla, type CantidadPedido, type FilaSugerencia } from "@/lib/compras/sugerencia";
+import { CATEGORIAS_VIA } from "@/lib/compras/via";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -29,7 +30,7 @@ async function miniatura(url: string | undefined): Promise<Buffer | null> {
 }
 
 /** Baja las fotos de a varias a la vez. */
-async function miniaturas(filas: FilaSugerencia[]): Promise<(Buffer | null)[]> {
+async function miniaturas(filas: Pick<FilaSugerencia, "fotos">[]): Promise<(Buffer | null)[]> {
   const out: (Buffer | null)[] = new Array(filas.length).fill(null);
   let i = 0;
   await Promise.all(Array.from({ length: 10 }, async () => {
@@ -42,7 +43,9 @@ export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
   const { filas: todas } = await filasDeLaPantalla(s.org.id, sp, hoyArgentina());
-  const filas = todas.filter((x) => x.comprar_tipico > 0);
+  // La cantidad: la del típico, la del mejor momento o el promedio (?cant=), elegida al lado del botón.
+  const cant: CantidadPedido = CANTIDADES_PEDIDO.some(([k]) => k === sp.cant) ? (sp.cant as CantidadPedido) : "tipico";
+  const filas = todas.map((x) => ({ ...x, pedir: cantidadPedido(x, cant) })).filter((x) => x.pedir > 0);
   const fotos = await miniaturas(filas);
 
   const libro = new ExcelJS.Workbook();
@@ -54,13 +57,14 @@ export async function GET(req: NextRequest) {
     { header: "Cantidad", width: 10, style: { numFmt: "#,##0", alignment: { vertical: "middle" } } },
     { header: "Precio US$", width: 12, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
     { header: "Subtotal US$", width: 14, style: { numFmt: "#,##0.00", alignment: { vertical: "middle" } } },
+    { header: "Vía", width: 22, style: { alignment: { vertical: "middle", wrapText: true } } },
   ];
   h.getRow(1).font = { bold: true };
   filas.forEach((x, n) => {
     // El precio: el FOB de la ficha (Fer, 28/10: lo deja o lo borra antes de mandarlo); el subtotal, una fórmula.
     const r = n + 2;
-    const fila = h.addRow([null, x.sku, x.titulo, x.comprar_tipico, x.fob_usd,
-      { formula: `D${r}*E${r}`, result: x.fob_usd != null ? x.fob_usd * x.comprar_tipico : 0 }]);
+    const fila = h.addRow([null, x.sku, x.titulo, x.pedir, x.fob_usd,
+      { formula: `D${r}*E${r}`, result: x.fob_usd != null ? x.fob_usd * x.pedir : 0 }, CATEGORIAS_VIA[x.via].texto]);
     fila.height = LADO * 0.75 + 6; // puntos
     fila.getCell(2).alignment = { vertical: "middle" };
     const foto = fotos[n];
@@ -70,8 +74,9 @@ export async function GET(req: NextRequest) {
     }
   });
   const ult = filas.length + 1;
-  h.addRow(["Total", null, `${filas.length} productos`, { formula: `SUM(D2:D${ult})`, result: filas.reduce((t, x) => t + x.comprar_tipico, 0) }, null,
-    { formula: `SUM(F2:F${ult})`, result: filas.reduce((t, x) => t + (x.fob_usd ?? 0) * x.comprar_tipico, 0) }]).font = { bold: true };
+  h.addRow(["Total", null, `${filas.length} productos`, { formula: `SUM(D2:D${ult})`, result: filas.reduce((t, x) => t + x.pedir, 0) }, null,
+    { formula: `SUM(F2:F${ult})`, result: filas.reduce((t, x) => t + (x.fob_usd ?? 0) * x.pedir, 0) },
+    `Cantidad: ${CANTIDADES_PEDIDO.find(([k]) => k === cant)![1].toLowerCase()}`]).font = { bold: true };
 
   const buffer = await libro.xlsx.writeBuffer();
   const fecha = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
