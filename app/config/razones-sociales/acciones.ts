@@ -24,7 +24,10 @@ function datos(fd: FormData) {
   if (!pv || pv < 1 || pv > 99998) throw new ErrorErp("El punto de venta es un número entre 1 y 99998.");
   const inicio = texto(fd, "inicio_actividades");
   if (inicio && !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) throw new ErrorErp("La fecha de inicio de actividades no se pudo leer.");
-  return { razon, cuit, condicion, pv, inicio, nombre: texto(fd, "nombre") ?? razon, domicilio: texto(fd, "domicilio"), iibb: texto(fd, "iibb") };
+  // El logo: sólo un link subido (https); vacío = el de Configuración › Empresa.
+  const logo = texto(fd, "logo");
+  return { razon, cuit, condicion, pv, inicio, nombre: texto(fd, "nombre") ?? razon, domicilio: texto(fd, "domicilio"), iibb: texto(fd, "iibb"),
+    logo: logo && /^https:\/\//.test(logo) ? logo : null };
 }
 
 export async function accionCrearRazonSocial(fd: FormData) {
@@ -36,9 +39,9 @@ export async function accionCrearRazonSocial(fd: FormData) {
     await enTransaccion(async (c) => {
       const hay = (await c.query("select 1 from emisor where organizacion_id = $1", [s.org.id])).rowCount;
       await c.query(`
-        insert into emisor (organizacion_id, nombre, cuit, razon_social, condicion_iva, domicilio, iibb, inicio_actividades, punto_venta, es_principal)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [s.org.id, d.nombre, d.cuit, d.razon, d.condicion, d.domicilio, d.iibb, d.inicio, d.pv, !hay]);
+        insert into emisor (organizacion_id, nombre, cuit, razon_social, condicion_iva, domicilio, iibb, inicio_actividades, punto_venta, es_principal, logo)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [s.org.id, d.nombre, d.cuit, d.razon, d.condicion, d.domicilio, d.iibb, d.inicio, d.pv, !hay, d.logo]);
       // La primera razón social toma lo que ya estaba cargado sin dueño (compras, cuentas, asientos…).
       if (!hay) {
         for (const t of TABLAS_CON_EMISOR) {
@@ -61,8 +64,8 @@ export async function accionGuardarRazonSocial(fd: FormData) {
     if (otra) throw new ErrorErp("Ya hay otra razón social con ese CUIT.");
     await consulta(`
       update emisor set nombre = $3, cuit = $4, razon_social = $5, condicion_iva = $6, domicilio = $7, iibb = $8, inicio_actividades = $9,
-             punto_venta = $10, actualizado_ts = now() where id = $2 and organizacion_id = $1`,
-      [s.org.id, id(fd), d.nombre, d.cuit, d.razon, d.condicion, d.domicilio, d.iibb, d.inicio, d.pv]);
+             punto_venta = $10, logo = $11, actualizado_ts = now() where id = $2 and organizacion_id = $1`,
+      [s.org.id, id(fd), d.nombre, d.cuit, d.razon, d.condicion, d.domicilio, d.iibb, d.inicio, d.pv, d.logo]);
     revalidatePath(VOLVER);
     // El permiso de ARCA es de un CUIT: si cambió y estaba conectado, avisar.
     if (antes.cuit.replace(/\D/g, "") !== d.cuit) {

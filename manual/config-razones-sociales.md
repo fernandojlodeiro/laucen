@@ -21,15 +21,15 @@ Lo que no se separa: cuando entra mercadería —por una factura de compra, un d
 
 ## Cómo se llega
 
-Menú **Configuración › Razones sociales**. Sólo la ve quien tiene el permiso «Empresa». Los datos fiscales se cargan acá (en [Empresa](/config/empresa) quedan el logo y los datos generales).
+Menú **Configuración › Razones sociales**. Sólo la ve quien tiene el permiso «Empresa». Los datos fiscales y el logo de cada razón social se cargan acá (en [Empresa](/config/empresa) quedan los datos generales y el logo de toda la empresa).
 
 ## Qué hay en la pantalla
 
-Una lista con: **N.º**, **Razón social** (con su nombre corto y la marca "Principal"), **CUIT**, **Condición IVA**, **Pto. de venta**, **Cuentas de ML y canales** (los canales que facturan con ella) y **ARCA** ("Conectada" o "Sin conectar"; tocarlo lleva a la conexión de esa razón social). Tiene buscador (en todos sus datos: N.º, nombre, razón social, CUIT con o sin guiones, condición IVA, domicilio, ingresos brutos), orden por columna, "Descargar Excel" y el botón **"+ Nueva razón social"** arriba a la derecha.
+Una lista con: **N.º**, **Razón social** (con su logo chiquito si tiene uno, su nombre corto y la marca "Principal"), **CUIT**, **Condición IVA**, **Pto. de venta**, **Cuentas de ML y canales** (los canales que facturan con ella) y **ARCA** ("Conectada" o "Sin conectar"; tocarlo lleva a la conexión de esa razón social). Tiene buscador (en todos sus datos: N.º, nombre, razón social, CUIT con o sin guiones, condición IVA, domicilio, ingresos brutos), orden por columna, "Descargar Excel" y el botón **"+ Nueva razón social"** arriba a la derecha.
 
 En cada fila: **"Hacer principal"** (si no lo es), el **lápiz** (la fila se vuelve editable ahí mismo) y el **tacho** (pregunta "¿Borrar?" Sí / No).
 
-Campos de una razón social: **Nombre corto** (para reconocerla en los selectores), **Razón social** (como figura en ARCA), **CUIT**, **Condición IVA**, **Domicilio comercial**, **Punto de venta**, **Ingresos Brutos** e **Inicio de actividades**.
+Campos de una razón social: **Nombre corto** (para reconocerla en los selectores), **Razón social** (como figura en ARCA), **CUIT**, **Condición IVA**, **Domicilio comercial**, **Punto de venta**, **Ingresos Brutos**, **Inicio de actividades** y **Logo** ("Subir imagen"; después "Cambiar" o "Quitar").
 
 ## Cómo se hace
 
@@ -37,6 +37,14 @@ Campos de una razón social: **Nombre corto** (para reconocerla en los selectore
 
 1. Apretá **"+ Nueva razón social"**, completá los campos y apretá **"Crear"**. La primera que se carga queda como principal.
 2. Para que pueda facturar, conectala con ARCA en [Facturación (ARCA)](/config/arca): arriba de esa pantalla elegís la razón social y hacés el trámite del permiso.
+
+### Ponerle su logo a una razón social
+
+1. Apretá el **lápiz** de la fila.
+2. En **Logo**, apretá **"Subir imagen"** y elegí el archivo (PNG, JPG o WebP; mejor con fondo blanco o transparente). El margen blanco o transparente que tenga alrededor se recorta solo en el PDF, así el dibujo sale grande aunque la imagen tenga mucho espacio vacío.
+3. Apretá **"Guardar"**.
+
+Desde ese momento, las facturas y los presupuestos de esa razón social salen con ese logo. Si la dejás sin logo, usan el de [Empresa](/config/empresa).
 
 ### Cambiar cuál es la principal
 
@@ -52,6 +60,7 @@ En [Canales](/config/canales), con el lápiz del canal, elegís **"Factura con"*
 - **Cada razón social lleva su numeración de ARCA** (punto de venta, tipo de comprobante y número). Dos razones sociales pueden usar el mismo punto de venta.
 - **Facturación automática**: se prende y se configura por razón social, en [Facturación (ARCA)](/config/arca). Cada una factura los pedidos de sus canales.
 - **Cuenta de Mercado Pago**: la cuenta de fondos de cada cuenta de ML pertenece a la razón social del canal; si cambiás la razón social del canal, la cuenta de fondos la sigue.
+- **Qué logo lleva cada PDF**: la **factura** (y la nota de crédito) lleva el logo de la razón social que la emitió; el **presupuesto** (y el PDF del pedido), el de la razón social que factura ese canal. Si esa razón social no tiene logo, va el de [Empresa](/config/empresa); si tampoco hay, sale sin logo.
 - **La principal no se borra**: primero se elige otra como principal. Tampoco se borra una razón social que ya tiene facturas, compras, cuentas o asientos a su nombre.
 - **Cambiar el CUIT** de una razón social conectada con ARCA avisa que el permiso es del CUIT anterior y hay que hacer el trámite de nuevo.
 - Lo que se cargó antes de tener alguna razón social queda a nombre de la primera que se carga.
@@ -70,6 +79,9 @@ No desde Caja y bancos: sería un préstamo entre las empresas y se asienta apar
 
 **¿El plan de cuentas es uno por razón social?**
 No: el plan de cuentas es uno solo y compartido; lo que se separa son los asientos (cada asiento pertenece a una razón social) y por eso los libros diario, mayor, sumas y saldos y resultados se miran de una o de todas.
+
+**¿Las facturas ya emitidas cambian de logo?**
+Sí: el PDF se arma cada vez que se abre, así que muestra el logo que la razón social tenga en ese momento.
 
 ## Relacionado
 

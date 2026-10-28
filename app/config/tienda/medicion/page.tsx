@@ -124,9 +124,13 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
                       <label className="sm:col-span-2"><span className={ETIQUETA}>Token de la API de conversiones (opcional)</span>
                         <input form={form} name="meta_capi" type="password" autoComplete="off" placeholder={d.capi ? "Cargado (vacío: queda el que está)" : ""} className={`${CAMPO} w-full font-mono`} />
                         <span className="block text-[10px] text-[#5C6B76] mt-0.5">Con el token, las compras y los clics en WhatsApp le llegan a Meta desde Laucen, aunque el navegador del visitante tenga un bloqueador. Se saca en el Administrador de eventos de Meta › el conjunto de datos › Configuración › API de conversiones.</span></label>
+                      <label className="sm:col-start-2 sm:col-span-3"><span className={ETIQUETA}>Código de verificación del dominio (opcional)</span>
+                        <input form={form} name="meta_verificacion" defaultValue={p.meta.verificacion ?? ""} autoComplete="off" className={`${CAMPO} w-full font-mono`} />
+                        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para que Meta dé el dominio por verificado. Se saca en Meta Business › Seguridad de la marca › Dominios › el dominio › «Metaetiqueta»: es lo que va entre las comillas de content="…".</span></label>
                     </> : <>
                       <Dato etiqueta="ID del píxel de Meta">{p.meta.pixel_id}</Dato>
                       <Dato etiqueta="Token de la API de conversiones">{d.capi ? "Cargado" : null}</Dato>
+                      <Dato etiqueta="Verificación del dominio">{p.meta.verificacion ? "Cargada" : null}</Dato>
                     </>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start border-b border-[#EEF1F4] pb-3">

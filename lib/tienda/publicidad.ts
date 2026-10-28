@@ -18,7 +18,8 @@ import { destinoDeHost } from "@/lib/tienda/dominios-tienda";
 
 export type Publicidad = {
   google: { activo: boolean; tag_id: string | null; conversion_label: string | null; ga4_id: string | null };
-  meta: { activo: boolean; pixel_id: string | null };
+  /** verificacion: el código de «verificar el dominio» de Meta Business (va como metaetiqueta en el <head>). */
+  meta: { activo: boolean; pixel_id: string | null; verificacion: string | null };
   tiktok: { activo: boolean; pixel_id: string | null };
   /** Transferencia y efectivo: la venta cuenta al crear el pedido (si no, cuando se marca pagado). */
   contar_al_crear: boolean;
@@ -31,6 +32,7 @@ export const GA4_ID = /^G-[A-Z0-9]{4,15}$/;
 export const LABEL = /^[\w-]{4,40}$/;
 export const PIXEL_META = /^\d{10,20}$/;
 export const PIXEL_TIKTOK = /^[A-Z0-9]{15,30}$/;
+export const VERIFICACION_META = /^[a-z0-9]{20,40}$/;
 
 const id = (v: unknown, re: RegExp) => (typeof v === "string" && re.test(v.trim()) ? v.trim() : null);
 
@@ -40,7 +42,7 @@ export function publicidadDe(x: unknown): Publicidad {
   const g = (p.google ?? {}) as Record<string, unknown>, m = (p.meta ?? {}) as Record<string, unknown>, t = (p.tiktok ?? {}) as Record<string, unknown>;
   return {
     google: { activo: g.activo === true, tag_id: id(g.tag_id, TAG_ID), conversion_label: id(g.conversion_label, LABEL), ga4_id: id(g.ga4_id, GA4_ID) },
-    meta: { activo: m.activo === true, pixel_id: id(m.pixel_id, PIXEL_META) },
+    meta: { activo: m.activo === true, pixel_id: id(m.pixel_id, PIXEL_META), verificacion: id(m.verificacion, VERIFICACION_META) },
     tiktok: { activo: t.activo === true, pixel_id: id(t.pixel_id, PIXEL_TIKTOK) },
     contar_al_crear: p.contar_al_crear !== false, datos_comprador: p.datos_comprador === true,
   };
@@ -70,6 +72,13 @@ export async function etiquetasDelHost(host: string | null | undefined): Promise
   if (!host) return null;
   const d = await destinoDeHost(host.split(":")[0].toLowerCase()).catch(() => null);
   return d ? etiquetasDe(publicidadDe(d.publicidad)) : null;
+}
+
+/** El código de verificación de dominio de Meta de ese host (aunque el píxel esté apagado: es del dominio). */
+export async function verificacionMetaDelHost(host: string | null | undefined): Promise<string | null> {
+  if (!host) return null;
+  const d = await destinoDeHost(host.split(":")[0].toLowerCase()).catch(() => null);
+  return d ? publicidadDe(d.publicidad).meta.verificacion : null;
 }
 
 /** El id de una variación en los catálogos, los eventos y la ficha (siempre el mismo): su SKU; sin SKU, "V" + el id. */

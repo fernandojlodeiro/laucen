@@ -9,7 +9,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { olvidarDominios } from "@/lib/tienda/dominios-tienda";
-import { GA4_ID, LABEL, PIXEL_META, PIXEL_TIKTOK, TAG_ID, publicidadDe, type Publicidad } from "@/lib/tienda/publicidad";
+import { GA4_ID, LABEL, PIXEL_META, VERIFICACION_META, PIXEL_TIKTOK, TAG_ID, publicidadDe, type Publicidad } from "@/lib/tienda/publicidad";
 
 const BASE = "/config/tienda/medicion";
 
@@ -46,7 +46,8 @@ export async function accionGuardarPublicidad(fd: FormData) {
         tag_id: idDe(fd, "tag_id", TAG_ID, true, "El ID de la etiqueta de Google empieza con AW- y sigue con números (ej. AW-123456789)."),
         conversion_label: idDe(fd, "conversion_label", LABEL, false, "La etiqueta de conversión son letras, números, guiones (la parte que va después de la barra en «AW-…/…»)."),
         ga4_id: idDe(fd, "ga4_id", GA4_ID, true, "El ID de medición de Google Analytics empieza con G- (ej. G-ABC123XYZ).") },
-      meta: { ...pub.meta, pixel_id: idDe(fd, "meta_pixel", PIXEL_META, false, "El ID del píxel de Meta son sólo números (15 o 16).") },
+      meta: { ...pub.meta, pixel_id: idDe(fd, "meta_pixel", PIXEL_META, false, "El ID del píxel de Meta son sólo números (15 o 16)."),
+        verificacion: idDe(fd, "meta_verificacion", VERIFICACION_META, false, "El código de verificación de Meta son letras minúsculas y números (lo que va en content=\"…\" de la metaetiqueta).") },
       tiktok: { ...pub.tiktok, pixel_id: idDe(fd, "tiktok_pixel", PIXEL_TIKTOK, true, "El ID del píxel de TikTok son letras y números (ej. C1ABC2DEF3GH4IJ5KL6M).") },
       contar_al_crear: fd.get("contar_al_crear") === "1", datos_comprador: fd.get("datos_comprador") === "1",
     });

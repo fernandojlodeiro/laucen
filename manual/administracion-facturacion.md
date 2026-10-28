@@ -137,7 +137,7 @@ Errores típicos:
 
 ### Bajar o ver el PDF
 
-Apretá **"PDF"** en la fila o en la ficha. Se abre en otra pestaña con el nombre "Factura-B-00003-00000042.pdf" o "Nota-de-credito-B-…pdf". Lleva el logo de la empresa (si está cargado en [Empresa](/config/empresa)), el CAE y el código QR de ARCA.
+Apretá **"PDF"** en la fila o en la ficha. Se abre en otra pestaña con el nombre "Factura-B-00003-00000042.pdf" o "Nota-de-credito-B-…pdf". Lleva el logo de la razón social que la emitió (cargado en [Razones sociales](/config/razones-sociales); si no tiene, el de [Empresa](/config/empresa)), el CAE y el código QR de ARCA.
 
 ### Subir una factura a la venta de Mercado Libre
 

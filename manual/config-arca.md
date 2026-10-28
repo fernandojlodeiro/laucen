@@ -15,7 +15,7 @@ En pantalla no se habla de "homologación" ni de "producción": la producción s
 
 Con **más de una razón social**, arriba de la pantalla aparece una fila de pestañas con el nombre de cada una: el trámite, la conexión, la prueba y la facturación automática son **de la razón social elegida** (cada CUIT tiene su propio permiso de ARCA).
 
-Los datos fiscales (CUIT, razón social, condición frente al IVA, domicilio, Ingresos Brutos, inicio de actividades y punto de venta) **no** se cargan acá sino en [Razones sociales](/config/razones-sociales); el logo de las facturas, en [Empresa](/config/empresa).
+Los datos fiscales (CUIT, razón social, condición frente al IVA, domicilio, Ingresos Brutos, inicio de actividades y punto de venta) **no** se cargan acá sino en [Razones sociales](/config/razones-sociales), junto con el logo de las facturas de cada una (sin logo propio, va el de [Empresa](/config/empresa)).
 
 ## Cómo se llega
 
@@ -43,7 +43,7 @@ Una vez empezado el trámite, se ve un cartel amarillo ("El trámite está empez
 - **"Facturar al llegar el pedido a"**: se ve en modo vista; el **lápiz** lo vuelve editable (desplegable Pagado / Preparado / Despachado) y en su lugar quedan **"Grabar"** y **"Cancelar"**.
 - Desplegable **"Cambiar o desconectar"**: el formulario para **"Hacer el trámite de nuevo"** (o los pasos, si hay uno empezado) y el botón **"Desconectar ARCA"**, que pregunta ahí mismo "¿Desconectar? Hasta hacer el trámite de nuevo no se puede facturar."
 
-Al pie: el aviso de dónde se cargan los datos fiscales (Razones sociales) y el logo (Empresa).
+Al pie: el aviso de que los datos fiscales y el logo de las facturas se cargan en Razones sociales.
 
 ## Cómo se hace
 
@@ -138,7 +138,7 @@ Lo que ARCA haya puesto en el certificado; la fecha se ve en "El permiso vence".
 No. Sólo los que lleguen al estado elegido de ahí en adelante. Los anteriores se facturan a mano desde cada pedido.
 
 **¿Dónde cargo el domicilio y la condición de IVA que salen en la factura?**
-En [Razones sociales](/config/razones-sociales) (el logo, en [Empresa](/config/empresa)).
+En [Razones sociales](/config/razones-sociales), junto con su logo (sin logo propio, va el de [Empresa](/config/empresa)).
 
 **Tengo dos razones sociales, ¿cómo conecto la segunda?**
 Elegí su pestaña arriba y hacé el trámite completo con ella: cada CUIT tiene su certificado.

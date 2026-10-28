@@ -11,11 +11,11 @@ import { Inter } from "next/font/google";
 import { una } from "@/lib/erp/base";
 import { leerCarrito } from "@/lib/tienda/carrito";
 import { cuentaActual } from "@/lib/tienda/cuentas";
-import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
+import { logoSinMargen, nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, arbolParaMenu, botonWhatsapp, cargarTienda } from "./catalogo";
 import { IconoCarrito, IconoWhatsapp } from "./piezas";
 import { variablesTema } from "./tema";
-import { etiquetasDelHost } from "@/lib/tienda/publicidad";
+import { etiquetasDelHost, verificacionMetaDelHost } from "@/lib/tienda/publicidad";
 import { canonicalDe } from "@/lib/tienda/seo";
 import { ClicsDeWhatsapp, EventosDeNavegacion } from "./Publicidad";
 import { credencialGa4 } from "@/lib/tienda/ga4-mp";
@@ -54,12 +54,13 @@ const CONDICION_IVA: Record<string, string> = { responsable_inscripto: "IVA Resp
 export default async function LayoutTienda({ children, params }: Props & { children: React.ReactNode }) {
   const { slug } = await params;
   const t = await cargarTienda(slug);
-  const [carrito, arbol, cuenta, galletas, emisor, pub, gaServidor] = await Promise.all([
+  const [carrito, arbol, cuenta, galletas, emisor, pub, gaServidor, verificacionMeta] = await Promise.all([
     leerCarrito(t.slug), arbolDe(t), cuentaActual(t), cookies(),
     una<{ razon_social: string; cuit: string; condicion_iva: string; domicilio: string | null }>(
       "select razon_social, cuit, condicion_iva, domicilio from emisor where organizacion_id = $1 and es_principal", [t.organizacionId]),
     headers().then((h) => etiquetasDelHost(h.get("host"))),
     headers().then((h) => credencialGa4(h.get("host"))).then((c) => !!c),
+    headers().then((h) => verificacionMetaDelHost(h.get("host"))),
   ]);
   const direccion = cuenta ? await una<{ localidad: string | null; codigo_postal: string | null }>(
     "select localidad, codigo_postal from cliente_direccion where cliente_id = $1 and organizacion_id = $2 order by principal desc, id desc limit 1",
@@ -82,7 +83,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
   const logo = (clase: string) => (
     <Link href={r()} className={`flex shrink-0 items-center ${clase}`} aria-label={`${nombre}: inicio`}>
       {c.logo
-        ? <img src={c.logo} alt={nombre} className="h-[34px] w-auto max-w-[150px] object-contain" />
+        ? <img src={logoSinMargen(c.logo)} alt={nombre} className="h-[34px] w-auto max-w-[150px] object-contain" />
         : <span className="truncate text-xl font-bold tracking-tight text-[var(--marca-texto)]">{nombre}</span>}
     </Link>
   );
@@ -101,6 +102,9 @@ export default async function LayoutTienda({ children, params }: Props & { child
 
   return (
     <div style={variablesTema(t)} className={`${fuente.className} flex min-h-screen flex-col overflow-x-clip bg-[var(--fondo)] pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 text-[var(--texto)] antialiased`}>
+      {/* La verificación de dominio de Meta Business, la de ESE dominio. React la sube al <head> del HTML que sale del
+          servidor (Meta la busca ahí; como metadata de Next, a un visitante común le llegaba al final del cuerpo). */}
+      {verificacionMeta && <meta name="facebook-domain-verification" content={verificacionMeta} />}
       {/* Las etiquetas de publicidad del dominio por donde se entró (Configuración › Tienda web › Publicidad); los IDs ya vienen validados. */}
       {pub?.google && <>
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${pub.google.ids[0]}`} />
