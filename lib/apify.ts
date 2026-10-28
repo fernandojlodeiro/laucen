@@ -141,6 +141,14 @@ export type ResultadoActor = {
   items?: unknown[];
 };
 
+/** La herramienta de Apify para leer Mercado Libre (Fer, 28/10): «scrapesage» quedó frenada por el control anti-robots de
+ *  ML; ésta pasó las pruebas (5 de 5) y devuelve los datos con los mismos nombres (title, url, price, itemId, sellerName…).
+ *  Cobra US$ 0,005 por corrida y US$ 0,001 por resultado. */
+export const ACTOR_ML = "sourabhbgp~mercadolibre-scraper";
+/** La búsqueda por texto en Mercado Libre Argentina, sin filtros ni detalle de cada publicación. */
+export const entradaBusquedaMl = (q: string, max: number) =>
+  ({ mode: "search", country: "AR", searchQuery: q, maxItems: max, scrapeProductDetails: false, includeSellerProfile: false });
+
 export type Corrida = {
   runId?: string;
   estado?: string;

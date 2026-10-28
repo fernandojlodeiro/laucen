@@ -67,6 +67,18 @@ export async function GET(req: Request) {
         cantidad: r.cantidad, entrada: r.entrada, precio: r.precio, claves: items[0] ? Object.keys(items[0]).slice(0, 40) : [],
         ejemplo: items.slice(0, 3).map((x) => ({ titulo: x.title ?? x.name, precio: x.price ?? x.currentPrice, url: x.url ?? x.permalink ?? x.link })) });
     }
+    if (q.get("accion") === "esquema") {
+      // El esquema de entrada de una herramienta (para ver sus modos y campos).
+      const actor = q.get("actor") ?? "";
+      if (!/^[\w.-]+~[\w.-]+$/.test(actor)) return Response.json({ error: "actor inválido" });
+      const info = await fetch(`${API}/acts/${actor}?token=${token}`, { cache: "no-store" }).then((x) => x.json()).then((x) => x.data);
+      const build = info?.taggedBuilds?.latest?.buildId
+        ? await fetch(`${API}/actor-builds/${info.taggedBuilds.latest.buildId}?token=${token}`, { cache: "no-store" }).then((x) => x.json()).then((x) => x.data) : null;
+      const crudo = build?.inputSchema ?? build?.actorDefinition?.input;
+      const esquema = typeof crudo === "string" ? JSON.parse(crudo) : crudo;
+      return Response.json(Object.fromEntries(Object.entries((esquema?.properties ?? {}) as Record<string, Record<string, unknown>>).map(([k, c]) =>
+        [k, { tipo: c.type, opciones: c.enum, defecto: c.default, ayuda: String(c.description ?? "").slice(0, 200) }])));
+    }
     if (q.get("accion") === "correr") {
       // Una herramienta con la entrada exacta (JSON en ?entrada=), hasta 30 resultados y tope US$ 0,25.
       const actor = q.get("actor") ?? "";

@@ -10,16 +10,16 @@
 
 import { revalidateTag } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { correrConEntrada } from "@/lib/apify";
+import { ACTOR_ML, correrConEntrada, entradaBusquedaMl } from "@/lib/apify";
 import { aPubEncontrada, armarEncontradas, completar, nuestras, parecido, quedaParaGastar, ultimaBusqueda, type PubEncontrada } from "@/lib/seguimiento";
 import { analizarBusqueda } from "@/lib/seguimiento/auto";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 import { urlPanel } from "@/lib/tienda/dominios";
 
-const ACTOR = "scrapesage~mercadolibre-scraper";
-/** Resultados por búsqueda y lo que cobra el actor por cada uno (US$ 2 cada 1.000). */
+/** Resultados por búsqueda y lo que cuesta cada uno con la herramienta de Apify (lib/apify.ts, ACTOR_ML: US$ 0,001 por
+ *  resultado más US$ 0,005 por corrida, repartido). */
 export const RESULTADOS_POR_BUSQUEDA = 30;
-export const USD_POR_RESULTADO = 0.002;
+export const USD_POR_RESULTADO = 0.0012;
 /** Productos que se buscan a la vez y segundos de trabajo por vuelta (antes de relanzarse). */
 const A_LA_VEZ = 3;
 /** Mercado Libre a veces frena la búsqueda con su control anti-robots (Fer, 28/10: 17 de 20 vacías). La corrida vuelve sin
@@ -192,7 +192,7 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
     await Promise.all(lote.map(async (p) => {
       // Primero, gratis, con lo leído de los referentes; si ahí no hay iguales, la búsqueda en Mercado Libre.
       if (referentes.length && await conReferentes(org, p.producto_id, p.texto, referentes).catch(() => false)) return;
-      const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [p.texto], maxItems: RESULTADOS_POR_BUSQUEDA, maxPagesPerQuery: 1, includeProductDetails: false },
+      const c = await correrConEntrada(ACTOR_ML, entradaBusquedaMl(p.texto, RESULTADOS_POR_BUSQUEDA),
         { max: RESULTADOS_POR_BUSQUEDA, esperaSeg: 120, topeUsd: 0.2 });
       const costo = Math.max(c.costoUsd ?? 0, c.items.length * USD_POR_RESULTADO);
       await consulta("update precio_mercado_tanda set gastado_usd = gastado_usd + $2 where id = $1", [tanda, costo]);

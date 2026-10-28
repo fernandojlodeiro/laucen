@@ -5,21 +5,21 @@
 //
 // Mercado Libre no deja buscar ni leer publicaciones ajenas por la API
 // (probado de todas las maneras, bitácora: prueba 35 de /admin/meli), así que:
-// - Buscar para elegir: Apify (scrapesage~mercadolibre-scraper), unos
-//   US$ 0,10 por búsqueda de 50 resultados. Se guarda la última por producto.
+// - Buscar para elegir: Apify (ACTOR_ML de lib/apify.ts), unos
+//   unos US$ 0,06 por búsqueda de 50 resultados. Se guarda la última por producto.
 // - Leer las seguidas de catálogo: la API (/products/{id}/items), gratis.
 // - Leer las seguidas comunes: Apify, por su dirección.
 // Todo lo pago respeta el tope mensual (config 'seguimiento').
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { correrConEntrada, costosFinales } from "@/lib/apify";
+import { ACTOR_ML, correrConEntrada, costosFinales, entradaBusquedaMl } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
 import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
 // Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
-const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
+const POR_RESULTADO = { busqueda: 0.0012, lectura: 0.008 };
 
 // ── Configuración general ───────────────────────────────────
 
@@ -145,7 +145,7 @@ export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null
   const estadoTxt = (txt(x, "status", "itemStatus") ?? "").toLowerCase();
   return {
     itemId: id, catalogoId: catalogo, titulo: txt(x, "title", "name") ?? "(sin título)", foto: txt(x, "image", "thumbnail", "imageUrl", "images", "pictures"),
-    permalink: url, vendedor: txt(x, "sellerName", "seller", "sellerNickname"), tiendaOficial: bool(x.officialStore),
+    permalink: url, vendedor: txt(x, "sellerName", "seller", "sellerNickname"), tiendaOficial: bool(x.officialStore ?? x.isOfficialStore),
     precio: num(x.price ?? x.currentPrice), precioOriginal: num(x.originalPrice), moneda: txt(x, "currency") ?? "ARS",
     // El envío gratis de la búsqueda de Apify no es confiable: el de verdad sale de la API (catálogo).
     cuotas: txt(x, "installments"), envioGratis: null, publicidad: x.sponsored === true, esCatalogo: !!enCatalogo,
@@ -214,7 +214,7 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
   if (q.length < 3) throw new ErrorErp("Escribí qué buscar (al menos 3 letras).");
   const queda = await quedaParaGastar(org);
   if (queda < 0.2) throw new ErrorErp("Se llegó al tope de gasto del mes del seguimiento (Configuración › Seguimiento de publicaciones).");
-  const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [q], maxItems: 50, maxPagesPerQuery: 1, includeProductDetails: false },
+  const c = await correrConEntrada(ACTOR_ML, entradaBusquedaMl(q, 50),
     { max: 50, esperaSeg: 240, topeUsd: Math.min(0.5, queda) });
   await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
     [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
