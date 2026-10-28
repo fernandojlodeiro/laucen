@@ -59,11 +59,14 @@ export function Pantalla({ titulo, subtitulo, acciones, camino, children, ancho 
 }
 
 /** Los avisos que dejan las acciones en la dirección (?ok=… / ?error=…). */
-export function Avisos({ sp }: { sp: { ok?: string; error?: string } }) {
+/** `flotante`: el aviso queda abajo de la pantalla, a la vista aunque se haya grabado algo de más abajo
+ *  (AGENTS.md: el "listo" se muestra donde está el ojo, no arriba de todo). */
+export function Avisos({ sp, flotante }: { sp: { ok?: string; error?: string }; flotante?: boolean }) {
+  const lugar = flotante ? "fixed bottom-16 md:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(92vw,36rem)] shadow-lg border" : "mb-3";
   return (
     <>
-      {sp.error && <p role="alert" className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FDF1EF] text-[#C03420]">{sp.error}</p>}
-      {sp.ok && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF7F1] text-[#1F6E4A]">{sp.ok}</p>}
+      {sp.error && <p role="alert" className={`text-xs rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420] border-[#F3C9C1] ${lugar}`}>{sp.error}</p>}
+      {sp.ok && <p role="status" className={`text-xs rounded-lg px-3 py-2 bg-[#EEF7F1] text-[#1F6E4A] border-[#BFE0CC] ${lugar}`}>{sp.ok}</p>}
     </>
   );
 }

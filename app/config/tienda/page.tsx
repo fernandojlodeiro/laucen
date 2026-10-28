@@ -111,7 +111,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
   return (
     <Pantalla titulo="Tienda web" subtitulo="Lo que ve el comprador en la tienda: nombre, dirección, colores y datos de contacto" ancho="max-w-4xl"
       acciones={tiendas.length === 1 ? botones(tiendas[0].id) : undefined}>
-      <Avisos sp={sp} />
+      <Avisos sp={sp} flotante />
       {tiendas.length === 0 && (
         <div className={CAJA}>
           <p className="text-xs mb-2">Todavía no hay ninguna tienda web (un canal tipo Web minorista).</p>
