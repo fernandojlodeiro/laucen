@@ -25,9 +25,27 @@ test("con quiebre de stock: el típico sale de los tramos con venta regular, no 
   assert.ok(r.mejor <= 120);
 });
 
-test("la ventana tiene que entrar en el período", () => {
+test("la ventana tiene que entrar en el período; si no entra ninguna, ritmo de tramos cortos", () => {
+  // 31 días vendiendo 1 por día y el período termina ahí: no entra una ventana de 60, pero el tramo de 31 días sí cuenta.
   const r = ritmo(cadaDia(0, 30, 1, 1), 60, 30);
-  assert.equal(r.ventanas, 0);
+  assert.equal(r.de, "cortos");
+  assert.equal(r.tipico, 60);
+});
+
+test("tramos cortos: se vende por rachas con cortes de más de la tolerancia (Fer, 28/10)", () => {
+  // Rachas de 20 días vendiendo 2 por día, separadas por 30 días sin venta: ninguna ventana de 60 vale.
+  const rs = [...cadaDia(0, 19, 1, 2), ...cadaDia(50, 69, 1, 1), ...cadaDia(100, 119, 1, 3)];
+  const r = ritmo(rs, 60, 200);
+  assert.equal(r.de, "cortos");
+  assert.equal(r.ventanas, 3);
+  assert.equal(r.tipico, 120); // mediana de 1, 2 y 3 por día × 60
+  assert.equal(r.mejor, 180);
+});
+
+test("sin racha: ventas sueltas sin ningún tramo de 14 días", () => {
+  // Cuatro días seguidos y después ventas sueltas: el hueco típico es 1 día (tolerancia 7) y no hay tramo de 14 días.
+  const r = ritmo([...cadaDia(0, 3, 1, 1), { dia: 100, cantidad: 2 }, { dia: 200, cantidad: 1 }], 60, 260);
+  assert.equal(r.de, "sin_racha");
   assert.equal(r.tipico, 0);
 });
 

@@ -9,7 +9,7 @@
 
 import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
-import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
+import { costosMl, ritmo, sinComprasGrandes, type Grillas, type OrigenRitmo, type Renglon } from "@/lib/compras/sugerencia-calculo";
 import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 import { CATEGORIAS_VIA, calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
 import { mejorDelMercado, preciosDeMercado } from "@/lib/compras/precio-mercado";
@@ -65,6 +65,9 @@ export function aComprar(paraDias: number, dias: number, demora: number, stock: 
 export type FilaSugerencia = {
   clave: string; producto_id: number | null; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean;
   tipico: number; mejor: number; ventanas: number; dias_con_venta: number; grandes: number; mayor_grande: number;
+  /** De dónde sale el ritmo (lib/compras/sugerencia-calculo.ts): tramos regulares de N días, tramos cortos o sin racha;
+   *  y las unidades vendidas en el período (con las compras grandes). */
+  ritmo_de: OrigenRitmo; vendidas: number;
   /** El costo puesto acá por unidad (Fer, 28/10): el de la vía que le corresponde (`costo_de`): por avión (courier) si por
    *  avión deja el margen mínimo, si no por barco (con la NCM si está cargada); sin peso o FOB, el de la ficha. */
   costo_usd: number | null; costo_ars: number | null; costo_de: "avion" | "barco" | "ficha" | null;
@@ -146,11 +149,12 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     if (r.precio != null && r.precio > 1 && (!u || r.dia >= u.dia)) ultima.set(r.clave, { dia: r.dia, precio: r.precio, titulo: r.titulo });
   }
   const fin = aDia(f.hasta);
-  const ritmos = new Map<string, ReturnType<typeof ritmo> & { grandes: number; mayor: number }>();
+  // Todos los que se vendieron, también los «sin racha» (Fer, 28/10: para ver qué queda afuera; se muestran si se pide).
+  const ritmos = new Map<string, ReturnType<typeof ritmo> & { grandes: number; mayor: number; vendidas: number }>();
   for (const [clave, rs] of porClave) {
     const g = sinComprasGrandes(rs);
     const rt = ritmo(g.quedan, f.dias, fin);
-    if (rt.mejor > 0) ritmos.set(clave, { ...rt, grandes: g.grandes, mayor: g.mayor });
+    ritmos.set(clave, { ...rt, grandes: g.grandes, mayor: g.mayor, vendidas: rs.reduce((t, x) => t + x.cantidad, 0) });
   }
   if (!ritmos.size) return { filas: [], tcHoy };
   const claves = [...ritmos.keys()].filter((k) => ultima.has(k));
@@ -236,6 +240,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     return {
       clave: d.clave, producto_id: d.producto_id, familia_id: d.familia_id, proveedor_id: d.proveedor_id, sku: d.sku, titulo: d.titulo, fotos: d.fotos, archivado: d.archivado,
       tipico: r.tipico, mejor: r.mejor, ventanas: r.ventanas, dias_con_venta: r.diasConVenta, grandes: r.grandes, mayor_grande: r.mayor,
+      ritmo_de: r.de, vendidas: r.vendidas,
       costo_usd: costoUsd, costo_ars: costoArs, costo_de: costoDe, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
       precio_base: pb.de, precio_venta: base, vendiendo, revisar: paraRevisar(d.clasica, mj?.precio ?? null), variacion_id: d.variacion_id,
@@ -332,7 +337,10 @@ export function filtrarMuestra(filas: FilaSugerencia[], sp: Record<string, strin
   // Vía (Fer, 28/10: elegir más de una): las categorías tildadas, separadas por coma; «rentable» = Avión y Conviene barco.
   const vias = viasElegidas(sp.via);
   const pasaVia = (x: FilaSugerencia) => !vias.size || vias.has(x.via);
-  return filas.filter((x) => (conStock || x.comprar_tipico > 0) && (prov == null || (x.proveedor_id ?? 0) === prov) && pasaVia(x) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && coincide(x));
+  // Ritmo (Fer, 28/10): los «sin racha» sólo con la casilla «Incluye los vendidos sin racha» o eligiéndolos en «Ritmo».
+  const ritmoF = ["regular", "cortos", "sin_racha"].includes(sp.ritmo ?? "") ? sp.ritmo : "";
+  const pasaRitmo = (x: FilaSugerencia) => (ritmoF ? x.ritmo_de === ritmoF : x.ritmo_de !== "sin_racha" || sp.sin_racha === "1");
+  return filas.filter((x) => pasaRitmo(x) && (conStock || x.comprar_tipico > 0 || x.ritmo_de === "sin_racha") && (prov == null || (x.proveedor_id ?? 0) === prov) && pasaVia(x) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && coincide(x));
 }
 
 /** «Última venta» (sólo muestra): en los últimos N meses. */
@@ -342,7 +350,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-18", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-19", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

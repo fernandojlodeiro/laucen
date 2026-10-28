@@ -77,7 +77,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const t = totalesSugerencia(filas);
   const idsMercado = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))].slice(0, TOPE_TANDA);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, con_mercado: f.conMercado ? "1" : null, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, con_mercado: f.conMercado ? "1" : null, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null, ritmo: sp.ritmo ?? null, sin_racha: sp.sin_racha ?? null };
 
   return (
     // Para ahorrar alto (Fer, 28/10): los botones arriba a la derecha, a la altura del título; el estado de la búsqueda de
@@ -117,6 +117,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <Vias opciones={opcionesVia} elegidas={[...viasElegidas(sp.via)]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: lo que quede del stock cuando llegue la compra alcanza para los días elegidos" />
+          <Desplegable parametro="ritmo" etiqueta="Ritmo" valor={sp.ritmo ?? ""} limpiar={["p"]}
+            opciones={[{ valor: "", texto: "Con ritmo" }, { valor: "regular", texto: "Regular" }, { valor: "cortos", texto: "Tramos cortos" }, { valor: "sin_racha", texto: "Sin racha" }]} />
+          <CasillaViva parametro="sin_racha" activo={sp.sin_racha === "1"} etiqueta="Incluye los vendidos sin racha"
+            ayuda="Los que se vendieron en el período pero nunca con regularidad (ni un tramo de 14 días seguidos): no tienen ritmo y no se calcula qué comprar; sirven para ver qué queda afuera" />
           <CasillaViva parametro="con_mercado" activo={f.conMercado} etiqueta="Calcular con el precio de mercado"
             ayuda="Todo producto que tiene precio de mercado se calcula a ese precio, como si lo vendieras al precio del más barato, lo vendas o no. Destildada, la Clásica para lo que vendés" />
           </FiltrosConOk>
@@ -182,7 +186,9 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                     {x.archivado && <span className="shrink-0"><Estado texto={x.producto_id ? "Inactivo" : "No está en el catálogo"} tono="gris" /></span>}
                   </span>
                   <span className="block text-[10px] text-[#5C6B76] whitespace-nowrap truncate" title="Días con venta en el período · tramos con venta regular">
-                    {entero(x.ventanas)} tramos regulares de {f.dias} días
+                    {x.ritmo_de === "regular" ? <>{entero(x.ventanas)} tramos regulares de {f.dias} días</>
+                      : x.ritmo_de === "cortos" ? <span className="text-[#8a6100]" title="No hay ningún tramo de esos días sin cortes: el ritmo sale de tramos de venta seguida más cortos (de al menos 14 días), llevado a los días elegidos. Es una estimación">ritmo de {entero(x.ventanas)} tramo{x.ventanas === 1 ? "" : "s"} corto{x.ventanas === 1 ? "" : "s"} (estimado)</span>
+                      : <span className="text-[#C03420]" title="Se vendió sin regularidad: no hay ni un tramo de 14 días de venta seguida">sin racha: {entero(x.vendidas)} u. en {entero(x.dias_con_venta)} días con venta</span>}
                     {x.grandes > 0 && <span className="text-[#8a6100]"> · {x.grandes} compra{x.grandes === 1 ? "" : "s"} grande{x.grandes === 1 ? "" : "s"} no considerada{x.grandes === 1 ? "" : "s"} (mayor {entero(x.mayor_grande)} u.)</span>}
                   </span>
                   </Globo>

@@ -7,11 +7,16 @@
 //   · típico = la mediana de lo vendido;  · mejor momento = el máximo.
 // Las compras grandes de una vez (un renglón con más de 3 veces la cantidad típica de ese producto, y 6 o más unidades)
 // no cuentan: inflan el ritmo y no se repiten. Se informan aparte.
+// Sin ninguna ventana entera que valga (Fer, 28/10: un producto que se vende por rachas quedaba afuera, ej. SKU03394 con
+// 323 u. vendidas), se usan los tramos de venta seguida más cortos (al menos TRAMO_CORTO_MINIMO días, sin un hueco más largo
+// que la tolerancia): lo vendido por día en cada tramo, llevado a N días (típico = la mediana, mejor = el máximo). Si
+// tampoco hay, el producto queda «sin racha» (ritmo 0, se ve sólo si se pide).
 
 export const TOLERANCIA_MINIMA_DIAS = 7;
 export const VECES_HUECO = 3;
 export const VECES_COMPRA_GRANDE = 3;
 export const COMPRA_GRANDE_MINIMA = 6;
+export const TRAMO_CORTO_MINIMO = 14;
 
 export type Renglon = { dia: number; cantidad: number };
 
@@ -34,7 +39,9 @@ export function sinComprasGrandes(rs: Renglon[]): { quedan: Renglon[]; grandes: 
   return { quedan, grandes, mayor };
 }
 
-export type Ritmo = { tipico: number; mejor: number; ventanas: number; tolerancia: number; diasConVenta: number };
+/** De dónde sale el ritmo: ventanas enteras regulares, tramos cortos o ninguno. */
+export type OrigenRitmo = "regular" | "cortos" | "sin_racha";
+export type Ritmo = { tipico: number; mejor: number; ventanas: number; tolerancia: number; diasConVenta: number; de: OrigenRitmo };
 
 /** Lo que se vende en `dias` días a un ritmo real de la historia. `fin` = último día del período (inclusive). */
 export function ritmo(rs: Renglon[], dias: number, fin: number): Ritmo {
@@ -45,7 +52,7 @@ export function ritmo(rs: Renglon[], dias: number, fin: number): Ritmo {
   const n = S.length;
   const huecos = S.slice(1).map((d, i) => d - S[i]);
   const tolerancia = Math.max(TOLERANCIA_MINIMA_DIAS, Math.ceil(VECES_HUECO * mediana(huecos)));
-  if (n < 2) return { tipico: 0, mejor: 0, ventanas: 0, tolerancia, diasConVenta: n };
+  if (n < 2) return { tipico: 0, mejor: 0, ventanas: 0, tolerancia, diasConVenta: n, de: "sin_racha" };
   // Sumas acumuladas de unidades y de huecos demasiado largos.
   const acumU = [0];
   for (const u of U) acumU.push(acumU[acumU.length - 1] + u);
@@ -62,7 +69,18 @@ export function ritmo(rs: Renglon[], dias: number, fin: number): Ritmo {
     if (huecosMalos > 0 || finVentana - S[j] > tolerancia) continue;
     sumas.push(acumU[j + 1] - acumU[i]);
   }
-  return { tipico: Math.round(mediana(sumas)), mejor: sumas.length ? Math.max(...sumas) : 0, ventanas: sumas.length, tolerancia, diasConVenta: n };
+  if (sumas.length) return { tipico: Math.round(mediana(sumas)), mejor: Math.max(...sumas), ventanas: sumas.length, tolerancia, diasConVenta: n, de: "regular" };
+  // Tramos cortos: corridas de días con venta sin un hueco mayor a la tolerancia, de al menos TRAMO_CORTO_MINIMO días.
+  const porDiaTramo: number[] = [];
+  let ini = 0;
+  for (let k = 1; k <= n; k++) {
+    if (k < n && S[k] - S[k - 1] <= tolerancia) continue;
+    const largo = S[k - 1] - S[ini] + 1;
+    if (largo >= TRAMO_CORTO_MINIMO) porDiaTramo.push((acumU[k] - acumU[ini]) / largo);
+    ini = k;
+  }
+  if (!porDiaTramo.length) return { tipico: 0, mejor: 0, ventanas: 0, tolerancia, diasConVenta: n, de: "sin_racha" };
+  return { tipico: Math.round(mediana(porDiaTramo) * dias), mejor: Math.round(Math.max(...porDiaTramo) * dias), ventanas: porDiaTramo.length, tolerancia, diasConVenta: n, de: "cortos" };
 }
 
 export type Grillas = { cargoFijo: { desde: number; valor: number }[]; envio: { desde: number; valor: number }[] };
