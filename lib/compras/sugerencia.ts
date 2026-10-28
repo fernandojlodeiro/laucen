@@ -14,19 +14,35 @@ import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 import { calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
 import { preciosDeMercado } from "@/lib/compras/precio-mercado";
 import { estadosMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
+import { coincideBusqueda } from "@/lib/busqueda";
+import { ordenarEnMemoria } from "@/lib/lista";
 
-export type FiltroSugerencia = { desde: string; hasta: string; dias: number };
+/** `demora`: días desde que se pide hasta que la mercadería llega al depósito (Fer, 28/10: «por lo menos 5 semanas, cerca de
+ *  40 días», aun por avión). Lo que se vende mientras tanto sale del stock de hoy. */
+export type FiltroSugerencia = { desde: string; hasta: string; dias: number; demora: number };
+
+/** De entrada, lo que tarda una compra en llegar (pedido, cotización, fabricación, avión y courier hasta Córdoba). */
+export const DEMORA_LLEGADA = 40;
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 export function leerFiltroSugerencia(sp: Record<string, string | undefined>, hoy: string): FiltroSugerencia {
   const seisAnios = `${Number(hoy.slice(0, 4)) - 6}${hoy.slice(4)}`;
   const dias = Math.round(Number(sp.dias));
+  const demora = sp.demora != null && sp.demora !== "" ? Math.round(Number(sp.demora)) : DEMORA_LLEGADA;
   return {
     desde: FECHA.test(sp.desde ?? "") ? sp.desde! : seisAnios,
     hasta: FECHA.test(sp.hasta ?? "") ? sp.hasta! : hoy,
     dias: Number.isFinite(dias) && dias >= 7 && dias <= 365 ? dias : 60,
+    demora: Number.isFinite(demora) && demora >= 0 && demora <= 180 ? demora : DEMORA_LLEGADA,
   };
+}
+
+/** Lo que queda al llegar la compra y lo que hay que comprar (pura): mientras llega se vende al mismo ritmo (`paraDias` u.
+ *  cada `dias` días) y eso sale del stock de hoy; lo que se compra tiene que cubrir los `dias` días después de que llega. */
+export function aComprar(paraDias: number, dias: number, demora: number, stock: number): { alLlegar: number; comprar: number } {
+  const alLlegar = Math.max(0, Math.max(0, stock) - Math.round((paraDias * demora) / dias));
+  return { alLlegar, comprar: Math.max(0, paraDias - alLlegar) };
 }
 
 export type FilaSugerencia = {
@@ -39,8 +55,9 @@ export type FilaSugerencia = {
   comision_pct: number; costos_ml: number | null; ganancia_unit: number | null; margen_pct: number | null;
   /** La ganancia sobre el costo (lo que rinde cada peso invertido). */
   roi_pct: number | null;
-  /** Lo disponible hoy y lo que habría que comprar (lo que se vendería menos lo que ya hay), según el típico y el mejor momento. */
-  stock: number; comprar_tipico: number; comprar_mejor: number;
+  /** Lo disponible hoy, lo que va a quedar cuando llegue la compra (al ritmo típico) y lo que habría que comprar (lo que se
+   *  vendería en los días elegidos menos lo que quede al llegar), según el típico y el mejor momento. */
+  stock: number; al_llegar: number; comprar_tipico: number; comprar_mejor: number;
   /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
    *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
   compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
@@ -185,7 +202,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       precio_base: d.clasica != null && d.clasica > 0 ? "clasica" : precioHoy != null ? "ultima" : null,
       margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
-      stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
+      ...(() => { const t = aComprar(r.tipico, f.dias, f.demora, d.stock);
+        return { stock: d.stock, al_llegar: t.alLlegar, comprar_tipico: t.comprar, comprar_mejor: aComprar(r.mejor, f.dias, f.demora, d.stock).comprar }; })(),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
       ...(() => { const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
         return { mercado: m?.p25 ?? null, mercado_mediana: m?.mediana ?? null, mercado_n: m?.encontradas ?? 0, mercado_ts: m ? new Date(m.ts).toISOString().slice(0, 10) : null,
@@ -211,7 +229,7 @@ export function totalesSugerencia(filas: FilaSugerencia[]) {
 
 /** Las columnas por las que se puede ordenar (lista blanca para ?orden=). */
 export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | string | null> = {
-  sku: (x) => x.sku, tipico: (x) => x.tipico, mejor: (x) => x.mejor, stock: (x) => x.stock, comprar: (x) => x.comprar_tipico,
+  sku: (x) => x.sku, tipico: (x) => x.tipico, mejor: (x) => x.mejor, stock: (x) => x.stock, al_llegar: (x) => x.al_llegar, comprar: (x) => x.comprar_tipico,
   costo: (x) => x.costo_usd, inversion: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_tipico), ultima: (x) => x.ultima_fecha,
   precio: (x) => x.precio_hoy, clasica: (x) => x.clasica, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct, roi: (x) => x.roi_pct, dias_venta: (x) => x.dias_con_venta,
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
@@ -246,7 +264,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-9", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-10", org, f.desde, f.hasta, String(f.dias), String(f.demora)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
@@ -278,4 +296,17 @@ export async function arbolCategorias(org: string, filas: FilaSugerencia[]): Pro
     });
   }
   return { nodos: [...nodos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre)), ancestros };
+}
+
+/** Las filas que se ven en la pantalla con los filtros de la dirección (todas las páginas, en su orden): las usan las
+ *  descargas en Excel. */
+export async function filasDeLaPantalla(org: string, sp: Record<string, string | undefined>, hoy: string): Promise<{ f: FiltroSugerencia; filas: FilaSugerencia[] }> {
+  const f = leerFiltroSugerencia(sp, hoy);
+  const { filas: todas } = await sugerenciaGuardada(org, f);
+  const { ancestros } = await arbolCategorias(org, todas);
+  const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
+  const categoriaFuera = (x: FilaSugerencia) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
+  const q = sp.q?.trim() ?? "";
+  const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
+  return { f, filas: ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA) };
 }

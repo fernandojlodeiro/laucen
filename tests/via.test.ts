@@ -41,3 +41,17 @@ test("categorías: avión, conviene barco, no rentable, imposible, sin datos", (
   assert.equal(calcularVia(null, m(100, null), 20, sinNcm, CONFIG_VIA).categoria, "sin_datos");
   assert.equal(calcularVia(10, m(null, null), 20, sinNcm, CONFIG_VIA).categoria, "sin_datos");
 });
+
+test("a comprar: descuenta lo que se vende mientras llega la compra", async () => {
+  const { aComprar } = await import("@/lib/compras/sugerencia");
+  // 60 u. cada 60 días, llega en 40: se venden 40 de las 50 de hoy, quedan 10 → comprar 50.
+  assert.deepEqual(aComprar(60, 60, 40, 50), { alLlegar: 10, comprar: 50 });
+  // Se agota antes de llegar: queda 0 → se compran los 60 días enteros.
+  assert.deepEqual(aComprar(60, 60, 40, 20), { alLlegar: 0, comprar: 60 });
+  // Sin demora, como antes: típico menos stock.
+  assert.deepEqual(aComprar(60, 60, 0, 50), { alLlegar: 50, comprar: 10 });
+  // Sobra stock aun después de llegar.
+  assert.deepEqual(aComprar(30, 60, 40, 200), { alLlegar: 180, comprar: 0 });
+  // Stock negativo cuenta como cero.
+  assert.deepEqual(aComprar(30, 60, 40, -5), { alLlegar: 0, comprar: 30 });
+});

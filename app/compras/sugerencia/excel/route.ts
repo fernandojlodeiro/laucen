@@ -4,11 +4,9 @@ import { ESTADOS_MERCADO } from "@/lib/seguimiento/estado-mercado";
 import type { NextRequest } from "next/server";
 import { CATEGORIAS_VIA } from "@/lib/compras/via";
 import { entrarErp } from "@/app/componentes/erp";
-import { coincideBusqueda } from "@/lib/busqueda";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { ORDEN_SUGERENCIA, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
-import { ordenarEnMemoria } from "@/lib/lista";
+import { filasDeLaPantalla, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -16,13 +14,7 @@ export const maxDuration = 120;
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
-  const f = leerFiltroSugerencia(sp, hoyArgentina());
-  const { filas: todas } = await sugerenciaGuardada(s.org.id, f);
-  const { ancestros } = await arbolCategorias(s.org.id, todas);
-  const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
-  const categoriaFuera = (x: FilaSugerencia) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
-  const q = sp.q?.trim() ?? "";
-  const filas = ordenarEnMemoria(filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"))), sp, ORDEN_SUGERENCIA);
+  const { f, filas } = await filasDeLaPantalla(s.org.id, sp, hoyArgentina());
   const fecha = (iso: string) => new Date(`${iso}T00:00:00Z`);
   const columnas: ColumnaExcel<FilaSugerencia>[] = [
     { titulo: "SKU", valor: (x) => x.sku, ancho: 16, formato: "texto" },
@@ -31,6 +23,7 @@ export async function GET(req: NextRequest) {
     { titulo: `Para ${f.dias} días · típico`, valor: (x) => x.tipico, formato: "entero", ancho: 12 },
     { titulo: `Para ${f.dias} días · mejor momento`, valor: (x) => x.mejor, formato: "entero", ancho: 12 },
     { titulo: "Stock hoy", valor: (x) => x.stock, formato: "entero", ancho: 10 },
+    { titulo: `Stock al llegar (en ${f.demora} días)`, valor: (x) => x.al_llegar, formato: "entero", ancho: 11 },
     { titulo: "A comprar · típico", valor: (x) => x.comprar_tipico, formato: "entero", ancho: 11 },
     { titulo: "A comprar · mejor momento", valor: (x) => x.comprar_mejor, formato: "entero", ancho: 11 },
     { titulo: `Para ${f.dias} días · según compras`, valor: (x) => x.segun_compras, formato: "entero", ancho: 12 },
@@ -76,6 +69,6 @@ export async function GET(req: NextRequest) {
   ];
   const t = totalesSugerencia(filas);
   return respuestaExcel("Sugerencia de compra", "Sugerencia", columnas, filas,
-    [["Total", null, null, null, null, null, t.unidadesTipicas, t.unidadesMejor, null, null, null, null, t.inversionTipicaUsd, t.inversionMejorUsd, null, null, null, null, null, null, null, null, null, null, null, t.gananciaTipica, t.gananciaMejor],
-      [`Período ${f.desde} a ${f.hasta}; comprar para ${f.dias} días`]]);
+    [["Total", null, null, null, null, null, null, t.unidadesTipicas, t.unidadesMejor, null, null, null, null, t.inversionTipicaUsd, t.inversionMejorUsd, null, null, null, null, null, null, null, null, null, null, null, t.gananciaTipica, t.gananciaMejor],
+      [`Período ${f.desde} a ${f.hasta}; comprar para ${f.dias} días; la compra llega en ${f.demora} días`]]);
 }

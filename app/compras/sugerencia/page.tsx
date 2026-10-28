@@ -22,12 +22,13 @@ import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { DEMORA_LLEGADA, MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const DIAS_OPCIONES = [30, 45, 60, 90, 120, 180];
+const DEMORA_OPCIONES = [0, 20, 30, 40, 50, 60, 75, 90, 120];
 type SP = Record<string, string | undefined>;
 const pesos = (n: number | null) => (n == null ? "—" : `$ ${formatearNumero(Math.round(n), "pesos")}`);
 const usd = (n: number | null) => (n == null ? "—" : `US$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
@@ -53,17 +54,19 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const t = totalesSugerencia(filas);
   const idsMercado = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))].slice(0, TOPE_TANDA);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, demora: f.demora === DEMORA_LLEGADA ? null : f.demora, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
 
   return (
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
-      subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento). Sin notebooks.`}
+      subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento), descontando lo que se vende en los ${f.demora} días que tarda en llegar. Sin notebooks.`}
       acciones={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="SKU o producto" limpiar={["p"]} />
           <RangoFechas desde={f.desde} hasta={f.hasta} etiqueta="Historia" limpiar={["p"]} />
           <Desplegable parametro="dias" etiqueta="Comprar para" valor={f.dias === 60 ? "" : String(f.dias)} limpiar={["p"]}
             opciones={DIAS_OPCIONES.map((d) => ({ valor: d === 60 ? "" : String(d), texto: `${d} días` }))} />
+          <Desplegable parametro="demora" etiqueta="Llega en" valor={f.demora === DEMORA_LLEGADA ? "" : String(f.demora)} limpiar={["p"]}
+            opciones={DEMORA_OPCIONES.map((d) => ({ valor: d === DEMORA_LLEGADA ? "" : String(d), texto: d ? `${d} días` : "Ya (sin demora)" }))} />
           <Desplegable parametro="min_dias" etiqueta="Días con venta" valor={sp.min_dias ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todos" }, ...MIN_DIAS_VENTA.map((d) => ({ valor: String(d), texto: `Más de ${d}` }))]} />
           <Desplegable parametro="vmeses" etiqueta="Última venta" valor={sp.vmeses ?? ""} limpiar={["p"]}
@@ -73,11 +76,12 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <Desplegable parametro="via" etiqueta="Vía" valor={sp.via ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todas" }, { valor: "rentable", texto: "Rentables por avión" }, ...Object.entries(CATEGORIAS_VIA).map(([k, c]) => ({ valor: k, texto: c.texto }))]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
-          <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
+          <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: lo que quede del stock cuando llegue la compra alcanza para los días elegidos" />
           <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
             texto={`Buscar precio de mercado (${idsMercado.length})`}
             pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
+          <a href={url("/compras/sugerencia/proveedor", params)} className={VERDE} title="Sólo lo que hay que comprar de esta lista: foto, SKU, título, cantidad y una columna vacía para el precio">Excel para el proveedor</a>
         </div>
       }>
       {tanda && (
@@ -105,8 +109,9 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="mejor" n desc title={`Lo que se vendería en ${f.dias} días al ritmo del mejor momento`}>Mejor</ThOrden>
               <ThOrden col="segun_compras" n desc title={`Lo que se vendería en ${f.dias} días al ritmo con que se vendieron las últimas compras registradas (invoices y courier)`}>Según compras</ThOrden>
               <ThOrden col="dias_venta" n desc title="Días con venta en el período">Días venta</ThOrden>
-              <ThOrden col="stock" n desc>Stock</ThOrden>
-              <ThOrden col="comprar" n desc title="Típico menos el stock de hoy">A comprar</ThOrden>
+              <ThOrden col="stock" n desc title="Disponible hoy">Stock</ThOrden>
+              <ThOrden col="al_llegar" n desc title={`Lo que va a quedar cuando llegue la compra: el stock de hoy menos lo que se vende en ${f.demora} días al ritmo típico`}>Al llegar</ThOrden>
+              <ThOrden col="comprar" n desc title={`Típico menos lo que quede al llegar (en ${f.demora} días)`}>A comprar</ThOrden>
               <ThOrden col="costo" n desc>Costo US$</ThOrden>
               <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
@@ -126,7 +131,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={23} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={24} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
@@ -149,6 +154,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 </td>
                 <td className={TDN}>{entero(x.dias_con_venta)}</td>
                 <td className={TDN}>{entero(x.stock)}</td>
+                <td className={TDN}>{entero(x.al_llegar)}</td>
                 <td className={`${TDN} font-semibold`} title={`Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>
                 <td className={TDN}>{usd(x.costo_usd)}</td>
                 <td className={TDN}>{x.costo_usd == null ? "—" : usd(x.costo_usd * x.comprar_tipico)}</td>
@@ -186,7 +192,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
       <p className="text-[10px] text-[#5C6B76] mt-1">Calculado el {new Date(calculado).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}: el cálculo se guarda 30 minutos (filtrar, ordenar y cambiar de página no lo rehacen).</p>
       <p className="text-[11px] text-[#5C6B76] mt-2">
         Costo = último costo de la ficha; la ganancia sale del precio de la lista Clásica (con * los que no tienen Clásica: ahí sale de la última venta). «Últ. venta hoy» = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
-        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos el stock de hoy; la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de la Clásica − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
+        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos lo que quede del stock de hoy cuando llegue la compra (en {f.demora} días, al mismo ritmo); la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de la Clásica − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
       </p>
       <section className="mt-6">
         <TituloSeccion titulo="¿Avión o barco?">

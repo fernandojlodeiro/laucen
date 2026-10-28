@@ -4,7 +4,7 @@ menu: Compras › Sugerencia de compra
 ruta: /compras/sugerencia
 rutas: /compras/sugerencia
 permiso: compras_ver
-resumen: Qué comprar para una cantidad de días según el ritmo real de venta de algún momento de la historia (el típico y el mejor), cuánto se invierte y qué ganancia podría dejar.
+resumen: Qué comprar para una cantidad de días según el ritmo real de venta de algún momento de la historia (el típico y el mejor), descontando lo que se vende mientras la compra llega, cuánto se invierte, qué ganancia podría dejar y el Excel para pedirle cotización al proveedor.
 ---
 
 ## Para qué sirve
@@ -17,16 +17,17 @@ Menú **Compras › Sugerencia de compra**.
 
 ## Qué hay en la pantalla
 
-- Arriba a la derecha, a la altura del título, los filtros y **Descargar Excel** (lo mismo que se ve, todas las filas):
+- Arriba a la derecha, a la altura del título, los filtros, **Descargar Excel** (lo mismo que se ve, todas las filas, con todas las columnas) y **Excel para el proveedor** (ver abajo):
   - buscador (SKU o producto);
   - **Historia**: el período que se estudia (de entrada, los últimos 6 años);
   - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
+  - **Llega en**: cuántos días pasan desde que se arma el pedido hasta que la mercadería está en el depósito (de entrada, 40 días, lo que tarda aun por avión: cotización, fabricación, viaje y courier). Lo que se vende en esos días sale del stock de hoy. «Ya (sin demora)» compara directo contra el stock de hoy;
   - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
   - **Última venta**: sólo los que se vendieron por última vez en el último mes, 3 o 6 meses, el último año, 2 o 3 años (para no ver los que dejaron de venderse);
   - **Proveedor**: sólo los productos de ese proveedor preferido (el de la ficha del producto), o «Sin proveedor preferido».
   - **Vía**: sólo los de una categoría de «¿avión o barco?» (ver abajo), o **«Rentables por avión»** (Avión y Conviene barco juntos).
   - **Categorías**: abre el árbol de categorías (hasta el tercer nivel), sólo las que tienen productos en la lista, con cuántos tiene cada una; todas vienen tildadas. Destildar una esconde sus productos y los de sus subcategorías. «Tildar todas» y «Destildar todas» arriba; «Sin categoría» para los productos que no tienen.
-  - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que hay alcanza para los días elegidos); tildada, aparecen también.
+  - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que quede cuando llegue la compra alcanza para los días elegidos); tildada, aparecen también.
   Estos filtros **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
 - Cuatro recuadros: cuántos productos (y cuántos tienen costo), las **unidades a comprar**, la **inversión** en dólares y la **ganancia estimada**, cada una según el ritmo típico y según el mejor momento.
 - La tabla tiene letra un poco más chica y columnas angostas para que entren todas sin desplazarse de costado. Los títulos son cortos (al pasar el mouse por cada uno se ve qué es) y **quedan fijos arriba** al bajar por la lista.
@@ -36,7 +37,7 @@ Menú **Compras › Sugerencia de compra**.
   - **N días · típico** y **· mejor**: lo que se vendería.
   - **Según compras**: lo que se vendería en los días elegidos al ritmo con que se vendieron las últimas compras registradas del producto (hasta 3 que ya se terminaron de vender; de [Invoices de compra](/compras/invoices) y [Compras por courier](/compras/courier)). Debajo, cuántas compras tiene y cuántos días tarda en venderse una compra (la del medio). Al pasar el mouse, cuándo llegó la última y cuántas unidades trajo. Sirve para comparar con el típico: si da mucho más, en la historia hubo cortes de stock que el típico no ve.
   - **Días con venta** en el período (se puede ordenar por esta columna).
-  - **Stock hoy** (disponible) y **A comprar** = lo que se vendería menos el stock (al pasar el mouse, el del mejor momento).
+  - **Stock hoy** (disponible), **Al llegar** = lo que va a quedar de ese stock cuando llegue la compra, y **A comprar** = lo que se vendería menos lo que quede al llegar (al pasar el mouse, el del mejor momento).
   - **Costo US$** y la **inversión** (lo que hay que comprar por el costo).
   - **Última venta**: la fecha, el precio en pesos y el dólar oficial de ese día (al pasar el mouse, lo que daba en dólares).
   - **Clásica**: el precio de hoy en la lista Clásica. **De acá salen Mercado Libre y la ganancia.** Al lado, la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento; ver [Productos](/catalogo/productos)).
@@ -46,6 +47,7 @@ Menú **Compras › Sugerencia de compra**.
   - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
   - **Vía**: la categoría de «¿avión o barco?»; **Flete avión**: el flete aéreo por unidad como % del FOB; **% avión** y **% barco**: la ganancia sobre la Clásica trayéndolo por cada vía (por avión, courier; por barco, despacho con impuestos e IVA) (al pasar el mouse, el costo final y la ganancia en dólares).
 - Arriba, el botón **«Buscar precio de mercado (N)»**: busca en Mercado Libre los productos de la lista que se está viendo (con los filtros puestos, todas las páginas, hasta 300). Antes pregunta ahí mismo cuánto cuesta (unos US$ 0,06 por producto, del tope de gasto del mes de [Seguimiento de publicaciones](/config/seguimiento)). Corre de fondo: tarda unos minutos y la columna **Mercado** se va llenando; arriba de la tabla se ve el avance de la última búsqueda. Lo que encuentra de cada producto queda en su pestaña **Seguimiento** (recuadro **Buscar en Mercado Libre para seguir**, con lo que dijo la IA de cada publicación), y las iguales más baratas **se siguen solas, sin confirmar** (ver [Seguimientos](/catalogo/seguimientos)).
+- **Excel para el proveedor**: la lista simple para pedir cotización. Toma lo que se está viendo (mismos filtros y orden, todas las páginas) y deja sólo lo que hay que comprar, con **Foto**, **SKU**, **Producto** (el título como está en el sistema), **Cantidad** (la de **A comprar**, según el ritmo típico) y una columna **Precio US$** vacía para que el proveedor la complete; al final, el total de productos y unidades. Por ejemplo, para pedirle cotización a un proveedor: elegirlo en **Proveedor**, **Vía** «Avión» o «Rentables por avión», y apretar **Excel para el proveedor**.
 - Abajo, el recuadro **¿Avión o barco?** con los montos y criterios del cálculo; se cambian con el lápiz de su título.
 
 ## Criterios y reglas
@@ -56,7 +58,8 @@ Menú **Compras › Sugerencia de compra**.
 - **Compras grandes**: un renglón de venta con más de 3 veces la cantidad típica de ese producto (y 6 unidades o más) no cuenta para el ritmo, porque no se repite; se avisa en la nota del producto.
 - **Costo**: el último costo en dólares de la ficha, al dólar oficial de hoy. Sin costo, no hay inversión ni ganancia.
 - **Precio para la ganancia**: el de la lista Clásica de hoy. Si el producto no tiene precio en la Clásica, el de la última venta (de cualquier canal) pasado a dólares con el oficial de ese día y a pesos con el de hoy.
-- **A comprar**: lo que se vendería en los días elegidos menos el stock disponible de hoy (nunca menos de cero). La inversión, las unidades y la ganancia de los recuadros son sobre eso.
+- **Al llegar**: el stock disponible de hoy menos lo que se vende al ritmo típico en los días de **Llega en** (nunca menos de cero: si se agota antes, lo que no se pudo vender no se recupera).
+- **A comprar**: lo que se vendería en los días elegidos menos lo que quede al llegar (nunca menos de cero). Para el mejor momento, lo mismo con su ritmo. La inversión, las unidades y la ganancia de los recuadros son sobre eso.
 - **Ganancia por unidad** = precio de la Clásica − comisión de Mercado Libre de su categoría (si no se conoce, la más común) − cargo fijo o envío gratis − costo. No incluye publicidad ni impuestos.
 - **¿Avión o barco?** Por unidad de cada producto:
   - **Flete por avión** = kilos cobrables × US$ por kilo (de entrada, 13). Los kilos cobrables son el mayor entre el peso real y el volumétrico (volumen × 167 kg por m³).
