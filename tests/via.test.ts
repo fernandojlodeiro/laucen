@@ -103,3 +103,18 @@ test("vendedores referentes: candidatas por parecido del título, las más parec
   const r = candidatasReferentes("Cortador Vidrio Manual Tipo Lapiz", pubs).map((x) => x.title);
   assert.deepEqual(r, ["Cortador De Vidrio Tipo Lapiz Alta Precision", "Cortador Vidrio Lapiz"]);
 });
+
+test("vendedores referentes: criterio, marcas con derechos, grupo y número de vendedor", async () => {
+  const { pasaCriterio, esMarcaConDerechos, grupoDe, vendedorDeLink } = await import("@/lib/compras/referentes");
+  assert.equal(pasaCriterio({ precio: 10000, vendidos: 1000 }), true);
+  assert.equal(pasaCriterio({ precio: 60000, vendidos: 50 }), true);
+  assert.equal(pasaCriterio({ precio: 60000, vendidos: 10 }), false);
+  assert.equal(pasaCriterio({ precio: 10000, vendidos: 500 }), false);
+  assert.equal(esMarcaConDerechos("Set Lego Speed Champions"), true);
+  assert.equal(esMarcaConDerechos("Bloques compatibles legos"), false);
+  assert.equal(grupoDe("MLA123456", "x"), "MLA123456");
+  assert.equal(grupoDe(null, "Lupa Vincha 5 Lentes!"), "lupa vincha 5 lentes");
+  assert.equal(vendedorDeLink("https://listado.mercadolibre.com.ar/_CustId_137430519"), 137430519);
+  assert.equal(vendedorDeLink("137430519"), 137430519);
+  assert.equal(vendedorDeLink("https://www.mercadolibre.com.ar/tienda/candy-ho"), null);
+});

@@ -251,3 +251,39 @@ create table if not exists vendedor_referente (
 );
 alter table vendedor_referente enable row level security;
 select erp_politica_org('vendedor_referente');
+
+-- Vendedores referentes, fase 1 (Fer, 28/10; lib/compras/referentes.ts): lo que venden los vendedores de la competencia
+-- leídos, una fila por publicación (sin repetir), cruzada con nuestro catálogo, y lo que Fer decidió de cada una (cotizar o
+-- descartar). referente_pub se rearma entera (por organización) con cada cruce; referente_decision queda.
+alter table vendedor_referente add column if not exists url text;
+alter table vendedor_referente alter column vendedor_id drop not null;
+create table if not exists referente_pub (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  item_id          text not null,
+  vendedor_id      bigint,
+  vendedor         text,
+  titulo           text not null,
+  precio           numeric(14, 2),
+  vendidos         int,
+  foto             text,
+  url              text,
+  categoria_id     text,
+  grupo            text not null,          -- catálogo de ML o el título normalizado: para contar cuántos referentes lo venden
+  lo_venden        int not null default 1,
+  producto_id      bigint references producto(id) on delete set null,   -- el nuestro más parecido, si se parece
+  parecido         numeric(4, 2),
+  leido_ts         timestamptz,
+  primary key (organizacion_id, item_id)
+);
+alter table referente_pub enable row level security;
+select erp_politica_org('referente_pub');
+create table if not exists referente_decision (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  item_id          text not null,
+  estado           text not null check (estado in ('cotizar', 'descartado')),
+  usuario_id       text,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, item_id)
+);
+alter table referente_decision enable row level security;
+select erp_politica_org('referente_decision');

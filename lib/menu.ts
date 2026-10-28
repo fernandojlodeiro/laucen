@@ -87,6 +87,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Compras por courier", href: "/compras/courier", permiso: "compras_ver" },
       { texto: "Invoices de compra", href: "/compras/invoices", permiso: "compras_ver" },
       { texto: "Sugerencia de compra", href: "/compras/sugerencia", permiso: "compras_ver" },
+      { texto: "Vendedores referentes", href: "/compras/referentes", permiso: "compras_ver" },
     ],
   },
   {
