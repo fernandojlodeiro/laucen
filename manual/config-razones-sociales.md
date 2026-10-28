@@ -41,7 +41,7 @@ Campos de una razón social: **Nombre corto** (para reconocerla en los selectore
 ### Ponerle su logo a una razón social
 
 1. Apretá el **lápiz** de la fila.
-2. En **Logo**, apretá **"Subir imagen"** y elegí el archivo (PNG, JPG o WebP; mejor con fondo blanco o transparente).
+2. En **Logo**, apretá **"Subir imagen"** y elegí el archivo (PNG, JPG o WebP; mejor con fondo blanco o transparente). El margen blanco o transparente que tenga alrededor se recorta solo en el PDF, así el dibujo sale grande aunque la imagen tenga mucho espacio vacío.
 3. Apretá **"Guardar"**.
 
 Desde ese momento, las facturas y los presupuestos de esa razón social salen con ese logo. Si la dejás sin logo, usan el de [Empresa](/config/empresa).

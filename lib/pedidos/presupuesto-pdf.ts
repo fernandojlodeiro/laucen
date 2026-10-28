@@ -50,13 +50,15 @@ export function renglones(s: string, f: PDFFont, tam: number, ancho: number, max
   return out;
 }
 
-/** Una imagen de internet lista para el PDF (achicada a `lado` px, en JPG). null si no se pudo. */
-export async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number): Promise<PDFImage | null> {
+/** Una imagen de internet lista para el PDF (achicada a `lado` px, en JPG). null si no se pudo.
+ *  `recortar`: sin el margen blanco o transparente alrededor (para un logo). */
+export async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number, recortar = false): Promise<PDFImage | null> {
   if (!url || !/^https:\/\//.test(url)) return null;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!r.ok) return null;
-    const crudo = Buffer.from(await r.arrayBuffer());
+    let crudo = Buffer.from(await r.arrayBuffer());
+    if (recortar) crudo = await sharp(crudo).trim({ threshold: 25 }).png().toBuffer().catch(() => crudo);
     const jpg = await sharp(crudo).resize(lado, lado, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 82 }).toBuffer();
     return await doc.embedJpg(jpg);
   } catch {
@@ -109,7 +111,7 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     texto(pg, s, xDer - fuente.widthOfTextAtSize(limpio(s), tam), y, tam, fuente, color);
 
   // Las fotos y el logo (el de la razón social que factura el canal o, si no tiene, el de la empresa), en paralelo.
-  const [logo, ...fotos] = await Promise.all([imagen(doc, emisor?.logo || emp?.logo, 400), ...lineas.map((l) => imagen(doc, l.foto, 160))]);
+  const [logo, ...fotos] = await Promise.all([imagen(doc, emisor?.logo || emp?.logo, 600, true), ...lineas.map((l) => imagen(doc, l.foto, 160))]);
 
   // ── Encabezado (sólo en la primera página) ──
   let pg = doc.addPage([W, H]);

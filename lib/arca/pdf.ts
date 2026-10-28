@@ -18,19 +18,19 @@ const limpio = (s: string) => s.normalize("NFC").replace(/[^\x20-\x7E -ÿ]/g, "
 const cuitConGuiones = (c: string) => { const d = c.replace(/\D/g, ""); return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : c; };
 
 /** El logo de la razón social o, si no tiene, el de la empresa (link público de
- *  Supabase Storage), listo para dibujar. Una falla de red o un archivo que no
- *  es imagen → sin logo. */
+ *  Supabase Storage), listo para dibujar y sin su margen. Una falla de red o un
+ *  archivo que no es imagen → sin logo. */
 async function logoDe(doc: PDFDocument, org: string, delEmisor: string | null): Promise<PDFImage | null> {
   try {
     const logo = delEmisor || (await una<{ logo: string | null }>("select logo from empresa where organizacion_id = $1", [org]))?.logo;
     if (!logo || !/^https:\/\//.test(logo)) return null;
     const r = await fetch(logo, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
-    const b = new Uint8Array(await r.arrayBuffer());
-    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return await doc.embedPng(b);
-    if (b[0] === 0xff && b[1] === 0xd8) return await doc.embedJpg(b);
-    // WebP u otro formato (la pantalla deja subir cualquier imagen): se pasa a PNG.
-    return await doc.embedPng(await sharp(b).png().toBuffer());
+    // Sin el margen blanco o transparente alrededor (Fer, 28/10: un logo de 1024×747 con el dibujo en
+    // el medio salía chiquito), y en PNG: así entra cualquier formato (WebP incluido).
+    const b = Buffer.from(await r.arrayBuffer());
+    const recortado = await sharp(b).trim({ threshold: 25 }).png().toBuffer().catch(() => sharp(b).png().toBuffer());
+    return await doc.embedPng(recortado);
   } catch (err) {
     console.error("[pdf] no se pudo poner el logo:", err);
     return null;
@@ -78,10 +78,11 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   // a la izquierda y los datos del emisor bajan un poco y se aprietan.
   const logo = await logoDe(doc, org, e.logo);
   if (logo) {
-    const k = Math.min(150 / logo.width, 34 / logo.height, 1);
-    pagina.drawImage(logo, { x: 40, y: 806 - logo.height * k, width: logo.width * k, height: logo.height * k });
+    // Hasta 42 de alto y sin llegar al recuadro de la letra.
+    const k = Math.min(225 / logo.width, 42 / logo.height);
+    pagina.drawImage(logo, { x: 40, y: 808 - logo.height * k, width: logo.width * k, height: logo.height * k });
   }
-  const y0 = logo ? [762, 750, 740, 730, 720, 710] : [790, 760, 748, 736, 724, 712];
+  const y0 = logo ? [754, 744, 735, 726, 717, 708] : [790, 760, 748, 736, 724, 712];
   texto(pagina, e.razon_social, 40, y0[0], logo ? 11 : 13, fb);
   texto(pagina, `Domicilio: ${e.domicilio ?? "-"}`, 40, y0[1], 8);
   texto(pagina, IVA_EMISOR[e.condicion_iva], 40, y0[2], 8);

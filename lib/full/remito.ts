@@ -111,7 +111,7 @@ export async function pdfRemito(org: string, envioId: number): Promise<{ pdf: Ui
     pg.drawText(limpio(s), { x, y, size: tam, font: fuente, color });
   const derecha = (pg: PDFPage, s: string, xDer: number, y: number, tam = 9, fuente: PDFFont = f, color = NEGRO) =>
     texto(pg, s, xDer - fuente.widthOfTextAtSize(limpio(s), tam), y, tam, fuente, color);
-  const logo = await imagen(doc, emp?.logo, 400);
+  const logo = await imagen(doc, emp?.logo, 600, true);
 
   // ── Membrete ──
   let pg = doc.addPage([W, H]);
