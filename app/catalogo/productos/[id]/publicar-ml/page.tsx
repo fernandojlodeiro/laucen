@@ -56,8 +56,8 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
   const sp = await searchParams;
   const pid = Number(id);
   if (!Number.isInteger(pid) || pid <= 0) notFound();
-  const p = await una<{ id: number; sku_base: string; titulo: string; marca: string | null; no_publicable: boolean }>(
-    "select id::int, sku_base, titulo, marca, no_publicable from producto where organizacion_id = $1 and id = $2", [s.org.id, pid]);
+  const p = await una<{ id: number; sku_base: string; titulo: string; marca: string | null; no_publicable: boolean; nunca_ml: boolean }>(
+    "select id::int, sku_base, titulo, marca, no_publicable, nunca_ml from producto where organizacion_id = $1 and id = $2", [s.org.id, pid]);
   if (!p) notFound();
   const base = `/catalogo/productos/${p.id}/publicar-ml`;
   const camino = [{ texto: p.sku_base, href: `/catalogo/productos/${p.id}` }, { texto: "Publicar en Mercado Libre", href: base }];
@@ -73,6 +73,14 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
     return (
       <Pantalla titulo={titulo} camino={camino}>
         <p className="text-sm text-[#5C6B76]">Este producto está marcado como <b>No publicable</b> (insumo o parte de otro): no va a Mercado Libre. Si sí se vende solo, apagá la marca en la pestaña <Link className="underline" href={`/catalogo/productos/${p.id}?seccion=publicaciones`}>Publicaciones</Link> de su ficha.</p>
+      </Pantalla>
+    );
+  }
+
+  if (p.nunca_ml) {
+    return (
+      <Pantalla titulo={titulo} camino={camino}>
+        <p className="text-sm text-[#5C6B76]">Este producto está marcado <b>Jamás publicar en Mercado Libre</b>: no se publica en ninguna cuenta. Para poder publicarlo, apagá la marca en la pestaña <Link className="underline" href={`/catalogo/productos/${p.id}?seccion=publicaciones`}>Publicaciones</Link> de su ficha.</p>
       </Pantalla>
     );
   }

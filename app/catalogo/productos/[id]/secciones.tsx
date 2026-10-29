@@ -21,7 +21,7 @@ import {
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto, accionBorrarVideo,
-  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb, accionNoPublicable,
+  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb, accionNoPublicable, accionNuncaMl,
 } from "../acciones";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
@@ -46,7 +46,7 @@ export type Producto = {
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
   variacion_default: number | null; proveedor_id: number | null; proveedor: string | null;
   modelo: string | null; linea: string | null; garantia: string | null; condicion: string | null;
-  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean; no_publicable: boolean;
+  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean; no_publicable: boolean; nunca_ml: boolean;
 };
 
 type Props = {
@@ -1103,17 +1103,22 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
           etiqueta="No publicable (insumo o parte de otro)"
           ayuda={p.no_publicable ? "No va a Mercado Libre ni a la web y no aparece en \"sin publicar\"." : "Prendelo si este producto no se vende solo (ej. la unidad de un pack)."} />
       </div>
-      {webs.length > 0 && !p.no_publicable && (
-        <div className={`${CAJA} mb-3 grid gap-2 max-w-md`}>
-          {/* La web es un canal más: el producto se ve en la tienda sólo si está publicado ahí. */}
-          {webs.map((w) => (
-            <Interruptor key={w.id} accion={accionPublicarWeb} prendido={w.publicado}
-              campos={{ producto_id: String(p.id), canal: String(w.id), seccion: "publicaciones" }}
-              etiqueta={`Publicado en ${w.nombre}`}
-              ayuda={w.publicado ? "Se ve en la tienda (si tiene precio en la lista del canal)." : "No se ve en la tienda."} />
-          ))}
-        </div>
-      )}
+      <div className={`${CAJA} mb-3 grid gap-2 max-w-md`}>
+        {/* La web es un canal más: el producto se ve en la tienda sólo si está publicado ahí. */}
+        {!p.no_publicable && webs.map((w) => (
+          <Interruptor key={w.id} accion={accionPublicarWeb} prendido={w.publicado}
+            campos={{ producto_id: String(p.id), canal: String(w.id), seccion: "publicaciones" }}
+            etiqueta={`Publicado en ${w.nombre}`}
+            ayuda={w.publicado ? "Se ve en la tienda (si tiene precio en la lista del canal)." : "No se ve en la tienda."} />
+        ))}
+        {/* Fer, 29/10: con la marca, nada lo publica ni lo reactiva en ninguna cuenta de ML (lib/mercadolibre/prohibidos.ts). */}
+        <Interruptor accion={accionNuncaMl} prendido={p.nunca_ml}
+          campos={{ producto_id: String(p.id), seccion: "publicaciones" }}
+          etiqueta="Jamás publicar en Mercado Libre"
+          ayuda={p.nunca_ml
+            ? "No se publica ni se reactiva en ninguna cuenta de Mercado Libre, apriete el botón que apriete, hasta que alguien apague esta marca."
+            : "Prendelo para que nunca se publique en Mercado Libre. Al prenderlo se pausan sus publicaciones activas."} />
+      </div>
       <div className="flex items-center justify-end gap-2 mb-2">
         {/* El total de ventas en ML del producto (Fer, 5/10): la suma de lo vendido de sus publicaciones; sin ventas, 0. */}
         <span className="mr-auto inline-flex items-center gap-3 text-xs text-[#5C6B76]">
@@ -1125,11 +1130,11 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
           <span>Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
         </span>
         {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
-        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
+        {!p.no_publicable && !p.nunca_ml && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
         {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}
-        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=nueva`} className={PRIMARIO}>Nueva desde Laucen con IA</Link>}
+        {!p.no_publicable && !p.nunca_ml && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=nueva`} className={PRIMARIO}>Nueva desde Laucen con IA</Link>}
         {/* Todas las cuentas con sus planes de cuotas, copiando la que ya tiene (Fer, 8/10). */}
-        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=todas`} className={PRIMARIO}>Publicar en todas las cuentas</Link>}
+        {!p.no_publicable && !p.nunca_ml && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=todas`} className={PRIMARIO}>Publicar en todas las cuentas</Link>}
         <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
       </div>
       <div className={CAJA_TABLA}>

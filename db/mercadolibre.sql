@@ -835,3 +835,8 @@ insert into meli_prohibicion (organizacion_id, canal_id, item_id, sku, titulo)
 select distinct on (m.canal_id, m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.sku, m.titulo
   from meli_item m where coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false)
 on conflict (canal_id, item_id) do nothing;
+
+-- «Jamás publicar en Mercado Libre» (Fer, 29/10; ficha del producto, pestaña Publicaciones): con la marca prendida el
+-- producto no se da de alta en ninguna cuenta ni se reactiva, apriete el botón que apriete (la cola lo descarta:
+-- lib/mercadolibre/prohibidos.ts). Al prenderla se pausan sus publicaciones activas.
+alter table producto add column if not exists nunca_ml boolean not null default false;

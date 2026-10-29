@@ -27,7 +27,7 @@ import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type 
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { comprobarAgrupado, madreDe } from "@/lib/mercadolibre/agrupar";
 import { tituloParaCuenta } from "@/lib/mercadolibre/titulos-ia";
-import { cuentasConProhibido, MOTIVO_PROHIBIDO } from "@/lib/mercadolibre/prohibidos";
+import { cuentasConProhibido } from "@/lib/mercadolibre/prohibidos";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { gruposPlanes, ganadorDe } from "@/lib/precios-ml/grupos";
 import {
@@ -185,7 +185,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
     const conTachado = (venta: number | null) => (venta != null && pr.tachadoPct > 0 && pr.tachado != null && descuentoVisible(pr.tachado, venta) >= DESCUENTO_MINIMO_ML ? pr.tachado : venta);
     const fila = (plan: PlanOClasica, venta: number | null, motivo: string | null): FilaTodas => {
       const existe = ya(plan);
-      if (prohibida.has(c.id)) motivo = MOTIVO_PROHIBIDO;
+      if (prohibida.has(c.id)) motivo = prohibida.get(c.id)!;
       return { canal: c.id, cuenta: c.nombre, plan, nombre: nombrePlan(plan), venta, publicar: conTachado(venta), gana: ganador[plan as "clasica" | Plan] === c.id || (ganador[plan as "clasica" | Plan] == null),
         existe, crear: !existe && !motivo && venta != null, motivo: motivo ?? (venta == null ? "sin precio en la lista de la cuenta" : null) };
     };
@@ -334,6 +334,7 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
                     where p.variacion_id = v.id and c.tipo = 'mercadolibre' and p.canal_id <> $2 and p.estado = 'activa' and p.id_externo is not null)
        -- Lo que ML prohibió en esta cuenta no se vuelve a crear (Fer, 29/10; prohibidos.ts).
        and not exists (select 1 from meli_sku_prohibido x where x.canal_id = $2 and x.sku = regexp_replace(v.sku, '^DE-', '', 'i'))
+       and not exists (select 1 from producto pn where pn.id = v.producto_id and pn.nunca_ml)
        and (not exists (select 1 from publicacion q where q.variacion_id = v.id and q.canal_id = $2 and q.estado in ('activa', 'pausada'))
             -- O está, pero sin Clásica (Fer, 11/10: tenía sólo planes): se arma la que falta (las que ya están no se repiten).
             or not exists (select 1 from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = v.sku and m.tipo = 'gold_special'
