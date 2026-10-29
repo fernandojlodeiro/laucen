@@ -30,6 +30,8 @@ export const TONO_PAGO: Record<EstadoPago, Tono> = {
 
 // El tipo comercial (no la condición de IVA): "consumidor_final" en la base, "Minorista" en pantalla (Fer, 22/10).
 export const TIPOS_CLIENTE = { consumidor_final: "Minorista", mayorista: "Mayorista" } as const;
+/** El acceso a la sección mayorista de la tienda (cliente.acceso_mayorista). */
+export const ACCESOS_MAYORISTA = { solicitado: "Solicitado", habilitado: "Habilitado" } as const;
 export const DOCUMENTOS = ["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"] as const;
 export const CONDICIONES_IVA = {
   consumidor_final: "Consumidor final", responsable_inscripto: "Responsable inscripto",

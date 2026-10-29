@@ -6,14 +6,14 @@ import { cuitLegible } from "@/lib/cuit";
 import { telefonoLegible } from "@/lib/telefono";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
-import { TIPOS_CLIENTE, CONDICIONES_IVA } from "@/app/ventas/formato";
+import { TIPOS_CLIENTE, CONDICIONES_IVA, ACCESOS_MAYORISTA } from "@/app/ventas/formato";
 
 export type DatosCliente = {
   nombre: string; razon_social: string | null; tipo: string; apellido: string | null; nombre_pila: string | null; apodo_ml: string | null;
   cuit: string | null; documento_tipo: string | null; documento_numero: string | null; condicion_iva: string | null;
   email: string | null; telefono: string | null; telefono_aclaracion: string | null; whatsapp: string | null;
   factura_por_whatsapp: boolean; factura_por_mail: boolean; lista_precios_id: number | null; notas: string | null;
-  cuenta_corriente: boolean; limite_cc: string | null;
+  cuenta_corriente: boolean; limite_cc: string | null; acceso_mayorista: string | null;
 };
 
 export const AYUDA_LISTA = "Por defecto: la del canal por donde entra cada pedido (tienda web, Mercado Libre, mostrador…) y, si el canal no tiene, la lista por defecto. Para mayoristas, elegí su lista.";
@@ -31,6 +31,12 @@ export default function CamposCliente({ c, listas, puedeCc }: {
         <select name="tipo" defaultValue={c?.tipo ?? "consumidor_final"} className={`${CAMPO} w-full`}>
           {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select></label>
+      <label><span className={ETIQUETA}>Acceso mayorista</span>
+        <select name="acceso_mayorista" defaultValue={c?.acceso_mayorista ?? ""} className={`${CAMPO} w-full`}>
+          <option value="">Sin acceso</option>
+          {Object.entries(ACCESOS_MAYORISTA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <span className={AYUDA}>A la sección mayorista de la tienda: «Solicitado» lo pidió; «Habilitado» puede entrar.</span></label>
 
       <label><span className={ETIQUETA}>Apellido del contacto</span>
         <input name="apellido" defaultValue={c?.apellido ?? ""} placeholder="Opcional" className={`${CAMPO} w-full`} /></label>
