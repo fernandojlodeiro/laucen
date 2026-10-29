@@ -59,7 +59,7 @@ La foto del Excel va como fórmula de imagen: se ve en Excel de Microsoft 365.
 ## Criterios y reglas
 
 - De cada vendedor se usa su última lectura buena.
-- **El mismo producto entre vendedores**: la IA junta las publicaciones que un comprador elegiría indistintamente: misma función, mismo modelo o especificaciones (medidas, potencia, voltaje, cantidad de canales…) y la misma cantidad de unidades. Otro modelo, una versión superior o inferior, un accesorio, un kit o un pack de otra cantidad van aparte. La marca genérica, el color o cómo está escrito el título no importan. Las del mismo producto de catálogo de Mercado Libre van juntas siempre.
+- **El mismo producto entre vendedores**: la IA junta las publicaciones que un comprador elegiría indistintamente: misma función, mismo modelo o especificaciones (medidas, potencia, voltaje, cantidad de canales…) y la misma cantidad de unidades. Otro modelo, una versión superior o inferior, un accesorio, un kit o un pack de otra cantidad van aparte. La marca genérica, el color o cómo está escrito el título no importan.
 - **Lo tenés**: la IA compara cada producto con **todos** tus productos, activos y archivados, mirando el título, la marca, el modelo, las variaciones y los títulos de tus publicaciones, con el mismo criterio. Sólo le muestra los tuyos que comparten palabras poco comunes del título; si no hay ninguno, queda como que no lo tenés.
 - Mientras la IA no lo ordenó, cada publicación va sola y «Tu producto» es por parecido del título: si comparten al menos el 60 % de las palabras (en los dos sentidos). Conviene revisarlo.
 - Después de leer un vendedor nuevo, la IA ordena lo nuevo sola.

@@ -1,8 +1,8 @@
 // Vendedores referentes, fase 2 (pedido de Fer, 29/10): la IA ordena lo que leímos de la competencia
 // (lib/compras/referentes.ts) en dos pasos, sin tocar nada de Mercado Libre:
 //   1. Agrupar: junta en un grupo (referente_grupo) las publicaciones de los distintos vendedores que son el mismo producto.
-//      Las candidatas salen de las palabras poco comunes del título que comparten; la IA decide cuáles son iguales. El mismo
-//      producto de catálogo de Mercado Libre va junto sin preguntar.
+//      Las candidatas salen de las palabras poco comunes del título que comparten; la IA decide cuáles son iguales, y dos con
+//      distinta cantidad en el título nunca van juntas (cantidadDe).
 //   2. Comparar con lo nuestro: cada grupo contra TODOS nuestros productos, activos y archivados (Fer, 29/10), con el título,
 //      la marca, el modelo, las variaciones y los títulos de nuestras publicaciones. La IA dice cuál es el mismo o ninguno.
 // Lo ya hecho no se repite: una pasada nueva sólo trabaja lo que falta (publicaciones sin grupo, grupos sin comparar). Cada
@@ -100,7 +100,7 @@ productos de nuestro catálogo. Decí cuál de los nuestros es EL MISMO producto
 ${REGLAS}
 Si ninguno lo es, n = 0. Respondé SOLO JSON: {"n":2,"motivo":"mismo módulo HC-SR04, una unidad"}. El motivo, corto y en castellano.`;
 
-type PubIa = { item_id: string; titulo: string; precio: number | null; vendidos: number | null; catalogo: string | null; grupo_id: number | null };
+type PubIa = { item_id: string; titulo: string; precio: number | null; vendidos: number | null; grupo_id: number | null };
 
 /** Pide una pasada de la IA (si no hay otra corriendo) y la arranca de fondo. Devuelve el número de pasada. */
 export async function pedirIa(org: string): Promise<number> {
@@ -161,7 +161,7 @@ async function deAVarios<T>(xs: T[], queda: () => boolean, trabajo: (x: T) => Pr
 /** Paso 1. Devuelve cuántas publicaciones quedaron sin grupo. */
 async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, avanzo?: boolean) => Promise<void>): Promise<number> {
   const pubs = await consulta<PubIa>(`
-    select item_id, titulo, precio::float8 precio, vendidos, case when grupo ~ '^MLA[0-9]+$' then grupo end catalogo, grupo_id::float8 grupo_id
+    select item_id, titulo, precio::float8 precio, vendidos, grupo_id::float8 grupo_id
       from referente_pub where organizacion_id = $1 order by vendidos desc nulls last, item_id`, [org]);
   const textos = pubs.map((x) => palabrasDe(x.titulo));
   const indice = indiceDe(textos, 30);
@@ -172,13 +172,8 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
     if (nuevos.length) await consulta("update referente_pub set grupo_id = $3 where organizacion_id = $1 and item_id = any($2::text[])", [org, nuevos.map((i) => pubs[i].item_id), g]);
     return g;
   };
-  // El mismo producto de catálogo de Mercado Libre va junto sin preguntar.
-  const porCatalogo = new Map<string, number[]>();
-  pubs.forEach((x, i) => { if (x.catalogo) porCatalogo.set(x.catalogo, [...(porCatalogo.get(x.catalogo) ?? []), i]); });
-  for (const is of porCatalogo.values()) if (is.length > 1 && is.some((i) => pubs[i].grupo_id == null)) {
-    await asignar(is, is.map((i) => pubs[i].grupo_id).find((g) => g != null) ?? null);
-    await sumar(0, true);
-  }
+  // El número de producto de catálogo que trae la lectura no sirve para juntar: Apify le pone el mismo al sensor
+  // infrarrojo TCRT5000 y al de luz LDR (Fer, 29/10). Decide siempre la IA.
   const semillas = pubs.map((_, i) => i).filter((i) => pubs[i].grupo_id == null);
   await deAVarios(semillas, queda, async (i) => {
     if (pubs[i].grupo_id != null) return; // la juntó otra mientras tanto
