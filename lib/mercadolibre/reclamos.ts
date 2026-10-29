@@ -146,7 +146,6 @@ export const ACCIONES_RECLAMO: Record<string, DefAccion> = {
   allow_return: { texto: "Aceptar la devolución", ayuda: "El comprador manda el producto de vuelta (con la etiqueta de ML) y después se le devuelve la plata.", confirmar: true },
   open_dispute: { texto: "Pedir que intervenga Mercado Libre", ayuda: "Abre la mediación: decide ML.", confirmar: true },
   // La revisión de la devolución que llegó (Fer, 29/10): «llegó mal» es como se le reclama a ML si vino dañada o vacía.
-  return_review_fail: { texto: "La devolución llegó mal", ayuda: "Le reclamás a Mercado Libre: elegí qué pasó y contalo. Las fotos, por ahora, se suben desde Mercado Libre.", campo: "revision", confirmar: true },
   return_review_ok: { texto: "La devolución llegó bien", ayuda: "Le confirmás a Mercado Libre que el producto volvió bien. Después ya no se puede reclamar.", confirmar: true },
 };
 /** Los motivos de «la devolución llegó mal» que da Mercado Libre (GET /post-purchase/v1/returns/reasons?flow=seller_return_failed,
@@ -166,6 +165,9 @@ export const ACCIONES_PROXIMAMENTE: Record<string, string> = {
   send_tracking_number: "Informar el número de seguimiento",
   allow_return_label: "Generar la etiqueta de devolución",
   recontact: "Volver a contactar",
+  // Sin las fotos no conviene mandarla (Fer, 29/10: son la prueba): vuelve a ACCIONES_RECLAMO cuando se suban desde
+  // Laucen (armarAccion ya la sabe armar; falta el envío de las fotos, pedido a Cowork en la bitácora).
+  return_review_fail: "La devolución llegó mal (con fotos)",
 };
 export const textoAccion = (a: string) => ACCIONES_RECLAMO[a]?.texto ?? ACCIONES_PROXIMAMENTE[a] ?? a.replace(/_/g, " ");
 

@@ -105,11 +105,11 @@ Si Mercado Libre espera tu respuesta, arriba aparece el cartel **"Mercado Libre 
 4. Las que mueven plata o abren mediación preguntan ahí mismo "¿…? Va a Mercado Libre." con **"Sí"** / **"No"**.
 5. Aviso: "En la cola para Mercado Libre: … Sale en un momento; el resultado queda en la historia del reclamo." El estado se ve en **"Mandado a Mercado Libre"** y en la **"Historia"**.
 
-Las acciones que Mercado Libre ofrece pero Laucen todavía no hace (mandar archivos, cargar prueba del envío, informar el envío o el número de seguimiento, generar la etiqueta de devolución) se ven deshabilitadas con "Próximamente desde Laucen: por ahora, desde Mercado Libre."
+Las acciones que Mercado Libre ofrece pero Laucen todavía no hace (mandar archivos, cargar prueba del envío, informar el envío o el número de seguimiento, generar la etiqueta de devolución, y «La devolución llegó mal», que va con fotos) se ven deshabilitadas con "Próximamente desde Laucen: por ahora, desde Mercado Libre."
 
-**Revisión de la devolución.** Cuando la devolución llega, Mercado Libre pide que digas si llegó bien o llegó mal, con un plazo: si no hacés nada, la da por buena y ya no se puede reclamar. Mientras la espera, la ficha lo avisa arriba, en amarillo, con el plazo (aunque el reclamo esté cerrado: Mercado Libre le devuelve la plata al comprador apenas despacha la devolución), y el reclamo sigue en la pestaña **Devoluciones pendientes**. En «Qué podés hacer» aparecen dos botones:
-- **«La devolución llegó mal»**: es como se le reclama a Mercado Libre. Se elige qué pasó —el producto no está en el paquete, llegó dañado, la devolución está incompleta, devolvieron otro producto, otra falla, o aún no llegó— y se cuenta en un texto. Pregunta «¿Seguro?» Sí / No y sale por la cola. Las fotos, por ahora, se suben desde Mercado Libre.
-- **«La devolución llegó bien»**: lo confirma; después ya no se puede reclamar. También pregunta «¿Seguro?».
+**Revisión de la devolución.** Cuando la devolución llega, Mercado Libre pide que digas si llegó bien o llegó mal, con un plazo: si no hacés nada, la da por buena y ya no se puede reclamar. Mientras la espera, la ficha lo avisa arriba, en amarillo, con el plazo (aunque el reclamo esté cerrado: Mercado Libre le devuelve la plata al comprador apenas despacha la devolución), y el reclamo sigue en la pestaña **Devoluciones pendientes**. En «Qué podés hacer»:
+- **«La devolución llegó bien»**: lo confirma; después ya no se puede reclamar. Pregunta «¿Seguro?» Sí / No y sale por la cola.
+- **«La devolución llegó mal»** (es como se le reclama a Mercado Libre: el producto no está en el paquete, llegó dañado, incompleto, otro producto…) se hace por ahora desde Mercado Libre, porque ahí se suben las fotos en el mismo paso: en Laucen se ve deshabilitada.
 
 ### Ver lo último de un reclamo de Mercado Libre
 
