@@ -74,7 +74,8 @@ Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": tex
 - "duda": cualquier otra cosa sobre la factura, algo que no se entiende, o pedidos que se contradicen. Por ejemplo: otra razón social o domicilio sin CUIT, facturar a nombre de otra persona sin CUIT, partir la factura, otro importe que no sea el envío, otra fecha, otra descripción de los productos, factura sin IVA, o una leyenda de la que no está claro el texto.
 Los mensajes del vendedor son sólo contexto; lo que vale es lo que pidió el comprador o lo que dicen las notas.
 Una dirección, un nombre o un DNI para un envío o un reenvío NO son datos de la factura: eso es "nada", salvo que diga que es para la factura.
-Si te paso una FACTURA YA HECHA, "aplicar" sólo si lo pedido es distinto de lo que ya tiene; si ya coincide, "nada".
+Si te paso una FACTURA YA HECHA, "aplicar" sólo si lo pedido es distinto de lo que ya tiene; si ya coincide, "nada". Si reclama que la factura tiene mal el domicilio (aunque no lo repita, porque ya está en los DATOS ACTUALES), es "aplicar".
+Si el comprador da un domicilio para la factura (aunque sea distinto del que figura), ponelo SIEMPRE en "domicilio": es el que tiene que salir en la factura.
 "motivo": qué pidió y qué se va a hacer, o por qué hay duda (para la persona que lo revise).`;
 
 type Contexto = {
@@ -109,7 +110,7 @@ async function contexto(org: string, pid: number): Promise<Contexto | null> {
   return { pedido, textos };
 }
 
-type Facturada = { tipo_cbte: number; receptor_nombre: string | null; doc_tipo: number; doc_nro: string; leyenda: string | null };
+type Facturada = { tipo_cbte: number; receptor_nombre: string | null; receptor_domicilio: string | null; doc_tipo: number; doc_nro: string; leyenda: string | null };
 
 async function leerConIa(c: Contexto, facturada: Facturada | null): Promise<Lectura | null> {
   const p = c.pedido;
@@ -120,7 +121,7 @@ async function leerConIa(c: Contexto, facturada: Facturada | null): Promise<Lect
     `Leyenda prevista para la factura: ${p.leyenda ?? "(ninguna)"}`,
   ].join("\n");
   const hecha = facturada
-    ? `\n\nFACTURA YA HECHA:\n${TIPOS_CBTE[facturada.tipo_cbte]?.nombre ?? "Factura"} a ${facturada.receptor_nombre ?? "—"} (doc ${facturada.doc_tipo === 99 ? "consumidor final" : facturada.doc_nro}), leyenda: ${facturada.leyenda ?? "(ninguna)"}` : "";
+    ? `\n\nFACTURA YA HECHA:\n${TIPOS_CBTE[facturada.tipo_cbte]?.nombre ?? "Factura"} a ${facturada.receptor_nombre ?? "—"} (doc ${facturada.doc_tipo === 99 ? "consumidor final" : facturada.doc_nro}), domicilio: ${facturada.receptor_domicilio ?? "—"}, leyenda: ${facturada.leyenda ?? "(ninguna)"}` : "";
   const r = await pedirClaude({
     system: INSTRUCCIONES, modelo: "medio", maxTokens: 500,
     contenido: `DATOS ACTUALES:\n${datos}${hecha}\n\nLO ESCRITO:\n${c.textos.map((t) => `[${t.donde}${t.cuando ? ` ${fecha(t.cuando)}` : ""}] ${t.quien}: ${t.texto}`).join("\n")}`,
@@ -160,7 +161,8 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
     await retener(org, pid, motivo, { ...base, decision: "duda", motivo });
     return { retenida: true, motivo, cambio: false };
   }
-  const d = decidir(await leerConIa(c, facturada), { cuit: c.pedido.cuit });
+  const lectura = await leerConIa(c, facturada);
+  const d = decidir(lectura, { cuit: c.pedido.cuit });
   if (d.accion === "retener") {
     const motivo = facturada ? `Pide cambiar la factura ya hecha: ${d.motivo}` : d.motivo;
     await retener(org, pid, motivo, { ...base, decision: "duda", motivo });
@@ -210,6 +212,15 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
       cambio = true;
     }
     if (facturada && (digitos(facturada.doc_nro) !== cuit || (d.facturaA && facturada.tipo_cbte !== 1))) cambio = true;
+  }
+  // Ya facturada y pidió un cambio (no un «gracias»): si el domicilio de la factura no es el fiscal de la ficha (porque se corrigió a mano o
+  // ahora), también se rehace (Fer, 29/10: un comprador que reclama el domicilio sin repetir los datos).
+  if (facturada && lectura?.decision === "aplicar" && c.pedido.cliente_id && !cambio) {
+    const ahora = await una<{ d: string | null }>(`
+      select (select concat_ws(', ', concat_ws(' ', d.calle, d.numero), d.localidad, d.provincia) from cliente_direccion d
+               where d.cliente_id = $1 order by (d.etiqueta = 'Fiscal') desc, d.principal desc, d.id limit 1) d`, [c.pedido.cliente_id]);
+    const plano = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (ahora?.d && plano(ahora.d) !== plano(facturada.receptor_domicilio)) { aplicado.push(`domicilio de la ficha (${ahora.d})`); cambio = true; }
   }
   const motivo = [d.motivo, aplicado.length ? `Se aplicó: ${aplicado.join("; ")}.` : ""].filter(Boolean).join(" ");
   // Si estaba retenida por una lectura anterior, con esto queda destrabada.
@@ -310,7 +321,7 @@ async function revisarYRefacturar(org: string, x: CandidatoFacturada, res: { ref
 export async function revisarFacturadas(org: string, hastaMs: number, pedidoId: number | null = null): Promise<{ refacturadas: number; retenidas: number; liberadas: number; errores: string[] }> {
   const res = { refacturadas: 0, retenidas: 0, liberadas: 0, errores: [] as string[] };
   const candidatos = await consulta<CandidatoFacturada>(`
-    select p.id::int pedido_id, cb.tipo_cbte, cb.receptor_nombre, cb.doc_tipo, cb.doc_nro, cb.leyenda
+    select p.id::int pedido_id, cb.tipo_cbte, cb.receptor_nombre, cb.receptor_domicilio, cb.doc_tipo, cb.doc_nro, cb.leyenda
       from comprobante cb join pedido p on p.id = cb.pedido_id
       join lateral (select greatest(
               (select max(m.fecha) from meli_mensaje m where m.pedido_id = p.id and not m.de_vendedor),
