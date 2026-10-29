@@ -35,6 +35,7 @@ export type PermisoKey =
   | "depositos_ver"
   | "stock_ver"
   | "stock_ajustar"
+  | "control_stock"
   | "canales_ver"
   | "tipo_cambio_ver"
   | "usuarios_ver"
@@ -102,6 +103,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "depositos_ver", label: "Depósitos y ubicaciones", ayuda: "Depósitos y sus ubicaciones." },
   { key: "stock_ver", label: "Consulta de stock", ayuda: "Qué hay en cada depósito y ubicación." },
   { key: "stock_ajustar", label: "Ajustes de stock", ayuda: "Ajustar el stock a mano, con motivo." },
+  { key: "control_stock", label: "Control de stock", ayuda: "Recorrer el depósito con el celular confirmando si cada producto está en su ubicación (descuenta los faltantes y pasa a «En búsqueda» lo que no se encuentra) y resolver lo que quedó a buscar." },
   { key: "canales_ver", label: "Canales", ayuda: "Canales de venta, su lista de precios y sus depósitos." },
   { key: "tipo_cambio_ver", label: "Tipo de cambio", ayuda: "El tipo de cambio del día y su historia." },
   { key: "usuarios_ver", label: "Usuarios y roles", ayuda: "Quién está en la organización y con qué rol." },
@@ -172,7 +174,7 @@ export const PRESETS: Record<PresetKey, { label: string; descripcion: string; pe
 export const FUNCIONES: PermisoKey[] = [
   "radar_ver", "importaciones_ver",
   "panel_ver", "tablero_ml_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
-  "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
+  "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "control_stock", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
   "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "full_ver", "facturacion_ver",
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",

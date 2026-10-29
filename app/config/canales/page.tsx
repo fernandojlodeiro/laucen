@@ -96,7 +96,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
      where cd.canal_id = $2 and cd.organizacion_id = $1 order by cd.prioridad, d.nombre`, [s.org.id, elegido.id]) : [];
   const otrosDepositos = elegido ? await consulta<{ id: number; nombre: string }>(`
     select d.id::int, d.nombre from deposito d
-     where d.organizacion_id = $1 and d.estado = 'activo'
+     where d.organizacion_id = $1 and d.estado = 'activo' and d.especial is null
        and not exists (select 1 from canal_deposito cd where cd.canal_id = $2 and cd.deposito_id = d.id)
      order by d.nombre`, [s.org.id, elegido.id]) : [];
 

@@ -121,8 +121,10 @@ export async function accionAgregarDeposito(fd: FormData) {
   const s = await entrarErp("canales_ver");
   await intentar(volverDe(fd), async () => {
     const canal = await canalDe(s.org.id, fd, "canal");
-    const d = await una<{ id: number }>("select id::int from deposito where id = $2 and organizacion_id = $1", [s.org.id, id(fd, "deposito")]);
+    const d = await una<{ id: number; especial: string | null }>("select id::int, especial from deposito where id = $2 and organizacion_id = $1", [s.org.id, id(fd, "deposito")]);
     if (!d) throw new ErrorErp("Elegí el depósito.");
+    // «En búsqueda» (control de stock) guarda lo que no se encontró: no vende por ningún canal.
+    if (d.especial) throw new ErrorErp("Ese depósito es del sistema y no vende por ningún canal.");
     await consulta(`insert into canal_deposito (organizacion_id, canal_id, deposito_id, prioridad) values ($1, $2, $3, $4)
                     on conflict (canal_id, deposito_id) do update set prioridad = excluded.prioridad`,
       [s.org.id, canal, d.id, entero(fd, "prioridad") ?? 1]);

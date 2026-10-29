@@ -11,6 +11,7 @@ import { tienePermiso, type PermisoKey } from "@/lib/permisos";
 import { consulta } from "@/lib/erp/base";
 import { sqlPedidoPendiente, sqlCarritoEnEspera } from "@/lib/pedidos";
 import { CONDICION_ENVIOS } from "@/app/ventas/envios/lista";
+import { pendientes } from "@/lib/deposito/control";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,15 @@ export default async function ModoDeposito() {
                         and not exists (select 1 from envio e where e.pedido_id = p.id and e.logistica is not null and coalesce(e.estado, '') <> 'cancelled'))))::int entregar,
            (select count(*) from envio e where e.organizacion_id = $1 and ${CONDICION_ENVIOS.despachar} and e.etiqueta_impresa_ts is null and e.id_externo is not null)::int etiquetas`, [s.org.id]);
 
+  const controlar = puede("control_stock") ? await pendientes(s.org.id) : null;
+
   const todos: Boton[] = [
     { texto: "Preparar pedidos", ayuda: "Elegir el lote y escanear", href: "/deposito/picking", icono: "🧺", permiso: "picking_ver", n: x?.preparar },
     { texto: "Entregas en el local", ayuda: "Lo preparado que vienen a buscar: foto del conforme", href: "/deposito/entregas", icono: "🤝", permiso: "picking_ver", n: x?.entregar },
     { texto: "Imprimir etiquetas de envío", ayuda: "Las de los pedidos por despachar", href: "/ventas/envios", icono: "🏷️", permiso: "envios_ver", n: x?.etiquetas },
     { texto: "Etiquetas de Full", ayuda: "Para mandar mercadería a Mercado Libre", href: "/deposito/etiquetas/full", icono: "📦", permiso: "etiquetas_ver" },
     { texto: "Recepción", ayuda: "Escanear lo que llega", href: "/deposito/recepcion", icono: "📥", permiso: "recepcion_ver" },
+    { texto: "Control de stock", ayuda: "Ir a cada ubicación y confirmar que el producto está", href: "/deposito/control", icono: "✅", permiso: "control_stock", n: controlar },
     { texto: "Consultar stock", ayuda: "Escanear y ver dónde está", href: "/stock/consulta", icono: "🔎", permiso: "stock_ver" },
     { texto: "Etiquetas de producto y ubicación", ayuda: "Imprimir códigos", href: "/deposito/etiquetas", icono: "🔖", permiso: "etiquetas_ver" },
   ];
