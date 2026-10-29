@@ -4,10 +4,12 @@
 
 import Link from "next/link";
 import { Estado } from "@/app/componentes/erp";
+import FotosProducto from "@/app/componentes/FotosProducto";
+import TituloCorto from "@/app/componentes/TituloCorto";
 import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import {
-  CONDICION_RECLAMOS, ORDEN_ABIERTOS, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, esPestanaReclamos, type PestanaReclamos, type EstadoReclamo,
+  CONDICION_RECLAMOS, SQL_QUE_FALTA_DEVOLUCION, ORDEN_ABIERTOS, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, esPestanaReclamos, type PestanaReclamos, type EstadoReclamo,
 } from "@/lib/reclamos";
 import { ETAPAS_ML, ESTADOS_DEVOLUCION } from "@/lib/mercadolibre/reclamos";
 import { enMoneda, formatear } from "@/lib/moneda";
@@ -77,6 +79,43 @@ const CAMPOS: Campo[] = [
   { clave: "reembolso", titulo: "Devuelto $", sql: "r.reembolso_ars::float", sqlUsd: "(r.reembolso_ars / nullif(r.tc_dia, 0))::float", orden: "r.reembolso_ars", formato: "pesos" },
   { clave: "resolucion", titulo: "Resolución", sql: "r.resolucion", ancho: 36 },
   { clave: "id_externo", titulo: "Id del reclamo (ML)", sql: "r.id_externo", ancho: 16 },
+  {
+    // El producto reclamado (Fer, 29/10: para gestionar sin abrir cada uno): la primera línea del pedido o, en una venta
+    // anterior a Laucen, el primer producto de la orden de ML; la foto, la del producto de Laucen.
+    clave: "producto", titulo: "Producto", orden: false, ancho: 50,
+    sql: `(select jsonb_build_object('id', v.producto_id, 'sku', coalesce(v.sku, x.sku), 't', x.t, 'c', x.c, 'mas', x.mas,
+             'f', (select array_agg(y.url) from (select pf.url from producto_foto pf where pf.producto_id = v.producto_id order by pf.orden, pf.id limit 6) y))
+            from (select l.variacion_id, null::text sku, l.titulo t, l.cantidad::int c, (select count(*) from pedido_linea l2 where l2.pedido_id = r.pedido_id)::int - 1 mas
+                    from pedido_linea l where l.pedido_id = r.pedido_id
+                  union all
+                  select null, i ->> 'sku', i ->> 'titulo', (i ->> 'cantidad')::int, jsonb_array_length(r.datos_externos -> 'orden_ml' -> 'items') - 1
+                    from jsonb_array_elements(case when r.pedido_id is null and jsonb_typeof(r.datos_externos -> 'orden_ml' -> 'items') = 'array'
+                                                   then r.datos_externos -> 'orden_ml' -> 'items' else '[]'::jsonb end) i
+                  limit 1) x
+            left join variacion v on v.organizacion_id = r.organizacion_id
+                  and (v.id = x.variacion_id or (x.variacion_id is null and regexp_replace(v.sku, '^DE-', '', 'i') = regexp_replace(x.sku, '^DE-', '', 'i'))))`,
+    valor: (f) => { const p = f.producto as { sku?: string; t?: string; c?: number } | null; return p ? `${p.c ?? ""} × ${p.sku ?? ""} ${p.t ?? ""}`.trim() : ""; },
+    celda: (f) => {
+      const p = f.producto as { id?: number; sku?: string; t?: string; c?: number; mas?: number; f?: string[] | null } | null;
+      if (!p) return "—";
+      return (
+        <div className="flex items-start gap-1.5 max-w-80">
+          {p.f?.length ? <FotosProducto fotos={p.f} titulo={p.t ?? ""} /> : <span className="w-7 shrink-0" />}
+          <div className="min-w-0">
+            <span className="whitespace-nowrap">{p.c != null && <span className="tabular-nums">{p.c} × </span>}
+              {p.id ? <Link href={`/catalogo/productos/${p.id}`} className="font-mono text-[#16577F] hover:underline">{p.sku}</Link> : <span className="font-mono">{p.sku ?? "—"}</span>}
+              {p.mas ? <span className="text-[10px] text-[#5C6B76]"> y {p.mas} más</span> : null}</span>
+            <TituloCorto titulo={p.t} />
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    // Por qué está en «Devoluciones pendientes» (Fer, 29/10: varios figuran cerrados y no se entendía).
+    clave: "falta", titulo: "Qué falta", sql: SQL_QUE_FALTA_DEVOLUCION, orden: false, ancho: 30,
+    celda: (f) => f.falta ? <Estado texto={String(f.falta)} tono={String(f.falta).startsWith("ML espera") ? "rojo" : String(f.falta).startsWith("Llegó") ? "amarillo" : "azul"} /> : <span className="text-[#5C6B76]">—</span>,
+  },
 ];
 
 /** Dónde busca el buscador: los campos de texto del reclamo y, como antes, el N.º y el id externo
@@ -92,7 +131,7 @@ export const LISTA_RECLAMOS: Lista = {
   ruta: "/ventas/reclamos",
   permiso: "reclamos_ver",
   campos: CAMPOS,
-  enPantalla: ["id", "vence", "fecha", "canal", "pedido", "comprador", "tipo", "motivo", "etapa", "estado", "devolucion", "monto"],
+  enPantalla: ["id", "producto", "falta", "vence", "fecha", "canal", "pedido", "comprador", "tipo", "motivo", "etapa", "estado", "devolucion", "monto"],
   siempre: "r.id::int id, r.canal_id::int canal_id",
   porDefecto: "vence",
   consulta: async (ctx, sp) => {

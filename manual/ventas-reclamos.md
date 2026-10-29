@@ -31,6 +31,8 @@ En los dos casos, cuando el producto vuelve, **"Recibir devolución"** abre la r
 
 **Arriba a la derecha**: **"Traer reclamos de ML"** (sólo si hay una cuenta de Mercado Libre conectada), el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo reclamo"**.
 
+**Columnas de la lista**: además del número, la fecha, la cuenta, el pedido, el comprador, el motivo, la etapa y el estado, la columna **Producto** muestra la foto, la cantidad, el SKU (lleva a la ficha del producto) y el título corto del producto reclamado ("y N más" si el pedido tiene otros), y **Qué falta** dice por qué una devolución sigue pendiente: «ML espera tu revisión (hasta el …)», «Llegó: falta recibirla en Laucen», «Viene en camino» (con «ML ya le devolvió la plata» si el reclamo ya está cerrado) o «Etiqueta generada: todavía no la despachó».
+
 **Pestañas** (con su cantidad):
 
 | Pestaña | Qué muestra |

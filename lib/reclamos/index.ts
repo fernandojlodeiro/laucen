@@ -40,6 +40,13 @@ export const SQL_DEVOLUCION_PENDIENTE = `(r.devolucion_id is not null and (
   (${EN_CAMINO} and (r.estado <> 'resuelto' or ${SQL_DEVOLUCION_VIAJANDO}))
   or (coalesce(r.devolucion_estado = 'delivered' or r.devolucion_envio_estado = 'delivered', false) and not ${SQL_RECIBIDA} and r.fecha > now() - interval '60 days')
   or ${SQL_REVISION_PENDIENTE}))`;
+/** En palabras, qué le falta a la devolución (la columna «Qué falta» de la lista); null si no tiene nada pendiente. */
+export const SQL_QUE_FALTA_DEVOLUCION = `(case when not ${SQL_DEVOLUCION_PENDIENTE} then null
+  when ${SQL_REVISION_PENDIENTE} then 'ML espera tu revisión' || coalesce(' (hasta el ' || (select to_char(min((a ->> 'due_date')::timestamptz) at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI')
+       from jsonb_array_elements(r.acciones_disponibles) a where a ->> 'due_date' is not null and a ->> 'action' like 'return_review%') || ')', '')
+  when coalesce(r.devolucion_estado = 'delivered' or r.devolucion_envio_estado = 'delivered', false) then 'Llegó: falta recibirla en Laucen'
+  when ${SQL_DEVOLUCION_VIAJANDO} then 'Viene en camino' || case when r.estado = 'resuelto' then ' (ML ya le devolvió la plata)' else '' end
+  else 'Etiqueta generada: todavía no la despachó' end)`;
 export const CONDICION_RECLAMOS: Record<PestanaReclamos, string> = {
   abiertos: `r.estado <> 'resuelto' and coalesce(r.etapa, '') <> 'dispute' and not ${EN_CAMINO}`,
   mediacion: "r.estado <> 'resuelto' and r.etapa = 'dispute'",
