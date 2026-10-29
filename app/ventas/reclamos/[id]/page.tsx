@@ -7,6 +7,7 @@
 //     estados abierto / en proceso / resuelto, y el reembolso sólo se anota.
 // En los dos, "Recibir devolución" abre la recepción de devolución del pedido.
 
+import RefrescoReclamo from "./RefrescoReclamo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -116,6 +117,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
         ? <BotonTarea accion={accionActualizarReclamo} tipo={`reclamo:${rid}`} campos={{ id: String(rid) }} clase={SUAVE} texto="Actualizar desde ML" />
         : <BotonesFicha editando={editando} ver={VER} editar={`${VER}?editar=ficha`} />}>
       <Avisos sp={sp} />
+      <RefrescoReclamo id={rid} />
 
       {vence && r.espera_respuesta && (
         <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${vence.tono === "rojo" ? "bg-[#FDF1EF] text-[#C03420] font-bold" : "bg-[#FFF8E6] text-[#8a6100]"}`}>
