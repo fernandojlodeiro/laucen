@@ -29,6 +29,8 @@ Dos cajas para tildar:
 
   La ventana se abre sola en el medio de la pantalla, estés donde estés. El sonido, en cambio, es uno solo para todo.
 
+  Con varias pestañas de Laucen abiertas, la ventana y los carteles aparecen sólo en la pestaña donde estás trabajando (la última que tocaste). Si pasás a otra pestaña sin cerrarla, la ventana se pasa con vos. Al cerrarla (o al tocar "Ir a responder"), se cierra en todas.
+
 Un número: **"Como mucho un aviso cada … minutos"** (de 1 a 60; de entrada, 1).
 
 De entrada, todas las cajas vienen tildadas.
