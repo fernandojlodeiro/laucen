@@ -90,7 +90,7 @@ aunque uno diga "pico 4000 W"), otra tecnología (relé mecánico no es relé de
 repuesto o accesorio, o un kit contra el producto suelto.
 La marca genérica, el color, el vendedor o cómo está escrito el título no importan.`;
 
-const SISTEMA_AGRUPAR = `Sos un comprador experto de Mercado Libre Argentina. Te paso una publicación base y otras candidatas.
+export const SISTEMA_AGRUPAR = `Sos un comprador experto de Mercado Libre Argentina. Te paso una publicación base y otras candidatas.
 Decí cuáles son EL MISMO producto que la base.
 ${REGLAS}
 Ante la duda, NO es el mismo. Respondé SOLO JSON: {"iguales":[2,5]} (o {"iguales":[]}).`;
