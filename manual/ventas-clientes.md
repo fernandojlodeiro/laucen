@@ -29,6 +29,7 @@ Subtítulo: "Los crean los pedidos; acá se miran y se corrigen sus datos".
 **Filtros**:
 - Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre y apellido del contacto, mail, apodo de Mercado Libre, DNI, CUIT, teléfono, su interno / aclaración, WhatsApp, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
 - Desplegable **"Todos los tipos"** / **"Minorista"** / **"Mayorista"**.
+- Desplegable **"Con y sin acceso mayorista"** / **"Solicitado o habilitado"** / **"Solicitado"** / **"Habilitado"**: quiénes pidieron entrar a la sección mayorista de la tienda (para avisarles el día que abra). La columna **Acceso mayorista** (y **Acceso mayorista desde**) se suma con «⚙ Configurar vistas…».
 
 **"Vista"** (arriba de la tabla): elegí qué columnas ver o armá otras con **"⚙ Configurar vistas…"**.
 
@@ -50,6 +51,7 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 
 **Datos** (en modo vista; con el lápiz pasan a editables), en este orden:
 - **"Razón social (sale en la factura)"** y **"Tipo"** (**Minorista** / **Mayorista**). La razón social es el nombre del cliente en todo el sistema y **el nombre con el que sale la factura**. El tipo es comercial (a quién le vendés), no su condición frente al IVA.
+- **"Acceso mayorista"**: **Sin acceso**, **Solicitado** (pidió entrar a la sección mayorista de la tienda; lo marca sola la IA del WhatsApp cuando el cliente deja sus datos, o una persona con el lápiz) o **Habilitado** (puede entrar). En la vista dice desde cuándo. La sección mayorista de la tienda todavía no está abierta: esta marca es la lista de a quién avisarle.
 - **"Apellido del contacto"**, **"Nombre del contacto"** (los dos opcionales: la persona con la que se habla; el nombre se usa para saludarlo en los mensajes) y **"Apodo en Mercado Libre"**.
 - Los datos fiscales, juntos: **"CUIT / CUIL"**, **"DNI"** y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar"). CUIT y DNI son opcionales y pueden estar los dos (por ejemplo, una persona inscripta en IVA tiene CUIT y DNI).
 - **"Mail"**, **"Teléfono"** y su **"Interno / aclaración"** (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.

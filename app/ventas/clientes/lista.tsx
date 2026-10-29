@@ -7,13 +7,15 @@ import { parametroBusqueda, sqlBusqueda, terminosBusqueda, type CampoBusqueda } 
 import { cuitLegible } from "@/lib/cuit";
 import { telefonoConAclaracion, telefonoLegible } from "@/lib/telefono";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
-import { TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
+import { TIPOS_CLIENTE, CONDICIONES_IVA, ACCESOS_MAYORISTA, etiqueta } from "@/app/ventas/formato";
 
 export function filtrosClientes(sp: SP) {
   return {
     q: sp.q?.trim() ?? "",
     comienza: sp.contiene !== "1",
     tipo: sp.tipo === "mayorista" || sp.tipo === "consumidor_final" ? sp.tipo : "",
+    // El acceso a la sección mayorista: solicitado, habilitado o «con» (cualquiera de los dos).
+    acceso: sp.acceso === "solicitado" || sp.acceso === "habilitado" || sp.acceso === "con" ? sp.acceso : "",
   };
 }
 
@@ -84,6 +86,13 @@ const CAMPOS: Campo[] = [
     clave: "tipo", titulo: "Tipo", sql: "c.tipo", valor: traducido("tipo", TIPOS_CLIENTE),
     celda: (f) => <Link href={url("/ventas/clientes", { tipo: f.tipo })} className="hover:text-[#16577F] hover:underline">{etiqueta(TIPOS_CLIENTE, f.tipo)}</Link>,
   },
+  {
+    clave: "acceso_mayorista", titulo: "Acceso mayorista", sql: "c.acceso_mayorista", valor: traducido("acceso_mayorista", ACCESOS_MAYORISTA),
+    celda: (f) => f.acceso_mayorista
+      ? <Link href={url("/ventas/clientes", { acceso: f.acceso_mayorista })} className="hover:text-[#16577F] hover:underline">{etiqueta(ACCESOS_MAYORISTA, f.acceso_mayorista)}</Link>
+      : "—",
+  },
+  campoFecha("acceso_mayorista_ts", "Acceso mayorista desde", "c.acceso_mayorista_ts"),
   { clave: "documento", titulo: "Documento", sql: "nullif(concat_ws(' ', c.documento_tipo, c.documento_numero), '')", orden: "c.documento_numero", celda: (f) => <span className="whitespace-nowrap">{f.documento ?? "—"}</span> },
   { clave: "documento_numero", titulo: "Número de documento", sql: "c.documento_numero" },
   { clave: "cuit", titulo: "CUIT / CUIL", sql: "c.cuit", valor: (f) => (f.cuit ? cuitLegible(f.cuit as string) : null) },
@@ -128,10 +137,12 @@ export const LISTA_CLIENTES: Lista = {
   enPantalla: ["id", "nombre", "tipo", "documento", "iva", "email", "telefono", "pedidos", "ultimo"],
   siempre: "c.id::int id",
   consulta: async (ctx, sp) => {
-    const { q, comienza, tipo } = filtrosClientes(sp);
+    const { q, comienza, tipo, acceso } = filtrosClientes(sp);
     const valores: unknown[] = [ctx.org];
     const donde = ["c.organizacion_id = $1"];
     if (tipo) { valores.push(tipo); donde.push(`c.tipo = $${valores.length}`); }
+    if (acceso === "con") donde.push("c.acceso_mayorista is not null");
+    else if (acceso) { valores.push(acceso); donde.push(`c.acceso_mayorista = $${valores.length}`); }
     if (q) {
       donde.push(prefiltroClienteConDirecciones("c", q, valores));
       valores.push(parametroBusqueda(q, comienza)); donde.push(sqlBusqueda(`$${valores.length}`, BUSCA_EN));

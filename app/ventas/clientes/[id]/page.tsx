@@ -17,7 +17,7 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, Dato, BotonesFicha, editandoFicha, EDITAR_FICHA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
 import { TituloSeccion as TituloSeccionErp } from "@/app/componentes/erp";
-import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
+import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, ACCESOS_MAYORISTA, etiqueta } from "@/app/ventas/formato";
 import CamposCliente, { AYUDA_LISTA } from "../CamposCliente";
 import ElegirProvincia from "@/app/componentes/ElegirProvincia";
 import {
@@ -39,7 +39,7 @@ type Cliente = {
   razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_aclaracion: string | null;
   whatsapp: string | null; whatsapp_confirmado_ts: Date | null; factura_por_whatsapp: boolean; factura_por_mail: boolean;
   nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
-  cuenta_corriente: boolean; limite_cc: string | null;
+  cuenta_corriente: boolean; limite_cc: string | null; acceso_mayorista: string | null; acceso_mayorista_ts: Date | null;
 };
 type Direccion = {
   id: number; etiqueta: string | null; calle: string | null; numero: string | null; piso_depto: string | null; localidad: string | null;
@@ -64,7 +64,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   const c = await una<Cliente>(`
     select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
            razon_social, cuit, apodo_ml, telefono_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente, limite_cc,
-           whatsapp, whatsapp_confirmado_ts, factura_por_whatsapp, factura_por_mail
+           whatsapp, whatsapp_confirmado_ts, factura_por_whatsapp, factura_por_mail, acceso_mayorista, acceso_mayorista_ts
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
@@ -129,6 +129,9 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
           <Dato etiqueta="Razón social (sale en la factura)" className="sm:col-span-2">{c.razon_social ?? c.nombre}</Dato>
           <Dato etiqueta="Tipo">{etiqueta(TIPOS_CLIENTE, c.tipo)}</Dato>
+          <Dato etiqueta="Acceso mayorista" ayuda={c.acceso_mayorista && c.acceso_mayorista_ts ? `Desde el ${fecha(c.acceso_mayorista_ts)}.` : undefined}>
+            {c.acceso_mayorista ? etiqueta(ACCESOS_MAYORISTA, c.acceso_mayorista) : "Sin acceso"}
+          </Dato>
           <Dato etiqueta="Apellido del contacto">{c.apellido}</Dato>
           <Dato etiqueta="Nombre del contacto">{c.nombre_pila}</Dato>
           <Dato etiqueta="Apodo en Mercado Libre">{c.apodo_ml}</Dato>

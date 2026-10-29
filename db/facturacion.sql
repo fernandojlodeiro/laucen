@@ -284,3 +284,9 @@ alter table pedido add column if not exists factura_con_envio boolean not null d
 -- emisor.logo (Fer, 28/10): cada razón social con su logo para el PDF de la factura y del presupuesto.
 -- Vacío = el de Configuración › Empresa.
 alter table emisor add column if not exists logo text;
+
+-- cliente.acceso_mayorista (Fer, 29/10): quién pidió entrar a la sección mayorista de la tienda (todavía no
+-- existe) y quién ya tiene acceso. null = nada · solicitado (lo cargó la IA del WhatsApp o una persona) ·
+-- habilitado. acceso_mayorista_ts: cuándo pasó a ese estado. El día que se abra, se les avisa por mail y WhatsApp.
+alter table cliente add column if not exists acceso_mayorista text check (acceso_mayorista in ('solicitado', 'habilitado'));
+alter table cliente add column if not exists acceso_mayorista_ts timestamptz;

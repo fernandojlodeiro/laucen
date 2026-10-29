@@ -86,6 +86,7 @@ async function datosDe(fd: FormData, org: string, permisos: Parameters<typeof ti
     telefono_aclaracion: texto(fd, "telefono_aclaracion"), whatsapp: whatsappDe(fd),
     factura_por_whatsapp: fd.get("factura_por_whatsapp") === "on", factura_por_mail: fd.get("factura_por_mail") === "on",
     lista_precios_id: lista, notas: texto(fd, "notas"),
+    acceso_mayorista: fd.get("acceso_mayorista") === "solicitado" || fd.get("acceso_mayorista") === "habilitado" ? String(fd.get("acceso_mayorista")) : null,
     // La ficha manda la casilla de cuenta corriente y el límite (con_cc) sólo a quien tiene «cc_asignar»; sin ella, quedan como estaban.
     cuenta_corriente: conCc ? fd.get("cuenta_corriente") === "on" : null, limite_cc: conCc ? limite : null,
   };
@@ -98,11 +99,12 @@ export async function accionCrearCliente(fd: FormData) {
     const r = await una<{ id: number }>(`
       insert into cliente (organizacion_id, nombre, razon_social, tipo, apellido, nombre_pila, apodo_ml, cuit, documento_tipo, documento_numero,
                            condicion_iva, email, telefono, telefono_aclaracion, whatsapp, factura_por_whatsapp, factura_por_mail,
-                           lista_precios_id, notas, cuenta_corriente, limite_cc)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20, false), $21) returning id::int`,
+                           lista_precios_id, notas, cuenta_corriente, limite_cc, acceso_mayorista, acceso_mayorista_ts)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20, false), $21, $22,
+              case when $22::text is null then null else now() end) returning id::int`,
       [s.org.id, d.nombre, d.razon_social, d.tipo, d.apellido, d.nombre_pila, d.apodo_ml, d.cuit, d.documento_tipo, d.documento_numero,
         d.condicion_iva, d.email, d.telefono, d.telefono_aclaracion, d.whatsapp, d.factura_por_whatsapp, d.factura_por_mail,
-        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc]);
+        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc, d.acceso_mayorista]);
     revalidatePath(LISTADO);
     return { ir: `${ficha(r!.id)}?ok=${encodeURIComponent("Cliente creado.")}` };
   });
@@ -121,11 +123,13 @@ export async function accionGuardarCliente(fd: FormData) {
                          whatsapp_confirmado_ts = case when whatsapp is distinct from $16 then null else whatsapp_confirmado_ts end, whatsapp = $16,
                          factura_por_whatsapp = $17, factura_por_mail = $18, lista_precios_id = $19, notas = $20,
                          cuenta_corriente = coalesce($21, cuenta_corriente),
-                         limite_cc = case when $21::boolean is null then limite_cc else $22::numeric end
+                         limite_cc = case when $21::boolean is null then limite_cc else $22::numeric end,
+                         acceso_mayorista_ts = case when acceso_mayorista is distinct from $23 then (case when $23::text is null then null else now() end) else acceso_mayorista_ts end,
+                         acceso_mayorista = $23
        where id = $2 and organizacion_id = $1 returning id`,
       [s.org.id, cid, d.nombre, d.razon_social, d.tipo, d.apellido, d.nombre_pila, d.apodo_ml, d.cuit, d.documento_tipo, d.documento_numero,
         d.condicion_iva, d.email, d.telefono, d.telefono_aclaracion, d.whatsapp, d.factura_por_whatsapp, d.factura_por_mail,
-        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc]);
+        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc, d.acceso_mayorista]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";

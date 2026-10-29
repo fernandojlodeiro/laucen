@@ -114,6 +114,21 @@ const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: "object", properties: { nombre: { type: "string", description: "Nombre y apellido, como se presentó (ej. 'Silvia Montanari')." } }, required: ["nombre"] },
   },
   {
+    name: "registrar_mayorista",
+    description: "Cuando alguien que pidió precios o condiciones mayoristas te deja sus datos: lo busca en los clientes (por este chat, CUIT, mail o WhatsApp); si ya está, le corrige los datos que dio y, si no, lo carga; y lo marca con el acceso mayorista solicitado. Hace falta la razón social y un mail o teléfono (en WhatsApp, el número desde el que escribe ya cuenta).",
+    input_schema: {
+      type: "object",
+      properties: {
+        razon_social: { type: "string", description: "Razón social o nombre del negocio, como lo escribió." },
+        contacto: { type: "string", description: "Nombre y apellido de la persona de contacto, si lo dio." },
+        cuit: { type: "string", description: "CUIT, si lo dio." },
+        email: { type: "string", description: "Mail, si lo dio." },
+        telefono: { type: "string", description: "Teléfono, sólo si dio uno distinto del número desde el que escribe." },
+      },
+      required: ["razon_social"],
+    },
+  },
+  {
     name: "armar_presupuesto",
     description: "Arma un presupuesto formal con productos de la tienda (precios de la tienda, vale 7 días) y se lo manda al cliente en PDF por este chat. Queda guardado en el sistema. Usalo sólo cuando el cliente pide un presupuesto.",
     input_schema: {
@@ -298,6 +313,13 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       await consulta("update chat set nombre = $3 where id = $1 and organizacion_id = $2", [chat.id, org, nombre]);
       chat.nombre = nombre;
       return "Listo, quedó guardado.";
+    }
+    case "registrar_mayorista": {
+      const { datosMayorista, registrarMayorista } = await import("./mayorista");
+      const d = datosMayorista(e, chat);
+      if ("motivo" in d) return d.motivo;
+      // También al proponer: cargar la ficha no le manda nada al cliente.
+      return registrarMayorista(org, chat, d);
     }
     case "armar_presupuesto": {
       if (!t?.listaId) return "No hay tienda web: no se pueden armar presupuestos.";
