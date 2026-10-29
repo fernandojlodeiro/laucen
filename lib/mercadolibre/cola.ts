@@ -17,6 +17,7 @@ import { after } from "next/server";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import type { SubirArchivo } from "@/lib/mercadolibre/facturas";
+import { altaProhibida, MOTIVO_PROHIBIDO } from "@/lib/mercadolibre/prohibidos";
 
 export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "reclamo" | "otro";
 export type OrigenCambio = "automatico" | "boton" | "barrida";
@@ -353,6 +354,10 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
         let creada: string | null = null, notaCreada: string | null = null;
         if (!cuenta || cuenta.estado !== "activa") {
           status = 401; datos = { message: "la cuenta de Mercado Libre del canal no está conectada" }; frenar = 300_000;
+        } else if (fila.tipo === "crear" && await altaProhibida(fila)) {
+          // Un producto que ML ya prohibió en esta cuenta no se vuelve a crear (Fer, 29/10): cada alta sumaba otra infracción.
+          await consulta("update ml_cola set estado = 'descartado', ultimo_error = $2 where id = $1", [fila.id, MOTIVO_PROHIBIDO]);
+          continue;
         } else if (fila.tipo === "factura") {
           // Subir el PDF de un comprobante a la venta (lib/mercadolibre/facturas.ts).
           const { enviarFactura } = await import("@/lib/mercadolibre/facturas");
