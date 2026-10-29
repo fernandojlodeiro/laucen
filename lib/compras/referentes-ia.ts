@@ -225,7 +225,8 @@ async function compararConNuestros(org: string, queda: () => boolean, sumar: (us
       await sumar(0, true);
       return;
     }
-    const lista = unicas.map((c, k) => `${k + 1}. ${nuestros[c].titulo}${nuestros[c].estado === "archivado" ? " (archivado)" : ""}`).join("\n");
+    // Sin decir cuáles están archivados: la IA los descartaba («el único similar está archivado»), y archivado también es tenerlo.
+    const lista = unicas.map((c, k) => `${k + 1}. ${nuestros[c].titulo}`).join("\n");
     const r = await pedirClaude({ system: SISTEMA_NUESTRO, modelo: "medio", effort: "low", maxTokens: 300,
       contenido: `De la competencia${g.precio ? ` (desde $ ${Math.round(g.precio)})` : ""}:\n${g.titulos.slice(0, 5).map((t) => `- ${t}`).join("\n")}\n\nNuestros productos:\n${lista}` });
     await sumar(r.usd);
