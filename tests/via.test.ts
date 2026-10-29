@@ -130,7 +130,18 @@ test("vendedores referentes: criterio, marcas con derechos, grupo y número de v
 });
 
 test("vendedores referentes con IA: candidatas por palabras raras y lectura de la respuesta", async () => {
-  const { candidatasDe, leerIguales, leerElegido } = await import("@/lib/compras/referentes-ia");
+  const { candidatasDe, leerIguales, leerElegido, cantidadDe } = await import("@/lib/compras/referentes-ia");
+  assert.equal(cantidadDe("Módulo Memoria De Reloj En Tiempo Real Ds3231 Emakers"), 1);
+  assert.equal(cantidadDe("5 X Modulo Reloj Tiempo Real Rtc Ds3231"), 5);
+  assert.equal(cantidadDe("Pack 65 Cables Para Protoboard Macho Macho"), 65);
+  assert.equal(cantidadDe("10 X 65 Cables Para Protoboard"), 10);
+  assert.equal(cantidadDe("Módulo De Potencia De Bajada Mini-360 Dc-dc X2un Emakers"), 2);
+  assert.equal(cantidadDe("Pack X10 Sensor Receptor Infrarrojo"), 10);
+  assert.equal(cantidadDe("Tira De Pines 2 Unidades Macho 1x40 2.54mm"), 2);
+  assert.equal(cantidadDe("Tira De Pines Macho 1x40 2.54mm 90 Grados"), 1);
+  assert.equal(cantidadDe("Punta T-3100 Hantek 100mhz X100 Atenuador"), 100);
+  assert.equal(cantidadDe("Cinta De Embalar Transparente 48x100 Pack X36u"), 36);
+  assert.equal(cantidadDe("Lente X 5mm"), 1);
   const ws = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1));
   const textos = [ws("Sensor Ultrasonido HC-SR04 Arduino"), ws("Modulo HC SR04 Ultrasonico"), ws("Rele 4 canales 5v"), ws("Arduino Uno R3")];
   const indice = new Map<string, number[]>();

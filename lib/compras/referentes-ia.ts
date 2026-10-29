@@ -42,6 +42,18 @@ export function candidatasDe(ws: Set<string>, textos: Set<string>[], indice: Map
   }).filter((x) => x.n >= 1 && x.s >= 0.35).sort((a, b) => b.s - a.s || b.n - a.n).slice(0, max).map((x) => x.i);
 }
 
+/** Cuántas unidades dice el título que trae (1 si no dice): «5 X …», «… X2un», «Pack x10», «Pack 65 …», «3 unidades», «Kit 50 …».
+ *  Dos con distinta cantidad nunca son el mismo producto, diga lo que diga la IA (Fer, 29/10: la IA juntaba «Reloj DS3231»
+ *  con «5 X Reloj DS3231»). No toma medidas ni códigos («1x40», «X100 atenuador» va igual en los dos). Pura. */
+export function cantidadDe(titulo: string): number {
+  const t = ` ${titulo.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()} `;
+  const m = t.match(/^\s*(\d{1,3})\s*x\s/) ?? t.match(/\s(?:pack|kit|set|combo|lote)\s*(?:x\s*|de\s+)?(\d{1,3})\b/)
+    ?? t.match(/\sx\s*(\d{1,3})\s*(?:u|un|uds?|unid|unidades|pcs|piezas)?\b(?!\s*(?:mm|cm|m|v|w|a|mhz|ghz|gb|mb)\b)/)
+    ?? t.match(/\s(\d{1,3})\s*(?:unidades|unid|uds|un|u\.)\s/);
+  const n = m ? Number(m[1]) : 1;
+  return n >= 1 ? n : 1;
+}
+
 /** Lee {"iguales":[1,3]} o [1,3] de la respuesta. Pura. */
 export function leerIguales(texto: string, cuantas: number): number[] | null {
   const json = texto.match(/\{[\s\S]*\}|\[[\s\S]*\]/)?.[0];
@@ -170,7 +182,8 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
   const semillas = pubs.map((_, i) => i).filter((i) => pubs[i].grupo_id == null);
   await deAVarios(semillas, queda, async (i) => {
     if (pubs[i].grupo_id != null) return; // la juntó otra mientras tanto
-    const cands = candidatasDe(textos[i], textos, indice, CANDIDATAS, i);
+    const cant = cantidadDe(pubs[i].titulo);
+    const cands = candidatasDe(textos[i], textos, indice, CANDIDATAS * 2, i).filter((c) => cantidadDe(pubs[c].titulo) === cant).slice(0, CANDIDATAS);
     if (!cands.length) { await asignar([i], null); await sumar(0, true); return; }
     const lista = cands.map((c, k) => `${k + 1}. ${pubs[c].titulo} — $ ${Math.round(pubs[c].precio ?? 0)}`).join("\n");
     const r = await pedirClaude({ system: SISTEMA_AGRUPAR, modelo: "medio", effort: "low", maxTokens: 300,
@@ -210,7 +223,8 @@ async function compararConNuestros(org: string, queda: () => boolean, sumar: (us
   await deAVarios(grupos, queda, async (g) => {
     const ws = palabrasDe(g.titulos.join(" "));
     const cands = candidatasDe(palabrasDe(g.titulos[0]), textos, indice, 10).concat(candidatasDe(ws, textos, indice, 10));
-    const unicas = [...new Set(cands)].slice(0, CANDIDATAS);
+    const cant = cantidadDe(g.titulos[0]);
+    const unicas = [...new Set(cands)].filter((c) => cantidadDe(nuestros[c].titulo) === cant).slice(0, CANDIDATAS);
     if (!unicas.length) {
       await consulta("update referente_grupo set producto_id = null, motivo = $2, juzgado_ts = now() where id = $1", [g.id, "Ningún producto tuyo se le parece"]);
       await sumar(0, true);
