@@ -94,11 +94,17 @@ test("PDF: por pedido, primero la etiqueta y enseguida su hoja; 10×15 o A4; só
   const conLista = await m.hojas.armarPdf([hojas[0]], { tam: "10x15", bajarEtiquetaMl: async () => ({ ok: true, pdf: pdfApaisado }) });
   assert.deepEqual(conLista.paginas, ["etiqueta-ml:11", "hoja:11"]);
 
-  // Retira en el local: sin etiqueta (salvo que se pida sólo la etiqueta).
+  // Retira en el local: en lugar de la etiqueta, el remito de entrega (Fer, 29/10); con «sólo la etiqueta», sólo el remito.
   const retira = hojaBase(15, { ...propia, retiro: true, direccion: [] });
-  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "a4", bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["hoja:15"]);
-  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["hoja:15"]);
-  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true })).paginas, ["etiqueta-propia:15"]);
+  const membrete = { nombre: "Daitom SRL", cuit: "30714306339", domicilio: "Félix Frías 836, Córdoba", logo: null };
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "a4", membrete, bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["remito:15", "hoja:15"]);
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["remito:15", "hoja:15"]);
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true })).paginas, ["remito:15"]);
+  // Un detalle largo sigue en otra página del remito.
+  const retiraLarga = hojaBase(16, { ...propia, retiro: true, direccion: [] });
+  retiraLarga.lineas = Array.from({ length: 30 }, (_, i) => ({ ubicacion: null, orden_recorrido: null, sku: `S-${i}`, titulo: "Un producto con un título largo", cantidad: 1, kit: null }));
+  const rr = (await m.hojas.armarPdf([retiraLarga], { tam: "10x15", membrete, bajarEtiquetaMl: etiquetaMlMentira })).paginas;
+  assert.ok(rr.filter((x) => x === "remito:16").length > 1 && rr.at(-1) === "hoja:16");
 
   const solo = await m.hojas.armarPdf(hojas.slice(0, 2), { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true });
   assert.deepEqual(solo.paginas, ["etiqueta-ml:11", "etiqueta-propia:12"]);
@@ -371,4 +377,13 @@ test("cliente presente retira: un pedido preparado queda entregado (el stock sal
   assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado, "entregado");
   const [v] = await q<{ n: number }>("select count(*)::int n from movimiento_stock where referencia_tipo = 'pedido' and referencia_id = $1 and tipo = 'venta'", [String(a)]);
   assert.equal(v.n, 1);
+});
+
+test("lineasRemito: un kit es una sola línea con los kits vendidos; lo suelto, como viene", () => {
+  const l = m.hojas.lineasRemito([
+    { ubicacion: "A1", orden_recorrido: 1, sku: "MOUSE", titulo: "Mouse", cantidad: 2, kit: null },
+    { ubicacion: "A2", orden_recorrido: 2, sku: "TECLADO", titulo: "Teclado", cantidad: 3, kit: { sku: "COMBO", titulo: "Combo teclado y mouse", cantidad: 3 } },
+    { ubicacion: "A3", orden_recorrido: 3, sku: "MOUSE2", titulo: "Mouse del combo", cantidad: 3, kit: { sku: "COMBO", titulo: "Combo teclado y mouse", cantidad: 3 } },
+  ]);
+  assert.deepEqual(l, [{ cantidad: 2, texto: "MOUSE — Mouse" }, { cantidad: 3, texto: "COMBO — Combo teclado y mouse" }]);
 });

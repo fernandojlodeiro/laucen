@@ -9,16 +9,23 @@
 // etiquetas de ML) o A4; en A4, todo en una hoja por pedido (Fer, 3/10): la
 // etiqueta arriba a la izquierda, el encabezado al costado y las líneas abajo.
 //
+// Lo que retira el cliente en el local (web o Mercado Libre sin envío) no lleva etiqueta: en su lugar va el REMITO DE
+// ENTREGA (Fer, 29/10): membrete, el detalle de lo que se lleva y el «recibí conforme» para que firme quien retira (el
+// titular o un transportista), con aclaración y DNI. Se escanea firmado y se sube al pedido como conforme de retiro.
+//
 // Acá: juntar los datos (datosHojas) y dibujar el PDF (armarPdf, sin base:
 // la etiqueta de ML llega por una función, así los tests la reemplazan).
 
 import { PDFDocument, StandardFonts, rgb, type PDFEmbeddedPage, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
-import { consulta } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
 import { sqlACobrar } from "@/lib/pedidos";
 import { cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { bajarEtiquetas } from "@/lib/mercadolibre/envios";
 import { recorteEtiquetaMl } from "@/lib/deposito/recorte-ml";
+import { emisorDe } from "@/lib/arca/facturar";
+import { cuitLegible } from "@/lib/cuit";
+import sharp from "sharp";
 
 export type TamHoja = "10x15" | "a4";
 export const TAMANOS: [TamHoja, string][] = [["10x15", "10 × 15 cm (térmica)"], ["a4", "A4"]];
@@ -154,6 +161,25 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
       aCobrar: p.a_cobrar ? p.total_ars : null,
     };
   });
+}
+
+/** El membrete del remito de entrega: la razón social principal y su logo (o el de la empresa). */
+export type Membrete = { nombre: string; cuit: string | null; domicilio: string | null; logo: Uint8Array | null };
+
+/** El membrete de la organización. Sin logo si no hay o no se puede bajar: el remito sale igual. */
+export async function membreteDe(org: string): Promise<Membrete | null> {
+  const e = await emisorDe(org).catch(() => null);
+  const empresa = await una<{ nombre: string | null; logo: string | null }>("select nombre, logo from empresa where organizacion_id = $1", [org]).catch(() => null);
+  if (!e && !empresa?.nombre) return null;
+  let logo: Uint8Array | null = null;
+  const url = e?.logo || empresa?.logo;
+  if (url && /^https:\/\//.test(url)) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (r.ok) logo = await sharp(Buffer.from(await r.arrayBuffer())).trim({ threshold: 25 }).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer();
+    } catch (err) { console.error("[hojas] sin logo para el remito:", err instanceof Error ? err.message : err); }
+  }
+  return { nombre: e?.razon_social || empresa?.nombre || "", cuit: e?.cuit ?? null, domicilio: e?.domicilio ?? null, logo };
 }
 
 // ── El PDF ───────────────────────────────────────────────
@@ -300,7 +326,7 @@ function recuadroACobrar(p: PDFPage, fb: PDFFont, x: number, y: number, ancho: n
   return alto;
 }
 
-/** Nuestra etiqueta (web, local): un rectángulo de 10×15 con lo necesario,
+/** Nuestra etiqueta (web, local, con envío; lo que se retira lleva el remito de entrega): un rectángulo de 10×15 con lo necesario,
  *  con la esquina de abajo a la izquierda en (x0, y0). */
 async function etiquetaPropia(l: Lienzo, p: PDFPage, x0: number, y0: number, d: DatosHoja, e: Extract<EtiquetaHoja, { tipo: "propia" }>) {
   const bw = 100 * MM, bh = 150 * MM;
@@ -310,15 +336,15 @@ async function etiquetaPropia(l: Lienzo, p: PDFPage, x0: number, y0: number, d: 
   const t = (s: string, size: number, font = l.f) => {
     for (const r of renglones(s, font, size, ancho)) { y -= size; p.drawText(r, { x: x0 + m, y, size, font }); y -= size * 0.3; }
   };
-  t(e.retiro ? "RETIRA EN EL LOCAL" : "ENVÍO", 16, l.fb);
-  if (e.metodo && !e.retiro) t(e.metodo, 9);
+  t("ENVÍO", 16, l.fb);
+  if (e.metodo) t(e.metodo, 9);
   y -= 4;
   t(`Pedido N.º ${d.pedidoId}`, 22, l.fb);
   if (d.reimpresion) t("REIMPRESIÓN", 9, l.fb);
   y -= 6;
   p.drawLine({ start: { x: x0 + m, y: y + 6 }, end: { x: x0 + bw - m, y: y + 6 }, thickness: 0.6 });
   y -= 6;
-  t(e.retiro ? "Retira:" : "Destinatario:", 8);
+  t("Destinatario:", 8);
   t(e.receptor ?? d.cliente ?? "—", 14, l.fb);
   if (e.direccion.length) { y -= 2; for (const r of e.direccion) t(r, 12); }
   if (e.referencia) t(`Ref.: ${e.referencia}`, 9);
@@ -333,6 +359,106 @@ async function etiquetaPropia(l: Lienzo, p: PDFPage, x0: number, y0: number, d: 
   p.drawImage(img, { x: x0 + (bw - iw) / 2, y: y0 + m + 12, width: iw, height: ih });
   const n = String(d.pedidoId);
   p.drawText(n, { x: x0 + (bw - l.f.widthOfTextAtSize(n, 9)) / 2, y: y0 + m + 1, size: 9, font: l.f });
+}
+
+/** Lo que se entrega, como se vendió: un kit es una sola línea (no sus componentes). Pura. */
+export function lineasRemito(lineas: LineaHoja[]): { cantidad: number; texto: string }[] {
+  const out: { cantidad: number; texto: string }[] = [];
+  const kits = new Set<string>();
+  for (const ln of lineas) {
+    if (!ln.kit) { out.push({ cantidad: ln.cantidad, texto: `${ln.sku ? `${ln.sku} — ` : ""}${ln.titulo}` }); continue; }
+    if (kits.has(ln.kit.sku)) continue;
+    kits.add(ln.kit.sku);
+    out.push({ cantidad: ln.kit.cantidad ?? 1, texto: `${ln.kit.sku} — ${ln.kit.titulo}` });
+  }
+  return out;
+}
+
+/** El remito de entrega de lo que se retira en el local (una página del tamaño elegido; si el detalle es largo, sigue
+ *  en otra). Membrete, N.º de pedido con su código, los datos de la compra, el detalle y el «recibí conforme» con los
+ *  renglones para firma, aclaración, DNI y fecha. */
+async function remitoEntrega(l: Lienzo, d: DatosHoja, membrete: Membrete | null): Promise<number> {
+  const [w, h] = PAGINA[l.tam];
+  const k = w / (100 * MM);
+  const m = 12 * k, ancho = w - 2 * m;
+  let p = l.doc.addPage([w, h]);
+  let paginas = 1;
+  let y = h - m;
+  const t = (s: string, x: number, size: number, font = l.f, color = negro) => p.drawText(limpio(s), { x, y, size, font, color });
+
+  // Membrete: el logo a la izquierda y los datos de la empresa al lado.
+  let xDatos = m;
+  if (membrete?.logo) {
+    try {
+      const img = await l.doc.embedJpg(membrete.logo);
+      const alto = 24 * k, anchoLogo = Math.min(alto * (img.width / img.height), 70 * k);
+      p.drawImage(img, { x: m, y: y - alto, width: anchoLogo, height: anchoLogo * (img.height / img.width) });
+      xDatos = m + anchoLogo + 8 * k;
+    } catch { /* sin logo */ }
+  }
+  const datosEmpresa = [membrete?.cuit ? `CUIT ${cuitLegible(membrete.cuit)}` : null, membrete?.domicilio ?? null].filter((x): x is string => !!x);
+  y -= 9 * k; t(membrete?.nombre || "", xDatos, 9 * k, l.fb);
+  for (const r of datosEmpresa.flatMap((x) => renglones(x, l.f, 6.5 * k, w - m - xDatos)).slice(0, 3)) { y -= 8 * k; t(r, xDatos, 6.5 * k, l.f, gris); }
+  y = Math.min(y, h - m - 26 * k) - 8 * k;
+  p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.8 });
+
+  // Título, N.º de pedido y su código de barras.
+  y -= 14 * k; t("REMITO DE ENTREGA", m, 12 * k, l.fb);
+  if (d.reimpresion) marcaReimpresion(l, p, m + l.fb.widthOfTextAtSize("REMITO DE ENTREGA", 12 * k) + 8, y, 7 * k);
+  y -= 18 * k;
+  const num = `Pedido N.º ${d.pedidoId}`;
+  t(num, m, 15 * k, l.fb);
+  const img = await codigoBarras(l.doc, String(d.pedidoId));
+  const iw = Math.min(ancho - l.fb.widthOfTextAtSize(num, 15 * k) - 8 * k, 90 * k), ih = 18 * k;
+  if (iw > 30) p.drawImage(img, { x: w - m - iw, y: y - 3 * k, width: iw, height: ih });
+  y -= 8 * k;
+  const datos: [string, string][] = [
+    ["Cliente", d.etiqueta.tipo === "propia" ? (d.etiqueta.receptor ?? d.cliente ?? "—") : (d.cliente ?? "—")],
+    ["Compra", [fechaHora(d.fecha), d.canal, d.idExterno && `venta ${d.idExterno}`, d.pack && `pack ${d.pack}`].filter(Boolean).join(" · ")],
+    ["Entrega", "Retira en el local"],
+  ];
+  for (const [et, val] of datos) {
+    y -= 9 * k;
+    t(`${et}:`, m, 7 * k, l.f, gris);
+    const rs = renglones(val, l.fb, 7.5 * k, ancho - 36 * k);
+    for (const [i, r] of rs.slice(0, 2).entries()) { if (i) y -= 9 * k; t(r, m + 36 * k, 7.5 * k, l.fb); }
+  }
+  if (d.aCobrar != null) { y -= 8 * k; y -= recuadroACobrar(p, l.fb, m, y - 34 * k, ancho, d.aCobrar, k); }
+
+  // El detalle de lo que se lleva.
+  y -= 14 * k;
+  t("Cant.", m, 6.5 * k, l.fb, gris);
+  t("Detalle", m + 24 * k, 6.5 * k, l.fb, gris);
+  y -= 4 * k;
+  p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.6 });
+  const firmaAlto = 92 * k;
+  for (const ln of lineasRemito(d.lineas)) {
+    const rs = renglones(ln.texto, l.f, 7.5 * k, ancho - 24 * k);
+    if (y - rs.length * 9.5 * k - 4 * k < m + firmaAlto) {
+      p = l.doc.addPage([w, h]); paginas++; y = h - m;
+      y -= 10 * k; t(`Remito de entrega · Pedido N.º ${d.pedidoId} (sigue)`, m, 8 * k, l.fb); y -= 6 * k;
+    }
+    y -= 10 * k;
+    t(String(ln.cantidad), m + 4 * k, 9 * k, l.fb);
+    for (const [i, r] of rs.entries()) { if (i) y -= 9.5 * k; t(r, m + 24 * k, 7.5 * k); }
+    y -= 3 * k;
+    p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+  }
+  if (!d.lineas.length) { y -= 10 * k; t("Sin productos.", m, 7.5 * k); }
+  const unidades = lineasRemito(d.lineas).reduce((a, x) => a + x.cantidad, 0);
+  y -= 9 * k; t(`${unidades} unidad${unidades === 1 ? "" : "es"}`, m, 7 * k, l.fb);
+
+  // El «recibí conforme», abajo de todo.
+  let yf = m + firmaAlto;
+  p.drawText(limpio("Recibí conforme la mercadería detallada, en buen estado."), { x: m, y: yf - 8 * k, size: 7.5 * k, font: l.fb });
+  yf -= 12 * k;
+  for (const et of ["Firma", "Aclaración", "DNI", "Fecha"]) {
+    yf -= 16 * k;
+    p.drawText(limpio(`${et}:`), { x: m, y: yf, size: 7.5 * k, font: l.f });
+    p.drawLine({ start: { x: m + 40 * k, y: yf - 1 }, end: { x: w - m, y: yf - 1 }, thickness: 0.6 });
+  }
+  p.drawText(limpio("Documento no válido como factura."), { x: m, y: m - 2, size: 5.5 * k, font: l.f, color: gris });
+  return paginas;
 }
 
 /** Una página con nuestra etiqueta: en 10×15, la página entera; en A4,
@@ -577,9 +703,9 @@ async function paginaUnica(l: Lienzo, d: DatosHoja, etiqueta: { ml: PDFEmbeddedP
  *  "etiqueta-propia:<pedido>", "aviso:<pedido>", "hoja:<pedido>", y en A4
  *  "etiqueta-ml+hoja:<pedido>", "etiqueta-propia+hoja:<pedido>",
  *  "aviso+hoja:<pedido>"), para los tests y el registro. */
-export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiquetaMl: BajarEtiquetaMl; bajarEtiquetaOca?: BajarEtiquetaOca; soloEtiqueta?: boolean }): Promise<{ pdf: Uint8Array; paginas: string[]; sinEtiqueta: number[] }> {
+export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiquetaMl: BajarEtiquetaMl; bajarEtiquetaOca?: BajarEtiquetaOca; soloEtiqueta?: boolean; membrete?: Membrete | null }): Promise<{ pdf: Uint8Array; paginas: string[]; sinEtiqueta: number[] }> {
   const doc = await PDFDocument.create();
-  doc.setTitle("Etiquetas y hojas de preparación");
+  doc.setTitle("Etiquetas, remitos y hojas de preparación");
   const l: Lienzo = { doc, f: await doc.embedFont(StandardFonts.Helvetica), fb: await doc.embedFont(StandardFonts.HelveticaBold), tam: o.tam };
   const juntas = o.tam === "a4" && !o.soloEtiqueta;
   const paginas: string[] = [];
@@ -612,12 +738,17 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
         unica = { aviso: texto };
         if (!juntas) { paginaAviso(l, `Pedido #${d.pedidoId}: falta la etiqueta de ${quien}`, texto); paginas.push(`aviso:${d.pedidoId}`); }
       }
+    } else if (d.etiqueta.retiro) {
+      // Lo que retiran en el local: en lugar de la etiqueta, el remito de entrega (en su propia página, también en A4).
+      tipo = "remito";
+      unica = { propia: d.etiqueta };
+      sinEtiquetaPropia = true;
+      const n = await remitoEntrega(l, d, o.membrete ?? null);
+      for (let i = 0; i < n; i++) paginas.push(`remito:${d.pedidoId}`);
     } else {
       tipo = "etiqueta-propia";
       unica = { propia: d.etiqueta };
-      // Lo que retiran en el local no lleva etiqueta (salvo que se pida sólo la etiqueta).
-      sinEtiquetaPropia = d.etiqueta.retiro && !o.soloEtiqueta;
-      if (!juntas && !sinEtiquetaPropia) { await paginaPropia(l, d, d.etiqueta); paginas.push(`etiqueta-propia:${d.pedidoId}`); }
+      if (!juntas) { await paginaPropia(l, d, d.etiqueta); paginas.push(`etiqueta-propia:${d.pedidoId}`); }
     }
     if (juntas && !sinEtiquetaPropia) {
       const n = await paginaUnica(l, d, unica);

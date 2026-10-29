@@ -14,7 +14,7 @@ import { consulta, motivoErp } from "@/lib/erp/base";
 import { exigirCarritoLibre } from "@/lib/pedidos";
 import { prepararImpresion, marcarImpreso } from "@/lib/deposito/picking";
 import { etiquetaOca } from "@/lib/oca/envios";
-import { datosHojas, armarPdf, bajarEtiquetaMlDe, esTamHoja, COOKIE_TAM } from "@/lib/deposito/hojas";
+import { datosHojas, armarPdf, bajarEtiquetaMlDe, esTamHoja, membreteDe, COOKIE_TAM } from "@/lib/deposito/hojas";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,9 @@ export async function GET(req: Request) {
     }
 
     const hojas = await datosHojas(org, pedidos);
-    const { pdf } = await armarPdf(hojas, { tam, soloEtiqueta, bajarEtiquetaMl: bajarEtiquetaMlDe(org), bajarEtiquetaOca: (envioId) => etiquetaOca(org, envioId) });
+    // El membrete, sólo si hay algún retiro (lleva el remito de entrega en lugar de la etiqueta).
+    const membrete = hojas.some((h) => h.etiqueta.tipo === "propia" && h.etiqueta.retiro) ? await membreteDe(org) : null;
+    const { pdf } = await armarPdf(hojas, { tam, soloEtiqueta, membrete, bajarEtiquetaMl: bajarEtiquetaMlDe(org), bajarEtiquetaOca: (envioId) => etiquetaOca(org, envioId) });
     await marcarImpreso(org, pedidos);
 
     const nombre = `${soloEtiqueta ? "etiqueta" : "etiquetas-y-hojas"}-${new Date().toISOString().slice(0, 10)}.pdf`;

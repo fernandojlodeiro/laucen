@@ -32,6 +32,8 @@ export type PedidoParaPreparar = {
   carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
   /** «A cobrar»: se cobra al entregar (efectivo al retirar). */
   a_cobrar: boolean; total_ars: number;
+  /** Ya está pago (un retiro pago va primero en el picking: Fer, 29/10). */
+  pagado: boolean;
   /** Cómo sale (para filtrar el picking por tipo de envío): el tipo de canal, el método de envío de la tienda y su nombre. */
   canal_tipo: string; metodo_tipo: string | null; metodo_nombre: string | null; retira: boolean;
   /** Las primeras líneas (hasta 5) para dar un golpe de vista de qué lleva (Fer, 6/10). */
@@ -74,7 +76,7 @@ export function pedidosParaPreparar(org: string, depositoId: number) {
            (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
            e.despachar_antes, e.logistica, ${SQL_DEPOSITO}::int deposito_id, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
-           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
+           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars, p.estado_pago = 'pagado' pagado,
            ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, (coalesce(p.envio ->> 'metodo' = 'Retira', false)
              or (ca.tipo = 'mercadolibre' and e.logistica is null and coalesce((p.envio ->> 'sin_envio')::boolean, false))) retira,
            coalesce((select json_agg(json_build_object('cantidad', x.cantidad, 'texto', x.texto) order by x.orden, x.id)

@@ -74,15 +74,16 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
   // Filtro por tipo de envío (Fer, 6/10): pestañas cortas (se usa en el celular); la última queda recordada.
   const guardado = (await cookies()).get(COOKIE_ENVIO)?.value;
   const envio = [sp.envio, guardado].find((x) => x === "todos" || GRUPOS_ENVIO.some((g) => g.clave === x)) ?? "todos";
-  const conEnvio = pedidos.map((p) => ({ ...p, ...envioDe(p) }));
+  // Un retiro ya pago va primero, con su cartel (Fer, 29/10): la persona viene a buscarlo.
+  const conEnvio = pedidos.map((p) => { const e = envioDe(p); return { ...p, ...e, retiroPago: e.grupo === "retiro" && p.pagado }; });
   const cuenta = (g: string) => conEnvio.filter((p) => p.grupo === g).length;
   // Orden: "Despachar antes" (lo que vence primero; como venía) o "Más viejos primero" (por fecha de compra).
   const porFecha = sp.orden === "fecha";
   // "Carritos" (Fer, 6/10): sólo los pedidos que llevan más de un producto.
   const soloCarritos = sp.carritos === "1";
   const visibles = conEnvio.filter((p) => (envio === "todos" || p.grupo === envio) && (!soloCarritos || p.lineas > 1))
-    .sort((a, b) => porFecha ? +new Date(a.fecha) - +new Date(b.fecha)
-      : (a.despachar_antes ? +new Date(a.despachar_antes) : Infinity) - (b.despachar_antes ? +new Date(b.despachar_antes) : Infinity) || +new Date(a.fecha) - +new Date(b.fecha));
+    .sort((a, b) => Number(b.retiroPago) - Number(a.retiroPago) || (porFecha ? +new Date(a.fecha) - +new Date(b.fecha)
+      : (a.despachar_antes ? +new Date(a.despachar_antes) : Infinity) - (b.despachar_antes ? +new Date(b.despachar_antes) : Infinity) || +new Date(a.fecha) - +new Date(b.fecha)));
   const conParam = (x: Record<string, string | null>) => url("/deposito/picking", { d: depositos.length > 1 ? String(dep.id) : null, envio: envio === "todos" ? null : envio, orden: porFecha ? "fecha" : null, carritos: soloCarritos ? "1" : null, ...x });
   const abiertos = lotes.filter((l) => l.estado === "abierto");
   const terminados = lotes.filter((l) => l.estado !== "abierto");
@@ -144,7 +145,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
           <div className="space-y-2">
             {visibles.map((p) => {
               const dia = diaAR(p.despachar_antes);
-              const urgente = dia !== null && dia <= hoy;
+              const urgente = (dia !== null && dia <= hoy) || p.retiroPago;
               return (
                 <div key={p.id} className={`${CAJA} flex items-start gap-3 ${urgente ? "border-[#E8B4AA] bg-[#FFF9F7]" : ""}`}>
                   <input type="checkbox" name="p" value={p.id} disabled={p.en_espera} className="mt-1 h-6 w-6 shrink-0 accent-[#16577F] disabled:opacity-40" aria-label={`Tildar pedido ${p.id}`} />
@@ -153,6 +154,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                       <Link href={`/ventas/pedidos/${p.id}`} className="font-bold text-[#16577F]">#{p.id}</Link>
                       {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
                       <Estado texto={p.marca} tono={p.grupo === "meli" ? "amarillo" : p.grupo === "oca" ? "azul" : p.grupo === "retiro" ? "verde" : "gris"} />
+                      {p.retiroPago && <Estado texto="Pagada · preparar urgente" tono="rojo" />}
                       {p.estado === "en_preparacion" && <Estado texto="Ya empezado" tono="amarillo" />}
                       {p.a_cobrar && <Estado texto={`A cobrar ${formatear(p.total_ars, "ARS")}`} tono="ambar" />}
                       {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
