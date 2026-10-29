@@ -209,12 +209,13 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
        where k.chat_id = $1 and k.resuelto_ts is null order by k.id`, [id]),
   ]);
   const abierta = ch.canal === "prueba" || ventanaAbierta(ch.ultimo_entrante_ts);
+  const pedidos = ch.cliente_id ? await pedidosDelCliente(org, ch.cliente_id) : [];
   const canal = ch.canal === "instagram" ? "Instagram" : "WhatsApp";
   return {
     clave: `c:${ch.id}`, origen: ch.canal,
     nombre: ch.cliente_nombre || ch.nombre || (ch.canal === "prueba" ? "Prueba" : ch.canal === "whatsapp" ? telefonoLindo(ch.externo) : ch.externo),
     detalle: ch.canal === "whatsapp" ? `WhatsApp · ${telefonoLindo(ch.externo)}${ch.cliente_id ? "" : " · no es cliente cargado"}` : ch.canal === "instagram" ? "Instagram" : "Prueba desde el panel",
-    enlaces: ch.cliente_id ? [{ texto: "Ficha del cliente", href: `/ventas/clientes/${ch.cliente_id}` }] : [],
+    enlaces: ch.cliente_id ? [{ texto: "Ficha del cliente", href: `/ventas/clientes/${ch.cliente_id}` }] : [], pedidos,
     ia: ch.canal === "prueba" ? null : { prendida: !ch.atiende }, notas: ch.notas, terminar: ch.atender && ch.canal !== "prueba",
     casos: casos.map((c) => ({ id: c.id, asunto: c.asunto, motivo: c.motivo, abiertoTs: c.abierto_ts, asignado: c.asignado, resolver: true })),
     mensajes: mensajes.map((m) => ({
@@ -228,6 +229,19 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
       tope: 4096, ayuda: null, proponer: false, sugerencia: null, web: true, canalId: null,
     },
   };
+}
+
+/** Los pedidos del cliente para la conversación: los que siguen en curso (hasta 2; un presupuesto también) o, si no
+ *  hay, el último. */
+async function pedidosDelCliente(org: string, clienteId: number): Promise<{ texto: string; href: string }[]> {
+  const filas = await consulta<{ id: number; estado: string; en_curso: boolean }>(`
+    select id::int, estado, estado not in ('entregado', 'cancelado', 'devuelto') en_curso from pedido
+     where organizacion_id = $1 and cliente_id = $2
+     order by (estado not in ('entregado', 'cancelado', 'devuelto')) desc, fecha desc limit 3`, [org, clienteId])
+    .catch((e) => { console.error("[bandeja] pedidos del cliente", e); return []; });
+  const enCurso = filas.filter((f) => f.en_curso).slice(0, 2);
+  return (enCurso.length ? enCurso : filas.slice(0, 1))
+    .map((f) => ({ texto: `${f.estado === "presupuesto" ? "Presupuesto" : "Pedido"} #${f.id}`, href: `/ventas/pedidos/${f.id}` }));
 }
 
 const AVISO_IA: Record<string, string> = {
@@ -255,6 +269,7 @@ async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null>
   await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
   return {
     clave: `m:${c.pack_id}`, origen: "ml", nombre: c.nombre || `Pack ${c.pack_id}`,
+    pedidos: c.pedido_id ? [{ texto: `Pedido #${c.pedido_id}`, href: `/ventas/pedidos/${c.pedido_id}` }] : [],
     detalle: ["Mercado Libre", c.canal, c.titulo].filter(Boolean).join(" · "),
     enlaces: [
       ...(c.pedido_id ? [{ texto: `Pedido ${c.pedido_id}`, href: `/ventas/pedidos/${c.pedido_id}` }] : []),
@@ -321,7 +336,7 @@ async function preguntaAbierta(org: string, id: string): Promise<ChatAbierto | n
     });
   }
   return {
-    clave: `p:${q.id}`, origen: "pregunta", nombre: q.titulo ? `Pregunta: ${q.titulo}` : "Pregunta",
+    clave: `p:${q.id}`, origen: "pregunta", nombre: q.titulo ? `Pregunta: ${q.titulo}` : "Pregunta", pedidos: [],
     detalle: ["Pregunta de Mercado Libre", q.canal, q.item_id].filter(Boolean).join(" · "),
     enlaces: [
       ...(q.permalink ? [{ texto: "Ver la publicación", href: q.permalink, afuera: true }] : []),
@@ -357,6 +372,7 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
     : !r.puede_mensaje ? "Mercado Libre no deja mandarle un mensaje al comprador en este momento (tocá «Actualizar» en la ficha del reclamo)." : null;
   return {
     clave: `r:${r.id}`, origen: "reclamo", nombre: r.nombre || `Reclamo ${r.id}`,
+    pedidos: r.pedido_id ? [{ texto: `Pedido #${r.pedido_id}`, href: `/ventas/pedidos/${r.pedido_id}` }] : [],
     detalle: [`Reclamo ${r.id}`, r.canal, r.motivo].filter(Boolean).join(" · "),
     enlaces: [
       { texto: "Ficha del reclamo (devolución, mediación…)", href: `/ventas/reclamos/${r.id}` },

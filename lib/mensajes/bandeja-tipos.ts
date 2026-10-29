@@ -78,6 +78,8 @@ export type Enlace = { texto: string; href: string; afuera?: boolean };
 
 export type ChatAbierto = {
   clave: string; origen: Origen; nombre: string; detalle: string; enlaces: Enlace[];
+  /** Arriba a la derecha (Fer, 29/10): los pedidos del cliente que siguen en curso (o el último), para abrirlos de un toque. */
+  pedidos: Enlace[];
   /** El interruptor de la IA de esta conversación (null: no tiene, ej. un reclamo). */
   ia: { prendida: boolean } | null;
   /** Está «Para atender» y se puede dar por terminada (WhatsApp, Instagram y mensajes de Mercado Libre). */
