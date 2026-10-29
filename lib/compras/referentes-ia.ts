@@ -95,8 +95,10 @@ Decí cuáles son EL MISMO producto que la base.
 ${REGLAS}
 Ante la duda, NO es el mismo. Respondé SOLO JSON: {"iguales":[2,5]} (o {"iguales":[]}).`;
 
-const SISTEMA_NUESTRO = `Sos un comprador experto de Mercado Libre Argentina. Te paso un producto que vende la competencia (sus títulos) y
-productos de nuestro catálogo. Decí cuál de los nuestros es EL MISMO producto.
+const SISTEMA_NUESTRO = `Sos un comprador experto de Mercado Libre Argentina. Te paso un producto que vende la competencia (su título
+principal y otros títulos con que lo publican) y productos de nuestro catálogo. Decí cuál de los nuestros es EL MISMO producto que el
+del título principal. Un título que no nombra la variante exacta (por ejemplo "ESP32" sin decir "32E") no la descarta: alcanza con
+que no se contradigan.
 ${REGLAS}
 Si ninguno lo es, n = 0. Respondé SOLO JSON: {"n":2,"motivo":"mismo módulo HC-SR04, una unidad"}. El motivo, corto y en castellano.`;
 
@@ -165,8 +167,14 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
       from referente_pub where organizacion_id = $1 order by vendidos desc nulls last, item_id`, [org]);
   const textos = pubs.map((x) => palabrasDe(x.titulo));
   const indice = indiceDe(textos, 30);
+  // La publicación principal de cada grupo (la más vendida: la primera que entró, porque van de más a menos vendidas). Una
+  // publicación nueva se compara con ésa y no con cualquiera del grupo, para que no se encadenen parecidos (Fer, 29/10: el
+  // módulo ESP32-WROOM-32E suelto terminó en el grupo de la placa NodeMCU ESP32).
+  const principal = new Map<number, number>();
+  pubs.forEach((x, i) => { if (x.grupo_id != null && !principal.has(x.grupo_id)) principal.set(x.grupo_id, i); });
   const asignar = async (items: number[], grupo: number | null): Promise<number> => {
     const g = grupo ?? (await una<{ id: number }>("insert into referente_grupo (organizacion_id) values ($1) returning id::float8 id", [org]))!.id;
+    if (!principal.has(g)) principal.set(g, items[0]);
     const nuevos = items.filter((i) => pubs[i].grupo_id == null);
     for (const i of nuevos) pubs[i].grupo_id = g;
     if (nuevos.length) await consulta("update referente_pub set grupo_id = $3 where organizacion_id = $1 and item_id = any($2::text[])", [org, nuevos.map((i) => pubs[i].item_id), g]);
@@ -178,7 +186,9 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
   await deAVarios(semillas, queda, async (i) => {
     if (pubs[i].grupo_id != null) return; // la juntó otra mientras tanto
     const cant = cantidadDe(pubs[i].titulo);
-    const cands = candidatasDe(textos[i], textos, indice, CANDIDATAS * 2, i).filter((c) => cantidadDe(pubs[c].titulo) === cant).slice(0, CANDIDATAS);
+    const cands = [...new Set(candidatasDe(textos[i], textos, indice, CANDIDATAS * 2, i)
+      .map((c) => (pubs[c].grupo_id != null ? principal.get(pubs[c].grupo_id!) ?? c : c)))]
+      .filter((c) => c !== i && cantidadDe(pubs[c].titulo) === cant).slice(0, CANDIDATAS);
     if (!cands.length) { await asignar([i], null); await sumar(0, true); return; }
     const lista = cands.map((c, k) => `${k + 1}. ${pubs[c].titulo} — $ ${Math.round(pubs[c].precio ?? 0)}`).join("\n");
     const r = await pedirClaude({ system: SISTEMA_AGRUPAR, modelo: "medio", effort: "low", maxTokens: 300,
@@ -191,7 +201,8 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
     const juntas = iguales.map((n) => cands[n - 1]);
     if (pubs[i].grupo_id != null) { await asignar(juntas, pubs[i].grupo_id); return; }
     const existente = juntas.map((c) => pubs[c].grupo_id).find((g) => g != null) ?? null;
-    await asignar([i, ...juntas], existente);
+    // A un grupo que ya existe entra sólo la base (y las sueltas que la IA dio por iguales), nunca otro grupo entero.
+    await asignar([i, ...juntas.filter((c) => pubs[c].grupo_id == null)], existente);
   });
   const sueltas = pubs.filter((x) => x.grupo_id == null).length;
   if (!sueltas) await consulta(`delete from referente_grupo g where g.organizacion_id = $1 and not exists (select 1 from referente_pub p where p.grupo_id = g.id)`, [org]);
@@ -201,7 +212,7 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
 /** Paso 2. Devuelve cuántos grupos quedaron sin comparar. */
 async function compararConNuestros(org: string, queda: () => boolean, sumar: (usd: number, avanzo?: boolean) => Promise<void>): Promise<number> {
   const grupos = await consulta<{ id: number; titulos: string[]; precio: number | null }>(`
-    select g.id::float8 id, array_agg(distinct p.titulo) titulos, min(p.precio)::float8 precio
+    select g.id::float8 id, array_agg(p.titulo order by p.vendidos desc nulls last, p.item_id) titulos, min(p.precio)::float8 precio
       from referente_grupo g join referente_pub p on p.grupo_id = g.id
      where g.organizacion_id = $1 and g.juzgado_ts is null
      group by g.id order by sum(coalesce(p.vendidos, 0)) desc`, [org]);
@@ -216,6 +227,7 @@ async function compararConNuestros(org: string, queda: () => boolean, sumar: (us
   const textos = nuestros.map((x) => palabrasDe(x.texto));
   const indice = indiceDe(textos, 50);
   await deAVarios(grupos, queda, async (g) => {
+    g.titulos = [...new Set(g.titulos)]; // la primera es la más vendida: la principal
     const ws = palabrasDe(g.titulos.join(" "));
     const cands = candidatasDe(palabrasDe(g.titulos[0]), textos, indice, 10).concat(candidatasDe(ws, textos, indice, 10));
     const cant = cantidadDe(g.titulos[0]);
@@ -228,7 +240,7 @@ async function compararConNuestros(org: string, queda: () => boolean, sumar: (us
     // Sin decir cuáles están archivados: la IA los descartaba («el único similar está archivado»), y archivado también es tenerlo.
     const lista = unicas.map((c, k) => `${k + 1}. ${nuestros[c].titulo}`).join("\n");
     const r = await pedirClaude({ system: SISTEMA_NUESTRO, modelo: "medio", effort: "low", maxTokens: 300,
-      contenido: `De la competencia${g.precio ? ` (desde $ ${Math.round(g.precio)})` : ""}:\n${g.titulos.slice(0, 5).map((t) => `- ${t}`).join("\n")}\n\nNuestros productos:\n${lista}` });
+      contenido: `De la competencia${g.precio ? ` (desde $ ${Math.round(g.precio)})` : ""}: ${g.titulos[0]}${g.titulos.length > 1 ? `\nOtros títulos con que lo publican (sólo de referencia):\n${g.titulos.slice(1, 5).map((t) => `- ${t}`).join("\n")}` : ""}\n\nNuestros productos:\n${lista}` });
     await sumar(r.usd);
     if ("error" in r) return;
     const e = leerElegido(r.texto, unicas.length);
