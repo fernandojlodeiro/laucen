@@ -343,3 +343,22 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
          and trim(texto) = $3 and fecha > now() - interval '30 minutes' order by fecha desc limit 1)`, [org, packId, t]);
   await consulta("update meli_conversacion set sugerencia = null where organizacion_id = $1 and pack_id = $2", [org, packId]);
 }
+
+/** «Tu compra está lista para retirar» al comprador de una venta de Mercado Libre sin envío (Fer, 29/10), por la
+ *  mensajería de la venta, cuando el pedido queda preparado (lo encola el cambio de estado en correo_cola, como el aviso
+ *  de la tienda web). La dirección y el horario son los del local que figuran en la tienda web. Tira si no se pudo. */
+export async function avisarListoParaRetirarMl(org: string, pedidoId: number): Promise<void> {
+  const p = await una<{ canal_id: number; pack: string | null }>(`
+    select canal_id::int, coalesce(envio ->> 'pack_id', id_externo) pack from pedido where id = $1 and organizacion_id = $2`, [pedidoId, org]);
+  if (!p?.pack) throw new ErrorErp("La venta no tiene número de Mercado Libre.");
+  const local = await una<{ direccion: string | null; horario: string | null }>(`
+    select nullif(trim(config ->> 'direccion'), '') direccion, nullif(trim(config ->> 'horario'), '') horario from canal
+     where organizacion_id = $1 and tipo = 'web_minorista' and estado <> 'archivado' order by id limit 1`, [org]);
+  // La conversación puede no existir todavía (el comprador nunca escribió): se crea para poder escribirle.
+  await consulta(`insert into meli_conversacion (organizacion_id, canal_id, pack_id, pedido_id, sin_leer, ultimo_ts) values ($1, $2, $3, $4, 0, now())
+                  on conflict (organizacion_id, pack_id) do nothing`, [org, p.canal_id, p.pack, pedidoId]);
+  const donde = local?.direccion ? ` en ${local.direccion}` : " en nuestro local";
+  const horario = local?.horario?.replace(/[.\s]+$/, "");
+  const cuando = horario ? `, ${horario.charAt(0).toLowerCase()}${horario.slice(1)}` : "";
+  await enviarMensaje(org, p.pack, `¡Hola! Tu compra ya está lista para retirar${donde}${cuando}. Quien venga a buscarla firma el remito de entrega con su DNI. ¡Te esperamos!`, null, { auto: true });
+}
