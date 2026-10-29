@@ -25,10 +25,12 @@ import { prepararFactura, prepararNotaCredito, emitir, envioPagadoPorElComprador
 /** Lo que devuelve la IA. */
 export type Lectura = {
   decision: "nada" | "aplicar" | "duda"; leyenda: string | null; cuit: string | null; factura_a: boolean; incluir_envio?: boolean; condicion_iva?: string | null;
-  razon_social: string | null; domicilio: string | null; motivo: string;
+  razon_social: string | null; domicilio: Domicilio | string | null; motivo: string;
 };
+/** El domicilio fiscal que dio el comprador, en partes (como lo guarda la ficha del cliente). */
+export type Domicilio = { calle: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null };
 export type Decision =
-  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; incluirEnvio: boolean; razonSocial: string | null; condicionIva: string | null; motivo: string }
+  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; incluirEnvio: boolean; razonSocial: string | null; condicionIva: string | null; domicilio: Domicilio | null; motivo: string }
   | { accion: "retener"; motivo: string };
 
 export const LARGO_LEYENDA = 500;
@@ -39,13 +41,21 @@ export function decidir(l: Lectura | null, cliente: { cuit: string | null }): De
   if (!l || !["nada", "aplicar", "duda"].includes(l.decision)) return { accion: "retener", motivo: "No se pudo leer qué pidió el comprador: mirá los mensajes y las notas antes de facturar." };
   const motivo = (l.motivo ?? "").trim();
   if (l.decision === "duda") return { accion: "retener", motivo: motivo || "Pidió algo sobre la factura que no está claro." };
-  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, incluirEnvio: false, razonSocial: null, condicionIva: null, motivo };
+  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, incluirEnvio: false, razonSocial: null, condicionIva: null, domicilio: null, motivo };
   const cuit = l.cuit ? digitos(l.cuit) : null;
   if (l.cuit && (cuit!.length !== 11 || !cuitCierra(cuit!))) return { accion: "retener", motivo: `Dio un CUIT que no es válido (${l.cuit}). ${motivo}`.trim() };
   if ((l.razon_social || l.domicilio) && !cuit) return { accion: "retener", motivo: `Pide otra razón social o domicilio sin dar el CUIT. ${motivo}`.trim() };
   if (l.factura_a && !cuit && digitos(cliente.cuit).length !== 11) return { accion: "retener", motivo: `Pide factura A pero no dio el CUIT. ${motivo}`.trim() };
   const leyenda = (l.leyenda ?? "").trim().replace(/^["«“']+|["»”']+$/g, "").slice(0, LARGO_LEYENDA) || null;
-  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, incluirEnvio: !!l.incluir_envio, razonSocial: (l.razon_social ?? "").trim().slice(0, 120) || null, condicionIva: ["monotributo", "exento", "consumidor_final"].includes(l.condicion_iva ?? "") ? l.condicion_iva! : null, motivo };
+  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, incluirEnvio: !!l.incluir_envio, razonSocial: (l.razon_social ?? "").trim().slice(0, 120) || null, condicionIva: ["monotributo", "exento", "consumidor_final"].includes(l.condicion_iva ?? "") ? l.condicion_iva! : null, domicilio: domicilioDe(l.domicilio), motivo };
+}
+
+/** El domicilio de la lectura, limpio: hace falta al menos la calle (si vino en un solo texto, va entero como calle). Pura. */
+export function domicilioDe(d: Lectura["domicilio"]): Domicilio | null {
+  const t = (x: unknown, n: number) => (typeof x === "string" ? x.trim().slice(0, n) || null : null);
+  if (typeof d === "string") return t(d, 200) ? { calle: t(d, 200), localidad: null, provincia: null, codigo_postal: null } : null;
+  if (!d || !t(d.calle, 200)) return null;
+  return { calle: t(d.calle, 200), localidad: t(d.localidad, 100), provincia: t(d.provincia, 100), codigo_postal: t(d.codigo_postal, 12) };
 }
 
 /** La huella de lo que escribió el comprador y de las notas: con la misma, no se vuelve a leer. Pura. */
@@ -55,7 +65,7 @@ export function firmaDe(textos: { quien: string; texto: string }[]): string {
 }
 
 const INSTRUCCIONES = `Antes de emitir la factura electrónica de un pedido de una tienda argentina, revisás lo que escribió el comprador (mensajes de Mercado Libre o WhatsApp) y las notas que cargó la tienda en el pedido o en el cliente, para ver si pidieron algo sobre la factura.
-Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": texto o null, "cuit": texto o null, "factura_a": true o false, "incluir_envio": true o false, "condicion_iva": "monotributo" | "exento" | "consumidor_final" | null, "razon_social": texto o null, "domicilio": texto o null, "motivo": una oración en castellano rioplatense}
+Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": texto o null, "cuit": texto o null, "factura_a": true o false, "incluir_envio": true o false, "condicion_iva": "monotributo" | "exento" | "consumidor_final" | null, "razon_social": texto o null, "domicilio": {"calle": calle y número (o «S/N») tal cual, "localidad": texto o null, "provincia": texto o null, "codigo_postal": texto o null} o null, "motivo": una oración en castellano rioplatense}
 - "nada": no pidieron nada sobre la factura (preguntas del envío, agradecimientos, consultas del producto…), o lo que pidieron ya está en los datos actuales.
 - "aplicar": pidieron algo claro que se resuelve con una o las dos cosas de acá:
   · una leyenda u observación que tiene que figurar en la factura (un número de subsidio, expediente, orden de compra, proyecto…): va en "leyenda", textual, sin comillas;
@@ -189,6 +199,9 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
     const condicion = d.condicionIva ?? (sinCondicion ? "responsable_inscripto" : null);
     if (condicion && condicion !== cl.condicion_iva) cambios.push(CONDICIONES_IVA_TEXTO[condicion] ?? condicion);
     if (d.razonSocial && d.razonSocial !== cl.razon_social) cambios.push(`razón social ${d.razonSocial}`);
+    // El domicilio que dio para la factura va al domicilio fiscal de la ficha, el mismo que toma la factura (Fer, 29/10,
+    // pedido 150490: se refacturó con el CUIT nuevo pero con el domicilio viejo).
+    if (d.domicilio && await guardarDomicilioFiscal(org, cl.cliente_id!, d.domicilio)) cambios.push(`domicilio fiscal ${[d.domicilio.calle, d.domicilio.localidad].filter(Boolean).join(", ")}`);
     if (cambios.length) {
       await consulta(`update cliente set cuit = $3, condicion_iva = coalesce($4::text, condicion_iva),
                              razon_social = coalesce($5::text, razon_social) where id = $1 and organizacion_id = $2`,
@@ -203,6 +216,26 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
   await consulta("update pedido set factura_revision = $3::jsonb, factura_retenida = null, factura_retenida_ts = null where id = $1 and organizacion_id = $2",
     [pid, org, JSON.stringify({ ...base, decision: aplicado.length ? "aplicar" : "nada", motivo })]);
   return { retenida: false, motivo, cambio };
+}
+
+/** El domicilio fiscal de la ficha del cliente pasa a ser éste: se corrige el que toma la factura (el fiscal principal, o
+ *  el primero) o, si no hay, se agrega. Devuelve si cambió algo. */
+async function guardarDomicilioFiscal(org: string, clienteId: number, d: Domicilio): Promise<boolean> {
+  const f = await una<{ id: number; calle: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null }>(`
+    select id::int, concat_ws(' ', calle, numero) calle, localidad, provincia, codigo_postal from cliente_direccion
+     where cliente_id = $1 and organizacion_id = $2 and etiqueta = 'Fiscal' order by principal desc, id limit 1`, [clienteId, org]);
+  if (f) {
+    const igual = (a: string | null, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+    if (igual(f.calle, d.calle) && (!d.localidad || igual(f.localidad, d.localidad)) && (!d.codigo_postal || igual(f.codigo_postal, d.codigo_postal))) return false;
+    await consulta(`update cliente_direccion set calle = $3, numero = null, piso_depto = null, localidad = coalesce($4, localidad), provincia = coalesce($5, provincia),
+                           codigo_postal = coalesce($6, codigo_postal), pais = 'AR' where id = $1 and organizacion_id = $2`,
+      [f.id, org, d.calle, d.localidad, d.provincia, d.codigo_postal]);
+  } else {
+    await consulta(`insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, localidad, provincia, codigo_postal, pais, principal)
+                    values ($1, $2, 'Fiscal', $3, $4, $5, $6, 'AR', not exists (select 1 from cliente_direccion where cliente_id = $2))`,
+      [org, clienteId, d.calle, d.localidad, d.provincia, d.codigo_postal]);
+  }
+  return true;
 }
 
 /** SQL: la factura del pedido que sigue vigente (autorizada y sin nota de crédito autorizada). Alias del comprobante `cb`. */
