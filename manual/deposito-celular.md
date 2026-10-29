@@ -25,6 +25,7 @@ Los botones (sólo los que tu rol puede usar):
 - **🏷️ Imprimir etiquetas de envío**: las de los pedidos por despachar ([Envíos](/ventas/envios)). Con un globo rojo con las etiquetas sin imprimir.
 - **📦 Etiquetas de Full**: para mandar mercadería a Mercado Libre.
 - **📥 Recepción**: escanear lo que llega ([Recepción](/deposito/recepcion)).
+- **✅ Control de stock**: ir a cada ubicación y confirmar que el producto está ([Control de stock](/deposito/control)); el número rojo es cuánto queda por controlar.
 - **🔎 Consultar stock**: escanear y ver dónde está ([Consulta de stock](/stock/consulta)).
 - **🔖 Etiquetas de producto y ubicación**.
 
@@ -40,5 +41,6 @@ Para volver al sistema completo, el botón "Menú" de abajo.
 
 - [Picking](/deposito/picking)
 - [Recepción](/deposito/recepcion)
+- [Control de stock](/deposito/control)
 - [Envíos](/ventas/envios)
 - [Mis accesos del celular](/config/accesos)

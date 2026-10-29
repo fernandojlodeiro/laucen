@@ -75,6 +75,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
       { texto: "Etiquetas", href: "/deposito/etiquetas", permiso: "etiquetas_ver" },
       { texto: "Envíos a Full", href: "/stock/full", permiso: "full_ver", icono: "🚛" },
+      { texto: "Control de stock", href: "/deposito/control", permiso: "control_stock", icono: "✅" },
       { texto: "Ajustes", href: "/stock/ajustes", permiso: "stock_ajustar" },
       { texto: "Movimientos de stock", href: "/stock/movimientos", permiso: "stock_ver" },
     ],
@@ -110,6 +111,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Stock valorizado", href: "/informes/stock-valorizado", permiso: "informes_stock_ver" },
       { texto: "Stock por ubicación", href: "/informes/stock-por-ubicacion", permiso: "informes_stock_ver" },
+      { texto: "Control de stock", href: "/informes/control-stock", permiso: "informes_stock_ver" },
       { texto: "Monitoreo de precios y publicaciones", href: "/informes/monitoreo-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Cambios en publicaciones", href: "/informes/cambios-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Promociones de ML", href: "/informes/promociones", permiso: "informes_publicaciones_ver" },
