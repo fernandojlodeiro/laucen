@@ -60,6 +60,15 @@ alter table correo_cola add column if not exists wa_hecho_ts timestamptz;
 create or replace function public.correo_encolar_estado() returns trigger language plpgsql as $$
 declare v_tipo text;
 begin
+  -- Una venta de Mercado Libre sin envío (la retiran en el local) que queda preparada: el «listo para retirar» va al
+  -- comprador por la mensajería de la venta (Fer, 29/10; lib/correo/mails.ts → avisarListoParaRetirarMl).
+  if new.estado_nuevo = 'preparado' and exists (select 1 from pedido p join canal c on c.id = p.canal_id
+       where p.id = new.pedido_id and c.tipo = 'mercadolibre' and coalesce((p.envio ->> 'sin_envio')::boolean, false)
+         and not exists (select 1 from envio e where e.pedido_id = p.id and e.logistica is not null and coalesce(e.estado, '') <> 'cancelled')) then
+    insert into correo_cola (organizacion_id, pedido_id, tipo, nota) values (new.organizacion_id, new.pedido_id, 'listo_retirar', new.nota)
+    on conflict (pedido_id, tipo) do nothing;
+    return new;
+  end if;
   if not exists (select 1 from pedido p join canal c on c.id = p.canal_id where p.id = new.pedido_id and c.tipo = 'web_minorista') then return new; end if;
   v_tipo := case
     when new.estado_nuevo = 'pagado' then 'pagado'
