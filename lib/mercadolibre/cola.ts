@@ -17,6 +17,7 @@ import { after } from "next/server";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import type { SubirArchivo } from "@/lib/mercadolibre/facturas";
+import { altaProhibida, reactivaNuncaMl, MOTIVO_NUNCA_ML } from "@/lib/mercadolibre/prohibidos";
 
 export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "reclamo" | "otro";
 export type OrigenCambio = "automatico" | "boton" | "barrida";
@@ -349,10 +350,18 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           returning id, organizacion_id, canal_id, item_id, variation_id, tipo, payload, efecto, intentos`, [canal]);
         if (!fila) break;
         if (cuenta === undefined) cuenta = await cuentaDelCanal(organizacion_id, canal);
-        let status = 0, datos: unknown = null, frenar = 0, mensajeError: string | undefined;
+        let status = 0, datos: unknown = null, frenar = 0, mensajeError: string | undefined, bloqueo: string | null = null;
         let creada: string | null = null, notaCreada: string | null = null;
         if (!cuenta || cuenta.estado !== "activa") {
           status = 401; datos = { message: "la cuenta de Mercado Libre del canal no está conectada" }; frenar = 300_000;
+        } else if (fila.tipo === "crear" && (bloqueo = await altaProhibida(fila))) {
+          // Un producto que ML ya prohibió en esta cuenta, o marcado «Jamás publicar en Mercado Libre», no se crea (Fer, 29/10).
+          await consulta("update ml_cola set estado = 'descartado', ultimo_error = $2 where id = $1", [fila.id, bloqueo]);
+          continue;
+        } else if (await reactivaNuncaMl(fila)) {
+          // Ni se reactiva, venga de donde venga (también «Sacar la pausa»).
+          await consulta("update ml_cola set estado = 'descartado', ultimo_error = $2 where id = $1", [fila.id, MOTIVO_NUNCA_ML]);
+          continue;
         } else if (fila.tipo === "factura") {
           // Subir el PDF de un comprobante a la venta (lib/mercadolibre/facturas.ts).
           const { enviarFactura } = await import("@/lib/mercadolibre/facturas");

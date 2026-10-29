@@ -14,6 +14,7 @@ import { TODOS_PCT, esVia, leerPctsCosto, leerNcm } from "@/lib/costo-importacio
 import { supabaseServer } from "@/lib/supabase";
 import { revalidateTag } from "next/cache";
 import { publicarEnWeb, marcarNoPublicable } from "@/lib/catalogo/web";
+import { marcarNuncaMl } from "@/lib/mercadolibre/prohibidos";
 import { duplicarProducto } from "@/lib/catalogo/duplicar";
 import { exigirSkuLibre } from "@/lib/catalogo/sku";
 import { marcaValida } from "@/lib/catalogo/marcas";
@@ -631,6 +632,22 @@ export async function accionPublicarWeb(fd: FormData) {
     revalidatePath(`${LISTADO}/${pid}`);
     revalidateTag(`tienda-${canal}`);
     return prender ? "Publicado en la web." : "Sacado de la web: ya no se ve en la tienda.";
+  });
+}
+
+/** El interruptor «Jamás publicar en Mercado Libre» de la pestaña Publicaciones (Fer, 29/10). Prenderlo es el clic:
+ *  pausa ya sus publicaciones activas de ML (por la cola). */
+export async function accionNuncaMl(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const prender = fd.get("valor") === "1";
+    const pausas = await marcarNuncaMl(s.org.id, pid, prender, s.usuario.id);
+    revalidatePath(`${LISTADO}/${pid}`);
+    return prender
+      ? `Listo: nunca se publica en Mercado Libre.${pausas ? ` Salió la pausa de ${pausas === 1 ? "su publicación activa" : `sus ${pausas} publicaciones activas`}.` : ""}`
+      : "Ya se puede publicar en Mercado Libre. Lo pausado sigue pausado: se reactiva a mano.";
   });
 }
 

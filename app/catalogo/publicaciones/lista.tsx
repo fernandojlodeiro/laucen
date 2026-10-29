@@ -17,7 +17,7 @@ export function filtrosPublicaciones(sp: SP) {
     comienza: sp.contiene !== "1",
     inactivos: verInactivos(sp),
     // En revisión en ML (Fer, 5/10): todas, sólo las que son por el precio, o por otro motivo.
-    revision: sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null,
+    revision: sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" || sp.revision === "prohibidas" ? sp.revision : null,
     // De catálogo o no (Fer, 7/10): dos casillas; con una sola tildada filtra, con las dos (o ninguna) van todas.
     catalogo: sp.catalogo === "1",
     comunes: sp.comunes === "1",
@@ -163,7 +163,8 @@ export const LISTA_PUBLICACIONES: Lista = {
          and ($3::text is null or pu.estado = $3)
          and ${sqlBusqueda("$4", ["pu.id::text", "pu.id_externo", "pu.variacion_externa", "coalesce(pu.titulo, titulo_variacion(v.id))", "pu.categoria_externa", "pu.tipo_publicacion",
               "v.sku", "v.codigo_barras", "p.sku_base", "p.titulo"])}
-         and ($6::text is null or (mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false))))
+         and ($6::text is null or (case when $6 = 'prohibidas' then coalesce((mi.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden', false)
+                                         else mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false)) end))
          and ($7::text is null or ($7 = 'catalogo') = ${ES_CATALOGO})`;
     const tipoCatalogo = f.catalogo === f.comunes ? null : f.catalogo ? "catalogo" : "comunes";
     const valores: unknown[] = [ctx.org, f.canal, f.estado, parametroBusqueda(f.q, f.comienza), f.inactivos, f.revision, tipoCatalogo];

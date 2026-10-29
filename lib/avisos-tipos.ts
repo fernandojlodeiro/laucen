@@ -2,11 +2,12 @@
 // también el navegador (app/componentes/marco/AvisosVivos.tsx).
 
 /** Los tipos de aviso (la ventana de prepo, los avisos de Windows y Configuración › Mis avisos). */
-export type ClaveContador = "reclamos" | "mensajes" | "preguntas" | "whatsapp" | "pedidos" | "facturas";
+export type ClaveContador = "reclamos" | "mensajes" | "preguntas" | "whatsapp" | "pedidos" | "facturas" | "prohibidas";
 
 /** Los contadores de la barra de estado (Fer, 27/10): los mensajes de todos los canales van juntos en «Para atender». */
-export type ClaveBarra = "atender" | "pedidos" | "facturas";
-export const CLAVES_BARRA: ClaveBarra[] = ["atender", "pedidos", "facturas"];
+/** «Prohibidas» (Fer, 29/10): publicaciones que Mercado Libre prohibió o dio de baja y siguen sin eliminar. */
+export type ClaveBarra = "atender" | "pedidos" | "facturas" | "prohibidas";
+export const CLAVES_BARRA: ClaveBarra[] = ["atender", "pedidos", "facturas", "prohibidas"];
 
 /** Un contador de la barra de estado. `marca` crece cuando entra algo nuevo;
  *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto); `persona`: cuántas esperan a una persona
@@ -29,17 +30,18 @@ export type AvisoIa = {
 };
 
 /** Lo que la IA (o el sistema) pasó a una persona: los equipos «sólo derivaciones» reciben sólo esto (Fer, 25/10). */
-export const esDerivacion = (a: AvisoIa) => a.tipo === "whatsapp" || a.tipo === "reclamos" || (a.tipo === "mensajes" && !!a.derivada);
+/** Una publicación prohibida también (Fer, 29/10: es de lo más importante). */
+export const esDerivacion = (a: AvisoIa) => a.tipo === "whatsapp" || a.tipo === "reclamos" || a.tipo === "prohibidas" || (a.tipo === "mensajes" && !!a.derivada);
 
 /** En el orden de la barra de estado (Fer, 11/10). */
-export const TIPOS_AVISO: ClaveContador[] = ["reclamos", "mensajes", "preguntas", "whatsapp", "pedidos", "facturas"];
+export const TIPOS_AVISO: ClaveContador[] = ["reclamos", "mensajes", "preguntas", "whatsapp", "pedidos", "facturas", "prohibidas"];
 
 /** `ventana`: de qué tipos avisa (ventana de prepo y avisos de Windows).
  *  `pedidoDetalle`: un pedido nuevo abre la ventana con su detalle; si no, sólo un cartel de que llegó.
  *  `cadaMin`: como mucho un sonido (y un aviso de Windows) cada tantos minutos. */
 export type Prefs = { sonido: boolean; ventana: Record<ClaveContador, boolean>; pedidoDetalle: boolean; cadaMin: number };
 
-export const VENTANA_TODO: Record<ClaveContador, boolean> = { reclamos: true, mensajes: true, preguntas: true, whatsapp: true, pedidos: true, facturas: true };
+export const VENTANA_TODO: Record<ClaveContador, boolean> = { reclamos: true, mensajes: true, preguntas: true, whatsapp: true, pedidos: true, facturas: true, prohibidas: true };
 
 export const CADA_MIN_MAX = 60;
 export const cadaMinValido = (n: unknown) => Math.min(CADA_MIN_MAX, Math.max(1, Math.round(Number(n) || 1)));
@@ -54,5 +56,7 @@ export function esPantallaDe(clave: ClaveBarra, ruta: string, ver: string | null
     case "pedidos": return ruta === "/ventas/pedidos" && ver !== "facturas";
     // Facturas retenidas por la revisión antes de facturar (lib/facturacion/revision.ts).
     case "facturas": return ruta === "/ventas/pedidos" && ver === "facturas";
+    // Publicaciones prohibidas por Mercado Libre: se ven en Catálogo › Publicaciones (filtro «Prohibidas por ML»).
+    case "prohibidas": return ruta === "/catalogo/publicaciones";
   }
 }

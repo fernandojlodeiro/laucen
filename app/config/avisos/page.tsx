@@ -46,6 +46,8 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
             ayuda="Cada pedido nuevo a preparar." />
           <Opcion nombre="ventana_facturas" activa={p.ventana.facturas} editando={editando} titulo="Facturas retenidas"
             ayuda="Un pedido que no se facturó solo porque el comprador pidió algo para la factura que no está claro, o que pide cambiar una factura ya hecha." />
+          <Opcion nombre="ventana_prohibidas" activa={p.ventana.prohibidas} editando={editando} titulo="Publicaciones prohibidas"
+            ayuda="Una publicación que Mercado Libre prohíbe o da de baja (en un alta masiva o en una sola), con el motivo que da Mercado Libre. Llega también a los equipos que reciben sólo lo derivado." />
           <div className="pl-6">
             <Opcion nombre="pedidos_detalle" activa={p.pedidoDetalle} editando={editando} titulo="Ver el detalle del pedido"
               ayuda="Tildada: se abre la ventana con el cliente, el total y lo que compró. Destildada: sólo aparece un cartel abajo a la derecha avisando que llegó un pedido, sin abrir ninguna ventana." />

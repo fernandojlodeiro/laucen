@@ -120,6 +120,8 @@ export async function accionSacarPausa(fd: FormData) {
   const s = await entrarErp("publicaciones_ver");
   await intentar(volverDe(fd), async () => {
     const p = await publicacionMl(s.org.id, id(fd));
+    if (await una("select 1 from variacion v join producto pr on pr.id = v.producto_id where v.id = $1 and pr.nunca_ml", [p.variacion_id]))
+      throw new ErrorErp("El producto está marcado «Jamás publicar en Mercado Libre»: no se reactiva. Apagá la marca en su ficha (pestaña Publicaciones).");
     await consulta("update publicacion set pausada_manual = false where id = $2 and organizacion_id = $1", [s.org.id, p.id]);
     revalidatePath(BASE);
     if (p.estado === "activa") return "Listo: se sacó la marca de pausada.";
