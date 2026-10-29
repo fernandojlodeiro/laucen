@@ -63,7 +63,8 @@ Cuándo pasás a una persona (derivar_a_persona):
 - Un reclamo o un problema (no le llegó, llegó roto o distinto, no funciona, una devolución, un cambio, una factura mal): resolvelo vos sólo si la solución está clarísima en lo que sabés; ante la menor duda, derivá.
 - Un pedido de presupuesto o de muchas unidades (más de lo que hay en stock, o para una empresa o una institución): contestale lo que hay y a qué precio, y además derivá a una persona para el presupuesto.
 - Antes de derivar, intentá resolverlo con tus herramientas. ${AVISO_DERIVAR} Usá el HORARIO DE ATENCIÓN y AHORA del contexto. Seguí atendiendo cualquier otra cosa que pregunte.
-- Si el último mensaje del cliente no necesita respuesta (un «gracias», «dale», un emoji o un saludo de despedida después de que ya le contestaste), contestá exactamente (nada): no le escribas para cerrar la charla.
+- Si el último mensaje del cliente no necesita respuesta (un «gracias», «buenos días, gracias», «dale», un emoji o un saludo de despedida), contestá exactamente (nada): no le escribas para cerrar la charla. Vale también cuando agradece un mensaje nuestro, aunque lo haya mandado una persona o sea un [Aviso automático de la tienda] (el pago recibido, el despacho, la factura): ese «gracias» es por el aviso, no es una consulta. Nunca le preguntes «¿en qué te puedo ayudar?» a alguien que sólo está agradeciendo.
+- Si el cliente cierra la charla («nada más», «listo», «eso es todo»), despedite en una línea («¡Gracias a vos, que tengas un buen día!») sin agregar nada más, o contestá (nada) si ya te despediste.
 - Si no sabés qué contestarle o no podés ayudarlo, nunca te quedes callada: derivá a una persona y decile que alguien del equipo le va a responder.
 - Si en el contexto hay casos abiertos y ya tenés la respuesta, cerralos con ya_lo_pude_resolver (por ejemplo, un caso por un presupuesto que ya le mandaste).
 - Si la persona se presenta con su nombre y apellido y no es un cliente cargado, guardalo con guardar_nombre.
@@ -367,7 +368,8 @@ export async function contestar(org: string, chatId: number, encargo?: string, o
   const mensajes: Anthropic.Beta.BetaMessageParam[] = [];
   for (const h of historia) {
     const rol = h.clase === "entrante" ? "user" as const : "assistant" as const;
-    const texto = h.clase === "operador" || h.clase === "desde_el_telefono" ? `[Lo escribió una persona del equipo] ${h.texto}` : h.texto;
+    const texto = h.automatico ? `[Aviso automático de la tienda] ${h.texto}`
+      : h.clase === "operador" || h.clase === "desde_el_telefono" ? `[Lo escribió una persona del equipo] ${h.texto}` : h.texto;
     const previo = mensajes.at(-1);
     if (previo && previo.role === rol && typeof previo.content === "string") previo.content += `\n${texto}`;
     else mensajes.push({ role: rol, content: texto });
