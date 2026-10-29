@@ -93,3 +93,21 @@ create table if not exists reclamo_evento (
 create index if not exists reclamo_evento_reclamo on reclamo_evento (reclamo_id, fecha);
 alter table reclamo_evento enable row level security;
 select erp_politica_org('reclamo_evento');
+
+-- Las fotos de la revisión de una devolución que llegó mal (Fer, 29/10): se suben en Laucen con el botón «La devolución
+-- llegó mal» y la cola las manda a ML antes de la revisión (POST /post-purchase/v1/claims/{id}/returns/attachments).
+-- Quedan acá como prueba de lo que se mandó.
+create table if not exists reclamo_evidencia (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  reclamo_id       bigint not null references reclamo(id) on delete cascade,
+  nombre           text not null,
+  tipo             text not null,
+  datos            bytea not null,
+  archivo_ml       text,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists reclamo_evidencia_reclamo on reclamo_evidencia (reclamo_id);
+alter table reclamo_evidencia enable row level security;
+select erp_politica_org('reclamo_evidencia');

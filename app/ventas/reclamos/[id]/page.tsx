@@ -23,6 +23,7 @@ import {
 } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import Adjuntos from "@/app/componentes/Adjuntos";
+import FotosEvidencia from "../FotosEvidencia";
 import { adjuntosMl } from "@/lib/mensajes/bandeja-tipos";
 import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
 import { ACCIONES_REVISION_DEVOLUCION, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
@@ -331,6 +332,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                                   {MOTIVOS_REVISION_MAL.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
                                 </select></label>
                               <textarea name="mensaje" rows={3} maxLength={2000} required placeholder="Contale a Mercado Libre qué llegó (ej.: el paquete llegó vacío)…" className={`${CAMPO} w-full`} />
+                              <FotosEvidencia />
                             </>
                           )}
                           <BotonAccion texto={def.texto} confirmar={def.confirmar} pregunta={`¿${def.texto}? Va a Mercado Libre.`} />

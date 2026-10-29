@@ -19,7 +19,7 @@
 
 import { createHash } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
+import { ml, mlArchivo, cuentaDelCanal, type ArchivoMl, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import { encolar, PRIORIDAD, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { SQL_DEVOLUCION_PENDIENTE } from "@/lib/reclamos";
 
@@ -146,6 +146,7 @@ export const ACCIONES_RECLAMO: Record<string, DefAccion> = {
   allow_return: { texto: "Aceptar la devolución", ayuda: "El comprador manda el producto de vuelta (con la etiqueta de ML) y después se le devuelve la plata.", confirmar: true },
   open_dispute: { texto: "Pedir que intervenga Mercado Libre", ayuda: "Abre la mediación: decide ML.", confirmar: true },
   // La revisión de la devolución que llegó (Fer, 29/10): «llegó mal» es como se le reclama a ML si vino dañada o vacía.
+  return_review_fail: { texto: "La devolución llegó mal", ayuda: "Le reclamás a Mercado Libre: elegí qué pasó, contalo y subí las fotos (para «llegó dañado» y «otro producto» son obligatorias). Después ya no se pueden agregar fotos.", campo: "revision", confirmar: true },
   return_review_ok: { texto: "La devolución llegó bien", ayuda: "Le confirmás a Mercado Libre que el producto volvió bien. Después ya no se puede reclamar.", confirmar: true },
 };
 /** Los motivos de «la devolución llegó mal» que da Mercado Libre (GET /post-purchase/v1/returns/reasons?flow=seller_return_failed,
@@ -165,9 +166,6 @@ export const ACCIONES_PROXIMAMENTE: Record<string, string> = {
   send_tracking_number: "Informar el número de seguimiento",
   allow_return_label: "Generar la etiqueta de devolución",
   recontact: "Volver a contactar",
-  // Sin las fotos no conviene mandarla (Fer, 29/10: son la prueba): vuelve a ACCIONES_RECLAMO cuando se suban desde
-  // Laucen (armarAccion ya la sabe armar; falta el envío de las fotos, pedido a Cowork en la bitácora).
-  return_review_fail: "La devolución llegó mal (con fotos)",
 };
 export const textoAccion = (a: string) => ACCIONES_RECLAMO[a]?.texto ?? ACCIONES_PROXIMAMENTE[a] ?? a.replace(/_/g, " ");
 
@@ -506,8 +504,30 @@ export async function actualizarReclamo(org: string, reclamoId: number, leer?: L
 // ── Acciones (siempre un clic de Fer, por la cola) ─────────
 
 export type DatosAccion = { mensaje?: string | null; porcentaje?: number | null; motivo?: string | null;
-  /** La devolución y la orden del reclamo (las pone encolarAccionReclamo): para la revisión de la devolución. */
-  devolucion?: string | null; orden?: string | null };
+  /** Las fotos de «la devolución llegó mal». */
+  fotos?: ArchivoMl[] };
+
+/** Los motivos de «llegó mal» que piden fotos sí o sí (doc de ML: «attachments required for SRF2 and SRF4»). */
+export const MOTIVOS_CON_FOTOS = ["SRF2", "SRF4"];
+export const MAX_FOTOS_REVISION = 6;
+
+/** Valida «la devolución llegó mal» y devuelve el motivo y el texto. Pura. */
+export function validarRevisionMal(d: DatosAccion): { motivo: string; texto: string; nombreMotivo: string } {
+  const motivo = MOTIVOS_REVISION_MAL.find(([k]) => k === d.motivo);
+  if (!motivo) throw new ErrorErp("Elegí qué pasó con la devolución.");
+  const texto = (d.mensaje ?? "").trim();
+  if (!texto) throw new ErrorErp("Contá qué pasó: Mercado Libre lo lee para decidir.");
+  if (texto.length > 2000) throw new ErrorErp("El mensaje es muy largo (hasta 2.000 caracteres).");
+  const fotos = d.fotos ?? [];
+  if (MOTIVOS_CON_FOTOS.includes(motivo[0]) && !fotos.length) throw new ErrorErp(`Para «${motivo[1]}» Mercado Libre pide fotos: subí al menos una.`);
+  if (fotos.length > MAX_FOTOS_REVISION) throw new ErrorErp(`Hasta ${MAX_FOTOS_REVISION} fotos.`);
+  if (fotos.some((f) => !/^image\//.test(f.tipo))) throw new ErrorErp("Las fotos tienen que ser imágenes (JPG o PNG).");
+  return { motivo: motivo[0], texto, nombreMotivo: motivo[1] };
+}
+
+/** El cuerpo de «llegó mal» (POST /post-purchase/v1/claims/{id}/actions/return-review-fail; doc de ML, bitácora #1003): una
+ *  sola revisión, sin order_id (va sólo en un carrito con motivos por producto). Puro. */
+export const cuerpoRevisionMal = (motivo: string, texto: string, archivos: string[]) => [{ reason: motivo, message: texto, attachments: archivos }];
 
 /** Los pedidos HTTP de una acción sobre un reclamo, y cómo se cuenta. Puro. */
 export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}): { pedidos: PedidoMl[]; descripcion: string } {
@@ -539,24 +559,9 @@ export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}
       return { pedidos: [{ metodo: "POST", ruta: `${base}/expected-resolutions/allow-return`, cuerpo: {} }], descripcion: "Aceptar la devolución" };
     case "open_dispute":
       return { pedidos: [{ metodo: "POST", ruta: `${base}/actions/open-dispute`, cuerpo: {} }], descripcion: "Pedir mediación de Mercado Libre" };
-    // La revisión de la devolución (POST /post-purchase/v1/returns/{id}/return-review, una fila por orden).
+    // La revisión de la devolución que llegó (doc de ML, bitácora #1003). «Llegó mal» va aparte (lleva fotos: enviarRevisionMal).
     case "return_review_ok":
-    case "return_review_fail": {
-      if (!d.devolucion || !d.orden) throw new ErrorErp("El reclamo no tiene la devolución o la orden de Mercado Libre: tocá «Actualizar desde ML».");
-      const ruta = `/post-purchase/v1/returns/${d.devolucion}/return-review`;
-      if (accion === "return_review_ok") {
-        return { pedidos: [{ metodo: "POST", ruta, cuerpo: [{ order_id: Number(d.orden) }] }], descripcion: "Revisión de la devolución: llegó bien" };
-      }
-      const motivo = MOTIVOS_REVISION_MAL.find(([k]) => k === d.motivo);
-      if (!motivo) throw new ErrorErp("Elegí qué pasó con la devolución.");
-      const t = (d.mensaje ?? "").trim();
-      if (!t) throw new ErrorErp("Contá qué pasó: Mercado Libre lo lee para decidir.");
-      if (t.length > 2000) throw new ErrorErp("El mensaje es muy largo (hasta 2.000 caracteres).");
-      return {
-        pedidos: [{ metodo: "POST", ruta, cuerpo: [{ order_id: Number(d.orden), reason_id: motivo[0], message: t }] }],
-        descripcion: `Revisión de la devolución: llegó mal («${motivo[1]}»)`,
-      };
-    }
+      return { pedidos: [{ metodo: "POST", ruta: `${base}/actions/return-review-ok` }], descripcion: "Revisión de la devolución: llegó bien" };
     default:
       throw new ErrorErp(`«${textoAccion(accion)}» todavía no se puede hacer desde Laucen: hacelo desde Mercado Libre.`);
   }
@@ -566,20 +571,35 @@ export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}
  *  ahora y la mete en la cola (sale enseguida). Dos clics iguales seguidos no
  *  se duplican. Devuelve la descripción. */
 export async function encolarAccionReclamo(org: string, reclamoId: number, accion: string, d: DatosAccion, usuario: string | null): Promise<string> {
-  const r = await una<{ canal_id: string | null; id_externo: string | null; estado: string; acciones_disponibles: AccionMl[]; devolucion_id: string | null; orden_externa: string | null }>(
-    "select canal_id, id_externo, estado, acciones_disponibles, devolucion_id, orden_externa from reclamo where id = $1 and organizacion_id = $2 and origen = 'mercadolibre'", [reclamoId, org]);
+  const r = await una<{ canal_id: string | null; id_externo: string | null; estado: string; acciones_disponibles: AccionMl[] }>(
+    "select canal_id, id_externo, estado, acciones_disponibles from reclamo where id = $1 and organizacion_id = $2 and origen = 'mercadolibre'", [reclamoId, org]);
   if (!r?.id_externo || !r.canal_id) throw new ErrorErp("Ese reclamo no es de Mercado Libre.");
   // Cerrado, sólo la revisión de la devolución (ML la pide después de cerrar: la plata se devuelve al despacharla).
   if (r.estado === "resuelto" && !accion.startsWith("return_review")) throw new ErrorErp("El reclamo ya está cerrado.");
-  d = { ...d, devolucion: r.devolucion_id, orden: r.orden_externa };
   if (!(r.acciones_disponibles ?? []).some((a) => a.action === accion)) {
     throw new ErrorErp(`Mercado Libre no ofrece «${textoAccion(accion)}» en este reclamo ahora. Tocá «Actualizar» para ver lo que se puede hacer.`);
   }
-  const { pedidos, descripcion } = armarAccion(accion, r.id_externo, d);
-  const huella = createHash("sha1").update(JSON.stringify(pedidos)).digest("hex").slice(0, 12);
+  let payload: Record<string, unknown>, descripcion: string;
+  if (accion === "return_review_fail") {
+    // Las fotos quedan en Laucen y la cola las sube antes de la revisión (enviarRevisionMal).
+    const v = validarRevisionMal(d);
+    const ids: number[] = [];
+    for (const f of d.fotos ?? []) {
+      const e = await una<{ id: number }>(`insert into reclamo_evidencia (organizacion_id, reclamo_id, nombre, tipo, datos, usuario_id)
+        values ($1, $2, $3, $4, $5, $6) returning id::int`, [org, reclamoId, f.nombre.slice(0, 150), f.tipo, Buffer.from(f.datos), usuario]);
+      ids.push(e!.id);
+    }
+    descripcion = `Revisión de la devolución: llegó mal («${v.nombreMotivo}»${ids.length ? `, ${ids.length} foto${ids.length === 1 ? "" : "s"}` : ""})`;
+    payload = { marca: "revision_mal", claim: r.id_externo, motivo: v.motivo, texto: v.texto, evidencias: ids, descripcion };
+  } else {
+    const a = armarAccion(accion, r.id_externo, d);
+    descripcion = a.descripcion;
+    payload = { pedidos: a.pedidos, descripcion };
+  }
+  const huella = createHash("sha1").update(JSON.stringify(payload)).digest("hex").slice(0, 12);
   const res = await encolar(org, [{
     canalId: Number(r.canal_id), itemId: `reclamo:${r.id_externo}`, variationId: `${accion}:${huella}`, tipo: "reclamo",
-    payload: { pedidos, descripcion }, efecto: { reclamo: { id: reclamoId, descripcion } }, prioridad: PRIORIDAD.boton,
+    payload, efecto: { reclamo: { id: reclamoId, descripcion } }, prioridad: PRIORIDAD.boton,
   }], { origen: "boton", usuarioId: usuario });
   if (res.encoladas === 0 && res.reemplazadas === 0) throw new ErrorErp("Eso ya está en la cola: sale en un momento.");
   // Lo que no es un mensaje se hace una sola vez: el botón se saca hasta que
@@ -591,4 +611,29 @@ export async function encolarAccionReclamo(org: string, reclamoId: number, accio
   }
   await evento(org, reclamoId, "accion", `Mandado a la cola: ${descripcion}`, usuario);
   return descripcion;
+}
+
+/** «La devolución llegó mal», desde la cola (marca revision_mal): sube cada foto al reclamo (POST
+ *  /post-purchase/v1/claims/{id}/returns/attachments, campo «file»; las ya subidas no se repiten) y manda la revisión con
+ *  sus nombres (POST …/actions/return-review-fail). Si una foto falla, se corta y la cola lo informa o reintenta. */
+export async function enviarRevisionMal(org: string, payload: Record<string, unknown>, cuenta: CuentaMl,
+  subir: (c: CuentaMl, ruta: string, campo: string, a: ArchivoMl) => Promise<RespuestaMl> = (c, ruta, campo, a) => mlArchivo(c, ruta, campo, a),
+  enviar: (c: CuentaMl, ruta: string, cuerpo: unknown) => Promise<RespuestaMl> = (c, ruta, cuerpo) => ml(c, "POST", ruta, cuerpo)): Promise<RespuestaMl> {
+  const claim = String(payload.claim ?? "");
+  if (!/^\d+$/.test(claim)) return { status: 400, datos: { message: "el cambio no tiene el reclamo" } };
+  const ids = (Array.isArray(payload.evidencias) ? payload.evidencias : []).map(Number);
+  const archivos: string[] = [];
+  for (const id of ids) {
+    const e = await una<{ nombre: string; tipo: string; datos: Buffer; archivo_ml: string | null }>(
+      "select nombre, tipo, datos, archivo_ml from reclamo_evidencia where id = $1 and organizacion_id = $2", [id, org]);
+    if (!e) return { status: 400, datos: { message: "una de las fotos ya no está en Laucen" } };
+    if (e.archivo_ml) { archivos.push(e.archivo_ml); continue; }
+    const r = await subir(cuenta, `/post-purchase/v1/claims/${claim}/returns/attachments`, "file", { nombre: e.nombre, tipo: e.tipo, datos: new Uint8Array(e.datos) });
+    const nombre = (r.datos as { file_name?: string } | null)?.file_name;
+    if (r.status < 200 || r.status >= 300) return r;
+    if (!nombre) return { status: 502, datos: { message: "Mercado Libre no devolvió el nombre de la foto subida" } };
+    await consulta("update reclamo_evidencia set archivo_ml = $3 where id = $1 and organizacion_id = $2", [id, org, nombre]);
+    archivos.push(nombre);
+  }
+  return enviar(cuenta, `/post-purchase/v1/claims/${claim}/actions/return-review-fail`, cuerpoRevisionMal(String(payload.motivo ?? ""), String(payload.texto ?? ""), archivos));
 }

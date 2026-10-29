@@ -383,6 +383,16 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           status = x.r.status; datos = x.r.datos; mensajeError = x.mensajeError;
           if (status === 429) frenar = 60_000;
           else if (status === 401) frenar = 300_000;
+        } else if (fila.payload?.marca === "revision_mal") {
+          // «La devolución llegó mal» con fotos (lib/mercadolibre/reclamos.ts): sube las fotos y manda la revisión.
+          const { enviarRevisionMal } = await import("@/lib/mercadolibre/reclamos");
+          const espera = ultimo + ritmo - Date.now();
+          if (espera > 0) await dormir(espera);
+          const r = await enviarRevisionMal(fila.organizacion_id, fila.payload, cuenta);
+          ultimo = Date.now(); res.enviadas++;
+          status = r.status; datos = r.datos;
+          if (status === 429) frenar = 60_000;
+          else if (status === 401) frenar = 300_000;
         } else if (fila.payload?.marca === "subir_clip") {
           // Subir un video (Clip) a una publicación (lib/mercadolibre/clips.ts).
           const { enviarClip } = await import("@/lib/mercadolibre/clips");
