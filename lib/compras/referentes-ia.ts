@@ -66,16 +66,27 @@ export function leerElegido(texto: string, cuantas: number): { n: number; motivo
   } catch { return null; }
 }
 
+// Lo que más confunde (Fer, 29/10, primera pasada con el modelo chico: 1 de cada 4 grupos mal): la cantidad («Pack x10»,
+// «2 X», «X2un», «6 cintas» contra una unidad) y las versiones (relé mecánico contra estado sólido, 2000 W contra 4000 W).
+const REGLAS = `Es el mismo producto sólo si un comprador los elegiría indistintamente: misma función, mismo modelo y mismas
+especificaciones principales (medidas, potencia, voltaje, capacidad, cantidad de canales o de pines, tipo de conector, etc.) y
+LA MISMA CANTIDAD DE UNIDADES.
+Mirá la cantidad con cuidado: "Pack X10", "x36u", "2 X", "X2un", "Kit 50", "6 Cintas", "3 Unidades" son packs; una unidad suelta y un
+pack (o dos packs de distinta cantidad) NO son el mismo producto.
+Tampoco lo son: otro modelo o código (TCRT5000 no es LDR; STC-1000 no es STC-3028), otra potencia o capacidad (2000 W no es 4000 W,
+aunque uno diga "pico 4000 W"), otra tecnología (relé mecánico no es relé de estado sólido), una versión superior o inferior, un
+repuesto o accesorio, o un kit contra el producto suelto.
+La marca genérica, el color, el vendedor o cómo está escrito el título no importan.`;
+
 const SISTEMA_AGRUPAR = `Sos un comprador experto de Mercado Libre Argentina. Te paso una publicación base y otras candidatas.
-Decí cuáles son EL MISMO producto que la base, de modo que un comprador las elegiría indistintamente: misma función, mismo modelo o
-especificaciones principales (medidas, potencia, voltaje, capacidad, cantidad de canales, etc.) y la misma cantidad de unidades.
-No es el mismo si es otro modelo, una versión superior o inferior, un repuesto o accesorio, un kit, o un pack de otra cantidad.
-Marca genérica, color o redacción del título no importan. Respondé SOLO JSON: {"iguales":[2,5]} (o {"iguales":[]}).`;
+Decí cuáles son EL MISMO producto que la base.
+${REGLAS}
+Ante la duda, NO es el mismo. Respondé SOLO JSON: {"iguales":[2,5]} (o {"iguales":[]}).`;
 
 const SISTEMA_NUESTRO = `Sos un comprador experto de Mercado Libre Argentina. Te paso un producto que vende la competencia (sus títulos) y
-productos de nuestro catálogo. Decí cuál de los nuestros es EL MISMO producto: misma función, mismo modelo o especificaciones
-principales y la misma cantidad de unidades (un pack de otra cantidad no es el mismo). Marca genérica, color o redacción no importan.
-Si ninguno lo es, n = 0. Respondé SOLO JSON: {"n":2,"motivo":"mismo módulo HC-SR04"}. El motivo, corto y en castellano.`;
+productos de nuestro catálogo. Decí cuál de los nuestros es EL MISMO producto.
+${REGLAS}
+Si ninguno lo es, n = 0. Respondé SOLO JSON: {"n":2,"motivo":"mismo módulo HC-SR04, una unidad"}. El motivo, corto y en castellano.`;
 
 type PubIa = { item_id: string; titulo: string; precio: number | null; vendidos: number | null; catalogo: string | null; grupo_id: number | null };
 
@@ -162,7 +173,7 @@ async function agrupar(org: string, queda: () => boolean, sumar: (usd: number, a
     const cands = candidatasDe(textos[i], textos, indice, CANDIDATAS, i);
     if (!cands.length) { await asignar([i], null); await sumar(0, true); return; }
     const lista = cands.map((c, k) => `${k + 1}. ${pubs[c].titulo} — $ ${Math.round(pubs[c].precio ?? 0)}`).join("\n");
-    const r = await pedirClaude({ system: SISTEMA_AGRUPAR, modelo: "chico", maxTokens: 300,
+    const r = await pedirClaude({ system: SISTEMA_AGRUPAR, modelo: "medio", effort: "low", maxTokens: 300,
       contenido: `Base: ${pubs[i].titulo} — $ ${Math.round(pubs[i].precio ?? 0)}\n\nCandidatas:\n${lista}` });
     await sumar(r.usd);
     if ("error" in r) return; // queda para la próxima vuelta
@@ -206,7 +217,7 @@ async function compararConNuestros(org: string, queda: () => boolean, sumar: (us
       return;
     }
     const lista = unicas.map((c, k) => `${k + 1}. ${nuestros[c].titulo}${nuestros[c].estado === "archivado" ? " (archivado)" : ""}`).join("\n");
-    const r = await pedirClaude({ system: SISTEMA_NUESTRO, modelo: "chico", maxTokens: 200,
+    const r = await pedirClaude({ system: SISTEMA_NUESTRO, modelo: "medio", effort: "low", maxTokens: 300,
       contenido: `De la competencia${g.precio ? ` (desde $ ${Math.round(g.precio)})` : ""}:\n${g.titulos.slice(0, 5).map((t) => `- ${t}`).join("\n")}\n\nNuestros productos:\n${lista}` });
     await sumar(r.usd);
     if ("error" in r) return;
