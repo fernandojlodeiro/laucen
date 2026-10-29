@@ -1,6 +1,7 @@
 // El presupuesto formal que arma la IA de los mensajes (Fer, 26/10): cuando un cliente pide presupuesto por
 // WhatsApp, la IA lo arma con productos de la tienda y se lo manda en PDF. Es un presupuesto como los del panel
-// (canal local, con la lista de precios de la tienda: los mismos precios que vio el cliente; no reserva stock;
+// (canal local, con la lista de precios de la tienda: los mismos precios que vio el cliente; no reserva stock, pero nunca
+// lleva más unidades de las disponibles en el canal;
 // vale 30 días, como los que hace Fer —Fer, 26/10—, y la IA no lo menciona) y queda en Pedidos para el equipo. El PDF es el de la página pública del pedido.
 
 import { una, consulta, motivoErp } from "@/lib/erp/base";
@@ -26,23 +27,27 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
   if (!canal) return "No se puede armar el presupuesto desde acá: derivalo a una persona.";
 
   const lineas: { variacionId: number; cantidad: number }[] = [];
+  const faltan: string[] = [];
   for (const it of items) {
     const producto = Number(it.producto);
     const cantidad = Math.trunc(Number(it.cantidad));
     if (!Number.isInteger(producto) || cantidad < 1 || cantidad > 100000) return "Algún producto no tiene número o cantidad válidos.";
     // Sólo lo que está a la venta en la tienda (activo, con precio en su lista).
-    const vars = await consulta<{ id: number; sku: string }>(`
-      select v.id::int, v.sku from variacion v join producto p on p.id = v.producto_id
+    const vars = await consulta<{ id: number; sku: string; disp: number }>(`
+      select v.id::int, v.sku, greatest(stock_disponible_canal($1, v.id, $4), 0)::int disp from variacion v join producto p on p.id = v.producto_id
        where p.organizacion_id = $1 and p.id = $2 and p.estado = 'activo' and v.estado = 'activa'
          and exists (select 1 from precio_de($1, v.id, $3) pr where coalesce(pr.venta_ars, 0) > 0)
-       order by v.orden, v.id`, [org, producto, t.listaId]);
+       order by v.orden, v.id`, [org, producto, t.listaId, canal.id]);
     if (!vars.length) return `El producto ${producto} no está a la venta en la tienda: sacalo del presupuesto.`;
     const sku = String(it.sku ?? "").trim();
     const v = sku ? vars.find((x) => x.sku.toLowerCase() === sku.toLowerCase()) : vars.length === 1 ? vars[0] : null;
     if (!v) return sku ? `El producto ${producto} no tiene la variante ${sku}: mirala con ver_producto.`
       : `El producto ${producto} tiene varias variantes (${vars.map((x) => x.sku).join(", ")}): preguntale cuál quiere o elegila con ver_producto y pasá el SKU.`;
+    // Nunca más de lo que hay (Fer, 29/10: un presupuesto ofreció 10 de un sensor del que había 5).
+    if (cantidad > v.disp) { faltan.push(v.disp > 0 ? `del producto ${producto} (${v.sku}) hay ${v.disp}, no ${cantidad}` : `del producto ${producto} (${v.sku}) no hay stock`); continue; }
     lineas.push({ variacionId: v.id, cantidad });
   }
+  if (faltan.length) return `No lo armé: ${faltan.join("; ")}. Armalo de nuevo con lo que hay (sacá lo que no hay) y decile al cliente cuántas tenemos.`;
 
   let pedidoId: number, total: number;
   try {
