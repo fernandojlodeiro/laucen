@@ -11,6 +11,9 @@
 // Si el pedido llega con la factura ya hecha, se hace lo mismo y, si hay que
 // cambiarla, se refactura: nota de crédito idéntica (anula la original) y factura
 // nueva con los datos actuales, las dos con la fecha del día (refacturar()).
+// Una retención por duda de esta lectura no es el final (Fer, 29/10, pedido 150490: pidió rehacer la factura A, se le
+// pidieron los datos, los mandó a los dos minutos y quedó frenado): cuando el comprador vuelve a escribir, se lee todo
+// de nuevo y, si ya está claro, se destraba solo —se refactura o se factura— y en Mercado Libre se le avisa.
 
 import { createHash } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -65,7 +68,7 @@ Si te paso una FACTURA YA HECHA, "aplicar" sólo si lo pedido es distinto de lo 
 "motivo": qué pidió y qué se va a hacer, o por qué hay duda (para la persona que lo revise).`;
 
 type Contexto = {
-  pedido: { id: number; cliente_id: number | null; notas: string | null; leyenda: string | null; retenida: string | null; revision: { firma?: string } | null;
+  pedido: { id: number; cliente_id: number | null; notas: string | null; leyenda: string | null; retenida: string | null; revision: { firma?: string; decision?: string; motivo?: string } | null;
     nombre: string | null; razon_social: string | null; cuit: string | null; condicion_iva: string | null; cliente_notas: string | null; domicilio: string | null; con_envio: boolean };
   textos: { cuando: Date | null; donde: string; quien: string; texto: string }[];
 };
@@ -123,15 +126,24 @@ async function retener(org: string, pid: number, motivo: string, revision: objec
 
 export type Resultado = { retenida: boolean; motivo?: string; cambio: boolean };
 
+/** ¿La retuvo esta misma lectura (por duda)? Ésa se vuelve a leer cuando el comprador escribe; una retención por otra
+ *  cosa (una refacturación que falló, una persona) no. */
+export const retenidaPorLaLectura = (p: Pick<Contexto["pedido"], "retenida" | "revision">) => !!p.retenida && p.revision?.decision === "duda" && p.revision.motivo === p.retenida;
+
+/** SQL (alias `p`): la misma condición, para buscar los pedidos que hay que volver a leer. */
+const SQL_RETENIDA_POR_LECTURA = "(p.factura_revision ->> 'decision' = 'duda' and p.factura_revision ->> 'motivo' = p.factura_retenida)";
+
 /** La revisión de un pedido antes de su factura (o, con `facturada`, después). No tira. */
 export async function revisarPedido(org: string, pid: number, facturada: Facturada | null = null): Promise<Resultado> {
   const c = await contexto(org, pid);
   if (!c) return { retenida: false, cambio: false };
-  if (c.pedido.retenida) return { retenida: true, motivo: c.pedido.retenida, cambio: false };
+  const sigue = { retenida: true, motivo: c.pedido.retenida ?? undefined, cambio: false };
+  if (c.pedido.retenida && !retenidaPorLaLectura(c.pedido)) return sigue;
   // Sin nada escrito por el comprador ni notas, no hay nada que leer.
-  if (!c.textos.some((t) => t.quien !== "Vendedor")) return { retenida: false, cambio: false };
+  if (!c.textos.some((t) => t.quien !== "Vendedor")) return c.pedido.retenida ? sigue : { retenida: false, cambio: false };
   const firma = firmaDe(c.textos);
-  if (c.pedido.revision?.firma === firma) return { retenida: false, cambio: false };
+  // Lo mismo que ya se leyó: queda como estaba (retenida o no). Si escribió algo nuevo, se lee todo otra vez.
+  if (c.pedido.revision?.firma === firma) return c.pedido.retenida ? sigue : { retenida: false, cambio: false };
   const base = { firma, ts: new Date().toISOString() };
   if (!hayClaude()) {
     const motivo = "Hay mensajes o notas en el pedido y la IA no está disponible para leerlos: mirálos antes de facturar.";
@@ -187,7 +199,8 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
     if (facturada && (digitos(facturada.doc_nro) !== cuit || (d.facturaA && facturada.tipo_cbte !== 1))) cambio = true;
   }
   const motivo = [d.motivo, aplicado.length ? `Se aplicó: ${aplicado.join("; ")}.` : ""].filter(Boolean).join(" ");
-  await consulta("update pedido set factura_revision = $3::jsonb where id = $1 and organizacion_id = $2",
+  // Si estaba retenida por una lectura anterior, con esto queda destrabada.
+  await consulta("update pedido set factura_revision = $3::jsonb, factura_retenida = null, factura_retenida_ts = null where id = $1 and organizacion_id = $2",
     [pid, org, JSON.stringify({ ...base, decision: aplicado.length ? "aplicar" : "nada", motivo })]);
   return { retenida: false, motivo, cambio };
 }
@@ -226,13 +239,31 @@ export async function liberarFactura(org: string, pid: number): Promise<void> {
 
 type CandidatoFacturada = Facturada & { pedido_id: number };
 
+/** Después de rehacer la factura porque lo pidió: en Mercado Libre se le avisa, si nadie le contestó todavía su último
+ *  mensaje, y la conversación deja de esperar a una persona (sale de «Para atender»). No tira. */
+async function avisarRefacturada(org: string, pid: number) {
+  try {
+    const c = await una<{ pack_id: string }>(`
+      select c.pack_id from meli_conversacion c
+       where c.organizacion_id = $1 and c.pedido_id = $2
+         and (select not m.de_vendedor from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1)
+       limit 1`, [org, pid]);
+    if (!c) return;
+    const { enviarMensaje } = await import("@/lib/mercadolibre/mensajes");
+    await enviarMensaje(org, c.pack_id, "¡Listo! Ya rehicimos la factura con los datos que nos pasaste. La vas a ver en el detalle de tu compra.", null, { auto: true });
+    await consulta("update meli_conversacion set derivada_ts = null, no_responder_ts = now(), ia_estado = null where organizacion_id = $1 and pack_id = $2", [org, c.pack_id]);
+  } catch (e) {
+    console.error("[revisión] no se pudo avisar la refacturación", pid, e instanceof Error ? e.message : e);
+  }
+}
+
 /** Revisa un pedido ya facturado: si el comprador pidió un cambio claro se refactura, si hay duda se retiene y avisa.
  *  Si la refacturación falla, queda retenido con el motivo para que una persona lo mire. */
-async function revisarYRefacturar(org: string, x: CandidatoFacturada, res: { refacturadas: number; retenidas: number; errores: string[] }) {
+async function revisarYRefacturar(org: string, x: CandidatoFacturada, res: { refacturadas: number; retenidas: number; liberadas: number; errores: string[] }) {
   try {
     const r = await revisarPedido(org, x.pedido_id, x);
     if (r.retenida) res.retenidas++;
-    else if (r.cambio) { await refacturar(org, x.pedido_id, "sistema"); res.refacturadas++; }
+    else if (r.cambio) { await refacturar(org, x.pedido_id, "sistema"); res.refacturadas++; await avisarRefacturada(org, x.pedido_id); }
   } catch (e) {
     const motivo = `No se pudo refacturar solo: ${e instanceof Error ? e.message : String(e)}`;
     await consulta("update pedido set factura_retenida = $3, factura_retenida_ts = now() where id = $1 and organizacion_id = $2", [x.pedido_id, org, motivo.slice(0, 1000)]).catch(() => {});
@@ -243,21 +274,44 @@ async function revisarYRefacturar(org: string, x: CandidatoFacturada, res: { ref
 /** Los pedidos ya facturados a los que el comprador les escribió después de la factura (o desde la
  *  última lectura). Con `pedidoId`, sólo ése (lo llama la llegada de un mensaje de ML, al instante);
  *  sin él, los que encuentre la tarea periódica (red de seguridad). */
-export async function revisarFacturadas(org: string, hastaMs: number, pedidoId: number | null = null): Promise<{ refacturadas: number; retenidas: number; errores: string[] }> {
-  const res = { refacturadas: 0, retenidas: 0, errores: [] as string[] };
+export async function revisarFacturadas(org: string, hastaMs: number, pedidoId: number | null = null): Promise<{ refacturadas: number; retenidas: number; liberadas: number; errores: string[] }> {
+  const res = { refacturadas: 0, retenidas: 0, liberadas: 0, errores: [] as string[] };
   const candidatos = await consulta<CandidatoFacturada>(`
     select p.id::int pedido_id, cb.tipo_cbte, cb.receptor_nombre, cb.doc_tipo, cb.doc_nro, cb.leyenda
       from comprobante cb join pedido p on p.id = cb.pedido_id
       join lateral (select greatest(
               (select max(m.fecha) from meli_mensaje m where m.pedido_id = p.id and not m.de_vendedor),
               (select max(x.ts) from chat_mensaje x join chat c on c.id = x.chat_id where c.cliente_id = p.cliente_id and x.direccion = 'entrante' and x.ts >= p.creado_ts)) ultimo) u on true
-     where cb.organizacion_id = $1 and ${sqlFacturaVigente("cb")} and cb.autorizado_ts > now() - interval '60 days' and p.factura_retenida is null
+     where cb.organizacion_id = $1 and ${sqlFacturaVigente("cb")} and cb.autorizado_ts > now() - interval '60 days'
+       and (p.factura_retenida is null or ${SQL_RETENIDA_POR_LECTURA})
        and u.ultimo > cb.autorizado_ts and u.ultimo > coalesce((p.factura_revision ->> 'ts')::timestamptz, '-infinity')
        and ($2::bigint is null or p.id = $2)
      order by u.ultimo limit 10`, [org, pedidoId]);
   for (const x of candidatos) {
     if (Date.now() > hastaMs) break;
     await revisarYRefacturar(org, x, res);
+  }
+  // Los que quedaron retenidos por duda antes de facturar y el comprador volvió a escribir: si ya está claro, se
+  // destraba y vuelve a la facturación automática (el mismo evento que cuando se confirma un cobro).
+  const sinFactura = await consulta<{ id: number }>(`
+    select p.id::int from pedido p
+      join lateral (select greatest(
+              (select max(m.fecha) from meli_mensaje m where m.pedido_id = p.id and not m.de_vendedor),
+              (select max(x.ts) from chat_mensaje x join chat c on c.id = x.chat_id where c.cliente_id = p.cliente_id and x.direccion = 'entrante' and x.ts >= p.creado_ts)) ultimo) u on true
+     where p.organizacion_id = $1 and p.factura_retenida is not null and ${SQL_RETENIDA_POR_LECTURA}
+       and p.factura_retenida_ts > now() - interval '60 days' and u.ultimo > (p.factura_revision ->> 'ts')::timestamptz
+       and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and ${sqlFacturaVigente("cb")})
+       and ($2::bigint is null or p.id = $2)
+     order by u.ultimo limit 10`, [org, pedidoId]);
+  for (const x of sinFactura) {
+    if (Date.now() > hastaMs) break;
+    try {
+      if ((await revisarPedido(org, x.id)).retenida) continue;
+      await consulta("select emitir_evento($1, 'pedido_pago_confirmado', $2::jsonb)", [org, JSON.stringify({ pedido_id: x.id, quien: "revision" })]);
+      res.liberadas++;
+    } catch (e) {
+      res.errores.push(`pedido ${x.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   return res;
 }

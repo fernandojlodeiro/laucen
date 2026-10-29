@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidir, firmaDe, type Lectura } from "@/lib/facturacion/revision";
+import { decidir, firmaDe, retenidaPorLaLectura, type Lectura } from "@/lib/facturacion/revision";
 import { cuitCierra } from "@/lib/cuit";
 
 const lectura = (x: Partial<Lectura>): Lectura => ({ decision: "aplicar", leyenda: null, cuit: null, factura_a: false, razon_social: null, domicilio: null, motivo: "", ...x });
@@ -59,4 +59,12 @@ test("decidir: la condición que dice el comprador pasa; si no dice nada, null",
   assert.equal(b.accion === "facturar" && b.condicionIva, null);
   const c = decidir(lectura({ cuit: CUIT, condicion_iva: "otra cosa" }), { cuit: null });
   assert.equal(c.accion === "facturar" && c.condicionIva, null);
+});
+
+test("retenidaPorLaLectura: la retención por duda de la lectura se vuelve a leer; la de otra cosa, no (pedido 150490)", () => {
+  const motivo = "Pide cambiar la factura ya hecha: no envió los datos correctos.";
+  assert.equal(retenidaPorLaLectura({ retenida: motivo, revision: { decision: "duda", motivo, firma: "x" } }), true);
+  assert.equal(retenidaPorLaLectura({ retenida: "No se pudo refacturar solo: ARCA no contestó", revision: { decision: "duda", motivo, firma: "x" } }), false);
+  assert.equal(retenidaPorLaLectura({ retenida: null, revision: { decision: "duda", motivo } }), false);
+  assert.equal(retenidaPorLaLectura({ retenida: motivo, revision: null }), false);
 });
