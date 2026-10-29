@@ -1,12 +1,14 @@
 // Vendedores referentes (Fer, 13/10): el listado entero de un vendedor de Mercado Libre (Apify, la herramienta de
 // lib/apify.ts en modo «seller»), para buscar productos que no tenemos y pedirle cotización al proveedor. Lo pedido queda
 // en la tabla vendedor_referente (db/compras.sql) y lo corre /api/vendedor-referente con el token de la fila. El gasto
-// cuenta en el tope del mes del seguimiento. Al terminar se rearma el cruce con nuestro catálogo (lib/compras/referentes.ts).
+// cuenta en el tope del mes del seguimiento. Al terminar se rearma el cruce con nuestro catálogo (lib/compras/referentes.ts)
+// y la IA agrupa y compara lo nuevo (lib/compras/referentes-ia.ts).
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ACTOR_ML, correrConEntrada } from "@/lib/apify";
 import { quedaParaGastar } from "@/lib/seguimiento";
 import { armarCruce, vendedorDeLink } from "@/lib/compras/referentes";
+import { pedirIa } from "@/lib/compras/referentes-ia";
 import { urlPanel } from "@/lib/tienda/dominios";
 
 /** Lo que cobra la herramienta por cada publicación del listado de un vendedor (modo «seller»). */
@@ -56,6 +58,6 @@ export async function correrVendedor(id: number, token: string): Promise<number>
   const vid = f.vendedor_id ?? (Number((c.items[0] as { sellerId?: unknown } | undefined)?.sellerId) || null);
   await consulta(`update vendedor_referente set estado = $2, items = $3::jsonb, costo_usd = $4, error = $5, vendedor_id = coalesce(vendedor_id, $6), actualizado_ts = now() where id = $1`,
     [id, c.items.length ? "terminada" : "error", JSON.stringify(c.items), costo, c.error ?? (c.items.length ? null : c.mensaje ?? "No trajo publicaciones."), vid]);
-  if (c.items.length) await armarCruce(f.organizacion_id);
+  if (c.items.length) { await armarCruce(f.organizacion_id); await pedirIa(f.organizacion_id); } // la IA agrupa y compara lo nuevo
   return c.items.length;
 }

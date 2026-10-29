@@ -87,31 +87,73 @@ export async function armarCruce(org: string): Promise<{ publicaciones: number; 
       if (mejor.s >= PARECIDO_TENEMOS) { p.producto_id = nuestros[mejor.i].id; tenemos++; }
     }
   }
+  // Los grupos que ya armó la IA (lib/compras/referentes-ia.ts) se conservan.
+  const grupos = new Map((await consulta<{ item_id: string; grupo_id: number }>(
+    "select item_id, grupo_id::float8 grupo_id from referente_pub where organizacion_id = $1 and grupo_id is not null", [org])).map((x) => [x.item_id, x.grupo_id]));
   await consulta("delete from referente_pub where organizacion_id = $1", [org]);
   for (let i = 0; i < pubs.length; i += 1000) {
     await consulta(`
-      insert into referente_pub (organizacion_id, item_id, vendedor_id, vendedor, titulo, precio, vendidos, foto, url, categoria_id, grupo, lo_venden, producto_id, parecido, leido_ts)
-      select $1, x.item_id, x.vendedor_id, x.vendedor, x.titulo, x.precio, x.vendidos, x.foto, x.url, x.categoria_id, x.grupo, x.lo_venden, x.producto_id, x.parecido, x.leido_ts::timestamptz
+      insert into referente_pub (organizacion_id, item_id, vendedor_id, vendedor, titulo, precio, vendidos, foto, url, categoria_id, grupo, lo_venden, producto_id, parecido, leido_ts, grupo_id)
+      select $1, x.item_id, x.vendedor_id, x.vendedor, x.titulo, x.precio, x.vendidos, x.foto, x.url, x.categoria_id, x.grupo, x.lo_venden, x.producto_id, x.parecido, x.leido_ts::timestamptz, x.grupo_id
         from jsonb_to_recordset($2::jsonb) x(item_id text, vendedor_id bigint, vendedor text, titulo text, precio numeric, vendidos int, foto text, url text,
-             categoria_id text, grupo text, lo_venden int, producto_id bigint, parecido numeric, leido_ts text)`,
-      [org, JSON.stringify(pubs.slice(i, i + 1000))]);
+             categoria_id text, grupo text, lo_venden int, producto_id bigint, parecido numeric, leido_ts text, grupo_id bigint)`,
+      [org, JSON.stringify(pubs.slice(i, i + 1000).map((p) => ({ ...p, grupo_id: grupos.get(p.item_id) ?? null })))]);
   }
+  await consulta("delete from referente_grupo g where g.organizacion_id = $1 and not exists (select 1 from referente_pub p where p.grupo_id = g.id)", [org]);
   return { publicaciones: pubs.length, tenemos };
 }
 
-export type FilaReferente = Pub & { decision: "cotizar" | "descartado" | null; nuestro_sku: string | null; nuestro_titulo: string | null; nuestra_foto: string | null; marca_derechos: boolean };
+/** Una publicación de un grupo, como se muestra al desplegarlo. */
+export type PubDeGrupo = { item_id: string; vendedor: string | null; titulo: string; precio: number | null; vendidos: number | null; foto: string | null; url: string | null; decision: string | null };
 
-/** Todas las publicaciones con la decisión y nuestro producto parecido (el filtro y el orden van en memoria). */
+/** Un producto de la competencia: las publicaciones que la IA juntó como el mismo producto (lib/compras/referentes-ia.ts) o,
+ *  mientras no las juntó, cada publicación sola. La de referencia es la más vendida. */
+export type FilaReferente = {
+  clave: string; grupo_id: number | null; item_id: string; titulo: string; foto: string | null; url: string | null; vendedor: string | null;
+  precio_min: number | null; precio_max: number | null; vendidos: number; lo_venden: number; pubs: PubDeGrupo[];
+  producto_id: number | null; nuestro_sku: string | null; nuestro_titulo: string | null; nuestra_foto: string | null; nuestro_estado: string | null;
+  /** «ia»: lo comparó la IA; «palabras»: todavía no, es el parecido del título (fase 1). */
+  comparado: "ia" | "palabras"; motivo: string | null; parecido: number | null;
+  decision: "cotizar" | "descartado" | null; marca_derechos: boolean; pasa_criterio: boolean;
+};
+
+/** Todos los productos de la competencia, con la decisión y nuestro producto (el filtro y el orden van en memoria). */
 export async function publicacionesReferentes(org: string): Promise<FilaReferente[]> {
-  const r = await consulta<Omit<FilaReferente, "marca_derechos">>(`
-    select rp.item_id, rp.vendedor_id::float8 vendedor_id, rp.vendedor, rp.titulo, rp.precio::float8 precio, rp.vendidos, rp.foto, rp.url, rp.categoria_id, rp.grupo, rp.lo_venden,
-           rp.producto_id::int producto_id, rp.parecido::float8 parecido, rp.leido_ts::text leido_ts, d.estado decision,
-           (select v.sku from variacion v where v.producto_id = rp.producto_id order by v.id limit 1) nuestro_sku, p.titulo nuestro_titulo,
-           (select pf.url from producto_foto pf where pf.producto_id = rp.producto_id order by pf.orden limit 1) nuestra_foto
+  const pubs = await consulta<PubDeGrupo & { grupo_id: number | null; producto_palabras: number | null; parecido: number | null }>(`
+    select rp.item_id, rp.vendedor, rp.titulo, rp.precio::float8 precio, rp.vendidos, rp.foto, rp.url, d.estado decision,
+           rp.grupo_id::float8 grupo_id, rp.producto_id::float8 producto_palabras, rp.parecido::float8 parecido
       from referente_pub rp left join referente_decision d on d.organizacion_id = rp.organizacion_id and d.item_id = rp.item_id
-      left join producto p on p.id = rp.producto_id
-     where rp.organizacion_id = $1`, [org]);
-  return r.map((x) => ({ ...x, marca_derechos: esMarcaConDerechos(x.titulo) }));
+     where rp.organizacion_id = $1 order by rp.vendidos desc nulls last, rp.item_id`, [org]);
+  const grupos = new Map((await consulta<{ id: number; producto_id: number | null; motivo: string | null; juzgado: boolean }>(
+    "select id::float8 id, producto_id::float8 producto_id, motivo, juzgado_ts is not null juzgado from referente_grupo where organizacion_id = $1", [org])).map((g) => [g.id, g]));
+  const porClave = new Map<string, typeof pubs>();
+  for (const x of pubs) { const k = x.grupo_id != null ? `g${x.grupo_id}` : `i${x.item_id}`; porClave.set(k, [...(porClave.get(k) ?? []), x]); }
+  const filas: Omit<FilaReferente, "nuestro_sku" | "nuestro_titulo" | "nuestra_foto" | "nuestro_estado">[] = [...porClave].map(([clave, xs]) => {
+    const ref = xs[0]; // la más vendida
+    const g = ref.grupo_id != null ? grupos.get(ref.grupo_id) : undefined;
+    const precios = xs.map((x) => x.precio).filter((x): x is number => x != null);
+    const decisiones = new Set(xs.map((x) => x.decision));
+    const ia = !!g?.juzgado;
+    return {
+      clave, grupo_id: ref.grupo_id, item_id: ref.item_id, titulo: ref.titulo, foto: ref.foto, url: ref.url, vendedor: ref.vendedor,
+      precio_min: precios.length ? Math.min(...precios) : null, precio_max: precios.length ? Math.max(...precios) : null,
+      vendidos: xs.reduce((t, x) => t + (x.vendidos ?? 0), 0), lo_venden: new Set(xs.map((x) => x.vendedor)).size,
+      pubs: xs.map(({ item_id, vendedor, titulo, precio, vendidos, foto, url, decision }) => ({ item_id, vendedor, titulo, precio, vendidos, foto, url, decision }))
+        .sort((a, b) => (a.precio ?? Infinity) - (b.precio ?? Infinity)),
+      producto_id: ia ? g!.producto_id : ref.producto_palabras, comparado: ia ? "ia" : "palabras", motivo: ia ? g!.motivo : null, parecido: ref.parecido,
+      decision: decisiones.has("cotizar") ? "cotizar" : decisiones.has("descartado") ? "descartado" : null,
+      marca_derechos: xs.some((x) => esMarcaConDerechos(x.titulo)), pasa_criterio: xs.some((x) => pasaCriterio(x)),
+    };
+  });
+  const ids = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))];
+  const nuestros = new Map((await consulta<{ id: number; sku: string | null; titulo: string; foto: string | null; estado: string }>(`
+    select p.id::float8 id, (select v.sku from variacion v where v.producto_id = p.id order by v.id limit 1) sku, p.titulo, p.estado,
+           (select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden limit 1) foto
+      from producto p where p.id = any($1::bigint[])`, [ids])).map((x) => [x.id, x]));
+  return filas.map((x) => {
+    const n = x.producto_id != null ? nuestros.get(x.producto_id) : undefined;
+    return { ...x, nuestro_sku: n?.sku ?? null, nuestro_titulo: n?.titulo ?? null, nuestra_foto: n?.foto ?? null, nuestro_estado: n?.estado ?? null };
+  });
 }
 
 /** Los filtros de la pantalla (la dirección). Pura. */
@@ -119,18 +161,27 @@ export function filtrarReferentes(filas: FilaReferente[], sp: Record<string, str
   const ver = sp.ver ?? "nuevos";
   const vendedor = sp.vendedor ?? "";
   return filas.filter((x) =>
-    (ver === "todos" || (ver === "nuevos" && !x.producto_id && x.decision !== "descartado") || (ver === "tenemos" && !!x.producto_id)
+    (ver === "todos" || (ver === "nuevos" && !x.producto_id && x.decision !== "descartado")
+      || (ver === "activos" && !!x.producto_id && x.nuestro_estado !== "archivado") || (ver === "archivados" && !!x.producto_id && x.nuestro_estado === "archivado")
       || (ver === "cotizar" && x.decision === "cotizar") || (ver === "descartados" && x.decision === "descartado"))
-    && (sp.criterio === "0" || pasaCriterio(x))
+    && (sp.criterio === "0" || x.pasa_criterio)
     && (sp.marcas === "1" || !x.marca_derechos)
-    && (!vendedor || x.vendedor === vendedor)
+    && (!vendedor || x.pubs.some((p) => p.vendedor === vendedor))
     && coincide(x));
 }
 
 /** Las columnas por las que se ordena (lista blanca). */
 export const ORDEN_REFERENTES: Record<string, (x: FilaReferente) => string | number | null> = {
-  titulo: (x) => x.titulo, precio: (x) => x.precio, vendidos: (x) => x.vendidos, lo_venden: (x) => x.lo_venden, vendedor: (x) => x.vendedor,
+  titulo: (x) => x.titulo, precio: (x) => x.precio_min, vendidos: (x) => x.vendidos, lo_venden: (x) => x.lo_venden,
 };
+
+/** Lo que se busca en cada fila: los títulos y vendedores de todas sus publicaciones, sus números y nuestro SKU. */
+export const textoBuscable = (x: FilaReferente) => [...x.pubs.flatMap((p) => [p.titulo, p.vendedor ?? "", p.item_id]), x.nuestro_sku ?? "", x.nuestro_titulo ?? ""];
+
+/** Marca para cotizar, descarta o deja sin decidir (null) todas las publicaciones de un producto de la competencia. */
+export async function decidirVarias(org: string, items: string[], estado: "cotizar" | "descartado" | null, usuarioId: string): Promise<void> {
+  for (const item of items.filter(Boolean)) await decidir(org, item, estado, usuarioId);
+}
 
 /** Marca una publicación para cotizar, la descarta o la deja sin decidir (null). */
 export async function decidir(org: string, itemId: string, estado: "cotizar" | "descartado" | null, usuarioId: string): Promise<void> {

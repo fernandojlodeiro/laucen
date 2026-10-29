@@ -1,12 +1,14 @@
 "use server";
 
-// Vendedores referentes (lib/compras/referentes.ts): leer un vendedor, rearmar el cruce, marcar para cotizar o descartar.
+// Vendedores referentes (lib/compras/referentes.ts): leer un vendedor, rearmar el cruce, ordenar con IA, marcar para
+// cotizar o descartar (todas las publicaciones del mismo producto juntas).
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
-import { armarCruce, decidir } from "@/lib/compras/referentes";
+import { armarCruce, decidirVarias } from "@/lib/compras/referentes";
+import { pedirIa, recompararTodo } from "@/lib/compras/referentes-ia";
 import { pedirVendedor } from "@/lib/compras/vendedor-referente";
 
 const LISTA = "/compras/referentes";
@@ -30,17 +32,30 @@ export async function accionCruce() {
   });
 }
 
+/** Ordenar con IA: agrupa lo que falta y lo compara con el catálogo (lib/compras/referentes-ia.ts). Con «recomparar», vuelve
+ *  a comparar todos los grupos (después de cargar productos nuevos). */
+export async function accionIa(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const recomparar = fd.get("recomparar") === "1";
+  return deFondo(s, "referentes-ia", "Ordenar con IA", async () => {
+    if (recomparar) await recompararTodo(s.org.id);
+    await pedirIa(s.org.id);
+    revalidatePath(LISTA);
+    return "La IA está ordenando la lista: tarda unos minutos y el avance se ve debajo del título.";
+  });
+}
+
 /** La caja «Cotizar» (graba al tocarla): tildada = para cotizar; destildada = sin decidir. */
 export async function accionCotizar(fd: FormData) {
   const s = await entrarErp("compras_ver");
-  await decidir(s.org.id, String(fd.get("item")), fd.get("valor") === "1" ? "cotizar" : null, s.usuario.id);
+  await decidirVarias(s.org.id, String(fd.get("items")).split(","), fd.get("valor") === "1" ? "cotizar" : null, s.usuario.id);
   revalidatePath(LISTA);
 }
 
 export async function accionDescartar(fd: FormData) {
   const s = await entrarErp("compras_ver");
   await intentar(volver(fd), async () => {
-    await decidir(s.org.id, String(fd.get("item")), fd.get("deshacer") === "1" ? null : "descartado", s.usuario.id);
+    await decidirVarias(s.org.id, String(fd.get("items")).split(","), fd.get("deshacer") === "1" ? null : "descartado", s.usuario.id);
     revalidatePath(LISTA);
   });
 }

@@ -287,3 +287,46 @@ create table if not exists referente_decision (
 );
 alter table referente_decision enable row level security;
 select erp_politica_org('referente_decision');
+
+-- Vendedores referentes, fase 2 (Fer, 29/10; lib/compras/referentes-ia.ts): la IA junta en un grupo las publicaciones de
+-- los distintos vendedores que son el mismo producto (referente_pub.grupo_id) y compara cada grupo con todos nuestros
+-- productos, activos y archivados (referente_grupo.producto_id; null = no lo tenemos). Cada pasada de la IA, con su tope
+-- de gasto y su avance, en referente_ia; la corre /api/referentes-ia con el token de la fila.
+alter table referente_pub add column if not exists grupo_id bigint;
+create table if not exists referente_grupo (
+  id               bigserial primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  producto_id      bigint references producto(id) on delete set null,   -- el nuestro que es el mismo, según la IA
+  motivo           text,                                                  -- por qué (lo dice la IA)
+  juzgado_ts       timestamptz,                                           -- cuándo se comparó con el catálogo (null = falta)
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists referente_grupo_org_i on referente_grupo (organizacion_id);
+alter table referente_grupo enable row level security;
+select erp_politica_org('referente_grupo');
+create table if not exists referente_ia (
+  id               bigserial primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  token            uuid not null default gen_random_uuid(),
+  estado           text not null default 'corriendo' check (estado in ('corriendo', 'terminada', 'error')),
+  tope_usd         numeric(10, 2) not null,
+  gastado_usd      numeric(10, 4) not null default 0,
+  error            text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+alter table referente_ia enable row level security;
+select erp_politica_org('referente_ia');
+
+-- Reanudador de la IA de vendedores referentes: si una vuelta se cortó, cada 5 minutos la base la vuelve a llamar.
+do $$
+declare j record; cmd text := $c$select net.http_get('https://laucen.com/api/referentes-ia?id=' || id || '&token=' || token) from public.referente_ia where estado = 'corriendo' and actualizado_ts < now() - interval '6 minutes'$c$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'referentes-ia';
+  if not found then perform cron.schedule('referentes-ia', '*/5 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar referentes-ia (%)', sqlerrm;
+end $$;

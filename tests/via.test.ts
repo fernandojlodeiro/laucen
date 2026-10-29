@@ -128,3 +128,18 @@ test("vendedores referentes: criterio, marcas con derechos, grupo y número de v
   assert.equal(vendedorDeLink("137430519"), 137430519);
   assert.equal(vendedorDeLink("https://www.mercadolibre.com.ar/tienda/candy-ho"), null);
 });
+
+test("vendedores referentes con IA: candidatas por palabras raras y lectura de la respuesta", async () => {
+  const { candidatasDe, leerIguales, leerElegido } = await import("@/lib/compras/referentes-ia");
+  const ws = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1));
+  const textos = [ws("Sensor Ultrasonido HC-SR04 Arduino"), ws("Modulo HC SR04 Ultrasonico"), ws("Rele 4 canales 5v"), ws("Arduino Uno R3")];
+  const indice = new Map<string, number[]>();
+  textos.forEach((s, i) => { for (const w of s) indice.set(w, [...(indice.get(w) ?? []), i]); });
+  assert.deepEqual(candidatasDe(textos[0], textos, indice, 12, 0), [1]); // «Arduino Uno» comparte una sola palabra: no alcanza
+  assert.deepEqual(leerIguales('{"iguales":[2,1,9]}', 3), [2, 1]);
+  assert.deepEqual(leerIguales("[]", 3), []);
+  assert.equal(leerIguales("no sé", 3), null);
+  assert.deepEqual(leerElegido('{"n":2,"motivo":"mismo módulo"}', 3), { n: 2, motivo: "mismo módulo" });
+  assert.deepEqual(leerElegido('{"n":0,"motivo":"ninguno"}', 3), { n: 0, motivo: "ninguno" });
+  assert.equal(leerElegido('{"n":5}', 3), null);
+});
