@@ -22,6 +22,8 @@ import {
   CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, url,
 } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
+import Adjuntos from "@/app/componentes/Adjuntos";
+import { adjuntosMl } from "@/lib/mensajes/bandeja-tipos";
 import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
 import { ACCIONES_REVISION_DEVOLUCION, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
 import {
@@ -265,8 +267,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                 return (
                   <div key={m.id} className={`flex ${derecha ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${color}`}>
-                      <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>
-                      {Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <div className="text-[10px] text-[#5C6B76]">+ {m.adjuntos.length} adjunto{m.adjuntos.length === 1 ? "" : "s"} (se ven en Mercado Libre)</div>}
+                      {(m.texto || !(Array.isArray(m.adjuntos) && m.adjuntos.length)) && <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>}
+                      {esMl && Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <Adjuntos lista={adjuntosMl(m.adjuntos, "r", m.id)} />}
                       <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de === "vendedor" ? (m.usuario ? `Respondió ${m.usuario}` : "Respondió alguien desde Mercado Libre") : `${DE[m.de] ?? m.de}${m.usuario ? ` (${m.usuario})` : ""}`} · {fechaHora(m.fecha)}</div>
                     </div>
                   </div>

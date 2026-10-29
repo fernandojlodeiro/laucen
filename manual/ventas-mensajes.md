@@ -155,6 +155,8 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 **¿Por qué un mensaje dice NO ENTREGADO?** WhatsApp no lo aceptó; el motivo está al lado (por ejemplo, que el número no tiene WhatsApp).
 
+**Fotos y archivos que manda el cliente.** Las fotos que mandan por WhatsApp, por los mensajes de Mercado Libre o dentro de un reclamo se ven en la conversación, en miniatura debajo del mensaje; tocándolas se abren grandes en otra pestaña. Un PDF, un video o un audio se ve como «📎 nombre ↗». No se copian a Laucen: se le piden a WhatsApp o a Mercado Libre al mirarlos, así que una foto de WhatsApp deja de verse pasados unos 30 días.
+
 **¿Y si el cliente manda el comprobante de la transferencia?** Si tiene un pedido sin pagar, la foto o el PDF queda en el pedido y se busca la transferencia en Mercado Pago. Si aparece, el pago queda registrado y se le contesta «¡Gracias! Recibimos tu pago del pedido #…». Ver [Pedidos](/ventas/pedidos).
 
 **¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **Para atender** con el asunto. En la barra de abajo sube el contador **"Para atender"** y, si lo elegiste en [Mis avisos](/config/avisos), suena y se abre sola una ventana con el chat y el botón **"Ir a responder"**.

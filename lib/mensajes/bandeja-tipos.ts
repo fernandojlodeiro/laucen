@@ -68,7 +68,22 @@ export type MensajeVista = {
   estado: string | null; motivo: string | null; quien: string | null; usd: number; herramientas: string[];
   /** Una respuesta de la IA que se puede corregir (lib/correccion-ia.ts). */
   corregir?: { origen: "pregunta" | "mensaje" | "whatsapp"; id: string };
+  /** Las fotos y archivos que mandó (Mercado Libre: se traen en el momento por /api/meli/adjunto). */
+  adjuntos?: Adjunto[];
 };
+
+export type Adjunto = { url: string; nombre: string; imagen: boolean };
+
+/** Los adjuntos de un mensaje de ML o de un reclamo, como los anota Mercado Libre, con el enlace para verlos. Pura. */
+export function adjuntosMl(lista: unknown, param: "m" | "r", id: string | number): Adjunto[] {
+  if (!Array.isArray(lista)) return [];
+  return lista.flatMap((a) => {
+    const x = a as { filename?: string; original_filename?: string; type?: string };
+    if (!x?.filename) return [];
+    return [{ url: `/api/meli/adjunto?${param}=${encodeURIComponent(String(id))}&f=${encodeURIComponent(x.filename)}`,
+      nombre: x.original_filename || x.filename, imagen: (x.type ?? "").startsWith("image/") || /\.(jpe?g|png|gif|webp)$/i.test(x.filename) }];
+  });
+}
 
 export type PreguntaAnterior = { id: string; texto: string; respuesta: string | null; fecha: string; titulo: string | null; canal: string | null };
 

@@ -122,3 +122,21 @@ export async function mlArchivo<T = unknown>(cuenta: CuentaMl, ruta: string, cam
     }
   }
 }
+
+/** Baja un archivo de ML (GET, sólo lectura): las fotos que mandan los compradores en los mensajes y en los reclamos.
+ *  Devuelve los bytes y su tipo, o null si ML no lo da. */
+export async function mlBinario(cuenta: CuentaMl, ruta: string): Promise<{ datos: ArrayBuffer; tipo: string } | null> {
+  const token = await tokenDeCuenta(cuenta.id);
+  if (!token) return null;
+  for (let intento = 0; ; intento++) {
+    try {
+      const r = await fetch(`${API}${ruta}`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(25_000) });
+      if ((r.status === 429 || r.status >= 500) && intento < 2) { await new Promise((ok) => setTimeout(ok, 1000 * (intento + 1))); continue; }
+      if (r.status !== 200) return null;
+      return { datos: await r.arrayBuffer(), tipo: r.headers.get("content-type") ?? "application/octet-stream" };
+    } catch {
+      if (intento < 2) continue;
+      return null;
+    }
+  }
+}

@@ -14,6 +14,7 @@ import { enviarTexto, firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
 import { recibirComprobanteWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { anotarAnuncio, anotarEntrega, anotarOrigen, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
+import { consulta } from "@/lib/erp/base";
 import { contestar } from "@/lib/mensajes/estela";
 import { conQuienHablaban, ecosDelCambio, esOrdenDeMando, loQueDijo, sinLaMarca } from "@/lib/mensajes/reglas";
 
@@ -31,8 +32,8 @@ export async function GET(req: NextRequest) {
 type Mensaje = {
   from?: string; id?: string; timestamp?: string; type?: string;
   text?: { body?: string };
-  image?: { caption?: string; id?: string; mime_type?: string }; video?: { caption?: string }; document?: { caption?: string; filename?: string; id?: string; mime_type?: string };
-  audio?: { id?: string }; sticker?: unknown; location?: { name?: string; address?: string; latitude?: number; longitude?: number };
+  image?: { caption?: string; id?: string; mime_type?: string }; video?: { caption?: string; id?: string; mime_type?: string }; document?: { caption?: string; filename?: string; id?: string; mime_type?: string };
+  audio?: { id?: string; mime_type?: string }; sticker?: unknown; location?: { name?: string; address?: string; latitude?: number; longitude?: number };
   button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
   reaction?: unknown;
   /** El anuncio, cuando escribió desde un anuncio «Enviar mensaje» (sólo en el primer mensaje): lib/publicidad/atribucion.ts. */
@@ -122,6 +123,12 @@ export async function POST(req: NextRequest) {
         const chat = await chatDe(org, "whatsapp", tel, nombre);
         const id = await guardarMensaje({ org, chatId: chat.id, clase: "entrante", texto, wamid: m.id ?? null });
         if (id == null) continue; // Meta lo mandó dos veces
+        // El archivo que mandó, para verlo en el panel (Fer, 29/10).
+        const archivo = m.type === "image" ? m.image : m.type === "document" ? m.document : m.type === "video" ? m.video : m.type === "audio" ? m.audio : null;
+        if (archivo?.id) {
+          await consulta("update chat_mensaje set adjunto = $2::jsonb where id = $1", [id, JSON.stringify({
+            media_id: archivo.id, tipo: archivo.mime_type ?? m.type, nombre: m.type === "document" ? m.document?.filename ?? null : null })]).catch(() => {});
+        }
         await anotarAnuncio(chat.id, m.referral);
         await anotarOrigen(org, chat.id, codigo);
         after(async () => {

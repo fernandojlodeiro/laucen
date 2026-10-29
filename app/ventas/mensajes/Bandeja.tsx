@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Adjuntos from "@/app/componentes/Adjuntos";
 import {
   FILTROS, ORIGENES, NOMBRE_ORIGEN,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
@@ -381,6 +382,8 @@ function Globo({ m, nombreIa }: { m: MensajeVista; nombreIa: string }) {
             </div>
           );
         })()}
+        {/* Las fotos y archivos que mandó (Fer, 29/10): se traen de Mercado Libre al verlas; tocándolas se abren grandes. */}
+        {m.adjuntos && m.adjuntos.length > 0 && <Adjuntos lista={m.adjuntos} />}
         <div className="mt-0.5 flex justify-end gap-1 text-[10px] text-[#5C6B76]">
           <span>{horaLarga(m.ts)}</span>{nuestro && estado}
         </div>

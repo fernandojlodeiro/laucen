@@ -14,7 +14,7 @@ import { credencialDeOrg } from "./chats";
 import { telefonoLindo, ventanaAbierta } from "./reglas";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import {
-  partirClave, ORIGENES,
+  partirClave, ORIGENES, adjuntosMl,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FilaBandeja, type FotoBandeja, type MensajeVista, type Origen, type PreguntaAnterior,
 } from "./bandeja-tipos";
 
@@ -199,9 +199,10 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
       from chat ch left join cliente cl on cl.id = ch.cliente_id where ch.organizacion_id = $1 and ch.id = $2`, [org, id]);
   if (!ch) return null;
   const [mensajes, casos] = await Promise.all([
-    consulta<{ id: number; clase: MensajeVista["clase"]; texto: string; ts: string; estado: string | null; motivo: string | null; quien: string | null; usd: number; herramientas: { nombre: string }[] }>(`
+    consulta<{ id: number; clase: MensajeVista["clase"]; texto: string; ts: string; estado: string | null; motivo: string | null; quien: string | null; usd: number; herramientas: { nombre: string }[];
+      adjunto: { tipo?: string; nombre?: string | null } | null }>(`
       select * from (
-        select m.id::int, m.clase, m.texto, m.ts::text, m.estado_entrega estado, m.entrega_motivo motivo, u.nombre quien, m.usd::float, m.herramientas
+        select m.id::int, m.clase, m.texto, m.ts::text, m.estado_entrega estado, m.entrega_motivo motivo, u.nombre quien, m.usd::float, m.herramientas, m.adjunto
           from chat_mensaje m left join usuarios u on u.id = m.usuario_id
          where m.chat_id = $1 and m.texto <> '' order by m.id desc limit 300) x order by id`, [id]),
     consulta<{ id: number; asunto: string; motivo: string; abierto_ts: string; asignado: string | null }>(`
@@ -221,6 +222,9 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
     mensajes: mensajes.map((m) => ({
       id: String(m.id), clase: m.clase, texto: m.texto, ts: m.ts, estado: m.estado, motivo: m.motivo, quien: m.quien, usd: m.usd,
       herramientas: (m.herramientas ?? []).map((h) => h.nombre),
+      // La foto o el archivo que mandó por WhatsApp: se pide a Meta al verlo (/api/mensajes/adjunto).
+      ...(m.adjunto ? { adjuntos: [{ url: `/api/mensajes/adjunto?c=${m.id}`, nombre: m.adjunto.nombre || (String(m.adjunto.tipo ?? "").startsWith("image") ? "Foto" : "Archivo"),
+        imagen: String(m.adjunto.tipo ?? "").startsWith("image") }] } : {}),
       ...(m.clase === "ia" && ch.canal !== "prueba" ? { corregir: { origen: "whatsapp" as const, id: String(m.id) } } : {}),
     })),
     aviso: null,
@@ -262,8 +266,8 @@ async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null>
       left join cliente cl on cl.id = p.cliente_id ${VENTA_DEL_PACK("c")}
      where c.organizacion_id = $1 and c.pack_id = $2`, [org, pack]);
   if (!c) return null;
-  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: string; usuario: string | null; con_ia: boolean; auto: boolean }>(`
-    select m.id, m.de_vendedor, m.texto, m.fecha::text, u.nombre usuario, m.con_ia, m.auto from meli_mensaje m left join usuarios u on u.id = m.usuario_id
+  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: string; usuario: string | null; con_ia: boolean; auto: boolean; adjuntos: unknown }>(`
+    select m.id, m.de_vendedor, m.texto, m.fecha::text, u.nombre usuario, m.con_ia, m.auto, m.adjuntos from meli_mensaje m left join usuarios u on u.id = m.usuario_id
      where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, pack]);
   // Abrirla la da por leída en Laucen (como la pestaña Mensajes de Preguntas y mensajes).
   await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
@@ -279,7 +283,7 @@ async function mlAbierta(org: string, pack: string): Promise<ChatAbierto | null>
     ia: { prendida: !c.persona }, notas: null, terminar: c.atender,
     casos: c.derivada ? [{ id: 0, asunto: "Derivada a una persona", motivo: "La IA le avisó al comprador que una persona del equipo le va a responder. Sale de «Para atender» cuando le escribas o toques «Terminado».", abiertoTs: "", asignado: null, resolver: false }] : [],
     mensajes: mensajes.map((m) => ({
-      id: m.id, texto: m.texto ?? "(adjunto)", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [],
+      id: m.id, texto: m.texto ?? "", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [], adjuntos: adjuntosMl(m.adjuntos, "m", m.id),
       clase: !m.de_vendedor ? "entrante" : m.auto ? "ia" : m.usuario ? "operador" : "desde_el_telefono",
       quien: m.de_vendedor && !m.auto ? (m.usuario ? `${m.usuario}${m.con_ia ? " con la IA" : ""}` : "Desde Mercado Libre") : null,
       ...(m.de_vendedor && (m.auto || m.con_ia) && m.texto ? { corregir: { origen: "mensaje" as const, id: m.id } } : {}),
@@ -363,8 +367,8 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
       from reclamo r left join canal ca on ca.id = r.canal_id left join cliente cl on cl.id = r.cliente_id
      where r.organizacion_id = $1 and r.id = $2`, [org, id]);
   if (!r) return null;
-  const mensajes = await consulta<{ id: number; de: string; texto: string | null; fecha: string; quien: string | null }>(`
-    select m.id::int, m.de, m.texto, m.fecha::text, u.nombre quien from reclamo_mensaje m left join usuarios u on u.id = m.usuario_id
+  const mensajes = await consulta<{ id: number; de: string; texto: string | null; fecha: string; quien: string | null; adjuntos: unknown }>(`
+    select m.id::int, m.de, m.texto, m.fecha::text, u.nombre quien, m.adjuntos from reclamo_mensaje m left join usuarios u on u.id = m.usuario_id
      where m.reclamo_id = $1 and m.organizacion_id = $2 and m.de <> 'interno' order by m.fecha, m.id`, [id, org]);
   const deMl = r.origen === "mercadolibre";
   const porQueNo = r.estado === "resuelto" ? "El reclamo está cerrado."
@@ -382,7 +386,7 @@ async function reclamoAbierto(org: string, id: number): Promise<ChatAbierto | nu
     ia: null, notas: null, terminar: false,
     casos: r.atender ? [{ id: 0, asunto: "Reclamo para atender", motivo: r.vence ? `Hay que responder antes del ${r.vence}.` : "Está esperando que lo atiendas.", abiertoTs: "", asignado: null, resolver: false }] : [],
     mensajes: mensajes.map((m) => ({
-      id: String(m.id), texto: m.texto || "(adjunto)", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [],
+      id: String(m.id), texto: m.texto || "", ts: m.fecha, estado: null, motivo: null, usd: 0, herramientas: [], adjuntos: deMl ? adjuntosMl(m.adjuntos, "r", m.id) : [],
       clase: m.de === "comprador" ? "entrante" : m.de === "ml" ? "ml" : "operador",
       quien: m.de === "ml" ? "Mercado Libre" : m.de === "vendedor" ? m.quien ?? "Vendedor" : null,
     })),
