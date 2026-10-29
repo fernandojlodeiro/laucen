@@ -32,6 +32,7 @@ Menú **Compras › Vendedores referentes**.
   - **Vendedor**: los productos que vende ese vendedor, o todos;
   - **Sólo los que venden**, tildada de entrada: alguna de sus publicaciones tiene más de 500 vendidas, o desde $ 50.000 con más de 25 vendidas (las vendidas son las que informa Mercado Libre);
   - **Incluye marcas con derechos**: de entrada no se muestran las de marcas que no se pueden importar (Lego, Apple, Dewalt, Disney, Marvel, Nintendo, PlayStation…).
+- A la derecha de los filtros, **Marcar los N que se ven para cotizar**: marca de una vez todos los productos que deja el filtro (todas las páginas, no sólo la que se ve). Pregunta ahí mismo **Sí / No**. Los descartados no se tocan. Si ya hay marcados entre los que se ven, aparece también **Desmarcar los N que se ven**. Corre de fondo y al terminar avisa cuántos marcó.
 - La tabla, una fila por producto, del que más vendió al que menos (se ordena tocando el título de cada columna):
   - **Producto**: foto, título y número de su publicación más vendida, con ↗ a Mercado Libre;
   - **Precio**: el más barato de los que lo venden y, debajo, el más caro;
@@ -51,7 +52,7 @@ Menú **Compras › Vendedores referentes**.
 
 ### Pedir cotización de productos nuevos
 
-1. En **Ver: Nuevos para vos**, tildá **Cotizar** en lo que te interese (y descartá lo que no).
+1. En **Ver: Nuevos para vos**, tildá **Cotizar** en lo que te interese (y descartá lo que no), o filtrá y tocá **Marcar los N que se ven para cotizar** para marcarlos todos de una vez.
 2. **Excel para cotizar (N)**: una fila por producto marcado con **Foto**, **Producto** (el título de su publicación más vendida), **Publicación de referencia** (el link a ésa) y columnas vacías para que el proveedor complete **Precio US$**, **Peso (g)**, **Medidas de la caja (cm)** y **Observaciones**. No lleva SKU ni cantidad.
 
 La foto del Excel va como fórmula de imagen: se ve en Excel de Microsoft 365.

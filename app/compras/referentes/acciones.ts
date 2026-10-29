@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
-import { armarCruce, decidirVarias } from "@/lib/compras/referentes";
+import { armarCruce, decidirVarias, marcarLosQueSeVen } from "@/lib/compras/referentes";
 import { pedirIa, recompararTodo } from "@/lib/compras/referentes-ia";
 import { pedirVendedor } from "@/lib/compras/vendedor-referente";
 
@@ -57,5 +57,18 @@ export async function accionDescartar(fd: FormData) {
   await intentar(volver(fd), async () => {
     await decidirVarias(s.org.id, String(fd.get("items")).split(","), fd.get("deshacer") === "1" ? null : "descartado", s.usuario.id);
     revalidatePath(LISTA);
+  });
+}
+
+/** «Marcar los N que se ven para cotizar» / «Desmarcar los que se ven»: con los filtros de la pantalla (campo `filtros`, la
+ *  dirección sin la página). */
+export async function accionMarcarVistos(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const sp = Object.fromEntries(new URLSearchParams(String(fd.get("filtros") ?? "")));
+  const marcar = fd.get("marcar") === "1";
+  return deFondo(s, `referentes-marcar-${marcar ? "1" : "0"}`, marcar ? "Marcar para cotizar" : "Desmarcar", async () => {
+    const n = await marcarLosQueSeVen(s.org.id, sp, marcar, s.usuario.id);
+    revalidatePath(LISTA);
+    return marcar ? `${n} productos marcados para cotizar.` : `${n} productos desmarcados.`;
   });
 }

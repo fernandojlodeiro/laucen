@@ -6,20 +6,16 @@
 import ExcelJS from "exceljs";
 import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
-import { coincideBusqueda } from "@/lib/busqueda";
-import { ORDEN_REFERENTES, filtrarReferentes, publicacionesReferentes, textoBuscable } from "@/lib/compras/referentes";
-import { ordenarEnMemoria } from "@/lib/lista";
+import { filasDeLaPantalla } from "@/lib/compras/referentes";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
-  const todas = await publicacionesReferentes(s.org.id);
-  const q = sp.q?.trim() ?? "";
   const cotizar = sp.cotizar === "1";
-  const filas = cotizar ? todas.filter((x) => x.decision === "cotizar").sort((a, b) => b.vendidos - a.vendidos)
-    : ordenarEnMemoria(filtrarReferentes(todas, sp, (x) => !q || coincideBusqueda(textoBuscable(x), q, sp.contiene !== "1")), sp, ORDEN_REFERENTES);
+  const { todas, filas: vistas } = await filasDeLaPantalla(s.org.id, sp);
+  const filas = cotizar ? todas.filter((x) => x.decision === "cotizar").sort((a, b) => b.vendidos - a.vendidos) : vistas;
 
   const libro = new ExcelJS.Workbook();
   const h = libro.addWorksheet(cotizar ? "Para cotizar" : "Vendedores referentes", { views: [{ state: "frozen", ySplit: 1 }] });

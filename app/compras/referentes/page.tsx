@@ -15,13 +15,12 @@ import TituloCorto from "@/app/componentes/TituloCorto";
 import { Avisos, CAJA_TABLA, CAMPO, ETIQUETA, Estado, Pantalla, TABLA, TD, TDN, TH, THEAD, TR, entrarErp, url } from "@/app/componentes/erp";
 import { Desplegable } from "@/app/informes/Filtros";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { coincideBusqueda } from "@/lib/busqueda";
-import { ORDEN_REFERENTES, PRECIO_ALTO, VENDIDAS_MINIMO, VENDIDAS_PRECIO_ALTO, filtrarReferentes, publicacionesReferentes, textoBuscable, vendedoresLeidos } from "@/lib/compras/referentes";
+import { PRECIO_ALTO, VENDIDAS_MINIMO, VENDIDAS_PRECIO_ALTO, filasDeLaPantalla, filtrarReferentes, vendedoresLeidos } from "@/lib/compras/referentes";
 import { TOPE_IA_USD, avanceIa } from "@/lib/compras/referentes-ia";
 import { MAXIMO_POR_VENDEDOR, USD_POR_PUBLICACION } from "@/lib/compras/vendedor-referente";
-import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
+import { paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
-import { accionCotizar, accionCruce, accionDescartar, accionIa, accionLeerVendedor } from "./acciones";
+import { accionCotizar, accionCruce, accionDescartar, accionIa, accionLeerVendedor, accionMarcarVistos } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -33,15 +32,17 @@ const fecha = (ts: string | null) => (ts ? new Date(ts).toLocaleDateString("es-A
 export default async function VendedoresReferentes({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("compras_ver");
   const sp = await searchParams;
-  const [todas, vendedores, ia] = await Promise.all([publicacionesReferentes(s.org.id), vendedoresLeidos(s.org.id), avanceIa(s.org.id)]);
+  const [{ todas, coincide, filas }, vendedores, ia] = await Promise.all([filasDeLaPantalla(s.org.id, sp), vendedoresLeidos(s.org.id), avanceIa(s.org.id)]);
   const q = sp.q?.trim() ?? "";
-  const coincide = (x: (typeof todas)[number]) => !q || coincideBusqueda(textoBuscable(x), q, sp.contiene !== "1");
-  const filas = ordenarEnMemoria(filtrarReferentes(todas, sp, coincide), sp, ORDEN_REFERENTES);
   const vista = paginarEnMemoria(filas, sp);
+  // «Marcar los que se ven» (Fer, 29/10): cuántos de los que deja el filtro se marcarían o desmarcarían (los descartados, no).
+  const porMarcar = filas.filter((x) => x.decision == null).length;
+  const marcados = filas.filter((x) => x.decision === "cotizar").length;
   const cuenta = (ver: string) => filtrarReferentes(todas, { ...sp, ver }, coincide).length;
   const paraCotizar = todas.filter((x) => x.decision === "cotizar").length;
   const params = { q: q || null, contiene: sp.contiene ?? null, ver: sp.ver ?? null, vendedor: sp.vendedor ?? null, criterio: sp.criterio ?? null, marcas: sp.marcas ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null };
   const aqui = url("/compras/referentes", { ...params, p: sp.p ?? null });
+  const filtros = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => e[1] != null)).toString();
   const nombres = [...new Set(todas.flatMap((x) => x.pubs.map((p) => p.vendedor)).filter((x): x is string => !!x))].sort();
   const sinIa = todas.filter((x) => x.comparado === "palabras").length;
   const textoIa = !ia ? "La IA todavía no ordenó la lista: «Ordenar con IA» junta lo que es el mismo producto y lo compara con tu catálogo."
@@ -106,6 +107,12 @@ export default async function VendedoresReferentes({ searchParams }: { searchPar
         <CasillaViva parametro="criterio" activo={sp.criterio !== "0"} tildadaDeEntrada etiqueta={`Sólo los que venden (+${VENDIDAS_MINIMO}, o desde ${pesos(PRECIO_ALTO)} con +${VENDIDAS_PRECIO_ALTO})`}
           ayuda="Más de 500 vendidas, o desde $ 50.000 con más de 25 vendidas (las vendidas son las que informa Mercado Libre)" />
         <CasillaViva parametro="marcas" activo={sp.marcas === "1"} etiqueta="Incluye marcas con derechos" ayuda="Lego, Apple, Dewalt, Disney, Marvel, Nintendo, PlayStation…: de entrada no se muestran" />
+        <span className="ml-auto inline-flex flex-wrap items-center gap-2">
+          {porMarcar > 0 && <BotonTarea accion={accionMarcarVistos} tipo="referentes-marcar-1" clase={SUAVE} campos={{ filtros, marcar: "1" }}
+            texto={`Marcar los ${entero(porMarcar)} que se ven para cotizar`} pregunta={`¿Marcar para cotizar los ${entero(porMarcar)} productos que se ven (todas las páginas)?`} />}
+          {marcados > 0 && <BotonTarea accion={accionMarcarVistos} tipo="referentes-marcar-0" clase={SUAVE} campos={{ filtros, marcar: "0" }}
+            texto={`Desmarcar los ${entero(marcados)} que se ven`} pregunta={`¿Desmarcar los ${entero(marcados)} productos que se ven?`} />}
+        </span>
       </div>
 
       <div className={`${CAJA_TABLA} max-h-[calc(100vh-14rem)] overflow-y-auto`}>

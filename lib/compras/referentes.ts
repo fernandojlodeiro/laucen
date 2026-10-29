@@ -7,6 +7,8 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { parecido } from "@/lib/seguimiento";
+import { coincideBusqueda } from "@/lib/busqueda";
+import { ordenarEnMemoria } from "@/lib/lista";
 
 /** Criterio de entrada (Fer, 14/10): más de 500 vendidas, o desde $ 50.000 con más de 25 vendidas. */
 export const VENDIDAS_MINIMO = 500;
@@ -180,7 +182,30 @@ export const textoBuscable = (x: FilaReferente) => [...x.pubs.flatMap((p) => [p.
 
 /** Marca para cotizar, descarta o deja sin decidir (null) todas las publicaciones de un producto de la competencia. */
 export async function decidirVarias(org: string, items: string[], estado: "cotizar" | "descartado" | null, usuarioId: string): Promise<void> {
-  for (const item of items.filter(Boolean)) await decidir(org, item, estado, usuarioId);
+  const xs = items.filter(Boolean);
+  if (!xs.length) return;
+  if (!estado) { await consulta("delete from referente_decision where organizacion_id = $1 and item_id = any($2::text[])", [org, xs]); return; }
+  await consulta(`insert into referente_decision (organizacion_id, item_id, estado, usuario_id) select $1, x, $3, $4 from unnest($2::text[]) x
+                  on conflict (organizacion_id, item_id) do update set estado = excluded.estado, usuario_id = excluded.usuario_id, ts = now()`,
+    [org, xs, estado, usuarioId]);
+}
+
+/** Lo que se ve en la pantalla con los filtros de la dirección (todas las páginas, en su orden): la pantalla, el Excel y
+ *  «Marcar los que se ven» usan esto mismo. */
+export async function filasDeLaPantalla(org: string, sp: Record<string, string | undefined>) {
+  const todas = await publicacionesReferentes(org);
+  const q = sp.q?.trim() ?? "";
+  const coincide = (x: FilaReferente) => !q || coincideBusqueda(textoBuscable(x), q, sp.contiene !== "1");
+  return { todas, coincide, filas: ordenarEnMemoria(filtrarReferentes(todas, sp, coincide), sp, ORDEN_REFERENTES) };
+}
+
+/** «Marcar los que se ven para cotizar» (Fer, 29/10) o desmarcarlos: todas las publicaciones de los productos que deja el
+ *  filtro. Los descartados no se tocan. Devuelve cuántos productos. */
+export async function marcarLosQueSeVen(org: string, sp: Record<string, string | undefined>, marcar: boolean, usuarioId: string): Promise<number> {
+  const { filas } = await filasDeLaPantalla(org, sp);
+  const elegidas = filas.filter((x) => x.decision !== "descartado" && (marcar ? x.decision !== "cotizar" : x.decision === "cotizar"));
+  await decidirVarias(org, elegidas.flatMap((x) => x.pubs.map((p) => p.item_id)), marcar ? "cotizar" : null, usuarioId);
+  return elegidas.length;
 }
 
 /** Marca una publicación para cotizar, la descarta o la deja sin decidir (null). */
