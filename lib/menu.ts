@@ -71,6 +71,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Modo depósito (celular)", href: "/deposito/celular", permiso: "picking_ver", icono: "📱" },
       { texto: "Consulta de stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
       { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
+      { texto: "Entregas en el local", href: "/deposito/entregas", permiso: "picking_ver", icono: "🤝" },
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
       { texto: "Etiquetas", href: "/deposito/etiquetas", permiso: "etiquetas_ver" },
       { texto: "Envíos a Full", href: "/stock/full", permiso: "full_ver", icono: "🚛" },

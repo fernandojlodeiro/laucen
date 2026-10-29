@@ -19,12 +19,18 @@ type Boton = { texto: string; ayuda: string; href: string; icono: string; permis
 export default async function ModoDeposito() {
   const s = await sesionRequerida();
   const puede = (p: PermisoKey) => tienePermiso(s.permisos, p);
-  const [x] = await consulta<{ preparar: number; etiquetas: number }>(`
+  const [x] = await consulta<{ preparar: number; etiquetas: number; entregar: number }>(`
     select (select count(*) from pedido p where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")} and not ${sqlCarritoEnEspera("p")})::int preparar,
+           (select count(*) from pedido p join canal ca on ca.id = p.canal_id left join metodo_envio me on me.id = p.metodo_envio_id
+             where p.organizacion_id = $1 and p.estado = 'preparado'
+               and (coalesce(p.envio ->> 'metodo' = 'Retira', false) or me.tipo = 'retiro'
+                    or (ca.tipo = 'mercadolibre' and coalesce((p.envio ->> 'sin_envio')::boolean, false)
+                        and not exists (select 1 from envio e where e.pedido_id = p.id and e.logistica is not null and coalesce(e.estado, '') <> 'cancelled'))))::int entregar,
            (select count(*) from envio e where e.organizacion_id = $1 and ${CONDICION_ENVIOS.despachar} and e.etiqueta_impresa_ts is null and e.id_externo is not null)::int etiquetas`, [s.org.id]);
 
   const todos: Boton[] = [
     { texto: "Preparar pedidos", ayuda: "Elegir el lote y escanear", href: "/deposito/picking", icono: "🧺", permiso: "picking_ver", n: x?.preparar },
+    { texto: "Entregas en el local", ayuda: "Lo preparado que vienen a buscar: foto del conforme", href: "/deposito/entregas", icono: "🤝", permiso: "picking_ver", n: x?.entregar },
     { texto: "Imprimir etiquetas de envío", ayuda: "Las de los pedidos por despachar", href: "/ventas/envios", icono: "🏷️", permiso: "envios_ver", n: x?.etiquetas },
     { texto: "Etiquetas de Full", ayuda: "Para mandar mercadería a Mercado Libre", href: "/deposito/etiquetas/full", icono: "📦", permiso: "etiquetas_ver" },
     { texto: "Recepción", ayuda: "Escanear lo que llega", href: "/deposito/recepcion", icono: "📥", permiso: "recepcion_ver" },
