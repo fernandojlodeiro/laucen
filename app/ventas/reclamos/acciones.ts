@@ -137,7 +137,7 @@ export async function accionReclamoMl(fd: FormData) {
   await intentar(ficha(r), async () => {
     const accion = String(fd.get("accion") ?? "");
     if (!Object.hasOwn(ACCIONES_RECLAMO, accion)) throw new ErrorErp("Esa acción no se puede hacer desde Laucen.");
-    const d = await encolarAccionReclamo(s.org.id, r, accion, { mensaje: texto(fd, "mensaje"), porcentaje: numero(fd, "porcentaje") }, s.usuario.id);
+    const d = await encolarAccionReclamo(s.org.id, r, accion, { mensaje: texto(fd, "mensaje"), porcentaje: numero(fd, "porcentaje"), motivo: texto(fd, "motivo") }, s.usuario.id);
     revalidatePath(LISTA);
     return `En la cola para Mercado Libre: ${d}. Sale en un momento; el resultado queda en la historia del reclamo.`;
   });

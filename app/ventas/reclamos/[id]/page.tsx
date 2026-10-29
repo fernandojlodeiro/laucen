@@ -25,7 +25,7 @@ import { fechaHora } from "@/app/ventas/formato";
 import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
 import { ACCIONES_REVISION_DEVOLUCION, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
 import {
-  ACCIONES_RECLAMO, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, reputacionLegible, type AccionMl, type ResolucionEsperadaMl,
+  ACCIONES_RECLAMO, ACCIONES_OCULTAS, MOTIVOS_REVISION_MAL, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, reputacionLegible, type AccionMl, type ResolucionEsperadaMl,
 } from "@/lib/mercadolibre/reclamos";
 import { ESTADOS_COLA, TONO_COLA } from "@/app/config/canales/cola/formato";
 import { tiempoParaResponder, TONO_RECLAMO } from "../formato";
@@ -108,7 +108,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
   const vence = r.estado !== "resuelto" ? tiempoParaResponder(r.vence_ts) : null;
   const esperadas = Array.isArray(r.datos_externos?.resoluciones_esperadas) ? r.datos_externos!.resoluciones_esperadas! : [];
   // Cerrado, igual se muestra lo que ML espera: la revisión de la devolución que llegó (llegó bien / llegó mal).
-  const acciones = esMl ? (r.acciones_disponibles ?? []).filter((a) => r.estado !== "resuelto" || ACCIONES_REVISION_DEVOLUCION.includes(a.action)) : [];
+  const acciones = esMl ? (r.acciones_disponibles ?? []).filter((a) => !ACCIONES_OCULTAS.includes(a.action)
+    && (r.estado !== "resuelto" || ACCIONES_REVISION_DEVOLUCION.includes(a.action))) : [];
   const revision = acciones.find((a) => ACCIONES_REVISION_DEVOLUCION.includes(a.action));
   const devolucionTexto = r.devolucion_envio_estado ?? r.devolucion_estado;
 
@@ -123,8 +124,9 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
 
       {revision && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E6] text-[#8a6100]">
-          Mercado Libre espera que revises la devolución que te llegó: si vino mal, se lo reclamás desde Mercado Libre
-          {revision.due_date ? ` (hasta el ${fechaHora(new Date(revision.due_date))})` : ""}.
+          Mercado Libre espera que revises la devolución que te llegó
+          {revision.due_date ? ` (hasta el ${fechaHora(new Date(revision.due_date))})` : ""}: si vino mal (vacía, dañada, otra cosa), se lo
+          reclamás con «La devolución llegó mal», en «Qué podés hacer». Si no hacés nada, Mercado Libre la da por buena.
         </p>
       )}
       {vence && r.espera_respuesta && (
@@ -287,7 +289,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
           {esMl ? (
             <section className={CAJA}>
               <TituloSeccion titulo={`Qué podés hacer (${acciones.length})`} />
-              {r.estado === "resuelto" ? <p className="text-xs text-[#5C6B76]">El reclamo está cerrado.</p>
+              {r.estado === "resuelto" && acciones.length === 0 ? <p className="text-xs text-[#5C6B76]">El reclamo está cerrado.</p>
                 : acciones.length === 0 ? <p className="text-xs text-[#5C6B76]">Mercado Libre no espera nada de vos ahora. Tocá «Actualizar desde ML» si cambió algo.</p> : (
                   <div className="space-y-3">
                     {acciones.map((a) => {
@@ -318,6 +320,16 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                           {def.campo === "porcentaje" && (
                             <label className="flex items-center gap-2 text-xs"><span>Porcentaje a devolver</span>
                               <CampoNumero name="porcentaje" valor={null} tipo="pct" className="w-20" /> %</label>
+                          )}
+                          {def.campo === "revision" && (
+                            <>
+                              <label className="flex items-center gap-2 text-xs"><span>Qué pasó</span>
+                                <select name="motivo" required defaultValue="" className={CAMPO}>
+                                  <option value="" disabled>Elegí…</option>
+                                  {MOTIVOS_REVISION_MAL.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+                                </select></label>
+                              <textarea name="mensaje" rows={3} maxLength={2000} required placeholder="Contale a Mercado Libre qué llegó (ej.: el paquete llegó vacío)…" className={`${CAMPO} w-full`} />
+                            </>
                           )}
                           <BotonAccion texto={def.texto} confirmar={def.confirmar} pregunta={`¿${def.texto}? Va a Mercado Libre.`} />
                           <div className="text-[11px] text-[#5C6B76]">{def.ayuda}</div>

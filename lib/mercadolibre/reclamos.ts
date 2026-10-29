@@ -133,7 +133,7 @@ export type DefAccion = {
   texto: string;
   ayuda: string;
   /** Qué hay que completar antes de mandarla. */
-  campo?: "mensaje" | "porcentaje";
+  campo?: "mensaje" | "porcentaje" | "revision";
   /** Pide confirmar en el lugar ("¿Seguro? Sí / No"): mueve plata o abre mediación. */
   confirmar?: boolean;
 };
@@ -145,7 +145,18 @@ export const ACCIONES_RECLAMO: Record<string, DefAccion> = {
   allow_partial_refund: { texto: "Devolver parte del dinero", ayuda: "Le ofrecés devolverle un porcentaje y que se quede con el producto.", campo: "porcentaje", confirmar: true },
   allow_return: { texto: "Aceptar la devolución", ayuda: "El comprador manda el producto de vuelta (con la etiqueta de ML) y después se le devuelve la plata.", confirmar: true },
   open_dispute: { texto: "Pedir que intervenga Mercado Libre", ayuda: "Abre la mediación: decide ML.", confirmar: true },
+  // La revisión de la devolución que llegó (Fer, 29/10): «llegó mal» es como se le reclama a ML si vino dañada o vacía.
+  return_review_fail: { texto: "La devolución llegó mal", ayuda: "Le reclamás a Mercado Libre: elegí qué pasó y contalo. Las fotos, por ahora, se suben desde Mercado Libre.", campo: "revision", confirmar: true },
+  return_review_ok: { texto: "La devolución llegó bien", ayuda: "Le confirmás a Mercado Libre que el producto volvió bien. Después ya no se puede reclamar.", confirmar: true },
 };
+/** Los motivos de «la devolución llegó mal» que da Mercado Libre (GET /post-purchase/v1/returns/reasons?flow=seller_return_failed,
+ *  leídos el 29/10). */
+export const MOTIVOS_REVISION_MAL: [string, string][] = [
+  ["SRF5", "El producto no está en el paquete"], ["SRF2", "El producto llegó dañado"], ["SRF3", "La devolución está incompleta"],
+  ["SRF4", "Devolvieron un producto distinto al que envié"], ["SRF6", "Otra falla en el producto"], ["SRF7", "Aún no me llegó"],
+];
+/** Las variantes «unificadas» de la revisión (para varias órdenes juntas): ML las ofrece junto con las comunes; no se muestran. */
+export const ACCIONES_OCULTAS = ["return_review_unified_ok", "return_review_unified_fail"];
 /** Las que ML ofrece pero todavía no se hacen desde Laucen (se muestran deshabilitadas). */
 export const ACCIONES_PROXIMAMENTE: Record<string, string> = {
   send_attachments: "Mandar archivos",
@@ -155,9 +166,6 @@ export const ACCIONES_PROXIMAMENTE: Record<string, string> = {
   send_tracking_number: "Informar el número de seguimiento",
   allow_return_label: "Generar la etiqueta de devolución",
   recontact: "Volver a contactar",
-  // La revisión de la devolución que llegó (Fer, 29/10): desde Mercado Libre, dentro del plazo que marca.
-  return_review_ok: "Revisión: la devolución llegó bien",
-  return_review_fail: "Revisión: la devolución llegó mal (reclamar a ML)",
 };
 export const textoAccion = (a: string) => ACCIONES_RECLAMO[a]?.texto ?? ACCIONES_PROXIMAMENTE[a] ?? a.replace(/_/g, " ");
 
@@ -495,7 +503,9 @@ export async function actualizarReclamo(org: string, reclamoId: number, leer?: L
 
 // ── Acciones (siempre un clic de Fer, por la cola) ─────────
 
-export type DatosAccion = { mensaje?: string | null; porcentaje?: number | null };
+export type DatosAccion = { mensaje?: string | null; porcentaje?: number | null; motivo?: string | null;
+  /** La devolución y la orden del reclamo (las pone encolarAccionReclamo): para la revisión de la devolución. */
+  devolucion?: string | null; orden?: string | null };
 
 /** Los pedidos HTTP de una acción sobre un reclamo, y cómo se cuenta. Puro. */
 export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}): { pedidos: PedidoMl[]; descripcion: string } {
@@ -527,6 +537,24 @@ export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}
       return { pedidos: [{ metodo: "POST", ruta: `${base}/expected-resolutions/allow-return`, cuerpo: {} }], descripcion: "Aceptar la devolución" };
     case "open_dispute":
       return { pedidos: [{ metodo: "POST", ruta: `${base}/actions/open-dispute`, cuerpo: {} }], descripcion: "Pedir mediación de Mercado Libre" };
+    // La revisión de la devolución (POST /post-purchase/v1/returns/{id}/return-review, una fila por orden).
+    case "return_review_ok":
+    case "return_review_fail": {
+      if (!d.devolucion || !d.orden) throw new ErrorErp("El reclamo no tiene la devolución o la orden de Mercado Libre: tocá «Actualizar desde ML».");
+      const ruta = `/post-purchase/v1/returns/${d.devolucion}/return-review`;
+      if (accion === "return_review_ok") {
+        return { pedidos: [{ metodo: "POST", ruta, cuerpo: [{ order_id: Number(d.orden) }] }], descripcion: "Revisión de la devolución: llegó bien" };
+      }
+      const motivo = MOTIVOS_REVISION_MAL.find(([k]) => k === d.motivo);
+      if (!motivo) throw new ErrorErp("Elegí qué pasó con la devolución.");
+      const t = (d.mensaje ?? "").trim();
+      if (!t) throw new ErrorErp("Contá qué pasó: Mercado Libre lo lee para decidir.");
+      if (t.length > 2000) throw new ErrorErp("El mensaje es muy largo (hasta 2.000 caracteres).");
+      return {
+        pedidos: [{ metodo: "POST", ruta, cuerpo: [{ order_id: Number(d.orden), reason_id: motivo[0], message: t }] }],
+        descripcion: `Revisión de la devolución: llegó mal («${motivo[1]}»)`,
+      };
+    }
     default:
       throw new ErrorErp(`«${textoAccion(accion)}» todavía no se puede hacer desde Laucen: hacelo desde Mercado Libre.`);
   }
@@ -536,10 +564,12 @@ export function armarAccion(accion: string, claimId: string, d: DatosAccion = {}
  *  ahora y la mete en la cola (sale enseguida). Dos clics iguales seguidos no
  *  se duplican. Devuelve la descripción. */
 export async function encolarAccionReclamo(org: string, reclamoId: number, accion: string, d: DatosAccion, usuario: string | null): Promise<string> {
-  const r = await una<{ canal_id: string | null; id_externo: string | null; estado: string; acciones_disponibles: AccionMl[] }>(
-    "select canal_id, id_externo, estado, acciones_disponibles from reclamo where id = $1 and organizacion_id = $2 and origen = 'mercadolibre'", [reclamoId, org]);
+  const r = await una<{ canal_id: string | null; id_externo: string | null; estado: string; acciones_disponibles: AccionMl[]; devolucion_id: string | null; orden_externa: string | null }>(
+    "select canal_id, id_externo, estado, acciones_disponibles, devolucion_id, orden_externa from reclamo where id = $1 and organizacion_id = $2 and origen = 'mercadolibre'", [reclamoId, org]);
   if (!r?.id_externo || !r.canal_id) throw new ErrorErp("Ese reclamo no es de Mercado Libre.");
-  if (r.estado === "resuelto") throw new ErrorErp("El reclamo ya está cerrado.");
+  // Cerrado, sólo la revisión de la devolución (ML la pide después de cerrar: la plata se devuelve al despacharla).
+  if (r.estado === "resuelto" && !accion.startsWith("return_review")) throw new ErrorErp("El reclamo ya está cerrado.");
+  d = { ...d, devolucion: r.devolucion_id, orden: r.orden_externa };
   if (!(r.acciones_disponibles ?? []).some((a) => a.action === accion)) {
     throw new ErrorErp(`Mercado Libre no ofrece «${textoAccion(accion)}» en este reclamo ahora. Tocá «Actualizar» para ver lo que se puede hacer.`);
   }
