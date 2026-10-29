@@ -138,12 +138,17 @@ function armar(items: AvisoIa[]): Aviso {
     const a = items[0];
     if (a.tipo === "pedidos") return { titulo: a.titulo, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     if (a.tipo === "reclamos") return { titulo: `${a.titulo}: para atender`, texto: [a.detalle, a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
+    if (a.tipo === "prohibidas") return { titulo: a.titulo, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     if (a.derivada) return { titulo: `${a.titulo}: espera a una persona`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
     if (a.tipo === "whatsapp") return { titulo: `${a.titulo}: espera a una persona`, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     return { titulo: `${a.titulo}: la IA no contestó`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
   }
   if (items.every((a) => a.tipo === "pedidos")) {
     return { titulo: `Entraron ${items.length} pedidos nuevos`, texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.detalle}`.slice(0, 90)).join("\n"), url: "/ventas/pedidos?estado=pendientes" };
+  }
+  if (items.every((a) => a.tipo === "prohibidas")) {
+    return { titulo: `Mercado Libre prohibió ${items.length} publicaciones`, texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.detalle}`.slice(0, 90)).join("\n"),
+      url: "/catalogo/publicaciones?revision=prohibidas&inactivos=1" };
   }
   if (items.every(esDerivacion)) {
     return {

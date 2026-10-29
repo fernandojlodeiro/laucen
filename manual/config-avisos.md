@@ -25,6 +25,7 @@ Dos cajas para tildar:
   - **Mensajes que la IA no contestó** y **Preguntas que la IA no contestó**: de Mercado Libre, cuando a la IA le falta un dato o el comprador pide hablar con una persona, y los mensajes que la IA **derivó a una persona** (ya le avisó al comprador que alguien del equipo le va a responder).
   - **WhatsApp en espera**: chats que la IA dejó para una persona.
   - **Facturas retenidas**: un pedido que no se facturó solo porque el comprador pidió algo para la factura que no está claro, o que pide cambiar una factura ya hecha. La ventana muestra el motivo, lo último que escribió y el botón **"Ver el pedido"** (ver "Revisión antes de facturar" en [Pedidos](/ventas/pedidos)).
+  - **Publicaciones prohibidas**: cada publicación que Mercado Libre prohíbe o da de baja (por política, categoría incorrecta, duplicada…), en un alta masiva o en una sola. La ventana muestra la cuenta, el número de publicación, el SKU, el título y el motivo que da Mercado Libre, con el botón **"Ver la publicación"**. Ese producto ya no se vuelve a crear en esa cuenta.
   - **Pedidos nuevos**: cada pedido nuevo a preparar. Debajo, **"Ver el detalle del pedido"**: tildada, se abre la ventana con el cliente, el total, lo que compró y el botón **"Ver el pedido"**; destildada, no se abre ninguna ventana: sólo aparece un cartel chico abajo a la derecha, «🛒 Llegó un pedido …», que se toca para abrirlo y se va solo a los 20 segundos.
 
   La ventana se abre sola en el medio de la pantalla, estés donde estés. El sonido, en cambio, es uno solo para todo.
@@ -65,7 +66,7 @@ Laucen se instala en el celular como una app, sin bajar nada de ninguna tienda, 
 
 Paso a paso, con cómo crear el ícono en el celular: la guía [Avisos en el celular](/manuales/guia-celular) (en «Manuales de ayuda», abajo a la derecha).
 
-Un celular empieza recibiendo **sólo lo derivado a una persona**: los mensajes de Mercado Libre que la IA derivó, los WhatsApp que quedaron en espera y los reclamos para atender. Tocando el aviso se abre esa conversación para contestar. Con la caja **"En este equipo, sólo lo derivado a una persona"** destildada, recibe todo, como la computadora. Cada equipo elige lo suyo: la computadora puede recibir todo y el celular sólo lo derivado.
+Un celular empieza recibiendo **sólo lo derivado a una persona**: los mensajes de Mercado Libre que la IA derivó, los WhatsApp que quedaron en espera, los reclamos para atender y las publicaciones que Mercado Libre prohibió. Tocando el aviso se abre esa conversación para contestar. Con la caja **"En este equipo, sólo lo derivado a una persona"** destildada, recibe todo, como la computadora. Cada equipo elige lo suyo: la computadora puede recibir todo y el celular sólo lo derivado.
 
 Si el navegador dice que las notificaciones están bloqueadas: tocá el candado a la izquierda de la dirección, en «Notificaciones» elegí «Permitir» y volvé a cargar la pantalla.
 

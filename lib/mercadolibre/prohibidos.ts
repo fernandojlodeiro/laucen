@@ -15,8 +15,15 @@ export const skuNormal = (sku: string) => sku.trim().replace(/^DE-/i, "");
 
 export const MOTIVO_PROHIBIDO = "Mercado Libre prohibió este producto en esta cuenta: no se vuelve a publicar ahí";
 
-/** Anota el SKU de una publicación prohibida (el de ML o, si no tiene, el del producto de Laucen al que está vinculada). */
-export async function anotarProhibido(cuenta: Pick<CuentaMl, "organizacionId" | "canalId">, itemId: string): Promise<void> {
+/** Anota el SKU de una publicación prohibida (el de ML o, si no tiene, el del producto de Laucen al que está vinculada)
+ *  y, si es la primera vez que Laucen la ve prohibida, la registra para el aviso (meli_prohibicion) y lee su motivo. */
+export async function anotarProhibido(cuenta: CuentaMl, itemId: string): Promise<void> {
+  const nueva = await una(`
+    insert into meli_prohibicion (organizacion_id, canal_id, item_id, sku, titulo)
+    select m.organizacion_id, m.canal_id, m.item_id, m.sku, m.titulo from meli_item m where m.canal_id = $1 and m.item_id = $2 limit 1
+    on conflict (canal_id, item_id) do nothing returning item_id`, [cuenta.canalId, itemId]);
+  // El motivo, para que el aviso diga por qué (sólo lectura; si ML no contesta, lo lee después el proceso de fondo).
+  if (nueva) await (await import("@/lib/mercadolibre/moderaciones")).leerMotivo(cuenta, itemId).catch(() => {});
   await consulta(`
     insert into meli_sku_prohibido (organizacion_id, canal_id, sku, item_id)
     select distinct $1, $2::bigint, regexp_replace(coalesce(nullif(m.sku, ''), v.sku), '^DE-', '', 'i'), m.item_id

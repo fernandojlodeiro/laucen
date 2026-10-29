@@ -813,3 +813,25 @@ select distinct on (m.canal_id, regexp_replace(coalesce(nullif(m.sku, ''), v.sku
   left join variacion v on v.id = p.variacion_id
  where coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false) and coalesce(nullif(m.sku, ''), v.sku) is not null
 on conflict (canal_id, sku) do nothing;
+
+-- Cada publicación que Mercado Libre prohibió o dio de baja, con cuándo la vio Laucen (Fer, 29/10): de acá salen el
+-- aviso de prepo «Publicación prohibida» y el contador «Prohibidas» de la barra de estado (lib/avisos.ts). Las que ya
+-- estaban entran con la fecha de hoy pero no abren la ventana (la marca de cada usuario arranca cuando la ve).
+create table if not exists meli_prohibicion (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  sku              text,
+  titulo           text,
+  detectada_ts     timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+create index if not exists meli_prohibicion_org on meli_prohibicion (organizacion_id, detectada_ts);
+-- El contador «Prohibidas» de la barra de estado (lib/erp/contadores.ts).
+create index if not exists meli_item_prohibidas on meli_item (organizacion_id) where (datos_externos -> 'ml' -> 'sub_status') ? 'forbidden';
+alter table meli_prohibicion enable row level security;
+select erp_politica_org('meli_prohibicion');
+insert into meli_prohibicion (organizacion_id, canal_id, item_id, sku, titulo)
+select distinct on (m.canal_id, m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.sku, m.titulo
+  from meli_item m where coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false)
+on conflict (canal_id, item_id) do nothing;
