@@ -21,6 +21,7 @@ import { createHash } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import { encolar, PRIORIDAD, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { SQL_DEVOLUCION_PENDIENTE } from "@/lib/reclamos";
 
 // ── Lo que contesta ML ─────────────────────────────────────
 
@@ -154,6 +155,9 @@ export const ACCIONES_PROXIMAMENTE: Record<string, string> = {
   send_tracking_number: "Informar el número de seguimiento",
   allow_return_label: "Generar la etiqueta de devolución",
   recontact: "Volver a contactar",
+  // La revisión de la devolución que llegó (Fer, 29/10): desde Mercado Libre, dentro del plazo que marca.
+  return_review_ok: "Revisión: la devolución llegó bien",
+  return_review_fail: "Revisión: la devolución llegó mal (reclamar a ML)",
 };
 export const textoAccion = (a: string) => ACCIONES_RECLAMO[a]?.texto ?? ACCIONES_PROXIMAMENTE[a] ?? a.replace(/_/g, " ");
 
@@ -442,8 +446,12 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
   const cerrados = await leer(`/post-purchase/v1/claims/search?status=closed&offset=0&limit=50`);
   if (cerrados.status === 200) vistos.push(...((cerrados.datos as { data?: ReclamoMl[] }).data ?? []));
 
-  const locales = new Map((await consulta<{ id_externo: string; ml_actualizado: string | null; estado: string; viejo: boolean }>(
-    "select id_externo, ml_actualizado, estado, actualizado_ts < now() - interval '20 hours' viejo from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and canal_id is not distinct from $2::bigint",
+  const locales = new Map((await consulta<{ id_externo: string; ml_actualizado: string | null; estado: string; viejo: boolean; viajando: boolean }>(
+    `select id_externo, ml_actualizado, estado, actualizado_ts < now() - interval '20 hours' viejo,
+            -- Cerrado con la devolución pendiente (viajando, por recibir o por revisar): ML no le cambia la fecha cuando el
+            -- paquete llega; se relee cada 3 horas.
+            ${SQL_DEVOLUCION_PENDIENTE} and actualizado_ts < now() - interval '3 hours' viajando
+       from reclamo r where organizacion_id = $1 and origen = 'mercadolibre' and canal_id is not distinct from $2::bigint`,
     [org, cuenta.canalId])).map((x) => [x.id_externo, x]));
   const aTraer = new Set<string>();
   // Un cerrado que Laucen no tiene se trae sólo si es reciente: la búsqueda de
@@ -456,7 +464,7 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
     // desde ML no le cambia la fecha al reclamo y no aparecía en Laucen).
     if (!l || l.ml_actualizado !== c.last_updated || (l.estado !== "resuelto" && l.viejo)) aTraer.add(String(c.id));
   }
-  for (const [idExt, l] of locales) if (l.estado !== "resuelto" && !abiertosMl.has(idExt)) aTraer.add(idExt);
+  for (const [idExt, l] of locales) if ((l.estado !== "resuelto" && !abiertosMl.has(idExt)) || l.viajando) aTraer.add(idExt);
   // Un reclamo que falla no frena a los demás: se anota y se sigue.
   let importados = 0;
   const errores: string[] = [];

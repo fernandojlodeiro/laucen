@@ -257,8 +257,8 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
             nota={m.reclamos.abiertos ? [`${n(m.reclamos.esperanRespuesta)} esperan tu respuesta`, m.reclamos.urgentes ? `${n(m.reclamos.urgentes)} vencen en 24 h` : null, m.reclamos.enMediacion ? `${n(m.reclamos.enMediacion)} en mediación` : null].filter(Boolean).join(" · ") : null} />,
           total: (t) => <Celda valor={t.reclamos.abiertos} de={en60(t.reclamos.total)} href="/ventas/reclamos" nota={t.reclamos.abiertos ? `${n(t.reclamos.esperanRespuesta)} esperan tu respuesta` : null} /> },
         { titulo: "Devoluciones", ayuda: "Abiertas; el chico es cuántas hubo en los últimos 60 días. Debajo, las que ya vienen en camino",
-          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={en60(m.devoluciones.total)} href={enlace("/ventas/reclamos", c, { ver: "camino" })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} en camino` : null} />,
-          total: (t) => <Celda valor={t.devoluciones.abiertas} de={en60(t.devoluciones.total)} href="/ventas/reclamos?ver=camino" nota={t.devoluciones.enCamino ? `${n(t.devoluciones.enCamino)} en camino` : null} /> },
+          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={en60(m.devoluciones.total)} href={enlace("/ventas/reclamos", c, { ver: "camino" })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} pendientes` : null} />,
+          total: (t) => <Celda valor={t.devoluciones.abiertas} de={en60(t.devoluciones.total)} href="/ventas/reclamos?ver=camino" nota={t.devoluciones.enCamino ? `${n(t.devoluciones.enCamino)} pendientes` : null} /> },
       ],
     },
     {

@@ -18,15 +18,32 @@ export const ORIGENES_RECLAMO = { mercadolibre: "Mercado Libre", web: "Web", loc
 
 /** Las pestañas de la lista y su condición (sobre reclamo, alias r). */
 export const PESTANAS_RECLAMOS = [
-  ["abiertos", "Abiertos"], ["mediacion", "En mediación"], ["camino", "Devoluciones en camino"], ["cerrados", "Cerrados"],
+  ["abiertos", "Abiertos"], ["mediacion", "En mediación"], ["camino", "Devoluciones pendientes"], ["cerrados", "Cerrados"],
 ] as const;
 export type PestanaReclamos = (typeof PESTANAS_RECLAMOS)[number][0];
 export const esPestanaReclamos = (x: unknown): x is PestanaReclamos => PESTANAS_RECLAMOS.some(([k]) => k === x);
 const EN_CAMINO = "coalesce(r.devolucion_estado in ('label_generated', 'shipped') or r.devolucion_envio_estado in ('ready_to_ship', 'shipped'), false)";
+/** Ya despachada y sin entregar. ML le devuelve la plata al comprador al despacharla y cierra el reclamo, pero el paquete
+ *  sigue viajando hacia el vendedor (Fer, 29/10: dos así no se veían en ningún lado). */
+export const SQL_DEVOLUCION_VIAJANDO = "coalesce(r.devolucion_estado = 'shipped' or r.devolucion_envio_estado = 'shipped', false)";
+/** Las acciones de ML para revisar la devolución recibida (llegó bien / llegó mal: así se le reclama a ML si vino dañada). */
+export const ACCIONES_REVISION_DEVOLUCION = ["return_review_ok", "return_review_fail"];
+/** Mercado Libre espera que el vendedor revise la devolución que le llegó. */
+export const SQL_REVISION_PENDIENTE = `exists (select 1 from jsonb_array_elements(coalesce(r.acciones_disponibles, '[]'::jsonb)) a
+  where a ->> 'action' in (${ACCIONES_REVISION_DEVOLUCION.map((x) => `'${x}'`).join(", ")}))`;
+/** La devolución ya se recibió en Laucen (su recepción de devolución está cerrada). */
+const SQL_RECIBIDA = "exists (select 1 from recepcion rc where rc.id = r.recepcion_id and rc.estado = 'cerrada')";
+/** Una devolución que todavía no terminó (Fer, 29/10): viene en camino (también en mediación, y cerrada si el paquete
+ *  sigue viajando: ML devuelve la plata y cierra al despacharla), o llegó y falta recibirla en Laucen (de los últimos
+ *  60 días), o Mercado Libre espera que se revise (llegó bien / llegó mal). */
+export const SQL_DEVOLUCION_PENDIENTE = `(r.devolucion_id is not null and (
+  (${EN_CAMINO} and (r.estado <> 'resuelto' or ${SQL_DEVOLUCION_VIAJANDO}))
+  or (coalesce(r.devolucion_estado = 'delivered' or r.devolucion_envio_estado = 'delivered', false) and not ${SQL_RECIBIDA} and r.fecha > now() - interval '60 days')
+  or ${SQL_REVISION_PENDIENTE}))`;
 export const CONDICION_RECLAMOS: Record<PestanaReclamos, string> = {
   abiertos: `r.estado <> 'resuelto' and coalesce(r.etapa, '') <> 'dispute' and not ${EN_CAMINO}`,
   mediacion: "r.estado <> 'resuelto' and r.etapa = 'dispute'",
-  camino: `r.estado <> 'resuelto' and coalesce(r.etapa, '') <> 'dispute' and ${EN_CAMINO}`,
+  camino: SQL_DEVOLUCION_PENDIENTE,
   cerrados: "r.estado = 'resuelto'",
 };
 /** El orden de los abiertos: los que esperan tu respuesta primero, por vencimiento. */

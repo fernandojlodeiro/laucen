@@ -23,7 +23,7 @@ import {
 } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
-import { ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
+import { ACCIONES_REVISION_DEVOLUCION, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
 import {
   ACCIONES_RECLAMO, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, reputacionLegible, type AccionMl, type ResolucionEsperadaMl,
 } from "@/lib/mercadolibre/reclamos";
@@ -107,7 +107,9 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
   const ordenMl = r.datos_externos?.orden_ml ?? null;
   const vence = r.estado !== "resuelto" ? tiempoParaResponder(r.vence_ts) : null;
   const esperadas = Array.isArray(r.datos_externos?.resoluciones_esperadas) ? r.datos_externos!.resoluciones_esperadas! : [];
-  const acciones = esMl && r.estado !== "resuelto" ? (r.acciones_disponibles ?? []) : [];
+  // Cerrado, igual se muestra lo que ML espera: la revisión de la devolución que llegó (llegó bien / llegó mal).
+  const acciones = esMl ? (r.acciones_disponibles ?? []).filter((a) => r.estado !== "resuelto" || ACCIONES_REVISION_DEVOLUCION.includes(a.action)) : [];
+  const revision = acciones.find((a) => ACCIONES_REVISION_DEVOLUCION.includes(a.action));
   const devolucionTexto = r.devolucion_envio_estado ?? r.devolucion_estado;
 
   return (
@@ -119,6 +121,12 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
       <Avisos sp={sp} />
       <RefrescoReclamo id={rid} />
 
+      {revision && (
+        <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E6] text-[#8a6100]">
+          Mercado Libre espera que revises la devolución que te llegó: si vino mal, se lo reclamás desde Mercado Libre
+          {revision.due_date ? ` (hasta el ${fechaHora(new Date(revision.due_date))})` : ""}.
+        </p>
+      )}
       {vence && r.espera_respuesta && (
         <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${vence.tono === "rojo" ? "bg-[#FDF1EF] text-[#C03420] font-bold" : "bg-[#FFF8E6] text-[#8a6100]"}`}>
           Mercado Libre espera tu respuesta · {vence.texto} (vence {fechaHora(r.vence_ts)})

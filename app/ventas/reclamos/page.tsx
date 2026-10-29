@@ -1,7 +1,7 @@
 // Ventas → Reclamos y devoluciones: los reclamos de Mercado Libre (entran
 // solos, con su plazo para responder) y los de la web o el local (se cargan
 // con "Nuevo reclamo"). Pestañas: Abiertos (los que esperan tu respuesta
-// primero, por vencimiento), En mediación, Devoluciones en camino, Cerrados.
+// primero, por vencimiento), En mediación, Devoluciones pendientes, Cerrados.
 
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
