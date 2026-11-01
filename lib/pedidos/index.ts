@@ -72,7 +72,9 @@ export const sqlEstadoPago = (a = "p") => `(case when ${sqlACobrar(a)} then 'a_c
 /** SQL: el pedido está pendiente (filtro «Pendientes»): nuevo o pagado, o
  *  «A cobrar» todavía sin entregar. */
 export const sqlPedidoPendiente = (a = "p") =>
-  `(${a}.estado in ('nuevo', 'pagado') or (${sqlACobrar(a)} and ${a}.estado in ('en_preparacion', 'preparado', 'despachado')))`;
+  `((${a}.estado in ('nuevo', 'pagado') or (${sqlACobrar(a)} and ${a}.estado in ('en_preparacion', 'preparado', 'despachado')))
+    -- Una venta de Full no queda pendiente: la prepara y despacha Mercado Libre desde su depósito (Fer, 1/11).
+    and not exists (select 1 from envio en_full where en_full.pedido_id = ${a}.id and en_full.logistica = 'fulfillment'))`;
 
 /** El mensaje cuando se quiere facturar un pedido «A cobrar». */
 export const MENSAJE_A_COBRAR_FACTURA = "Primero confirmá el cobro: el pedido está «A cobrar» y se factura cuando se cobra.";
