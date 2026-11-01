@@ -74,6 +74,16 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
    - o con **«Ver sugeridos»**: tildá en **Mandar** los que querés, corregí la cantidad si hace falta y apretá **«Agregar los tildados»**. Después, **«Cerrar sugeridos»** (ver «Criterios y reglas»).
 3. Revisá cada fila con el lápiz: la cantidad y la **publicación** a la que va. Sacá lo que no va con el tacho, o todo junto con **«Vaciar el envío»**.
 
+### Importar un envío ya cargado en Mercado Libre (el PDF)
+
+Si el envío se armó primero en Mercado Libre, no hace falta cargarlo de nuevo:
+
+1. En Mercado Libre, bajá el PDF del envío (las instrucciones de preparación: «Inbound-<número>-preparation-instructions.pdf»).
+2. En **Envíos a Full**, apretá **«Nuevo envío»** y, abajo, en **«O importalo del PDF de Mercado Libre»**, elegí el archivo, la **cuenta** (de entrada **«La del archivo»**: la saca del código de Full de los productos) y el depósito de donde sale. Apretá **«Importar»**.
+3. Se abre la ficha del envío con el número de Mercado Libre, cada producto (buscado por su SKU, con o sin «DE-», o por el código de Full) y sus unidades. Desde ahí se sigue como siempre: remito, etiquetas y **«Despachar»**.
+
+Si algún SKU del PDF no está en Laucen, o el total de unidades no cierra, no se importa nada y el aviso dice cuál falta. Si ese envío ya estaba importado y sigue en borrador, se rehace con lo del PDF; si ya se despachó, no se toca. El PDF no trae el turno: la fecha de entrega se carga con el lápiz.
+
 ### Crear el envío en Mercado Libre y anotar el número
 
 1. En la Central de vendedores de Mercado Libre, creá el envío a Full con los mismos productos y cantidades.
