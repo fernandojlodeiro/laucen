@@ -93,6 +93,9 @@ nada, pero no asumas que conoce una librería o framework puntual sin decir qué
 Contestale corto y concreto. Primero la respuesta, después el porqué si lo pide. Si hay más de
 un camino, dáselo en opciones numeradas con una recomendada, y esperá el sí — no elijas por él.
 
+**Un porcentaje siempre dice sobre qué es** (pedido de Fer, 2/11): un margen o una ganancia en % va con
+los dos —«sobre la venta» (ganancia ÷ precio de venta) y «sobre el costo» (ganancia ÷ costo puesto)—, nunca un % suelto.
+
 Cuando una sesión le nombra a Fer un pedido (o un producto, cliente, publicación…) en el chat, va
 **con su link** al panel: `[pedido 42](https://laucen.com/ventas/pedidos/42)` (pedido de Fer, 6/10).
 
