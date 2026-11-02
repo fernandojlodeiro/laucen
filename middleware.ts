@@ -57,10 +57,17 @@ export async function middleware(req: NextRequest, event: NextFetchEvent) {
 async function aLaTienda(req: NextRequest, host: string, event: NextFetchEvent): Promise<NextResponse | null> {
   const ruta = req.nextUrl.pathname;
   if (ruta.startsWith("/api/")) return null;
-  const destino = await destinoDeHost(host).catch((e) => {
+  let destino;
+  try {
+    destino = await destinoDeHost(host);
+  } catch (e) {
+    // La base no contestó (y esta función todavía no tenía la lista en memoria): no es un dominio
+    // desconocido, es un momento. 503 con "volvé a probar", nunca "dominio no configurado" (bitácora #1009).
     console.error("[middleware] no se pudo leer tienda_dominio:", e instanceof Error ? e.message : e);
-    return null;
-  });
+    return new NextResponse("La tienda está muy pedida en este momento. Probá de nuevo en unos segundos.", {
+      status: 503, headers: { "retry-after": "5", "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    });
+  }
   // Desconocido: la página "dominio no configurado" (nunca el panel).
   if (!destino || (!abreLaTienda(destino) && !destino.redirigeA)) return reescribir(req, "/dominio-no-configurado");
   // Un dominio secundario redirige al principal o a su marca (por si Vercel no lo hizo ya).

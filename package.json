@@ -16,6 +16,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "@types/nodemailer": "^8.0.2",
+    "@vercel/functions": "3.10.5",
     "barcode-detector": "^3.2.2",
     "bwip-js": "^4.11.4",
     "drizzle-orm": "^0.36.4",
