@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diferenciasCampana, diferenciasItem, filaDeCampana, filaDePromoItem, type FilaPromoItem } from "@/lib/precios-ml/promos";
+import { diferenciasCampana, diferenciasItem, filaDeCampana, filaDePromoItem, unaPorCampana, type FilaPromoItem } from "@/lib/precios-ml/promos";
 import { descuentoPct, textoValorPromo } from "@/app/informes/promociones/formato";
 
 const fila = (o: Partial<FilaPromoItem> = {}): FilaPromoItem => ({
@@ -53,4 +53,12 @@ test("formato: descuento y valores en criollo", () => {
   assert.equal(descuentoPct(null, 950), null);
   assert.equal(textoValorPromo("item_estado", "started"), "En curso");
   assert.equal(textoValorPromo("campana_fechas", "2026-10-01T03:00:00.000Z → 2026-10-19T03:00:00Z"), "2026-10-01 → 2026-10-19");
+});
+
+test("la misma campaña repetida en la lista de una publicación queda una sola (la que está en curso)", () => {
+  const l = (o: Partial<FilaPromoItem>, n: number) => ({ fila: fila(o), datos: { n } });
+  const r = unaPorCampana([l({ promocion_id: "P1", estado: "started" }, 1), l({ promocion_id: "P1", estado: "candidate" }, 2), l({ promocion_id: "P2" }, 3), l({ promocion_id: "P2" }, 4)]);
+  assert.equal(r.length, 2);
+  assert.deepEqual(r.map((x) => x.datos.n), [1, 4]); // P1: la en curso aunque venga primero; P2: la última
+  assert.deepEqual(unaPorCampana([l({ estado: "candidate" }, 1), l({ estado: "pending" }, 2)]).map((x) => x.datos.n), [2]);
 });
