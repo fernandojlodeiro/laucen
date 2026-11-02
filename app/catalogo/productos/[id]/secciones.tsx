@@ -40,7 +40,7 @@ import { Interruptor } from "@/app/radar/Piezas";
 import { ThOrden } from "@/app/componentes/Lista";
 
 export type Producto = {
-  id: number; sku_base: string; titulo: string; descripcion: string | null; notas_ia: string | null; familia_id: number | null; familia: string | null;
+  id: number; sku_base: string; titulo: string; descripcion: string | null; notas_ia: string | null; notas_internas: string | null; familia_id: number | null; familia: string | null;
   marca: string | null; marca_id: number | null; tipo: string; estado: string; codigo_barras: string | null; peso_g: number | null;
   largo_cm: number | null; ancho_cm: number | null; alto_cm: number | null; descuento_pct: number | null;
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
@@ -260,6 +260,10 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
           <ValorVista largo className={ALTO_NOTAS_IA}>{p.notas_ia}</ValorVista>
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_IA}</span>
         </div>
+        <div className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>{ETIQUETA_NOTAS_INTERNAS}</span>
+          <ValorVista largo className={ALTO_NOTAS_IA}>{p.notas_internas}</ValorVista>
+          <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_INTERNAS}</span>
+        </div>
       </div>
       <AtributosMl p={p} attrsMl={attrsMl} />
       </>
@@ -342,6 +346,10 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
           className={`${CAMPO} w-full leading-relaxed ${ALTO_NOTAS_IA}`} />
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_IA}</span>
       </label>
+      <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>{ETIQUETA_NOTAS_INTERNAS}</span>
+        <textarea name="notas_internas" defaultValue={p.notas_internas ?? ""} className={`${CAMPO} w-full leading-relaxed ${ALTO_NOTAS_IA}`} />
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{AYUDA_NOTAS_INTERNAS}</span>
+      </label>
     </form>
     </>
   );
@@ -354,6 +362,8 @@ const UN_NUMERO = "w-28";
 const ETIQUETA_NOTAS_IA = "Datos técnicos para la IA";
 const AYUDA_NOTAS_IA = "No se publican en ningún lado. La IA los usa para contestar preguntas técnicas de este producto en Mercado Libre y WhatsApp (memoria, ampliaciones, discos, compatibilidad…). Los renglones que empiezan con [Internet…] los agregó la IA al buscar en internet: si alguno está mal, corregilo o borralo.";
 const ALTO_NOTAS_IA = "h-32 !max-h-64 resize-y";
+const ETIQUETA_NOTAS_INTERNAS = "Notas internas";
+const AYUDA_NOTAS_INTERNAS = "Sólo para el equipo: no se publican y la IA no las usa. Qué se hizo con el producto, quién, cuándo y por qué.";
 /** El alto de la descripción larga, igual en vista y en edición (con desplazamiento si es más larga). */
 const ALTO_DESCRIPCION = "h-[32rem] !max-h-[32rem] resize-y";
 

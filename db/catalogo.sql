@@ -620,6 +620,9 @@ create unique index if not exists publicacion_canal_variacion_propia on publicac
 -- producto (slots de memoria libres, si es ampliable, bahía para otro disco…). No se publica en ningún
 -- lado; cada producto (también cada kit) tiene los suyos.
 alter table producto add column if not exists notas_ia text;
+-- Notas internas (Fer, 2/11): qué se hizo con el producto, quién, cuándo y por qué (altas y cambios hechos por una sesión
+-- de Code o Cowork, decisiones). No las ve ningún cliente ni la IA que contesta.
+alter table producto add column if not exists notas_internas text;
 
 -- Datos de internet (Fer, 25/10): cada dato que la IA de preguntas, mensajes o WhatsApp buscó en internet porque no
 -- estaba en la ficha (lib/datos-internet.ts). Lo encontrado pasa solo a los datos técnicos del producto (notas_ia);
