@@ -3,12 +3,15 @@
 // Pago con tarjeta (Payway): el SDK decidir.js tokeniza la tarjeta en el
 // navegador con la llave PÚBLICA (los datos de la tarjeta nunca pasan por
 // Laucen) y el servidor cobra con el token (pagarConTarjeta → cobrarConPayway).
+// La marca no se elige (Fer, 2/11): sale de los primeros números (lib/tienda/tarjetas.ts) y, si es de crédito o
+// de débito, de la consulta de BIN (sólo esos 6 números van al servidor). Si igual quedan dos posibles, se elige entre ésas.
 
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { precio } from "../../comun";
-import { pagarConTarjeta } from "../../acciones";
+import { pagarConTarjeta, tipoDeTarjetaDelPedido } from "../../acciones";
+import { redDeNumero, marcasPosibles, type Red, type TipoTarjeta } from "@/lib/tienda/tarjetas";
 
 type DecidirSdk = {
   setPublishableKey: (k: string) => void;
@@ -31,8 +34,26 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
   const [listo, setListo] = useState(false);
   const [estado, setEstado] = useState<"libre" | "procesando" | "aprobado">("libre");
   const [error, setError] = useState<string | null>(null);
-  const [marca, setMarca] = useState(String(marcas[0]?.id ?? ""));
+  const [marcaElegida, setMarcaElegida] = useState("");
   const [cuotas, setCuotas] = useState(String(fijas ?? 1));
+  // Lo que se sabe de la tarjeta por su número: la red al instante y crédito/débito cuando contesta el servidor.
+  const [tarjeta, setTarjeta] = useState<{ bin: string; red: Red | null; tipo: TipoTarjeta | null; consultando: boolean }>({ bin: "", red: null, tipo: null, consultando: false });
+  const permitidas = marcas.map((m) => m.id);
+  // Sin saber la red (todavía no hay 6 números, o ni Mercado Pago ni los primeros números la dicen), se elige de la lista.
+  const posibles = tarjeta.red ? marcasPosibles(tarjeta.red, tarjeta.tipo, permitidas) : tarjeta.bin.length >= 6 && !tarjeta.consultando ? permitidas : [];
+  const marca = posibles.length === 1 ? String(posibles[0]) : posibles.includes(Number(marcaElegida)) ? marcaElegida : "";
+  const nombre = (id: number) => marcas.find((m) => m.id === id)?.nombre ?? "";
+  const noVa = tarjeta.red && !tarjeta.consultando && posibles.length === 0 ? motivoNoVa(tarjeta.red, tarjeta.tipo, marcas) : null;
+
+  function numeroCambio(valor: string) {
+    const bin = valor.replace(/\D/g, "").slice(0, 6);
+    if (bin === tarjeta.bin) return;
+    if (bin.length < 6) { setTarjeta({ bin, red: null, tipo: null, consultando: false }); return; }
+    setTarjeta({ bin, red: redDeNumero(bin), tipo: null, consultando: true });
+    tipoDeTarjetaDelPedido(slug, codigo, bin).then((x) =>
+      setTarjeta((t) => (t.bin === bin ? { ...t, red: x?.red ?? t.red, tipo: x?.tipo ?? null, consultando: false } : t))).catch(() =>
+      setTarjeta((t) => (t.bin === bin ? { ...t, consultando: false } : t)));
+  }
 
   function cargarSdk() {
     if (!window.Decidir) { setError("No pudimos cargar el formulario de pago. Recargá la página."); return; }
@@ -46,6 +67,7 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
   function enviar(ev: React.FormEvent<HTMLFormElement>) {
     ev.preventDefault();
     if (!sdk.current || estado !== "libre") return;
+    if (!marca) { setError(noVa ?? "Escribí el número de la tarjeta para reconocerla."); return; }
     setError(null);
     setEstado("procesando");
     sdk.current.createToken(ev.currentTarget, async (status, r) => {
@@ -79,9 +101,16 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="t-marca" className={ETIQUETA}>Tarjeta</label>
-            <select id="t-marca" className={CAMPO} value={marca} onChange={(e) => setMarca(e.target.value)}>
-              {marcas.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </select>
+            {posibles.length > 1 ? (
+              <select id="t-marca" className={CAMPO} value={marca} onChange={(e) => setMarcaElegida(e.target.value)}>
+                <option value="">{tarjeta.red ? "¿Crédito o débito?" : "Elegí la tarjeta"}</option>
+                {posibles.map((id) => <option key={id} value={id}>{nombre(id)}</option>)}
+              </select>
+            ) : (
+              <div id="t-marca" className={`${CAMPO} flex items-center ${marca ? "text-gray-900" : "text-gray-500"}`}>
+                {marca ? nombre(Number(marca)) : tarjeta.consultando ? "Reconociendo la tarjeta…" : "Se reconoce sola con el número"}
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="t-cuotas" className={ETIQUETA}>Cuotas</label>
@@ -99,7 +128,9 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
         </div>
         <div>
           <label htmlFor="t-numero" className={ETIQUETA}>Número de tarjeta</label>
-          <input id="t-numero" data-decidir="card_number" inputMode="numeric" autoComplete="cc-number" placeholder="0000 0000 0000 0000" className={CAMPO} required />
+          <input id="t-numero" data-decidir="card_number" inputMode="numeric" autoComplete="cc-number" placeholder="0000 0000 0000 0000" className={CAMPO} required
+            onChange={(e) => numeroCambio(e.target.value)} />
+          {noVa && <p role="alert" className="mt-1 text-sm text-red-700">{noVa}</p>}
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -132,7 +163,7 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
           </div>
         </div>
         {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
-        <button type="submit" disabled={!listo || estado !== "libre"}
+        <button type="submit" disabled={!listo || estado !== "libre" || !marca}
           className="inline-flex h-14 w-full items-center justify-center rounded-md bg-[var(--boton)] text-lg font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
           {estado === "procesando" ? "Procesando…" : !listo ? "Cargando…" : `Pagar ${precio(total, moneda)}`}
         </button>
@@ -140,4 +171,15 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
       </form>
     </section>
   );
+}
+
+const RED: Record<Red, string> = { visa: "Visa", master: "Mastercard", amex: "American Express", cabal: "Cabal", naranja: "Naranja" };
+
+/** Por qué esa tarjeta no sirve para este pago, en criollo. */
+function motivoNoVa(red: Red, tipo: TipoTarjeta | null, marcas: { id: number; nombre: string }[]): string {
+  const aceptadas = marcas.map((m) => m.nombre).join(", ");
+  const soloDebito = marcas.every((m) => /débito/i.test(m.nombre));
+  if (soloDebito) return `Elegiste pagar con tarjeta de débito (con descuento) y esta ${tipo === "credito" ? "es de crédito" : `${RED[red]} no es de débito`}. Usá una de débito o cambiá la forma de pago.`;
+  if (tipo === "debito") return `Esta tarjeta es de débito. Para pagar con débito (con descuento) cambiá la forma de pago a «Tarjeta de débito».`;
+  return `Con ${RED[red]} no se puede pagar así. Para este pago se aceptan: ${aceptadas}.`;
 }

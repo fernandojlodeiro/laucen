@@ -9,7 +9,7 @@
 // códigos que Mercado Envíos (ready_to_ship, shipped, delivered, cancelled,
 // returned) para que las pantallas de envíos lo muestren igual.
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, enTransaccion, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { cambiarEstado } from "@/lib/pedidos";
 import * as api from "@/lib/oca/api";
 
@@ -232,6 +232,33 @@ export async function altaOca(org: string, pedidoId: number): Promise<string> {
     [org, p.canal_id, pedidoId, modalidad === "sucursal" ? "A sucursal" : "A domicilio", r.datos.numeroEnvio, receptor || null,
       JSON.stringify(d), p.costo_envio_ars || null, JSON.stringify(datos)]);
   return r.datos.numeroEnvio;
+}
+
+/** Alta automática (Fer, 2/11): cuando un pedido que va por OCA (no de Mercado Libre) queda pagado, el envío se da
+ *  de alta solo, así la etiqueta ya está cuando se prepara y OCA pasa a retirarlo. Si falla, el motivo queda en las
+ *  notas del pedido y sigue el botón «Despachar por OCA». Con candado por pedido: dos avisos de pago a la vez no
+ *  dan de alta dos envíos. Devuelve el número de envío, o null si no correspondía o falló. */
+export async function altaOcaAutomatica(org: string, pedidoId: number): Promise<string | null> {
+  const p = await una<{ va: boolean }>(`
+    select (ca.tipo <> 'mercadolibre' and me.tipo in ('oca', 'oca_sucursal') and p.estado_pago = 'pagado'
+            and p.estado not in ('cancelado', 'devuelto', 'despachado', 'entregado')) va
+      from pedido p join canal ca on ca.id = p.canal_id left join metodo_envio me on me.id = p.metodo_envio_id
+     where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
+  if (!p?.va) return null;
+  const { anotarEnPedido } = await import("@/lib/pedidos/notas");
+  return enTransaccion(async (c) => {
+    await c.query("select pg_advisory_xact_lock($1::bigint)", [9_400_000_000_000 + pedidoId]);
+    if (await envioOcaDe(org, pedidoId)) return null;
+    try {
+      const n = await altaOca(org, pedidoId);
+      await anotarEnPedido(org, pedidoId, `Envío de OCA ${n} dado de alta solo al confirmarse el pago.`);
+      return n;
+    } catch (e) {
+      console.error("[oca] alta automática", org, pedidoId, e);
+      await anotarEnPedido(org, pedidoId, `No se pudo dar de alta solo el envío en OCA: ${motivoErp(e)} Usá «Despachar por OCA» en el recuadro Envío.`);
+      return null;
+    }
+  });
 }
 
 /** La etiqueta en PDF de un envío de OCA. */

@@ -17,6 +17,9 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, jsonDe, hayClaude, type Contenido } from "@/lib/claude";
 import { mpPedir, tokenDeConexion } from "@/lib/mercadopago/conexion";
 import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
+import { anotarEnPedido } from "@/lib/pedidos/notas";
+
+export { anotarEnPedido };
 
 export type Leido = { esComprobante: boolean; numeroOperacion: string; monto: number; fecha: string; quienPago: string; quienRecibio: string };
 
@@ -240,12 +243,6 @@ export async function descartarCandidatos(org: string, comprobanteId: number): P
 
 /** El asunto del caso «En espera» que abre un comprobante por WhatsApp que no concilió (uno por pedido). */
 export const asuntoCasoPago = (pid: number) => `Pago sin conciliar · pedido #${pid}`;
-
-/** Suma un renglón, con fecha y hora, a las notas del pedido: las ve el equipo en el pedido, el cliente no. */
-export async function anotarEnPedido(org: string, pid: number, texto: string): Promise<void> {
-  await consulta(`update pedido set notas = concat_ws(E'\\n', nullif(notas, ''), to_char(now() at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') || ' · ' || $3)
-                   where id = $1 and organizacion_id = $2`, [pid, org, texto]);
-}
 
 /** Los que quedaron «sin encontrar» de los últimos tres días: se vuelven a buscar (la transferencia puede tardar).
  *  No le escribe al cliente: si aparece, queda anotado en el pedido y se cierra el caso «En espera» del chat. */
