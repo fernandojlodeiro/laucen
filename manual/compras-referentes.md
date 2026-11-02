@@ -55,7 +55,7 @@ Menú **Compras › Vendedores referentes**.
 1. En **Ver: Nuevos para vos**, tildá **Cotizar** en lo que te interese (y descartá lo que no), o filtrá y tocá **Marcar los N que se ven para cotizar** para marcarlos todos de una vez.
 2. **Excel para cotizar (N)**: una fila por producto marcado con **Foto**, **Producto** (el título de su publicación más vendida), **Publicación de referencia** (el link a ésa) y columnas vacías para que el proveedor complete **Precio US$**, **Peso (g)**, **Medidas de la caja (cm)** y **Observaciones**. No lleva SKU ni cantidad.
 
-La foto del Excel va como fórmula de imagen: se ve en Excel de Microsoft 365.
+La foto va pegada en el Excel, así se ve en cualquier Excel. Con muchos productos, bajar las fotos tarda un poco (hasta un par de minutos).
 
 ## Criterios y reglas
 
