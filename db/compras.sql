@@ -330,3 +330,15 @@ begin
 exception when others then
   raise notice 'pg_cron: no se pudo ajustar referentes-ia (%)', sqlerrm;
 end $$;
+
+-- Cotizaciones armadas para mandarle al proveedor (Fer, 2/11; /compras/cotizar?id=): el pedido, lo que no va, lo nuevo para
+-- cotizar y los precios a chequear, en un JSON. Las fotos salen de las fichas; un producto sin ficha puede traer la suya.
+create table if not exists cotizacion_armada (
+  id               bigserial primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  titulo           text,
+  datos            jsonb not null,
+  creado_ts        timestamptz not null default now()
+);
+alter table cotizacion_armada enable row level security;
+select erp_politica_org('cotizacion_armada');
