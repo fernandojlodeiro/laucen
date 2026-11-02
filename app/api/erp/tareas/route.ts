@@ -26,6 +26,7 @@ import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/fac
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { reintentarComprobantes } from "@/lib/pagos/comprobante";
+import { repasarComprobantesWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
 import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
@@ -58,6 +59,8 @@ export async function GET(req: Request) {
       whatsapp: await reintentarFacturasWhatsapp(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
       // Comprobantes de pago cuya transferencia todavía no aparecía en Mercado Pago (lib/pagos/comprobante.ts).
       comprobantes: await reintentarComprobantes(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
+      // Fotos y PDF de WhatsApp de clientes con un pedido sin pagar que no quedaron cargados como comprobante.
+      comprobantes_whatsapp: await repasarComprobantesWhatsapp(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
     };
   }
   // Administración: sólo las organizaciones que ya usan algo de ella (o facturan).

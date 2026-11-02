@@ -10,8 +10,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { sacarCodigo } from "@/lib/publicidad/atribucion";
-import { enviarTexto, firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
-import { recibirComprobanteWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
+import { firmaValida, motivoEnvio } from "@/lib/mensajes/meta";
+import { recibirComprobanteWhatsapp, avisarComprobanteAlCliente } from "@/lib/pagos/comprobante-whatsapp";
 import { anotarAnuncio, anotarEntrega, anotarOrigen, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { consulta } from "@/lib/erp/base";
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
             if (media?.id) {
               const pago = await recibirComprobanteWhatsapp(org, chat.id, { mediaId: media.id, tipo: media.mime_type ?? "", nombre: m.document?.filename ?? null })
                 .catch((e) => { console.error("[wa-comprobante]", org, chat.id, e); return null; });
-              if (pago) { await avisarPagoPorWhatsapp(org, chat.id, pago.pedidoId, pago.conciliado); return; }
+              if (pago) { await avisarComprobanteAlCliente(org, chat.id, pago.pedidoId, pago.conciliado); return; }
             }
             const cfg = await configMensajes(org);
             if (!cfg.iaActiva) return;
@@ -157,17 +157,4 @@ export async function POST(req: NextRequest) {
     console.error("[wa-webhook]", e);
   }
   return NextResponse.json({ ok: true });
-}
-
-/** El aviso por el mismo chat después del comprobante: «Recibimos tu pago» si cerró con Mercado Pago; si no, sólo
- *  que se está verificando (Fer, 2/11: sin más detalles; el motivo queda en las notas del pedido). */
-async function avisarPagoPorWhatsapp(org: string, chatId: number, pedidoId: number, conciliado: boolean) {
-  const { credencialDeOrg, chatPorId, guardarMensaje } = await import("@/lib/mensajes/chats");
-  const [cred, chat] = await Promise.all([credencialDeOrg(org), chatPorId(org, chatId)]);
-  if (!cred || !chat) return;
-  const texto = conciliado
-    ? `¡Gracias! Recibimos tu pago del pedido #${pedidoId}. Ya lo estamos preparando y te avisamos por acá cuando esté listo.`
-    : "¡Gracias! Recibimos tu comprobante. Estamos verificando el pago y te avisamos por acá.";
-  const r = await enviarTexto({ token: cred.token, phoneNumberId: cred.phoneNumberId }, chat.externo, texto);
-  if (r.ok) await guardarMensaje({ org, chatId, clase: "operador", texto, wamid: r.wamid, estado: "enviado" }).catch(() => null);
 }
