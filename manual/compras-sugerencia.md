@@ -59,6 +59,8 @@ Menú **Compras › Sugerencia de compra**.
 
 ## Criterios y reglas
 
+- **Los kits no se compran**: a los proveedores se les compran las unidades sueltas y los kits se arman en casa. Por eso un kit (un producto con componentes, como un pack de 10 LED) nunca aparece en la lista ni en los Excel: cada kit vendido cuenta como venta de sus componentes (por ejemplo, 5 packs de 10 LED vendidos son 50 LED sueltos). Si el kit tiene un solo componente, el precio de esa venta se reparte entre las unidades; si tiene varios, el componente toma su precio de su propia Clásica, del mercado o de sus ventas sueltas.
+
 - **Qué productos entran**: todos los que se vendieron en el período, activos o no, incluidos los códigos viejos que ya no están en el catálogo. **Las notebooks no entran.** Ventas de todos los canales, sin canceladas.
 - **Cuándo hubo stock**: no hay historia del stock, así que se deduce de las ventas. Se recorre el período con tramos de la cantidad de días elegida, cada uno arrancando en un día con venta. Un tramo vale si adentro no hay un hueco sin ventas más largo de lo normal para **ese** producto (3 veces su hueco típico entre ventas, nunca menos de 7 días) y si siguió vendiendo hasta cerca del final. Así no cuentan los quiebres de stock.
 - **Típico** = lo que se vendió en un tramo común de los que valen (la mediana). **Mejor momento** = el tramo en que más se vendió.

@@ -129,17 +129,31 @@ async function grillas(): Promise<Grillas> {
 
 export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null }> {
   const tcHoy = (await una<{ tc: number | null }>("select tc_del_dia($1, current_date)::float8 tc", [org]))?.tc ?? null;
+  // Los kits no se compran (Fer, 2/11: «los proveedores no venden kits, los armamos nosotros»): la venta de un kit cuenta como
+  // venta de sus componentes (cantidad × la del componente, también kits dentro de kits) y el kit no aparece. Si el kit tiene un
+  // solo componente (un pack), el precio de la venta se reparte entre las unidades; si tiene varios, el componente no toma precio
+  // de esa venta (sale de su Clásica, del mercado o de sus ventas sueltas).
   const renglones = await consulta<{ clave: string; dia: string; cantidad: number; precio: number | null; titulo: string | null }>(`
-    select coalesce('v' || e.variacion_id, 's' || upper(regexp_replace(coalesce(e.sku, ''), '^DE-', '', 'i'))) clave,
-           to_char(e.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') dia, e.cantidad,
-           coalesce(e.precio_unit, e.total / nullif(e.cantidad, 0))::float8 precio, e.titulo
-      from venta_estadistica e
-      left join variacion va on va.id = e.variacion_id left join producto pr on pr.id = va.producto_id left join familia fa on fa.id = pr.familia_id
-     where e.organizacion_id = $1 and e.estado not in ('cancelled', 'cancelado', 'invalid') and e.cantidad > 0
-       and e.fecha >= ($2::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'
-       and e.fecha < ($3::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'
-       and coalesce(e.sku, '') <> ''
-       and not es_notebook(coalesce(pr.titulo, e.titulo)) and not coalesce(fa.nombre ~* '^notebook', false)`, [org, f.desde, f.hasta]);
+    with recursive v as (
+      select e.variacion_id::bigint variacion_id, upper(regexp_replace(coalesce(e.sku, ''), '^DE-', '', 'i'))::text sku,
+             to_char(e.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD')::text dia, e.cantidad::int cantidad,
+             coalesce(e.precio_unit, e.total / nullif(e.cantidad, 0))::float8 precio, e.titulo::text titulo, 0 nivel
+        from venta_estadistica e
+        left join variacion va on va.id = e.variacion_id left join producto pr on pr.id = va.producto_id left join familia fa on fa.id = pr.familia_id
+       where e.organizacion_id = $1 and e.estado not in ('cancelled', 'cancelado', 'invalid') and e.cantidad > 0
+         and e.fecha >= ($2::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'
+         and e.fecha < ($3::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'
+         and coalesce(e.sku, '') <> ''
+         and not es_notebook(coalesce(pr.titulo, e.titulo)) and not coalesce(fa.nombre ~* '^notebook', false)),
+    x as (
+      select * from v
+      union all
+      select kc.variacion_componente_id, null::text, x.dia, x.cantidad * kc.cantidad,
+             case when (select count(*) from kit_componente k2 where k2.variacion_kit_id = x.variacion_id) = 1 then x.precio / kc.cantidad end,
+             null::text, x.nivel + 1
+        from x join kit_componente kc on kc.variacion_kit_id = x.variacion_id where x.nivel < 5)
+    select coalesce('v' || variacion_id, 's' || sku) clave, dia, cantidad, precio, titulo
+      from x where variacion_id is null or not es_kit(variacion_id)`, [org, f.desde, f.hasta]);
   const porClave = new Map<string, Renglon[]>();
   const ventasIso = new Map<string, [string, number][]>();
   // La última venta de cada producto (para el precio): la de fecha más nueva del período.
@@ -374,7 +388,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-20", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-21", org, f.desde, f.hasta, String(f.dias), String(f.demora), f.conMercado ? "m" : ""], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
