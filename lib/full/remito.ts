@@ -154,7 +154,7 @@ export async function pdfRemito(org: string, envioId: number): Promise<{ pdf: Ui
     [dest.telefono && `Tel. ${dest.telefono}`, dest.horario && `Horario: ${dest.horario}`].filter(Boolean).join(" · "),
     [e.numero_ml && `Envío de Mercado Libre N.º ${e.numero_ml}`, e.fecha_entrega && `Turno: ${dia(e.fecha_entrega)}`, `Cuenta: ${e.canal}`].filter(Boolean).join(" · "),
   ]);
-  recuadro("TRANSPORTE", tr ? tr.razon_social || tr.nombre : "", [
+  recuadro("TRANSPORTE", e.colecta_ml ? "Colecta de Mercado Libre" : tr ? tr.razon_social || tr.nombre : "", [
     tr?.cuit ? `CUIT ${cuitLegible(tr.cuit)}` : null,
     tr ? [tr.calle, tr.localidad, tr.provincia].filter(Boolean).join(", ") : null,
     tr?.telefono ? `Tel. ${tr.telefono}` : null,

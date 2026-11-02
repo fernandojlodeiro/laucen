@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { formatearNumero } from "@/lib/numeros";
 import {
   crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
-  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho,
+  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho, cambiarColecta,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
@@ -52,6 +52,20 @@ export async function accionGuardarEnvio(fd: FormData) {
     const fecha = texto(fd, "fecha_entrega");
     await guardarCabecera(s.org.id, e, { numero_ml: texto(fd, "numero_ml"), fecha_entrega: fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null, notas: texto(fd, "notas") });
     return { ir: ficha(e, "?ok=" + encodeURIComponent("Grabado.")) };
+  });
+}
+
+/** El interruptor «Lo retira la colecta de Mercado Libre» de la ficha. */
+export async function accionColectaMl(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  const prendida = fd.get("valor") === "1";
+  await intentar(ficha(e), async () => {
+    await cambiarColecta(s.org.id, e, prendida);
+    revalidatePath("/informes/rentabilidad");
+    return { ir: ficha(e, "?ok=" + encodeURIComponent(prendida
+      ? "Va por la colecta de Mercado Libre: lo que cuesta llega solo con los cargos de Full."
+      : "Va con transportista: elegilo en el remito y cargá el flete.")) };
   });
 }
 

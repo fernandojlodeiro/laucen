@@ -112,6 +112,15 @@ En **Cerrar el envío**, elegí:
 2. Tocá el lápiz de la fila del tamaño.
 3. Cambiá los valores y apretá **«Guardar»**. El costo estimado se recalcula enseguida.
 
+### Mandarlo por la colecta de Mercado Libre
+
+En la ficha del envío, prendé **«Lo retira la colecta de Mercado Libre»** (arriba de todo, debajo de los totales). Con la colecta:
+
+- no se elige transportista (en el remito dice «Colecta de Mercado Libre») ni se carga flete;
+- en lugar de la caja del flete aparece **«Costo de la colecta»**: lo que cobró Mercado Libre, en total y por unidad. Mientras no lo cobró dice que todavía no llegó. Lo cobra con los cargos de Full del período de facturación (Laucen los lee dos veces por día), lo reparte por producto con el número de envío de Mercado Libre y la rentabilidad lo resta solo.
+
+Un envío nuevo va como el último (por colecta, o con su transportista). El que se importa del PDF de Mercado Libre va por colecta de entrada; si no, se apaga el interruptor.
+
 ### Imprimir el remito para el transportista
 
 1. La primera vez, cargá el destino en la pestaña **Datos del remito** (lápiz, completar, **«Grabar»**). Queda para todos los envíos.
@@ -168,6 +177,8 @@ Para cada producto que la cuenta publica y vendió en los últimos días elegido
 Muestra sólo productos que todavía no están en el envío, del que más vende al que menos, y no agrega nada hasta que se tildan y se aprieta «Agregar los tildados».
 
 ### El flete
+
+(Con transportista. Por la colecta de Mercado Libre no hay flete a mano: ver «Mandarlo por la colecta de Mercado Libre».)
 
 - **Monto**: se carga a mano, o sale de la factura de gasto vinculada: neto + no gravado + otros impuestos, sin IVA (el IVA es crédito fiscal), a la cotización de la factura. Una nota de crédito resta.
 - **Cómo se reparte** entre las líneas:

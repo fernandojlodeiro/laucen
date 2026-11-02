@@ -105,7 +105,7 @@ export async function importarInbound(org: string, usuario: string, bytes: Uint8
   // Si ya está importado: en borrador se rehace con lo del PDF; despachado o después, no se toca.
   const ya = await una<{ id: number; estado: string }>("select id::int, estado from full_envio where organizacion_id = $1 and trim(numero_ml) = $2 order by id desc limit 1", [org, inb.numero]);
   if (ya && ya.estado !== "borrador") throw new ErrorErp(`El envío ${inb.numero} de Mercado Libre ya está en Laucen (envío ${ya.id}) y ya salió: no se cambió nada.`);
-  const id = ya?.id ?? await crearEnvio(org, usuario, canal, d.origen);
+  const id = ya?.id ?? await crearEnvio(org, usuario, canal, d.origen, true);
   if (ya) await vaciarEnvio(org, id);
   const e = await envioDe(org, id);
   await guardarCabecera(org, id, { numero_ml: inb.numero, fecha_entrega: e?.fecha_entrega ?? null, notas: e?.notas ?? "Importado del PDF de Mercado Libre." });
