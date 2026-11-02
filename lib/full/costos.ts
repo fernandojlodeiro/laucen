@@ -254,7 +254,10 @@ async function diasFacturados(canal: number): Promise<{ desde: string; hasta: st
            to_char(coalesce(fp.hasta, (l.periodo + interval '1 month')::date - 3), 'YYYY-MM-DD') hasta
       from full_cargo_lectura l
       left join ml_factura_periodo fp on fp.canal_id = l.canal_id and fp.grupo = 'ML' and fp.clave = to_char(l.periodo, 'YYYY-MM-DD')
-     where l.canal_id = $1 and l.estado = 'ok'`, [canal]).catch(() => []);
+     where l.canal_id = $1 and l.estado = 'ok'
+       -- El período que todavía corre contesta 200 vacío: sus días se estiman (Fer, 1/11: la mercadería que
+       -- entró a Full el 29/10 figuraba con costo cero, porque el período en curso contaba como facturado).
+       and coalesce(fp.hasta, (l.periodo + interval '1 month')::date - 3) < current_date`, [canal]).catch(() => []);
   return filas;
 }
 

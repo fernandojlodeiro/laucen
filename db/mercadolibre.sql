@@ -791,3 +791,52 @@ select erp_politica_org('ml_madre_nueva');
 -- leer de ML cada vez que se renueva la llave; el que tenía queda acá, para seguir reconociendo como propias las
 -- publicaciones de datos viejos (ej. el seguimiento importado de Virtual Seller).
 alter table meli_cuenta add column if not exists apodos_anteriores text[] not null default '{}';
+
+-- Productos que Mercado Libre prohibió en una cuenta (Fer, 29/10, bitácora #986; lib/mercadolibre/prohibidos.ts):
+-- una publicación «forbidden» anota su SKU (sin «DE-») en esa cuenta y Laucen no lo vuelve a dar de alta ahí.
+-- Queda aunque la publicación se elimine en ML.
+create table if not exists meli_sku_prohibido (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  sku              text not null,
+  item_id          text not null,
+  creado_ts        timestamptz not null default now(),
+  primary key (canal_id, sku)
+);
+alter table meli_sku_prohibido enable row level security;
+select erp_politica_org('meli_sku_prohibido');
+insert into meli_sku_prohibido (organizacion_id, canal_id, sku, item_id)
+select distinct on (m.canal_id, regexp_replace(coalesce(nullif(m.sku, ''), v.sku), '^DE-', '', 'i'))
+       m.organizacion_id, m.canal_id, regexp_replace(coalesce(nullif(m.sku, ''), v.sku), '^DE-', '', 'i'), m.item_id
+  from meli_item m
+  left join publicacion p on p.canal_id = m.canal_id and p.id_externo = m.item_id
+  left join variacion v on v.id = p.variacion_id
+ where coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false) and coalesce(nullif(m.sku, ''), v.sku) is not null
+on conflict (canal_id, sku) do nothing;
+
+-- Cada publicación que Mercado Libre prohibió o dio de baja, con cuándo la vio Laucen (Fer, 29/10): de acá salen el
+-- aviso de prepo «Publicación prohibida» y el contador «Prohibidas» de la barra de estado (lib/avisos.ts). Las que ya
+-- estaban entran con la fecha de hoy pero no abren la ventana (la marca de cada usuario arranca cuando la ve).
+create table if not exists meli_prohibicion (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  sku              text,
+  titulo           text,
+  detectada_ts     timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+create index if not exists meli_prohibicion_org on meli_prohibicion (organizacion_id, detectada_ts);
+-- El contador «Prohibidas» de la barra de estado (lib/erp/contadores.ts).
+create index if not exists meli_item_prohibidas on meli_item (organizacion_id) where (datos_externos -> 'ml' -> 'sub_status') ? 'forbidden';
+alter table meli_prohibicion enable row level security;
+select erp_politica_org('meli_prohibicion');
+insert into meli_prohibicion (organizacion_id, canal_id, item_id, sku, titulo)
+select distinct on (m.canal_id, m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.sku, m.titulo
+  from meli_item m where coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false)
+on conflict (canal_id, item_id) do nothing;
+
+-- «Jamás publicar en Mercado Libre» (Fer, 29/10; ficha del producto, pestaña Publicaciones): con la marca prendida el
+-- producto no se da de alta en ninguna cuenta ni se reactiva, apriete el botón que apriete (la cola lo descarta:
+-- lib/mercadolibre/prohibidos.ts). Al prenderla se pausan sus publicaciones activas.
+alter table producto add column if not exists nunca_ml boolean not null default false;

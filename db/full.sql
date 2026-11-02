@@ -228,6 +228,9 @@ $$;
 alter table full_envio add column if not exists valor_declarado_ars numeric(16, 2);
 alter table full_envio add column if not exists transportista_id bigint references proveedor(id) on delete set null;
 alter table full_envio add column if not exists bultos int;
+-- colecta_ml (Fer, 2/11): el envío lo retira la colecta de Mercado Libre. Sin transportista ni flete a mano:
+-- lo que cuesta llega con los cargos de Full (INBOUND_COLLECT) y se reparte por producto (colecta_unit_ars).
+alter table full_envio add column if not exists colecta_ml boolean not null default false;
 create table if not exists full_remito_datos (
   organizacion_id  text primary key references organizaciones(id) on delete cascade,
   destinatario     text,

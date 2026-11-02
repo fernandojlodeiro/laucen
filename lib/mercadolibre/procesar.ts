@@ -3,7 +3,7 @@
 // notificaciones pendientes, trae las órdenes y preguntas que se hayan
 // perdido (y los reclamos) y encola los ajustes de stock en ML (lib/mercadolibre/cola.ts).
 
-import { consulta, una } from "@/lib/erp/base";
+import { consulta } from "@/lib/erp/base";
 import { cuentaPorUsuario, cuentasActivas, ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { importarOrden, barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { leerEnvio, guardarEnvio } from "@/lib/mercadolibre/envios";
@@ -16,14 +16,20 @@ import { anotarVentasEnCamino, sincronizarStockMl, variacionesConEventos } from 
 
 export type Notificacion = { resource?: string; user_id?: number | string; topic?: string; application_id?: number | string };
 
-/** Guarda la notificación tal como llegó. Devuelve su id. */
-export async function guardarNotificacion(n: Notificacion): Promise<number | null> {
-  if (!n.topic || !n.resource) return null;
-  const cuenta = n.user_id ? await cuentaPorUsuario(Number(n.user_id)) : null;
-  const r = await una<{ id: string }>(`
-    insert into meli_notificacion (organizacion_id, meli_user_id, topic, resource, payload) values ($1, $2, $3, $4, $5::jsonb) returning id`,
-    [cuenta?.organizacionId ?? null, n.user_id ? Number(n.user_id) : null, n.topic, n.resource, JSON.stringify(n)]);
-  return r ? Number(r.id) : null;
+/** Guarda una tanda de notificaciones tal como llegaron, con UNA sola consulta
+ *  (en una ráfaga llegan cientos por segundo: una conexión por cada una llenó el
+ *  pooler, bitácora #1009). Devuelve id y tópico de cada una. */
+export async function guardarNotificaciones(ns: Notificacion[]): Promise<{ id: number; topic: string }[]> {
+  const validas = ns.filter((n) => n.topic && n.resource);
+  if (!validas.length) return [];
+  const filas = validas.map((n) => ({ u: n.user_id != null && /^\d+$/.test(String(n.user_id)) ? String(n.user_id) : null, topic: n.topic, resource: n.resource, payload: n }));
+  const r = await consulta<{ id: string; topic: string }>(`
+    insert into meli_notificacion (organizacion_id, meli_user_id, topic, resource, payload)
+    select (select c.organizacion_id from meli_cuenta c where c.meli_user_id = x.u::bigint and c.canal_id is not null order by c.id limit 1),
+           x.u::bigint, x.topic, x.resource, x.payload
+      from jsonb_to_recordset($1::jsonb) x(u text, topic text, resource text, payload jsonb)
+    returning id, topic`, [JSON.stringify(filas)]);
+  return r.map((f) => ({ id: Number(f.id), topic: f.topic }));
 }
 
 const ultimo = (recurso: string) => recurso.split("?")[0].split("/").filter(Boolean).pop()!;
@@ -87,13 +93,17 @@ async function sincronizarStockDelPedido(org: string, pedidoId: number) {
   if (vars.length) await sincronizarStockMl(org, vars.map((x) => x.v));
 }
 
-/** Procesa una notificación guardada (o las pendientes, si no se pasa id). */
-export async function procesarNotificaciones(hastaMs: number, id?: number): Promise<{ ok: number; error: number }> {
+/** Lo que no puede esperar detrás de una ráfaga de avisos de publicaciones:
+ *  ventas, envíos, preguntas, mensajes y reclamos van primero. */
+export const TOPICOS_URGENTES = ["orders_v2", "orders", "shipments", "questions", "messages", "claims", "claims_actions"];
+
+/** Procesa las notificaciones guardadas con esos ids (o las pendientes, si no se pasan). */
+export async function procesarNotificaciones(hastaMs: number, ids?: number[]): Promise<{ ok: number; error: number }> {
   const res = { ok: 0, error: 0 };
   const filas = await consulta<{ id: string; meli_user_id: string | null; topic: string; resource: string }>(`
     select id, meli_user_id, topic, resource from meli_notificacion
-     where procesada_ts is null and intentos < 5 ${id ? "and id = $1" : ""}
-     order by recibida_ts limit 300`, id ? [id] : []);
+     where procesada_ts is null and intentos < 5 ${ids ? "and id = any($1::bigint[])" : ""}
+     order by topic not in (${TOPICOS_URGENTES.map((t) => `'${t}'`).join(", ")}), recibida_ts limit 300`, ids ? [ids] : []);
   // La misma orden avisa varias veces seguidas: se procesa una sola vez por tanda.
   const hechas = new Set<string>();
   for (const f of filas) {

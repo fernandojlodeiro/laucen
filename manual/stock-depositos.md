@@ -93,6 +93,7 @@ Abrí el depósito, buscá la ubicación y tocá su código o sus unidades: se d
   - **En camino a Full**: lo despachado a Full que todavía no llegó, con una ubicación por envío. Lo crea solo el primer envío despachado. No vende por ningún canal.
   - **Tercerizado**: un depósito de terceros.
   - **Caja abierta**: donde va lo devuelto con la caja abierta en la [Recepción](/deposito/recepcion) (se usa el primero activo de este tipo).
+- **En búsqueda**: depósito del sistema, propio y sin ubicaciones, que usa el [Control de stock](/deposito/control). Guarda lo que en el recorrido no se encontró en su lugar y quedó **a buscar**: así deja de venderse pero no se da por perdido hasta resolverlo. No vende por ningún canal y no se puede agregar a un canal.
 - **Archivado**: un depósito archivado deja de contar para el stock disponible de los canales (no se informa a Mercado Libre ni a la tienda), no suma en la consulta ni en los informes, y no se ofrece en las pantallas de trabajo. Guarda su historia y se puede volver a activar con el lápiz. Una ubicación archivada no se ofrece para recibir, reservar ni ajustar.
 - **Borrar**: sólo un depósito o una ubicación sin stock (ni cantidad ni reservado) y sin movimientos guardados.
 - **Orden de recorrido**: también decide de qué ubicación se reserva primero un pedido (las de menor orden, entre las que tienen disponible).

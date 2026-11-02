@@ -37,8 +37,9 @@ import { diaAR } from "../piezas";
 import { sugeridosRemito, proveedoresTransporte } from "@/lib/full/remito";
 import {
   accionGuardarEnvio, accionGuardarFlete, accionBorrarEnvio, accionAgregarLinea, accionCantidadLinea, accionBorrarLinea,
-  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito, accionDeshacerDespacho,
+  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito, accionDeshacerDespacho, accionColectaMl,
 } from "../acciones";
+import { Interruptor } from "@/app/radar/Piezas";
 
 export const dynamic = "force-dynamic";
 
@@ -178,6 +179,35 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         <Dato etiqueta={e.estado === "cerrado" ? "Cerrado" : "Recibido"}>{e.cerrado_ts ? fechaHora(e.cerrado_ts) : e.recibido_ts ? fechaHora(e.recibido_ts) : null}</Dato>
       </div>
 
+      {/* Fer, 2/11: por la colecta de Mercado Libre no hay transportista ni flete a mano; lo que cuesta lo trae ML. */}
+      <div className={`${CAJA} mb-4`}>
+        <Interruptor accion={accionColectaMl} prendido={e.colecta_ml} campos={{ id: String(eid) }} compacto
+          etiqueta="Lo retira la colecta de Mercado Libre"
+          ayuda={e.colecta_ml
+            ? "Sin transportista ni flete a mano: lo que cuesta la colecta lo cobra Mercado Libre con los cargos de Full, y Laucen lo reparte solo entre los productos del envío (por su número de Mercado Libre)."
+            : "Apagado, el envío va con un transportista: elegilo en el remito y cargá el flete."} />
+      </div>
+
+      {e.colecta_ml ? (
+        <div className={`${CAJA} mb-4`}>
+          <TituloSeccion titulo="Costo de la colecta" />
+          {(() => {
+            const cobradas = lineas.filter((l) => l.colecta_unit_ars != null);
+            const total = cobradas.reduce((s, l) => s + (l.colecta_unit_ars ?? 0) * l.cantidad, 0);
+            return cobradas.length ? (
+              <div className="flex flex-wrap gap-4">
+                <Dato etiqueta="Cobrado por Mercado Libre" numero className="w-48">{formatear(Math.round(total * 100) / 100, "ARS")}</Dato>
+                <Dato etiqueta="Por unidad, en promedio" numero className="w-48">{unidades ? formatear(Math.round((total / unidades) * 100) / 100, "ARS") : null}</Dato>
+                <p className="basis-full text-[11px] text-[#5C6B76]">Lo que le toca a cada unidad se resta en la <Link href="/informes/rentabilidad" className="text-[#16577F] hover:underline">rentabilidad</Link> de cada venta que sale de Full.</p>
+              </div>
+            ) : (
+              <p className="text-xs text-[#5C6B76]">
+                Mercado Libre todavía no la cobró. Llega con los cargos de Full del período de facturación (Laucen los lee dos veces por día) y se suma sola acá y en la rentabilidad.
+              </p>
+            );
+          })()}
+        </div>
+      ) : (
       <div className={`${CAJA} mb-4`}>
         <TituloSeccion titulo="Flete del envío">
           <BotonesFicha editando={editandoFlete} ver={aqui()} editar={aqui({ editar: "flete" })} form="flete" />
@@ -214,17 +244,19 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
           )}
         </form>
       </div>
+      )}
 
       <div className={`${CAJA} mb-4`}>
-        <TituloSeccion titulo="Remito para el transportista">
+        <TituloSeccion titulo={e.colecta_ml ? "Remito" : "Remito para el transportista"}>
           <BotonesFicha editando={editandoRemito} ver={aqui()} editar={aqui({ editar: "remito" })} form="remito" />
         </TituloSeccion>
         <form id="remito" action={accionGuardarRemito} className="flex flex-wrap gap-4 items-start">
           <input type="hidden" name="id" value={eid} />
           {editandoRemito ? (
             <>
+              {e.colecta_ml ? <input type="hidden" name="transportista" value="" /> : (
               <label className="flex-1 min-w-72"><span className={ETIQUETA}>Transportista (proveedor)</span>
-                <ElegirDeLista name="transportista" opciones={transportes} valor={e.transportista_id} vacio="Sin transportista" placeholder="Buscá el proveedor…" etiqueta="Transportista" /></label>
+                <ElegirDeLista name="transportista" opciones={transportes} valor={e.transportista_id} vacio="Sin transportista" placeholder="Buscá el proveedor…" etiqueta="Transportista" /></label>)}
               <label className="w-36"><span className={ETIQUETA}>Bultos</span>
                 <CampoNumero name="bultos" valor={e.bultos} tipo="entero" placeholder={n(sugRemito.bultos)} className={`${CAMPO} w-full`} />
                 <span className="block text-[10px] text-[#5C6B76] mt-0.5">Sugerido: {n(sugRemito.bultos)} (aprox.).</span></label>
@@ -240,7 +272,8 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
           ) : (
             <>
               <Dato etiqueta="Transportista (proveedor)" className="flex-1 min-w-72">
-                {e.transportista_id ? <Link href={`/compras/proveedores?id=${e.transportista_id}`} className="text-[#16577F] hover:underline">{e.transportista}</Link> : null}
+                {e.colecta_ml ? "Colecta de Mercado Libre"
+                  : e.transportista_id ? <Link href={`/compras/proveedores?id=${e.transportista_id}`} className="text-[#16577F] hover:underline">{e.transportista}</Link> : null}
               </Dato>
               <Dato etiqueta="Bultos" numero className="w-36">{e.bultos != null ? n(e.bultos) : <span className="text-[#5C6B76]">{n(sugRemito.bultos)} (sugerido)</span>}</Dato>
               <Dato etiqueta="Valor declarado" numero className="w-48">

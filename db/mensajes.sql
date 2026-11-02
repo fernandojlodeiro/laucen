@@ -203,3 +203,7 @@ end $$;
 -- respuesta. Lo pone el botón «Terminado» de la bandeja, y la IA cuando ve que el último mensaje no la necesita (un
 -- «gracias», un emoji). Si el cliente vuelve a escribir después, vuelve a «Para atender».
 alter table chat add column if not exists no_responder_ts timestamptz;
+
+-- La foto, el PDF, el video o el audio que mandó el cliente por WhatsApp (Fer, 29/10: no se veían): el id del archivo en
+-- Meta (vale unos 30 días); el panel lo pide a Meta al mostrarlo (/api/mensajes/adjunto). No se copia.
+alter table chat_mensaje add column if not exists adjunto jsonb;

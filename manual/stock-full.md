@@ -74,6 +74,16 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
    - o con **«Ver sugeridos»**: tildá en **Mandar** los que querés, corregí la cantidad si hace falta y apretá **«Agregar los tildados»**. Después, **«Cerrar sugeridos»** (ver «Criterios y reglas»).
 3. Revisá cada fila con el lápiz: la cantidad y la **publicación** a la que va. Sacá lo que no va con el tacho, o todo junto con **«Vaciar el envío»**.
 
+### Importar un envío ya cargado en Mercado Libre (el PDF)
+
+Si el envío se armó primero en Mercado Libre, no hace falta cargarlo de nuevo:
+
+1. En Mercado Libre, bajá el PDF del envío (las instrucciones de preparación: «Inbound-<número>-preparation-instructions.pdf»).
+2. En **Envíos a Full**, apretá **«Nuevo envío»** y, abajo, en **«O importalo del PDF de Mercado Libre»**, elegí el archivo, la **cuenta** (de entrada **«La del archivo»**: la saca del código de Full de los productos) y el depósito de donde sale. Apretá **«Importar»**.
+3. Se abre la ficha del envío con el número de Mercado Libre, cada producto (buscado por su SKU, con o sin «DE-», o por el código de Full) y sus unidades. Desde ahí se sigue como siempre: remito, etiquetas y **«Despachar»**.
+
+Si algún SKU del PDF no está en Laucen, o el total de unidades no cierra, no se importa nada y el aviso dice cuál falta. Si ese envío ya estaba importado y sigue en borrador, se rehace con lo del PDF; si ya se despachó, no se toca. El PDF no trae el turno: la fecha de entrega se carga con el lápiz.
+
 ### Crear el envío en Mercado Libre y anotar el número
 
 1. En la Central de vendedores de Mercado Libre, creá el envío a Full con los mismos productos y cantidades.
@@ -101,6 +111,15 @@ En **Cerrar el envío**, elegí:
 1. Andá a la pestaña **Costos de Full**.
 2. Tocá el lápiz de la fila del tamaño.
 3. Cambiá los valores y apretá **«Guardar»**. El costo estimado se recalcula enseguida.
+
+### Mandarlo por la colecta de Mercado Libre
+
+En la ficha del envío, prendé **«Lo retira la colecta de Mercado Libre»** (arriba de todo, debajo de los totales). Con la colecta:
+
+- no se elige transportista (en el remito dice «Colecta de Mercado Libre») ni se carga flete;
+- en lugar de la caja del flete aparece **«Costo de la colecta»**: lo que cobró Mercado Libre, en total y por unidad. Mientras no lo cobró dice que todavía no llegó. Lo cobra con los cargos de Full del período de facturación (Laucen los lee dos veces por día), lo reparte por producto con el número de envío de Mercado Libre y la rentabilidad lo resta solo.
+
+Un envío nuevo va como el último (por colecta, o con su transportista). El que se importa del PDF de Mercado Libre va por colecta de entrada; si no, se apaga el interruptor.
 
 ### Imprimir el remito para el transportista
 
@@ -159,6 +178,8 @@ Muestra sólo productos que todavía no están en el envío, del que más vende 
 
 ### El flete
 
+(Con transportista. Por la colecta de Mercado Libre no hay flete a mano: ver «Mandarlo por la colecta de Mercado Libre».)
+
 - **Monto**: se carga a mano, o sale de la factura de gasto vinculada: neto + no gravado + otros impuestos, sin IVA (el IVA es crédito fiscal), a la cotización de la factura. Una nota de crédito resta.
 - **Cómo se reparte** entre las líneas:
   - **Por volumen**: cantidad × largo × ancho × alto del paquete del producto.
@@ -174,7 +195,7 @@ Muestra sólo productos que todavía no están en el envío, del que más vende 
 - **Tamaño**: según las medidas y el peso del paquete. **Pequeño** hasta 15 × 20 × 20 cm, **Mediano** hasta 28 × 36 × 51 cm, **Grande** hasta 60 × 70 × 80 cm, los tres hasta 12 kg; si no, **Extragrande**. Se usa el tamaño de las medidas que tomó Mercado Libre del paquete; si Mercado Libre no lo midió, el de las medidas declaradas en la publicación o en la ficha del producto.
 - **Lo cobrado**: cuando Mercado Libre cierra cada mes de facturación, el sistema lee solo lo que cobró por Full en cada cuenta: almacenamiento (por día y por tarifa, sin decir de qué producto), colecta (por producto y envío) y otros cargos (stock antiguo, retiros). Mercado Libre deja leer los últimos 12 meses. El mes de facturación que corre y el anterior se vuelven a leer dos veces por día, porque Mercado Libre los va completando.
 - **Reparto del almacenamiento**: el sistema anota cada día cuántas unidades de cada producto hay en Full. Lo cobrado un día con una tarifa se reparte entre los productos de ese tamaño que había ese día, según sus unidades, así el total coincide con lo cobrado.
-- **Estimado**: los días que Mercado Libre todavía no facturó se calculan con unidades × tarifa del tamaño. Cuando llega lo cobrado, reemplaza al estimado.
+- **Estimado**: los días que Mercado Libre todavía no facturó se calculan con unidades × tarifa del tamaño. Cuando llega lo cobrado, reemplaza al estimado. El período de facturación que todavía corre (Mercado Libre lo muestra vacío hasta cerrarlo) siempre se estima.
 - **Por unidad vendida**: lo de cada mes se divide por las unidades de ese producto vendidas desde Full ese mes. Si en un mes no se vendió ninguna, lo de ese mes pasa al siguiente.
 - **Colecta**: lo que cobró Mercado Libre por retirar un envío se asigna a la línea del envío con el mismo **Nº del envío en Mercado Libre** y se suma al flete por unidad.
 - **Stock antiguo**: desde los 120 días en Full Mercado Libre cobra además un cargo mensual por unidad. La columna **Días en Full** avisa en rojo 20 días antes.

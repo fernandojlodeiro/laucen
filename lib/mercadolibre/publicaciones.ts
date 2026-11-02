@@ -6,6 +6,7 @@
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
+import { anotarProhibido } from "@/lib/mercadolibre/prohibidos";
 
 type Atributo = { id: string; value_name: string | null; name?: string };
 type Variacion = {
@@ -71,7 +72,12 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl, opts: { pausarSu
   // Las que se borraron de Laucen a propósito no vuelven (meli_item_descartado).
   if (await una("select 1 from meli_item_descartado where canal_id = $1 and item_id = $2", [cuenta.canalId, it.id])) return 0;
   // Eliminada en ML (sub_status "deleted"): ML la sigue devolviendo y avisando, pero ya no existe para nadie.
-  if (it.sub_status?.includes("deleted")) { await olvidarEliminada(cuenta, it); return 0; }
+  // Si estaba prohibida, su SKU queda anotado antes de olvidarla (prohibidos.ts).
+  if (it.sub_status?.includes("deleted")) {
+    if (it.sub_status.includes("forbidden")) await anotarProhibido(cuenta, it.id);
+    await olvidarEliminada(cuenta, it);
+    return 0;
+  }
   for (const f of filasDeItem(it)) {
     await consulta(`
       insert into meli_item (organizacion_id, canal_id, item_id, variation_id, titulo, atributos, sku, precio, stock, vendidos, estado, tipo,
@@ -107,6 +113,8 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl, opts: { pausarSu
     if (pubId) await refrescarPublicacion(cuenta, pubId, it, f);
     else if (it.status === "active") sueltas.push(f.variation_id);
   }
+  // Prohibida por ML: su SKU no se vuelve a dar de alta en esta cuenta (prohibidos.ts).
+  if (it.sub_status?.includes("forbidden")) await anotarProhibido(cuenta, it.id);
   // Regla de Fer (23/10): JAMÁS una publicación activa sin producto de Laucen. Sin producto, Laucen no le maneja el stock
   // y se vende lo que no hay (pasó con copias agrupadas sin SKU). La que no se pudo vincular se pausa en el momento.
   if (sueltas.length && opts.pausarSueltas !== false) await pausarSuelta(cuenta, it);

@@ -23,6 +23,7 @@ import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercado
 import { comprobarAlta, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe, type PlanPrueba } from "@/lib/mercadolibre/prueba-planes";
 import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
+import { skuNormal, skusProhibidos } from "@/lib/mercadolibre/prohibidos";
 
 export type ItemMadre = ItemGuardado & { official_store_id?: number | null };
 
@@ -154,8 +155,10 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
   const altas: CambioMl[] = [];
   const max = opts.max ?? 20;
   const propia = await campanaPropiaDe(org, canal);
+  // Lo que ML prohibió en esta cuenta (también una copia que dio de baja por duplicada) no se vuelve a crear (Fer, 29/10).
+  const prohibidos = await skusProhibidos(org, canal);
   for (const g of grupos) {
-    if (opts.saltarSku?.has(g.sku) || (opts.soloSku && !opts.soloSku.has(g.sku))) continue;
+    if (opts.saltarSku?.has(g.sku) || (opts.soloSku && !opts.soloSku.has(g.sku)) || prohibidos.has(skuNormal(g.sku))) continue;
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
     const viejas = g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && !enMadre.has(plan(p)) && !enCola.has(`agrupar:${g.sku}:${plan(p)}`));
     if (!viejas.length) continue;

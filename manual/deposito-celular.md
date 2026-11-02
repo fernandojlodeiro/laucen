@@ -4,7 +4,7 @@ menu: Stock › Modo depósito (celular)
 ruta: /deposito/celular
 rutas: /deposito/celular
 permiso: todos
-resumen: Pocos botones grandes para quien prepara pedidos e imprime etiquetas desde el celular: preparar pedidos, etiquetas de envío y de Full, recepción, consulta de stock y etiquetas de producto.
+resumen: Pocos botones grandes para quien prepara pedidos e imprime etiquetas desde el celular: preparar pedidos, entregas en el local, etiquetas de envío y de Full, recepción, consulta de stock y etiquetas de producto.
 ---
 
 ## Para qué sirve
@@ -21,9 +21,11 @@ Es la pantalla pensada para el celular de quien trabaja en el depósito: **sin m
 
 Los botones (sólo los que tu rol puede usar):
 - **🧺 Preparar pedidos**: elegir el lote y escanear ([Picking](/deposito/picking)). Con un globo rojo con la cantidad de pedidos por preparar.
+- **🤝 Entregas en el local**: lo preparado que vienen a buscar, para sacarle la foto al conforme ([Entregas en el local](/deposito/entregas)). Con un globo rojo con cuántos hay.
 - **🏷️ Imprimir etiquetas de envío**: las de los pedidos por despachar ([Envíos](/ventas/envios)). Con un globo rojo con las etiquetas sin imprimir.
 - **📦 Etiquetas de Full**: para mandar mercadería a Mercado Libre.
 - **📥 Recepción**: escanear lo que llega ([Recepción](/deposito/recepcion)).
+- **✅ Control de stock**: ir a cada ubicación y confirmar que el producto está ([Control de stock](/deposito/control)); el número rojo es cuánto queda por controlar.
 - **🔎 Consultar stock**: escanear y ver dónde está ([Consulta de stock](/stock/consulta)).
 - **🔖 Etiquetas de producto y ubicación**.
 
@@ -39,5 +41,6 @@ Para volver al sistema completo, el botón "Menú" de abajo.
 
 - [Picking](/deposito/picking)
 - [Recepción](/deposito/recepcion)
+- [Control de stock](/deposito/control)
 - [Envíos](/ventas/envios)
 - [Mis accesos del celular](/config/accesos)

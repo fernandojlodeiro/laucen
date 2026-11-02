@@ -27,6 +27,7 @@ import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type 
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { comprobarAgrupado, madreDe } from "@/lib/mercadolibre/agrupar";
 import { tituloParaCuenta } from "@/lib/mercadolibre/titulos-ia";
+import { cuentasConProhibido } from "@/lib/mercadolibre/prohibidos";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { gruposPlanes, ganadorDe } from "@/lib/precios-ml/grupos";
 import {
@@ -151,7 +152,8 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const items = await consulta<{ canal: number; item_id: string; tipo: string; tags: unknown; terms: unknown }>(`
     select canal_id::int canal, item_id, tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms
       from meli_item where organizacion_id = $1 and sku = $2 and estado in ('active', 'paused', 'under_review')
-       -- Una bloqueada por ML (forbidden) no se puede editar ni cerrar: cuenta como que no está y se vuelve a crear (Fer, 11/10).
+       -- Una bloqueada por ML (forbidden) no se puede editar ni cerrar: no cuenta como que está, y tampoco se vuelve a
+       -- crear en esa cuenta (Fer, 29/10: meli_sku_prohibido, prohibidos.ts).
        and not (estado = 'under_review' and coalesce(datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false))
        and coalesce((datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false`, [org, v.sku]);
   const enCola = await consulta<{ canal: number; item_id: string }>(`
@@ -167,6 +169,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const comisiones = comisionesDe(cat ? com.porCategoria.get(cat) : null, com.general).valores;
   const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 
+  const prohibida = await cuentasConProhibido(org, v.sku);
   const filas: FilaTodas[] = [];
   let tachadoPct = 0;
   for (const c of canales) {
@@ -182,6 +185,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
     const conTachado = (venta: number | null) => (venta != null && pr.tachadoPct > 0 && pr.tachado != null && descuentoVisible(pr.tachado, venta) >= DESCUENTO_MINIMO_ML ? pr.tachado : venta);
     const fila = (plan: PlanOClasica, venta: number | null, motivo: string | null): FilaTodas => {
       const existe = ya(plan);
+      if (prohibida.has(c.id)) motivo = prohibida.get(c.id)!;
       return { canal: c.id, cuenta: c.nombre, plan, nombre: nombrePlan(plan), venta, publicar: conTachado(venta), gana: ganador[plan as "clasica" | Plan] === c.id || (ganador[plan as "clasica" | Plan] == null),
         existe, crear: !existe && !motivo && venta != null, motivo: motivo ?? (venta == null ? "sin precio en la lista de la cuenta" : null) };
     };
@@ -328,6 +332,9 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
      where v.organizacion_id = $1 and coalesce(v.estado, 'activa') <> 'archivada'
        and exists (select 1 from publicacion p join canal c on c.id = p.canal_id
                     where p.variacion_id = v.id and c.tipo = 'mercadolibre' and p.canal_id <> $2 and p.estado = 'activa' and p.id_externo is not null)
+       -- Lo que ML prohibió en esta cuenta no se vuelve a crear (Fer, 29/10; prohibidos.ts).
+       and not exists (select 1 from meli_sku_prohibido x where x.canal_id = $2 and x.sku = regexp_replace(v.sku, '^DE-', '', 'i'))
+       and not exists (select 1 from producto pn where pn.id = v.producto_id and pn.nunca_ml)
        and (not exists (select 1 from publicacion q where q.variacion_id = v.id and q.canal_id = $2 and q.estado in ('activa', 'pausada'))
             -- O está, pero sin Clásica (Fer, 11/10: tenía sólo planes): se arma la que falta (las que ya están no se repiten).
             or not exists (select 1 from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = v.sku and m.tipo = 'gold_special'

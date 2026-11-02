@@ -44,7 +44,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   const p = await una<Producto>(`
     select p.id::int, p.sku_base, p.titulo, p.descripcion, p.notas_ia, p.familia_id::int, f.nombre familia, p.marca, p.marca_id::int, p.tipo, p.estado, p.codigo_barras,
-           p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares, p.no_publicable,
+           p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares, p.no_publicable, p.nunca_ml,
            p.proveedor_id::int, (select pr.nombre from proveedor pr where pr.id = p.proveedor_id) proveedor,
            p.peso_g, p.largo_cm::float8, p.ancho_cm::float8, p.alto_cm::float8, p.descuento_pct::float8, p.umbral_pausa, p.stock_minimo,
            (with recursive cadena as (
@@ -127,7 +127,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   return (
     <Pantalla
-      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <MarcaMercado estado={esEstadoMercado(n.mercado) ? n.mercado : null} href={`/catalogo/productos/${p.id}?seccion=seguimiento`} /> <EstadoProducto estado={p.estado} />{p.no_publicable && <Estado texto="No publicable" tono="gris" />}</span>}
+      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <MarcaMercado estado={esEstadoMercado(n.mercado) ? n.mercado : null} href={`/catalogo/productos/${p.id}?seccion=seguimiento`} /> <EstadoProducto estado={p.estado} />{p.no_publicable && <Estado texto="No publicable" tono="gris" />}{p.nunca_ml && <Estado texto="Jamás en Mercado Libre" tono="rojo" />}</span>}
       subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""}</>}
       camino={[{ texto: p.sku_base }]}
       acciones={

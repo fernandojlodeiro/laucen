@@ -6,7 +6,8 @@
 //   puede abrir una ventana de prepo y sonar (`aviso_sonido`). La ventana se elige
 //   por tipo (`aviso_ventana_tipos`): pedidos nuevos, y preguntas, mensajes y
 //   WhatsApp que la IA no contestó, y reclamos para atender (uno nuevo, o un
-//   mensaje nuevo del comprador o de Mercado Libre en uno que espera respuesta).
+//   mensaje nuevo del comprador o de Mercado Libre en uno que espera respuesta), y publicaciones que Mercado
+//   Libre prohibió (meli_prohibicion; Fer, 29/10).
 //   `avisado` guarda hasta dónde ya se mostró, para no repetirlo.
 // Las preferencias van en usuario_preferencia (db/moneda.sql).
 
@@ -85,7 +86,7 @@ const MOTIVO: Record<string, string> = {
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
 export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
   const desde = (t: TipoAviso) => Number(avisado[t] ?? 0);
-  const [reclamos, pedidos, preguntas, mensajes, casos, facturas] = await Promise.all([
+  const [reclamos, pedidos, preguntas, mensajes, casos, facturas, prohibidas] = await Promise.all([
     puede("reclamos_ver") ? consulta<{ id: string; marca: number; tipo: string; origen: string; canal: string | null; motivo: string | null; pedido_id: string | null;
       cliente: string | null; vence: string | null; texto: string | null }>(`
       select x.* from (
@@ -135,6 +136,13 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
         from pedido p left join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
        where p.organizacion_id = $1 and p.factura_retenida is not null and floor(extract(epoch from p.factura_retenida_ts) * 1000) > $2::float8
        order by p.factura_retenida_ts limit 10`, [org, desde("facturas")]).catch(() => []) : [],
+    // Publicaciones que Mercado Libre prohibió o dio de baja (Fer, 29/10): en una alta masiva o una sola, que se sepa ya.
+    puede("publicaciones_ver") ? consulta<{ id: string; marca: number; item_id: string; sku: string | null; titulo: string | null; cuenta: string | null; motivo: string | null }>(`
+      select x.canal_id || ':' || x.item_id id, floor(extract(epoch from x.detectada_ts) * 1000)::float8 marca, x.item_id, x.sku, x.titulo, c.nombre cuenta, mm.motivo
+        from meli_prohibicion x left join canal c on c.id = x.canal_id
+        left join meli_moderacion mm on mm.canal_id = x.canal_id and mm.item_id = x.item_id
+       where x.organizacion_id = $1 and floor(extract(epoch from x.detectada_ts) * 1000) > $2::float8
+       order by x.detectada_ts limit 10`, [org, desde("prohibidas")]).catch(() => []) : [],
   ]);
   return [
     ...reclamos.map((r): AvisoIa => ({
@@ -168,6 +176,12 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
       tipo: "facturas", id: f.id, marca: Number(f.marca), titulo: `Factura retenida: pedido ${f.id}${f.canal ? ` en ${f.canal}` : ""}`,
       detalle: f.cliente ?? "", texto: f.texto ?? "", motivo: f.motivo, propuesta: null, href: `/ventas/pedidos/${f.id}`,
     })),
+    ...prohibidas.map((x): AvisoIa => ({
+      tipo: "prohibidas", id: x.id, marca: Number(x.marca), titulo: `Publicación prohibida${x.cuenta ? ` en ${x.cuenta}` : ""}`,
+      detalle: [x.item_id, x.sku].filter(Boolean).join(" · "), texto: x.motivo ?? "Mercado Libre todavía no informó el motivo: se ve en su panel.",
+      motivo: `${x.titulo ? `«${x.titulo}». ` : ""}Mercado Libre la prohibió o la dio de baja. Laucen no vuelve a crear este producto en esa cuenta.`,
+      propuesta: null, href: `/catalogo/publicaciones?revision=prohibidas&inactivos=1&q=${encodeURIComponent(x.item_id)}`,
+    })),
   ];
 }
 
@@ -192,7 +206,7 @@ export async function marcasActuales(org: string): Promise<Marcas> {
   const r = await una<{ pedidos: number | null; whatsapp: number | null }>(`
     select (select max(id)::float8 from pedido where organizacion_id = $1) pedidos,
            (select max(id)::float8 from chat_caso where organizacion_id = $1) whatsapp`, [org]);
-  return { reclamos: Date.now(), pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0), facturas: Date.now() };
+  return { reclamos: Date.now(), pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0), facturas: Date.now(), prohibidas: Date.now() };
 }
 
 /** Si a las marcas guardadas les falta un tipo (uno nuevo), se completa con la de hoy y se guarda. */

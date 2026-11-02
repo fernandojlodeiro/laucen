@@ -31,7 +31,7 @@ export const TODAS_LAS_FECHAS = "todas";
 export function filtrosPedidos(sp: SP) {
   // La última semana sólo de entrada: con un estado elegido (ej. los pendientes de la barra) o un
   // cliente (desde su ficha), sin fechas = todas.
-  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente && sp.reserva !== "1" && sp.seg !== "1";
+  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente && sp.reserva !== "1" && sp.seg !== "1" && sp.full !== "1";
   const semana = rangoDeAtajo("7dias", hoyArgentina());
   return {
     // Sin elegir, todos (Fer, 6/10); "pendientes" sigue andando (lo usa el contador de la barra).
@@ -49,6 +49,8 @@ export function filtrosPedidos(sp: SP) {
     reserva: sp.reserva === "1",
     // «Sin pagar, en seguimiento» (Fer, 25/10): los que reciben los avisos automáticos (lib/pedidos/seguimiento.ts).
     seguimiento: sp.seg === "1",
+    // «Full» (Fer, 1/11): las ventas que despacha Mercado Libre desde su depósito.
+    full: sp.full === "1",
   };
 }
 
@@ -61,7 +63,7 @@ export function filtrosEnlace(sp: SP) {
     hasta: sp.desde === undefined && sp.hasta === undefined ? null : f.hasta || null,
     conPendiente: null, canceladas: null, pend: f.conPendiente ? "1" : null, canc: f.canceladas ? "1" : null,
     reserva: f.reserva ? "1" : null,
-    seguimiento: null, seg: f.seguimiento ? "1" : null,
+    seguimiento: null, seg: f.seguimiento ? "1" : null, full: f.full ? "1" : null,
   };
 }
 
@@ -239,6 +241,7 @@ export const LISTA_PEDIDOS: Lista = {
     if (f.conPendiente) donde.push(SQL_ALGO_PENDIENTE);
     if (f.reserva) donde.push(sqlReservaSinPagar("p"));
     if (f.seguimiento) donde.push("p.estado = 'nuevo' and pedido_en_seguimiento(p.id)");
+    if (f.full) donde.push("exists (select 1 from envio en where en.pedido_id = p.id and en.logistica = 'fulfillment')");
     // Sin las canceladas, salvo que se tilde «Incluye canceladas» o se elija ese estado.
     if (!f.canceladas && f.estado !== "cancelado") donde.push("p.estado <> 'cancelado'");
     if (f.pago) agregar((p) => `${sqlEstadoPago("p")} = ${p}`, f.pago);

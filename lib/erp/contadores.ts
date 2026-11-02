@@ -38,7 +38,7 @@ export async function cuentaParaAtender(org: string, puede: Puede): Promise<numb
   return (await una<Cuenta>(sqlParaAtender(puede), [org]).catch(() => null))?.n ?? 0;
 }
 
-// En el orden de la barra: para atender (los mensajes de todos los canales), pedidos y facturas.
+// En el orden de la barra: para atender (los mensajes de todos los canales), pedidos, facturas y publicaciones prohibidas.
 const CONTADORES: { clave: ClaveBarra; texto: string; href: string; permiso: PermisoKey | ((puede: Puede) => boolean); sql: string | ((puede: Puede) => string) }[] = [
   {
     // Todo lo de los mensajes en uno (Fer, 27/10): antes eran Reclamos, Mensajes, Preguntas y WhatsApp por separado.
@@ -54,6 +54,14 @@ const CONTADORES: { clave: ClaveBarra; texto: string; href: string; permiso: Per
     clave: "facturas", texto: "Facturas", href: "/ventas/pedidos?estado=retenidas&ver=facturas", permiso: "facturacion_ver",
     sql: `select count(*)::int n, floor(extract(epoch from max(factura_retenida_ts)) * 1000)::float8 marca
             from pedido where organizacion_id = $1 and factura_retenida is not null`,
+  },
+  {
+    // Publicaciones que Mercado Libre prohibió o dio de baja y siguen sin eliminar (Fer, 29/10; lib/mercadolibre/prohibidos.ts).
+    // La marca crece con cada prohibición nueva que ve Laucen (meli_prohibicion).
+    clave: "prohibidas", texto: "Prohibidas", href: "/catalogo/publicaciones?revision=prohibidas&inactivos=1", permiso: "publicaciones_ver",
+    sql: `select (select count(distinct (m.canal_id, m.item_id)) from meli_item m
+                   where m.organizacion_id = $1 and (m.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden')::int n,
+                 (select floor(extract(epoch from max(x.detectada_ts)) * 1000) from meli_prohibicion x where x.organizacion_id = $1)::float8 marca`,
   },
 ];
 

@@ -342,18 +342,25 @@ export async function facturarPendientes(org: string, hastaMs: number): Promise<
   if (!emisores.length) return res;
   // Cada razón social tiene su propio interruptor y su propio estado de facturación;
   // un pedido lo atiende la razón social de su canal (o la principal).
+  // Una venta de Full nunca pasa por «preparado» (la prepara ML en su depósito: va de pagado a despachado):
+  // para ella, «preparado» es estar pagada (Fer, 1/11: las ventas de Full no se facturaban solas).
+  const umbral = (p: string) => `(case when $2 = 'preparado' and exists (select 1 from envio en where en.pedido_id = ${p}.id and en.logistica = 'fulfillment') then 'pagado' else $2 end)`;
   for (const e of emisores.filter((x) => x.facturar_automatico)) {
     const eventos = await consulta<{ pedido_id: number }>(`
       with ev as (
         update evento set procesado_ts = now(), procesado_por = 'facturacion'
          where organizacion_id = $1 and procesado_ts is null
-           and ((tipo = 'pedido_estado_cambiado' and payload ->> 'nuevo' = $2) or tipo = 'pedido_pago_confirmado')
+           and ((tipo = 'pedido_estado_cambiado' and (payload ->> 'nuevo' = $2
+                 or exists (select 1 from pedido pf where pf.id = (evento.payload ->> 'pedido_id')::bigint
+                              and estado_pedido_orden(evento.payload ->> 'nuevo') >= estado_pedido_orden(${umbral("pf")})
+                              and ${umbral("pf")} <> $2)))
+                or tipo = 'pedido_pago_confirmado')
            and exists (select 1 from pedido pe where pe.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlEmisorDePedido("pe")} = $3)
            and not exists (select 1 from pedido p where p.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlCarritoEnEspera("p")})
         returning (payload ->> 'pedido_id')::bigint pedido_id, tipo)
       select distinct ev.pedido_id::int from ev join pedido p on p.id = ev.pedido_id
        where not ${sqlACobrar("p")}
-         and (ev.tipo = 'pedido_estado_cambiado' or estado_pedido_orden(p.estado) >= estado_pedido_orden($2))
+         and (ev.tipo = 'pedido_estado_cambiado' or estado_pedido_orden(p.estado) >= estado_pedido_orden(${umbral("p")}))
          and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.tipo_cbte in (1, 6, 11) and cb.estado = 'autorizado'
                            and not exists (select 1 from comprobante nc where nc.comprobante_asociado_id = cb.id and nc.estado = 'autorizado'))
        order by 1`, [org, e.facturar_al, e.id]);

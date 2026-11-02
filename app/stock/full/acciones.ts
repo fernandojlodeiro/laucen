@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { formatearNumero } from "@/lib/numeros";
 import {
   crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
-  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho,
+  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho, cambiarColecta,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
@@ -31,6 +31,20 @@ export async function accionNuevoEnvio(fd: FormData) {
   });
 }
 
+/** El envío armado desde el PDF de Mercado Libre (lib/full/importar.ts). */
+export async function accionImportarEnvio(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  await intentar("/stock/full", async () => {
+    const archivo = fd.get("archivo");
+    if (!(archivo instanceof File) || !archivo.size) throw new ErrorErp("Elegí el PDF del envío que bajaste de Mercado Libre.");
+    if (archivo.size > 5_000_000) throw new ErrorErp("El archivo es muy grande para ser el PDF del envío.");
+    const { importarInbound } = await import("@/lib/full/importar");
+    const r = await importarInbound(s.org.id, s.usuario.id, new Uint8Array(await archivo.arrayBuffer()), { canal: id(fd, "canal") || null, origen: id(fd, "origen") });
+    revalidatePath("/stock/full");
+    return { ir: ficha(r.envio, "?ok=" + encodeURIComponent(r.aviso)) };
+  });
+}
+
 export async function accionGuardarEnvio(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd);
@@ -38,6 +52,20 @@ export async function accionGuardarEnvio(fd: FormData) {
     const fecha = texto(fd, "fecha_entrega");
     await guardarCabecera(s.org.id, e, { numero_ml: texto(fd, "numero_ml"), fecha_entrega: fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null, notas: texto(fd, "notas") });
     return { ir: ficha(e, "?ok=" + encodeURIComponent("Grabado.")) };
+  });
+}
+
+/** El interruptor «Lo retira la colecta de Mercado Libre» de la ficha. */
+export async function accionColectaMl(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  const prendida = fd.get("valor") === "1";
+  await intentar(ficha(e), async () => {
+    await cambiarColecta(s.org.id, e, prendida);
+    revalidatePath("/informes/rentabilidad");
+    return { ir: ficha(e, "?ok=" + encodeURIComponent(prendida
+      ? "Va por la colecta de Mercado Libre: lo que cuesta llega solo con los cargos de Full."
+      : "Va con transportista: elegilo en el remito y cargá el flete.")) };
   });
 }
 

@@ -20,7 +20,7 @@ import { ESTADOS_ENVIO, type EstadoEnvio } from "@/lib/full/envios";
 import { diaAR } from "./piezas";
 import { LISTA_FULL_ENVIOS, PRODUCTOS_ENVIO, UNIDADES_ENVIO, RECIBIDAS_ENVIO } from "./lista";
 import { PestanasFull } from "./piezas";
-import { accionNuevoEnvio } from "./acciones";
+import { accionNuevoEnvio, accionImportarEnvio } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +65,26 @@ export default async function EnviosFull({ searchParams }: { searchParams: Promi
             </select></label>
           <BotonEnviar clase={PRIMARIO} corriendo="Creando…">Crear</BotonEnviar>
           <p className="basis-full text-[11px] text-[#5C6B76]">Si la cuenta todavía no tiene depósito Full, se crea solo («Full &lt;cuenta&gt;»).</p>
+        </form>
+        {/* Fer, 1/11: el envío ya cargado en Mercado Libre, con su PDF, sin cargarlo dos veces. */}
+        <form action={accionImportarEnvio} className="flex flex-wrap items-end gap-2 mt-4 pt-3 border-t border-[#E3E9F0]">
+          <p className="basis-full text-xs font-semibold">O importalo del PDF de Mercado Libre</p>
+          <label><span className={ETIQUETA}>PDF del envío</span>
+            <input type="file" name="archivo" accept="application/pdf,.pdf" required className={`${CAMPO} w-72`} /></label>
+          <label><span className={ETIQUETA}>Cuenta de Mercado Libre</span>
+            <select name="canal" defaultValue="" className={CAMPO}>
+              <option value="">La del archivo</option>
+              {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select></label>
+          <label><span className={ETIQUETA}>Sale del depósito</span>
+            <select name="origen" required defaultValue={depositos[0]?.id ?? ""} className={CAMPO}>
+              {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+            </select></label>
+          <BotonEnviar clase={PRIMARIO} corriendo="Importando…">Importar</BotonEnviar>
+          <p className="basis-full text-[11px] text-[#5C6B76]">
+            El que baja Mercado Libre al crear el envío («Inbound-…-preparation-instructions.pdf»). Laucen arma el envío con su número, los productos (por SKU) y las unidades.
+            Si ese envío ya estaba importado y sigue sin despachar, se rehace con lo del PDF.
+          </p>
         </form>
       </AltaNueva>
       <Avisos sp={sp} />

@@ -22,7 +22,7 @@ En los dos casos, cuando el producto vuelve, **"Recibir devolución"** abre la r
 
 - Menú **Ventas › Reclamos y devoluciones**.
 - El contador **"Para atender"** de la barra de estado (abajo) los cuenta junto con los mensajes que esperan a una persona, y abre [Mensajes](/ventas/mensajes). Se pinta de amarillo cuando entra algo nuevo, y según lo elegido en [Mis avisos](/config/avisos) suena y abre una ventana con el reclamo.
-- La tarjeta **"Reclamos y devoluciones"** del [Panel](/panel) (sus renglones abren la lista o las pestañas En mediación y Devoluciones en camino).
+- La tarjeta **"Reclamos y devoluciones"** del [Panel](/panel) (sus renglones abren la lista o las pestañas En mediación y Devoluciones pendientes).
 - Desde la [Cola de Mercado Libre](/config/canales/cola): las acciones de un reclamo enlazan a su ficha (por la dirección `/ventas/reclamos/ml/<número de reclamo de ML>`, que lleva directo a la ficha del reclamo en Laucen).
 
 ## Qué hay en la pantalla
@@ -31,13 +31,17 @@ En los dos casos, cuando el producto vuelve, **"Recibir devolución"** abre la r
 
 **Arriba a la derecha**: **"Traer reclamos de ML"** (sólo si hay una cuenta de Mercado Libre conectada), el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo reclamo"**.
 
+**Fotos del comprador.** En la ficha, las fotos que el comprador o Mercado Libre mandan dentro del reclamo se ven en miniatura debajo de cada mensaje; tocándolas se abren grandes.
+
+**Columnas de la lista**: además del número, la fecha, la cuenta, el pedido, el comprador, el motivo, la etapa y el estado, la columna **Producto** muestra la foto, la cantidad, el SKU (lleva a la ficha del producto) y el título corto del producto reclamado ("y N más" si el pedido tiene otros), y **Qué falta** dice por qué una devolución sigue pendiente: «ML espera tu revisión (hasta el …)», «Llegó: falta recibirla en Laucen», «Viene en camino» (con «ML ya le devolvió la plata» si el reclamo ya está cerrado) o «Etiqueta generada: todavía no la despachó».
+
 **Pestañas** (con su cantidad):
 
 | Pestaña | Qué muestra |
 |---|---|
 | **Abiertos** (la de entrada) | no resueltos, que no están en mediación ni con la devolución en camino |
 | **En mediación** | no resueltos en la etapa de mediación de Mercado Libre |
-| **Devoluciones en camino** | no resueltos con el producto volviendo (etiqueta generada, lista para despachar o en camino) |
+| **Devoluciones pendientes** | toda devolución que todavía no terminó: **viene en camino** (etiqueta generada, lista para despachar o despachada; también en mediación —la columna Etapa dice «Mediación»— y ya cerrada si el paquete sigue viajando: Mercado Libre le devuelve la plata al comprador y cierra el reclamo apenas se despacha), **llegó y falta recibirla** (hasta que su recepción de devolución, con «Recibir devolución», queda cerrada; las de los últimos 60 días) o **Mercado Libre espera que la revises** (si llegó bien o llegó mal, para reclamarle si vino dañada). Un reclamo puede estar a la vez en esta pestaña y en En mediación o Cerrados |
 | **Cerrados** | resueltos |
 
 **Filtros** (aplican al momento): **"Buscar"** ("Nº de pedido, orden de ML o comprador"; busca en todos los datos del reclamo —Nº, id y orden de ML, comprador, motivo, resolución, devolución y su tracking, notas— y en el Nº y el id externo del pedido y el nombre del cliente), **"Canal / cuenta"**, **"Motivo"** y **"Fechas"** (con atajos o "Todas las fechas"). **"Limpiar filtros"** cuando hay alguno.
@@ -105,6 +109,10 @@ Si Mercado Libre espera tu respuesta, arriba aparece el cartel **"Mercado Libre 
 
 Las acciones que Mercado Libre ofrece pero Laucen todavía no hace (mandar archivos, cargar prueba del envío, informar el envío o el número de seguimiento, generar la etiqueta de devolución) se ven deshabilitadas con "Próximamente desde Laucen: por ahora, desde Mercado Libre."
 
+**Revisión de la devolución.** Cuando la devolución llega, Mercado Libre pide que digas si llegó bien o llegó mal, con un plazo: si no hacés nada, la da por buena y ya no se puede reclamar. Mientras la espera, la ficha lo avisa arriba, en amarillo, con el plazo (aunque el reclamo esté cerrado: Mercado Libre le devuelve la plata al comprador apenas despacha la devolución), y el reclamo sigue en la pestaña **Devoluciones pendientes**. En «Qué podés hacer»:
+- **«La devolución llegó bien»**: lo confirma; después ya no se puede reclamar. Pregunta «¿Seguro?» Sí / No y sale por la cola.
+- **«La devolución llegó mal»**: es como se le reclama a Mercado Libre. Se elige qué pasó (el producto no está en el paquete, llegó dañado, la devolución está incompleta, devolvieron otro producto, otra falla, o aún no llegó), se cuenta en un texto y se suben **las fotos** (hasta 6, de la computadora o con la cámara del celular; se achican solas). Para «llegó dañado» y «devolvieron otro producto» Mercado Libre pide al menos una foto. Pregunta «¿Seguro?» Sí / No y sale por la cola: primero sube las fotos al reclamo y después manda la revisión. **Después ya no se pueden agregar fotos**: subilas todas en el mismo paso. Las fotos quedan guardadas en Laucen.
+
 ### Ver lo último de un reclamo de Mercado Libre
 
 Laucen los lee solo: cuando Mercado Libre avisa un cambio, en la revisión de cada media hora y, los abiertos, al menos una vez por día aunque Mercado Libre no avise (así entra, por ejemplo, un mensaje escrito desde Mercado Libre). Para traerlo en el momento: Apretá **"Actualizar desde ML"** (en la ficha) o **"Traer reclamos de ML"** (en la lista, para todos). Sólo leen: no cambian nada en Mercado Libre. "Traer reclamos de ML" revisa todas las cuentas a la vez; si alguna no se pudo traer (o algún reclamo puntual), el aviso dice cuál y por qué (por ejemplo "ML no da permiso de reclamos a esta cuenta" o "la cuenta está desconectada"), y lo de las demás cuentas entra igual.
@@ -145,10 +153,12 @@ Un reclamo de Mercado Libre de una venta hecha antes de Laucen entra igual, pero
 ## Criterios y reglas
 
 - **Cómo entran los de Mercado Libre**: al instante, por el aviso de Mercado Libre, y además cada 30 minutos se revisan todos los abiertos y los últimos cerrados (sólo se vuelven a traer los que cambiaron, y los que en Laucen siguen abiertos pero Mercado Libre ya no lista como abiertos). Un reclamo cerrado que Laucen no tenía entra sólo si tuvo movimiento en los últimos 90 días; los más viejos, y los que Mercado Libre ya no deja abrir, se saltean sin aviso. "Traer reclamos de ML" y "Actualizar desde ML" lo hacen en el momento. **Todo eso sólo lee** de Mercado Libre.
+- **La ficha se actualiza sola**: mientras está abierta y a la vista, cada 5 segundos se fija si el reclamo cambió (un mensaje nuevo del comprador o de Mercado Libre, o un cambio de estado) y, si cambió, se vuelve a dibujar sin recargar, como un chat. Si estás escribiendo un mensaje, espera a que lo mandes o lo borres para no perder lo escrito.
+- **El aviso en todo el panel**: cuando un reclamo pasa a esperar tu respuesta (uno nuevo, o un mensaje nuevo del comprador o de Mercado Libre), aparece la ventana de avisos con «Ver el reclamo», estés en la pantalla que estés; con el sonido prendido, además suena. Se elige en Configuración › Mis avisos.
 - **Estado de un reclamo de Mercado Libre**: Abierto mientras está abierto en Mercado Libre; Resuelto cuando Mercado Libre lo cierra (con su resolución, por ejemplo "Se devolvió el dinero", y a favor de quién). Los de la web o el local además pueden estar **En proceso**.
 - **"Espera tu respuesta"**: un reclamo de Mercado Libre abierto con alguna acción **obligatoria** para vos.
 - **Plazo ("Para responder")**: la fecha límite de la primera acción obligatoria (o, si no hay obligatorias, la primera con fecha). Se muestra "Quedan …" en rojo si faltan menos de 24 h, en amarillo si faltan menos de 72 h; "Venció hace …" en rojo si ya pasó. Hasta 48 horas se cuenta en horas, después en días.
-- **Orden de Abiertos, En mediación y Devoluciones en camino**: primero los que esperan tu respuesta, por vencimiento (el más próximo arriba); después por fecha, lo más nuevo primero. **Cerrados**: por la última actualización, lo más reciente primero.
+- **Orden de Abiertos, En mediación y Devoluciones pendientes**: primero los que esperan tu respuesta, por vencimiento (el más próximo arriba); después por fecha, lo más nuevo primero. **Cerrados**: por la última actualización, lo más reciente primero.
 - **Botones de Mercado Libre**: salen de lo que Mercado Libre ofrece **en ese momento** para ese reclamo. Antes de mandar, Laucen verifica que Mercado Libre la siga ofreciendo (si no: "Mercado Libre no ofrece «…» en este reclamo ahora. Tocá «Actualizar» para ver lo que se puede hacer.").
 - **Todo cambio en Mercado Libre es un clic tuyo** y sale por la [Cola de Mercado Libre](/config/canales/cola), con prioridad de botón (sale enseguida). Queda registrado qué se mandó, cuándo y con qué resultado.
 - **Una sola vez**: una acción que no es un mensaje (devolver, aceptar devolución, mediación) se saca de los botones apenas se manda, hasta que se vuelva a leer el reclamo. Dos clics iguales seguidos no se duplican ("Eso ya está en la cola: sale en un momento.").

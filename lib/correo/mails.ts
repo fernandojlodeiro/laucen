@@ -261,8 +261,9 @@ export async function alAutorizarMail(org: string, comprobanteId: number): Promi
  *  reintentos: el mail hasta 5, el WhatsApp cada 10 minutos durante 3 días (plantilla en aprobación). */
 export async function procesarCola(org: string | null, hastaMs: number): Promise<{ enviados: number; fallidos: number }> {
   const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar" | TipoSeguimiento; nota: string | null;
-    falta_mail: boolean; falta_wa: boolean }>(`
-    select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa from correo_cola
+    falta_mail: boolean; falta_wa: boolean; ml: boolean }>(`
+    select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa,
+           exists (select 1 from pedido p join canal c on c.id = p.canal_id where p.id = correo_cola.pedido_id and c.tipo = 'mercadolibre') ml from correo_cola
      where (${SQL_FALTA_MAIL} or ${SQL_FALTA_WA}) and ($1::text is null or organizacion_id = $1) order by id limit 20`, [org]);
   let enviados = 0, fallidos = 0;
   const { avisarPorWhatsapp } = await import("@/lib/mensajes/avisos-pedido");
@@ -272,6 +273,18 @@ export async function procesarCola(org: string | null, hastaMs: number): Promise
     if (esSeguimiento(f.tipo) && !(await sigueCorrespondiendo(f.pedido_id, f.tipo))) {
       await consulta(`update correo_cola set hecho_ts = coalesce(hecho_ts, now()), wa_hecho_ts = coalesce(wa_hecho_ts, now()),
                              wa_estado = coalesce(wa_estado, 'no_corresponde'), wa_detalle = coalesce(wa_detalle, 'El pedido ya se pagó o cambió.') where id = $1`, [f.id]);
+      continue;
+    }
+    // Una venta de Mercado Libre que retiran en el local: el «listo para retirar» va por la mensajería de la venta
+    // (Fer, 29/10), no por mail ni WhatsApp. Hasta 5 intentos, como el mail.
+    if (f.ml) {
+      const r = await import("@/lib/mercadolibre/mensajes").then((m) => m.avisarListoParaRetirarMl(f.organizacion_id, f.pedido_id))
+        .then(() => null, (e) => (e instanceof Error ? e.message : String(e)));
+      if (r) console.error("[aviso por Mercado Libre]", f.pedido_id, r);
+      await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 or intentos >= 4 then now() end,
+                             wa_hecho_ts = coalesce(wa_hecho_ts, now()), wa_estado = 'mercadolibre', wa_detalle = $3 where id = $1`,
+        [f.id, !r, r ? r.slice(0, 300) : "Avisado por la mensajería de Mercado Libre."]);
+      if (r) fallidos++; else enviados++;
       continue;
     }
     if (f.falta_mail) {

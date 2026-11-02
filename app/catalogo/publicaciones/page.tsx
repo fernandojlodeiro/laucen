@@ -61,7 +61,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const cont = comienza ? null : "1";
   const editar = Number(sp.editar) || 0;
   // En revisión en ML: filtro y la fila donde se está corrigiendo el precio (?precio=<id>).
-  const revision = sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null;
+  const revision = sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" || sp.revision === "prohibidas" ? sp.revision : null;
   const corrigiendo = Number(sp.precio) || 0;
   const inactivos = verInactivos(sp);
   const catalogo = sp.catalogo === "1", comunes = sp.comunes === "1";
@@ -116,6 +116,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
         <FiltroVivo parametro="revision" valor={revision ?? ""} etiqueta="En revisión en ML" limpiar={["editar", "precio"]}>
           <option value="">En revisión o no</option><option value="todas">En revisión en ML</option>
           <option value="precio">En revisión por precio</option><option value="otro">En revisión por otro motivo</option>
+          <option value="prohibidas">Prohibidas por ML</option>
         </FiltroVivo>
         {/* De catálogo o no (Fer, 7/10): con una sola tildada filtra; con las dos (o ninguna), todas. */}
         <CasillaViva parametro="catalogo" activo={catalogo} etiqueta="De catálogo" ayuda="Las publicaciones que compiten en la página del producto de Mercado Libre" />

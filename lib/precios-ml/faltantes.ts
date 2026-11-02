@@ -17,6 +17,7 @@ import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, lim
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { comprobarAgrupado } from "@/lib/mercadolibre/agrupar";
 import { tituloParaCuenta } from "@/lib/mercadolibre/titulos-ia";
+import { skuNormal, skusProhibidos } from "@/lib/mercadolibre/prohibidos";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
 import { filtrarCalculo, type FiltroPrecios } from "@/lib/precios-ml/preparar";
@@ -50,9 +51,11 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
                 and (enviado_ts > now() - interval '1 hour' or exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado <> 'closed' and not (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, canalId])).map((x) => x.item_id));
 
+  // Lo que ML prohibió en esta cuenta no se vuelve a crear (Fer, 29/10; prohibidos.ts).
+  const prohibidos = await skusProhibidos(org, canalId);
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {
-    if (opts.saltear?.has(info.sku)) continue;
+    if (opts.saltear?.has(info.sku) || prohibidos.has(skuNormal(info.sku))) continue;
     const faltan = propuesta.faltan.filter((f) => !enCola.has(claveAlta(info.sku, f.plan)));
     if (!faltan.length) continue;
     // En tandas (Fer, 10/10: «Crear 40»): lo que pasa del tope queda para la próxima.

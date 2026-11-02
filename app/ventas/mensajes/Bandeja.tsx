@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Adjuntos from "@/app/componentes/Adjuntos";
 import {
   FILTROS, ORIGENES, NOMBRE_ORIGEN,
   type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FotoBandeja, type MensajeVista,
@@ -274,6 +275,11 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
           <div className="text-sm font-bold truncate">{chat.nombre}</div>
           <div className="text-[11px] text-[#5C6B76] truncate flex items-center gap-1"><LogoOrigen origen={chat.origen} clase="h-3 w-3 shrink-0" /><span className="truncate">{chat.detalle}</span></div>
         </button>
+        {chat.pedidos.map((e) => (
+          <Link key={e.href} href={e.href} className={`${SUAVE} shrink-0`} title={`Abrir el ${e.texto.toLowerCase()}`}>
+            🧾<span className="hidden md:inline"> {e.texto}</span><span className="md:hidden"> {e.texto.replace(/^\D+/, "")}</span>
+          </Link>
+        ))}
         {terminado ? <span className="text-xs font-bold text-[#167655] px-1" role="status">✓ Terminado</span>
           : chat.terminar && <button type="button" onClick={terminar} disabled={!!trabajando} className={SUAVE} title={`No hay nada más que decirle: sale de «Para atender»${chat.ia ? ` y ${chat.origen === "ml" ? "la IA" : nombreIa} vuelve a atender` : ""}. Si vuelve a escribir, aparece de nuevo.`}>✓ Terminado</button>}
         {chat.notas != null && <button type="button" onClick={() => setVerNotas(!verNotas)} className={SUAVE} title="Notas internas">📝<span className="hidden md:inline"> Notas</span></button>}
@@ -376,6 +382,8 @@ function Globo({ m, nombreIa }: { m: MensajeVista; nombreIa: string }) {
             </div>
           );
         })()}
+        {/* Las fotos y archivos que mandó (Fer, 29/10): se traen de Mercado Libre al verlas; tocándolas se abren grandes. */}
+        {m.adjuntos && m.adjuntos.length > 0 && <Adjuntos lista={m.adjuntos} />}
         <div className="mt-0.5 flex justify-end gap-1 text-[10px] text-[#5C6B76]">
           <span>{horaLarga(m.ts)}</span>{nuestro && estado}
         </div>

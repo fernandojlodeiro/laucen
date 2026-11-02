@@ -5,6 +5,8 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
+import { asegurarEsquemaErp } from "@/lib/erp/esquema";
+import { sesionRequerida } from "@/lib/tenancy";
 import { ErrorErp, una, consulta, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
 import { intentar, id, texto } from "@/lib/erp/acciones";
@@ -343,8 +345,19 @@ export async function accionFacturaMail(fd: FormData) {
 // (la firma de quien retira y su DNI; Fer, 25/10). Son dos cosas distintas, cada una con su tabla.
 const ARCHIVOS = { pago: "pedido_comprobante_pago", retiro: "pedido_conforme_retiro" } as const;
 
+/** El conforme de retiro lo sube también quien entrega en el local desde el celular (Depósito › Entregas en el local),
+ *  con el permiso del picking aunque no vea los pedidos. */
+async function entrarArchivo(clase: keyof typeof ARCHIVOS) {
+  if (clase === "pago") return entrarErp("pedidos_ver");
+  await asegurarEsquemaErp();
+  const s = await sesionRequerida();
+  if (!tienePermiso(s.permisos, "pedidos_ver") && !tienePermiso(s.permisos, "picking_ver")) throw new ErrorErp("Tu rol no puede subir el conforme de retiro.");
+  return s;
+}
+
 async function guardarArchivo(fd: FormData, clase: keyof typeof ARCHIVOS): Promise<{ motivo?: string; id?: number }> {
-  const s = await entrarErp("pedidos_ver");
+  let s: Awaited<ReturnType<typeof entrarArchivo>>;
+  try { s = await entrarArchivo(clase); } catch (e) { return { motivo: motivoErp(e) }; }
   const pid = id(fd, "pedido_id");
   try {
     if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
@@ -437,7 +450,7 @@ export async function accionBorrarComprobantePago(fd: FormData) { return borrarA
 export async function guardarConformeRetiro(fd: FormData): Promise<{ motivo?: string; ok?: string }> {
   const g = await guardarArchivo(fd, "retiro");
   if (g.motivo || fd.get("ultimo") !== "1") return g;
-  const s = await entrarErp("pedidos_ver");
+  const s = await entrarArchivo("retiro");
   const pid = id(fd, "pedido_id");
   const p = await una<{ estado: string; estado_pago: string; ml: boolean }>(`
     select p.estado, ${sqlEstadoPago("p")} estado_pago, c.tipo = 'mercadolibre' ml from pedido p join canal c on c.id = p.canal_id
@@ -446,7 +459,9 @@ export async function guardarConformeRetiro(fd: FormData): Promise<{ motivo?: st
   if (!p.ml && !["pagado", "a_convenir"].includes(p.estado_pago))
     return { ok: "Conforme guardado. Falta cobrarlo: elegí con qué pagó y tocá «Cliente presente: retira y paga»." };
   try {
-    return { ok: `Conforme guardado. ${await retirar(s.org.id, pid, s.usuario.id, null)}` };
+    const hecho = await retirar(s.org.id, pid, s.usuario.id, null);
+    revalidatePath("/deposito/entregas");
+    return { ok: `Conforme guardado. ${hecho}` };
   } catch (e) {
     return { motivo: `Conforme guardado, pero no se pudo entregar: ${motivoErp(e)}` };
   }

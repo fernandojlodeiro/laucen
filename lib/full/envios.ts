@@ -85,6 +85,8 @@ export type Envio = {
   flete_ars: number | null; flete_factura_id: number | null; flete_criterio: CriterioFlete; factura: string | null; notas: string | null;
   valor_declarado_ars: number | null; transportista_id: number | null; transportista: string | null; bultos: number | null;
   despachado_ts: Date | null; recibido_ts: Date | null; cerrado_ts: Date | null; creado_ts: Date;
+  /** Lo retira la colecta de Mercado Libre (sin transportista ni flete a mano). */
+  colecta_ml: boolean;
 };
 
 export const SQL_FACTURA_TEXTO = `(select concat_ws(' · ', to_char(f.fecha, 'DD/MM/YYYY'), pr.nombre,
@@ -96,24 +98,29 @@ export async function envio(org: string, id: number): Promise<Envio | null> {
     select e.id::int, e.canal_id::int, c.nombre canal, e.deposito_origen_id::int, o.nombre origen, e.deposito_full_id::int, f.nombre full,
            e.ubicacion_transito_id::int, e.numero_ml, to_char(e.fecha_entrega, 'YYYY-MM-DD') fecha_entrega, e.estado,
            e.flete_ars::float, e.flete_factura_id::int, e.flete_criterio, ${SQL_FACTURA_TEXTO} factura, e.notas,
-           e.valor_declarado_ars::float, e.transportista_id::int, (select pv.nombre from proveedor pv where pv.id = e.transportista_id) transportista, e.bultos,
+           e.valor_declarado_ars::float, e.transportista_id::int, (select pv.nombre from proveedor pv where pv.id = e.transportista_id) transportista, e.bultos, e.colecta_ml,
            e.despachado_ts, e.recibido_ts, e.cerrado_ts, e.creado_ts
       from full_envio e join canal c on c.id = e.canal_id join deposito o on o.id = e.deposito_origen_id join deposito f on f.id = e.deposito_full_id
      where e.organizacion_id = $1 and e.id = $2`, [org, id]);
 }
 
 /** Un envío nuevo en borrador, de una cuenta de ML y desde un depósito propio. Si la cuenta todavía
- *  no tiene depósito Full, lo crea. El transportista, el del último envío que lo tenga. */
-export async function crearEnvio(org: string, usuario: string, canalId: number, origenId: number): Promise<number> {
+ *  no tiene depósito Full, lo crea. Va como el último envío: por la colecta de Mercado Libre o con el
+ *  transportista del último que lo tenga (`colecta` lo fuerza: el PDF importado va por colecta). */
+export async function crearEnvio(org: string, usuario: string, canalId: number, origenId: number, colecta?: boolean): Promise<number> {
   return enTransaccion(async (c) => {
     const o = (await c.query<{ tipo: string }>("select tipo from deposito where id = $1 and organizacion_id = $2 and estado = 'activo'", [origenId, org])).rows[0];
     if (!o || o.tipo === "full_ml" || o.tipo === "transito") throw new ErrorErp("Elegí el depósito de donde sale la mercadería.");
     const full = await asegurarDepositoFull(c, org, canalId);
     const r = await c.query<{ id: string }>(`
-      insert into full_envio (organizacion_id, canal_id, deposito_origen_id, deposito_full_id, usuario_id, transportista_id)
-      values ($1, $2, $3, $4, $5, (select transportista_id from full_envio where organizacion_id = $1 and transportista_id is not null order by id desc limit 1))
+      with c as (select coalesce($6::boolean, (select colecta_ml from full_envio where organizacion_id = $1 order by id desc limit 1), false) colecta)
+      insert into full_envio (organizacion_id, canal_id, deposito_origen_id, deposito_full_id, usuario_id, colecta_ml, transportista_id)
+      select $1, $2, $3, $4, $5, c.colecta,
+             case when c.colecta then null
+                  else (select transportista_id from full_envio where organizacion_id = $1 and transportista_id is not null order by id desc limit 1) end
+        from c
       returning id`,
-      [org, canalId, origenId, full, usuario]);
+      [org, canalId, origenId, full, usuario, colecta ?? null]);
     return Number(r.rows[0].id);
   });
 }
@@ -550,6 +557,18 @@ export async function lineasReparto(org: string, envioId: number): Promise<Linea
 }
 
 /** Recalcula el flete por unidad de cada línea (con cada cambio de flete o de líneas). */
+/** Prende o apaga «Lo retira la colecta de Mercado Libre». Prendida, sin transportista ni flete a mano: el costo
+ *  lo trae Mercado Libre con los cargos de Full. */
+export async function cambiarColecta(org: string, envioId: number, colecta: boolean): Promise<void> {
+  const r = await consulta(`
+    update full_envio set colecta_ml = $3,
+           transportista_id = case when $3 then null else transportista_id end,
+           flete_ars = case when $3 then null else flete_ars end, flete_factura_id = case when $3 then null else flete_factura_id end
+     where organizacion_id = $1 and id = $2 returning id`, [org, envioId, colecta]);
+  if (!r.length) throw new ErrorErp("Ese envío no existe.");
+  await prorratearFlete(org, envioId);
+}
+
 export async function prorratearFlete(org: string, envioId: number): Promise<void> {
   const e = await una<{ flete_ars: number | null; flete_criterio: CriterioFlete }>("select flete_ars::float, flete_criterio from full_envio where organizacion_id = $1 and id = $2", [org, envioId]);
   if (!e) return;

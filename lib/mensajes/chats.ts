@@ -144,12 +144,14 @@ export async function anotarEntrega(wamid: string, estado: "entregado" | "leido"
      where wamid = $1 and not (estado_entrega = 'leido' and $2 = 'entregado')`, [wamid, estado, motivo]);
 }
 
-export type Turno = { clase: Clase; texto: string; ts: string };
+/** automatico: un aviso que mandó el sistema solo (pago recibido, despachado, la factura…), no una persona. */
+export type Turno = { clase: Clase; texto: string; ts: string; automatico: boolean };
 
 /** Los últimos mensajes del chat, del más viejo al más nuevo. */
 export async function historialDe(chatId: number, n = 20): Promise<Turno[]> {
   const filas = await consulta<Turno>(`
-    select clase, texto, ts::text from (select * from chat_mensaje where chat_id = $1 and texto <> '' order by id desc limit $2) x order by id`, [chatId, n]);
+    select clase, texto, ts::text, (clase = 'operador' and usuario_id is null) automatico
+      from (select * from chat_mensaje where chat_id = $1 and texto <> '' order by id desc limit $2) x order by id`, [chatId, n]);
   return filas;
 }
 

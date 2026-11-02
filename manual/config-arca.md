@@ -89,6 +89,8 @@ Apretá **"Probar conexión con ARCA"**. Laucen le pregunta a ARCA el último n�
 2. Prendé el interruptor **"Facturar automáticamente"**.
 3. El aviso confirma: "Facturación automática prendida: se facturan los pedidos que lleguen a "…" de ahora en adelante." y, si había, cuántos cambios de estado anteriores quedaron como vistos.
 
+Las **ventas de Full** de Mercado Libre nunca pasan por «Preparado» (las prepara Mercado Libre en su depósito: van de pagado a despachado). Con **Preparado** elegido, una venta de Full se factura al estar **pagada**; con **Despachado**, al despacharse.
+
 ### Renovar el permiso o cambiar CUIT o punto de venta
 
 1. Abrí **"Cambiar o desconectar"**.
