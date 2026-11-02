@@ -426,6 +426,10 @@ cambie, Fer lo va a decir explícitamente.
      más bajo), gana esa; la segunda escribe "La deja, la toma #<id>" y no la hace.
   4. Al terminar, responder en el hilo "Terminado" (con qué se hizo, en pocas líneas), para
      que ninguna otra sesión la intente. Si se abandona a mitad, escribir "La suelto" y por qué.
+- **Lo que una sesión hace con un producto queda asentado en su ficha** (pedido de Fer, 2/11): un alta, un cambio de
+  costo o de precio, pasarlo a kit… se anota en «Notas internas» (`producto.notas_internas`, se agrega abajo, nunca se
+  pisa) con `[d/m/aaaa · Code o Cowork, sesión «título» (id)]`, qué se hizo y por qué (de dónde salió el dato). No va en
+  «Datos técnicos para la IA» (`notas_ia`): ésa la lee la IA que contesta a los clientes.
 - **Todo lo nuevo se anota en la bitácora, aunque nadie lo haya pedido.** Cada cosa que una
   sesión hace, decide o descubre (una función nueva, un cambio de criterio, un detalle de cómo
   anda un módulo, un hueco que queda abierto) va a la bitácora: qué es, para qué, y qué queda
