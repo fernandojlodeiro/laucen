@@ -63,16 +63,16 @@ export async function recibirComprobanteWhatsapp(org: string, chatId: number, ar
   return { pedidoId: p.id, conciliado: false };
 }
 
-/** El aviso al cliente por el mismo chat: «Recibimos tu pago» si cerró con Mercado Pago; si no, sólo que se está
- *  verificando (Fer, 2/11: sin más detalles; el motivo queda en las notas del pedido). */
+/** El aviso al cliente por el mismo chat cuando no cerró: sólo que se está verificando (Fer, 2/11: sin más
+ *  detalles; el motivo queda en las notas del pedido). */
 export async function avisarComprobanteAlCliente(org: string, chatId: number, pedidoId: number, conciliado: boolean): Promise<void> {
+  // Pagado: el aviso «ya tenemos el pago» lo manda el seguimiento del pedido (lib/pedidos/seguimiento.ts); otro sería repetido.
+  if (conciliado) return;
   const { credencialDeOrg, chatPorId, guardarMensaje } = await import("@/lib/mensajes/chats");
   const { enviarTexto } = await import("@/lib/mensajes/meta");
   const [cred, chat] = await Promise.all([credencialDeOrg(org), chatPorId(org, chatId)]);
   if (!cred || !chat) return;
-  const texto = conciliado
-    ? `¡Gracias! Recibimos tu pago del pedido #${pedidoId}. Ya lo estamos preparando y te avisamos por acá cuando esté listo.`
-    : "¡Gracias! Recibimos tu comprobante. Estamos verificando el pago y te avisamos por acá.";
+  const texto = "¡Gracias! Recibimos tu comprobante. Estamos verificando el pago y te avisamos por acá.";
   const r = await enviarTexto({ token: cred.token, phoneNumberId: cred.phoneNumberId }, chat.externo, texto);
   if (r.ok) await guardarMensaje({ org, chatId, clase: "operador", texto, wamid: r.wamid, estado: "enviado" }).catch(() => null);
 }
