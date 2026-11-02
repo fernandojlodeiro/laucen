@@ -6,40 +6,17 @@
 // el precio de venta con que se calculó la ganancia y de dónde sale (con el mercado, el link a la publicación).
 
 import ExcelJS from "exceljs";
-import sharp from "sharp";
 import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { CANTIDADES_PEDIDO, cantidadPedido, filasDeLaPantalla, type CantidadPedido, type FilaSugerencia } from "@/lib/compras/sugerencia";
 import { CATEGORIAS_VIA } from "@/lib/compras/via";
+import { LADO_FOTO, miniaturas } from "@/lib/compras/fotos-excel";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-/** Lado de la foto en el Excel, en píxeles. */
-const LADO = 90;
-
-/** La foto principal, achicada a JPG (Excel no acepta WEBP, que es como vienen de Mercado Libre). Sin foto, null. */
-async function miniatura(url: string | undefined): Promise<Buffer | null> {
-  if (!url || !/^https?:\/\//.test(url)) return null;
-  try {
-    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { "user-agent": "Mozilla/5.0" } });
-    if (!r.ok) return null;
-    return await sharp(Buffer.from(await r.arrayBuffer())).resize(LADO * 2, LADO * 2, { fit: "contain", background: "#ffffff" }).flatten({ background: "#ffffff" }).jpeg({ quality: 75 }).toBuffer();
-  } catch {
-    return null;
-  }
-}
-
-/** Baja las fotos de a varias a la vez. */
-async function miniaturas(filas: Pick<FilaSugerencia, "fotos">[]): Promise<(Buffer | null)[]> {
-  const out: (Buffer | null)[] = new Array(filas.length).fill(null);
-  let i = 0;
-  await Promise.all(Array.from({ length: 10 }, async () => {
-    while (i < filas.length) { const k = i++; out[k] = await miniatura(filas[k].fotos?.[0]); }
-  }));
-  return out;
-}
+const LADO = LADO_FOTO;
 
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
@@ -48,7 +25,7 @@ export async function GET(req: NextRequest) {
   // La cantidad: la del típico, la del mejor momento o el promedio (?cant=), elegida al lado del botón.
   const cant: CantidadPedido = CANTIDADES_PEDIDO.some(([k]) => k === sp.cant) ? (sp.cant as CantidadPedido) : "tipico";
   const filas = todas.map((x) => ({ ...x, pedir: cantidadPedido(x, cant) })).filter((x) => x.pedir > 0);
-  const fotos = await miniaturas(filas);
+  const fotos = await miniaturas(filas.map((x) => x.fotos?.[0]));
 
   const libro = new ExcelJS.Workbook();
   const h = libro.addWorksheet("Pedido", { views: [{ state: "frozen", ySplit: 1 }] });
