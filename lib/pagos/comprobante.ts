@@ -143,8 +143,8 @@ const esTransferencia = (p: PagoMp) => p.operation_type === "money_transfer" || 
 
 /** La cuenta de Mercado Pago del canal del pedido (Configuración › Canales). */
 async function cuentaDelPedido(org: string, pid: number) {
-  return una<{ id: number; user_id: string }>(`
-    select m.id::int, m.mp_user_id::text user_id from pedido p join canal_mp cm on cm.canal_id = p.canal_id join mp_conexion m on m.id = cm.conexion_id
+  return una<{ id: number; user_id: string; nombre: string | null }>(`
+    select m.id::int, m.mp_user_id::text user_id, m.nombre from pedido p join canal_mp cm on cm.canal_id = p.canal_id join mp_conexion m on m.id = cm.conexion_id
      where p.id = $1 and p.organizacion_id = $2 and m.estado = 'activa' limit 1`, [pid, org]);
 }
 
@@ -182,9 +182,17 @@ export async function conciliarComprobante(org: string, comprobanteId: number, q
 
   // Por número de operación: el pago tiene que haber entrado a ESTA cuenta y estar aprobado.
   let porNumero: Movimiento | null = null;
+  // Por qué no sirvió el número leído, para que quien lo revise sepa dónde mirar.
+  let motivoNumero = "";
   if (leido.numeroOperacion) {
     const r = await mpPedir<PagoMp>(token, "GET", `/v1/payments/${leido.numeroOperacion}`);
+    const op = `La operación ${leido.numeroOperacion}`, enCuenta = `la cuenta de Mercado Pago del canal${cuenta.nombre ? ` (${cuenta.nombre})` : ""}`;
     if (r.status === 200 && String(r.datos.collector_id) === cuenta.user_id && r.datos.status === "approved") porNumero = movimientoDe(r.datos);
+    else if (r.status === 200 && String(r.datos.collector_id) !== cuenta.user_id) motivoNumero = `${op} existe en Mercado Pago pero no entró a ${enCuenta}.`;
+    else if (r.status === 200) motivoNumero = `${op} está «${r.datos.status ?? "sin estado"}» en Mercado Pago, no aprobada.`;
+    else if (r.status === 404) motivoNumero = `${op} no aparece en ${enCuenta}.`;
+    else if (r.status === 401 || r.status === 403) motivoNumero = `${enCuenta.charAt(0).toUpperCase()}${enCuenta.slice(1)} no deja ver ${op.toLowerCase()} (puede ser de otra cuenta).`;
+    else motivoNumero = `No se pudo consultar ${op.toLowerCase()} en Mercado Pago (respuesta ${r.status || "sin conexión"}).`;
   }
   // Por importe y fecha: las transferencias aprobadas de esos días que nadie usó.
   let delDia: Movimiento[] = [];
@@ -199,6 +207,7 @@ export async function conciliarComprobante(org: string, comprobanteId: number, q
   }
   const usadoPorOtro = porNumero ? (await usados(org, [porNumero.id])).has(porNumero.id) : false;
   const v = decidir({ leido, total: c.total, porNumero, usadoPorOtro, delDia, cliente: c.cliente });
+  if (motivoNumero && v.estado !== "conciliado") v.detalle = `${motivoNumero} ${v.detalle}`;
   if (v.estado === "conciliado" && v.elegido) await registrar(org, c.pedido_id, v.elegido, quien);
   return anotar(v, leido);
 }
@@ -229,16 +238,36 @@ export async function descartarCandidatos(org: string, comprobanteId: number): P
                    where id = $1 and organizacion_id = $2`, [comprobanteId, org]);
 }
 
-/** Los que quedaron «sin encontrar» de los últimos tres días: se vuelven a buscar (la transferencia puede tardar). */
+/** El asunto del caso «En espera» que abre un comprobante por WhatsApp que no concilió (uno por pedido). */
+export const asuntoCasoPago = (pid: number) => `Pago sin conciliar · pedido #${pid}`;
+
+/** Suma un renglón, con fecha y hora, a las notas del pedido: las ve el equipo en el pedido, el cliente no. */
+export async function anotarEnPedido(org: string, pid: number, texto: string): Promise<void> {
+  await consulta(`update pedido set notas = concat_ws(E'\\n', nullif(notas, ''), to_char(now() at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') || ' · ' || $3)
+                   where id = $1 and organizacion_id = $2`, [pid, org, texto]);
+}
+
+/** Los que quedaron «sin encontrar» de los últimos tres días: se vuelven a buscar (la transferencia puede tardar).
+ *  No le escribe al cliente: si aparece, queda anotado en el pedido y se cierra el caso «En espera» del chat. */
 export async function reintentarComprobantes(org: string, hastaMs: number): Promise<{ conciliados: number }> {
-  const filas = await consulta<{ id: number }>(`
-    select cp.id::int from pedido_comprobante_pago cp join pedido p on p.id = cp.pedido_id
+  const filas = await consulta<{ id: number; pedido_id: number }>(`
+    select cp.id::int, cp.pedido_id::int from pedido_comprobante_pago cp join pedido p on p.id = cp.pedido_id
      where cp.organizacion_id = $1 and cp.estado = 'sin_encontrar' and cp.lectura is not null and p.estado_pago <> 'pagado'
        and cp.creado_ts > now() - interval '3 days' and coalesce(cp.revisado_ts, cp.creado_ts) < now() - interval '25 minutes' order by cp.id limit 20`, [org]);
   let conciliados = 0;
-  for (const { id } of filas) {
+  for (const { id, pedido_id } of filas) {
     if (Date.now() > hastaMs) break;
-    try { if ((await conciliarComprobante(org, id, "sistema")).estado === "conciliado") conciliados++; } catch (e) { console.error("[comprobante] reintento", id, e); }
+    try {
+      const v = await conciliarComprobante(org, id, "sistema");
+      if (v.estado === "conciliado") {
+        conciliados++;
+        await anotarEnPedido(org, pedido_id, `Comprobante de pago: apareció en Mercado Pago y el pago quedó registrado solo. ${v.detalle}`);
+        await consulta(`update chat_caso set resuelto_ts = now(), resolucion = 'El pago apareció en Mercado Pago y quedó registrado solo.'
+                         where organizacion_id = $1 and asunto = $2 and resuelto_ts is null`, [org, asuntoCasoPago(pedido_id)]);
+      } else if (v.estado !== "sin_encontrar") {
+        await anotarEnPedido(org, pedido_id, `Comprobante de pago: ${v.detalle}`);
+      }
+    } catch (e) { console.error("[comprobante] reintento", id, e); }
   }
   return { conciliados };
 }

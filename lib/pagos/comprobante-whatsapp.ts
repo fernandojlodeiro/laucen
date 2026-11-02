@@ -2,7 +2,8 @@
 // PDF al WhatsApp de la tienda. Si tiene un pedido de los últimos 10 días con el pago pendiente, el archivo
 // queda en ese pedido como «Comprobante de pago» (origen WhatsApp) y se concilia en el momento con Mercado
 // Pago (lib/pagos/comprobante.ts), igual que si lo subiera el equipo. Si cierra, se le confirma al cliente
-// por el mismo chat y la IA no contesta encima; si no, sigue la conversación normal.
+// por el mismo chat y la IA no contesta encima. Si no cierra (Fer, 2/11): el motivo va a las notas del pedido,
+// se abre un caso «En espera» para una persona y al cliente sólo se le dice que se está verificando.
 // El archivo no se copia: queda guardado en WhatsApp (ruta «wa/<id>») y el panel lo muestra pidiéndoselo
 // a Meta (app/ventas/pedidos/[id]/comprobante/[cid]).
 
@@ -19,11 +20,15 @@ export async function bajarDeWhatsapp(token: string, mediaId: string): Promise<{
   return { datos: Buffer.from(await r.arrayBuffer()), tipo: (m.mime_type ?? r.headers.get("content-type") ?? "").split(";")[0].trim() };
 }
 
-/** Lo procesa si corresponde. Devuelve el pedido si el pago quedó registrado (para confirmárselo al cliente). */
+export type ResultadoWhatsapp = { pedidoId: number; conciliado: boolean };
+
+/** Lo procesa si corresponde. Devuelve el pedido y si el pago quedó registrado (null si no era para un pedido
+ *  o no es un comprobante). Si no cerró, deja el motivo en las notas del pedido y abre un caso «En espera» en el
+ *  chat para que una persona lo revise; al cliente se le contesta sólo que se está verificando. */
 export async function recibirComprobanteWhatsapp(org: string, chatId: number, archivo: { mediaId: string; tipo: string; nombre: string | null }):
-  Promise<{ pedidoId: number } | null> {
+  Promise<ResultadoWhatsapp | null> {
   if (archivo.tipo && !archivo.tipo.startsWith("image/") && archivo.tipo !== "application/pdf") return null;
-  const { chatPorId, clientePorTelefono, credencialDeOrg } = await import("@/lib/mensajes/chats");
+  const { chatPorId, clientePorTelefono, credencialDeOrg, abrirCaso } = await import("@/lib/mensajes/chats");
   const chat = await chatPorId(org, chatId);
   if (!chat) return null;
   const clienteId = chat.clienteId ?? await clientePorTelefono(org, chat.externo);
@@ -41,7 +46,14 @@ export async function recibirComprobanteWhatsapp(org: string, chatId: number, ar
   const r = await una<{ id: number }>(`insert into pedido_comprobante_pago (organizacion_id, pedido_id, ruta, nombre, tipo, origen, subido_por)
                                         values ($1, $2, $3, $4, $5, 'whatsapp', 'sistema') returning id::int`,
     [org, p.id, `wa/${archivo.mediaId}`, archivo.nombre ?? (archivo.tipo === "application/pdf" ? "Comprobante (WhatsApp).pdf" : "Foto por WhatsApp"), bajado?.tipo ?? archivo.tipo]);
-  const { conciliarComprobante } = await import("@/lib/pagos/comprobante");
+  const { conciliarComprobante, anotarEnPedido, asuntoCasoPago } = await import("@/lib/pagos/comprobante");
   const v = await conciliarComprobante(org, r!.id, "sistema", bajado ?? undefined);
-  return v.estado === "conciliado" && v.elegido ? { pedidoId: p.id } : null;
+  if (v.estado === "conciliado" && v.elegido) return { pedidoId: p.id, conciliado: true };
+  // Una foto que no es un comprobante (un producto, una captura cualquiera): sigue la conversación normal.
+  if (v.estado === "no_es") return null;
+  const motivo = v.estado === "sin_encontrar" ? `${v.detalle} Se sigue buscando sola cada media hora durante tres días.` : v.detalle;
+  await anotarEnPedido(org, p.id, `Comprobante de pago por WhatsApp sin conciliar: ${motivo}`);
+  await abrirCaso(org, chatId, asuntoCasoPago(p.id),
+    `El cliente mandó el comprobante de pago del pedido #${p.id} y no se pudo conciliar con Mercado Pago. El motivo está en las notas del pedido.`);
+  return { pedidoId: p.id, conciliado: false };
 }
