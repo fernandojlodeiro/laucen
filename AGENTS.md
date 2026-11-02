@@ -63,6 +63,9 @@ no la primera.
   con un push a main, nunca con el botón "Redeploy" de Vercel**: ese botón vuelve a desplegar
   un commit viejo y deja producción atrasada.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
+- **Sólo `main` despliega** (Fer, 2/11, bitácora #1023): las ramas `claude/*` no arman vista previa en
+  Vercel (`git.deploymentEnabled` en `vercel.json`); costaban la mitad de los builds y nadie las miraba.
+  Lo terminado se prueba en producción después del push a main.
 - **Login**: confirmado de punta a punta el 24/9 (Fer entra por `laucen.vercel.app`, con
   organización y rol Admin). Supabase tiene prendida la confirmación por mail.
 - **Dominios** (Fer, 3/10, bitácora #275/#281): **el panel es `laucen.com`**; `laucen.com.ar`,

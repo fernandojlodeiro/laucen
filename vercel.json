@@ -2,6 +2,11 @@
   "regions": [
     "gru1"
   ],
+  "git": {
+    "deploymentEnabled": {
+      "claude/**": false
+    }
+  },
   "crons": [
     {
       "path": "/api/radar/cron",

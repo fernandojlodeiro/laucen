@@ -1,14 +1,16 @@
 // Excel de Vendedores referentes (lib/compras/referentes.ts): lo que se ve (mismos filtros y orden, todas las filas) o, con
 // ?cotizar=1, sólo lo marcado «Cotizar» para mandarle al proveedor (Fer, 28/10: sin SKU ni cantidad, títulos en castellano y
-// el link de la publicación de referencia: la más vendida del producto), con columnas vacías para el precio, el peso y las medidas. La foto, con la
-// fórmula IMAGEN de Excel (sólo Microsoft 365).
+// el link de la publicación de referencia: la más vendida del producto), con columnas vacías para el precio, el peso y las medidas. La foto va
+// pegada en el archivo (Fer, 2/11: con la fórmula IMAGEN no se veía; sólo anda en Excel de Microsoft 365).
 
 import ExcelJS from "exceljs";
 import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
 import { filasDeLaPantalla } from "@/lib/compras/referentes";
+import { LADO_FOTO, miniaturas } from "@/lib/compras/fotos-excel";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
@@ -20,24 +22,29 @@ export async function GET(req: NextRequest) {
   const libro = new ExcelJS.Workbook();
   const h = libro.addWorksheet(cotizar ? "Para cotizar" : "Vendedores referentes", { views: [{ state: "frozen", ySplit: 1 }] });
   h.columns = cotizar
-    ? [{ header: "Foto", width: 12 }, { header: "Producto", width: 55 }, { header: "Publicación de referencia", width: 45 },
+    ? [{ header: "Foto", width: 14 }, { header: "Producto", width: 55 }, { header: "Publicación de referencia", width: 45 },
       { header: "Precio US$", width: 12, style: { numFmt: "#,##0.00" } }, { header: "Peso (g)", width: 10 }, { header: "Medidas de la caja (cm)", width: 18 }, { header: "Observaciones", width: 30 }]
-    : [{ header: "Foto", width: 12 }, { header: "Producto", width: 55 }, { header: "Link (la más vendida)", width: 45 }, { header: "Precio desde $", width: 12, style: { numFmt: "#,##0" } },
+    : [{ header: "Foto", width: 14 }, { header: "Producto", width: 55 }, { header: "Link (la más vendida)", width: 45 }, { header: "Precio desde $", width: 12, style: { numFmt: "#,##0" } },
       { header: "Precio hasta $", width: 12, style: { numFmt: "#,##0" } }, { header: "Vendidas", width: 10, style: { numFmt: "#,##0" } }, { header: "Lo venden", width: 10 },
       { header: "Vendedores", width: 40, style: { alignment: { wrapText: true } } }, { header: "Tu producto (SKU)", width: 18 }, { header: "Tu producto", width: 12 },
       { header: "Por qué", width: 40, style: { alignment: { wrapText: true } } }, { header: "Decisión", width: 12 }];
   h.getRow(1).font = { bold: true };
   for (const x of filas) {
-    const foto = x.foto ? { formula: `_xlfn.IMAGE("${x.foto}")` } : null;
     const link = x.url ? { text: x.url, hyperlink: x.url } : null;
-    const r = h.addRow(cotizar ? [foto, x.titulo, link, null, null, null, null]
-      : [foto, x.titulo, link, x.precio_min, x.precio_max, x.vendidos, x.lo_venden, [...new Set(x.pubs.map((p) => p.vendedor).filter(Boolean))].join(", "),
+    const r = h.addRow(cotizar ? [null, x.titulo, link, null, null, null, null]
+      : [null, x.titulo, link, x.precio_min, x.precio_max, x.vendidos, x.lo_venden, [...new Set(x.pubs.map((p) => p.vendedor).filter(Boolean))].join(", "),
         x.nuestro_sku, x.producto_id ? (x.nuestro_estado === "archivado" ? "Archivado" : "Activo") : x.comparado === "ia" ? "No lo tenés" : "",
         x.comparado === "ia" ? x.motivo : x.producto_id ? `Sin IA: ${Math.round((x.parecido ?? 0) * 100)} % del título` : null,
         x.decision === "cotizar" ? "Cotizar" : x.decision === "descartado" ? "Descartado" : ""]);
-    r.height = 48;
+    r.height = LADO_FOTO * 0.75 + 6;
     r.alignment = { vertical: "middle", wrapText: true };
   }
+  const fotos = await miniaturas(filas.map((x) => x.foto));
+  fotos.forEach((f, n) => {
+    if (!f) return;
+    const img = libro.addImage({ buffer: f as unknown as ExcelJS.Buffer, extension: "jpeg" });
+    h.addImage(img, { tl: { col: 0.1, row: n + 1.05 }, ext: { width: LADO_FOTO, height: LADO_FOTO }, editAs: "oneCell" });
+  });
   const buffer = await libro.xlsx.writeBuffer();
   const fecha = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
   const nombre = `${cotizar ? "Productos para cotizar" : "Vendedores referentes"} ${fecha}`;
