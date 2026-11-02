@@ -432,3 +432,32 @@ export async function filasDeLaPantalla(org: string, sp: Record<string, string |
   const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && coincide(x));
   return { f, filas: ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), tcHoy };
 }
+
+/** La ganancia por unidad de una lista de SKU con el FOB y el precio de venta que se pasen (Fer, 2/11: «¿sigue dando la
+ *  ganancia con el precio de Luis y la publicación de referencia que marcó Rodrigo?»). La misma cuenta que la pantalla:
+ *  precio − lo que se lleva Mercado Libre − costo puesto de la vía que le corresponde (avión si deja el margen; si no, barco). */
+export async function recalcularGanancia(org: string, items: { sku: string; fob: number | null; precio: number }[]) {
+  const tcHoy = (await una<{ tc: number | null }>("select tc_del_dia($1, current_date)::float8 tc", [org]))?.tc ?? null;
+  const info = await consulta<{ id: number; producto_id: number; familia_id: number | null; sku: string; costo_usd: number | null; comision_pct: number | null }>(`
+    select va.id::int, va.producto_id::int, pr.familia_id::int, va.sku, va.costo_ultimo_usd::float8 costo_usd,
+           (select max(c.clasica_pct)::float8 from publicacion pu join canal ca on ca.id = pu.canal_id and ca.tipo = 'mercadolibre'
+              join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa where pu.variacion_id = va.id) comision_pct
+      from variacion va join producto pr on pr.id = va.producto_id where va.organizacion_id = $1 and va.sku = any($2::text[])`, [org, items.map((x) => x.sku)]);
+  const porSku = new Map(info.map((x) => [x.sku, x]));
+  const [g, cfg, medidas, resueltos] = await Promise.all([grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)),
+    costosResueltos(org, info.map((x) => ({ id: x.producto_id, familia_id: x.familia_id })))]);
+  const conocidas = info.map((d) => d.comision_pct).filter((x): x is number => x != null).sort((a, b) => a - b);
+  const comisionComun = conocidas.length ? conocidas[Math.floor(conocidas.length / 2)] : 16.34;
+  return { tcHoy, filas: items.map((it) => {
+    const d = porSku.get(it.sku);
+    if (!d || !tcHoy) return { sku: it.sku, error: d ? "Sin dólar del día" : "SKU desconocido" };
+    const ml = costosMl(it.precio, d.comision_pct ?? comisionComun, g);
+    const vv = calcularVia(it.fob, medidas.get(d.id) ?? { peso_g: null, cbm: null, origen: null, exacto: false }, (it.precio - ml) / tcHoy,
+      resueltos.get(d.producto_id) ?? null, cfg, it.precio / tcHoy);
+    const [costo, de] = vv.avion && (vv.categoria === "avion" || vv.categoria === "barco") ? [vv.avion.final, "avion"]
+      : vv.barco ? [vv.barco.final, "barco"] : d.costo_usd != null ? [d.costo_usd, "ficha"] : [null, null];
+    const ganancia = costo != null ? Math.round(it.precio - ml - costo * tcHoy) : null;
+    return { sku: it.sku, precio: it.precio, fob: it.fob, ml: Math.round(ml), via: vv.categoria, costo_usd: costo, costo_de: de, ganancia,
+      margen_pct: ganancia != null ? Math.round((ganancia / it.precio) * 1000) / 10 : null };
+  }) };
+}

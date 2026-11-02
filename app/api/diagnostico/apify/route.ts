@@ -7,18 +7,43 @@
 //   · ?accion=actor&actor=usuario~nombre&q=texto: corre esa herramienta con la entrada armada desde su esquema (hasta 20
 //     resultados, tope US$ 0,25) y dice cuántos trajo, cuánto costó, el mensaje de estado y un ejemplo;
 //   · ?accion=modelos: corre el banco de prueba de la IA de vendedores referentes con cada modelo (lib/compras/referentes-banco.ts);
+//   · POST {accion: leer | ganancia}: leer publicaciones por link con Apify; recalcular la ganancia de una lista de SKU;
 //   · ?accion=cruce&org=uuid: rearma el cruce de Vendedores referentes (lib/compras/referentes.ts) sin gastar en Apify.
 
 import { pool } from "@/db";
-import { apifyToken, correrActor, correrConEntrada } from "@/lib/apify";
+import { ACTOR_ML, apifyToken, correrActor, correrConEntrada } from "@/lib/apify";
 import { armarCruce } from "@/lib/compras/referentes";
 import { candidatos, correrBanco } from "@/lib/compras/referentes-banco";
+import { recalcularGanancia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const API = "https://api.apify.com/v2";
 const ACTOR = "scrapesage~mercadolibre-scraper";
+
+/** POST (misma clave): {accion: "leer", urls: [...]} lee esas publicaciones con Apify (precio, título, vendedor, si hay stock);
+ *  {accion: "ganancia", org, items: [{sku, fob, precio}]} recalcula la ganancia con la cuenta de Sugerencia de compra. */
+export async function POST(req: Request) {
+  const clave = new URL(req.url).searchParams.get("clave");
+  const ok = clave ? await pool.query("select 1 from erp_llave where id = 1 and clave = $1", [clave]) : null;
+  if (!ok?.rowCount) return new Response("No", { status: 403 });
+  const b = await req.json().catch(() => ({})) as { accion?: string; urls?: string[]; org?: string; items?: { sku: string; fob: number | null; precio: number }[] };
+  try {
+    if (b.accion === "ganancia" && b.org && b.items?.length) return Response.json(await recalcularGanancia(b.org, b.items.slice(0, 500)));
+    if (b.accion === "leer" && b.urls?.length) {
+      const urls = b.urls.filter((u) => /^https:\/\/[\w.]*mercadolibre\.com\.ar\//.test(u)).slice(0, 60);
+      const c = await correrConEntrada(ACTOR_ML, { mode: "product", country: "AR", productUrls: urls, maxItems: urls.length,
+        includeReviews: false, includeQuestions: false, includeVariations: false }, { max: urls.length, esperaSeg: 240, topeUsd: 0.5 });
+      return Response.json({ estado: c.estado, error: c.error, mensaje: c.mensaje, costo: c.costoUsd, filas: (c.items as Record<string, unknown>[]).map((x) => ({
+        url: x.url, entrada: x.inputUrl ?? x.startUrl ?? null, id: x.itemId ?? x.id, titulo: x.title, precio: x.price, original: x.originalPrice ?? x.oldPrice ?? null,
+        vendedor: x.sellerName ?? x.seller, disponible: x.availability ?? null, catalogo: x.catalogProductId ?? null })) });
+    }
+    return Response.json({ error: "accion: leer o ganancia" });
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+}
 
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
