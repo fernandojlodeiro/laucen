@@ -28,9 +28,9 @@ export async function POST(req: Request) {
   const clave = new URL(req.url).searchParams.get("clave");
   const ok = clave ? await pool.query("select 1 from erp_llave where id = 1 and clave = $1", [clave]) : null;
   if (!ok?.rowCount) return new Response("No", { status: 403 });
-  const b = await req.json().catch(() => ({})) as { accion?: string; urls?: string[]; org?: string; items?: { sku: string; fob: number | null; precio: number }[] };
+  const b = await req.json().catch(() => ({})) as { accion?: string; urls?: string[]; org?: string; via?: string; items?: { sku: string; fob: number | null; precio: number }[] };
   try {
-    if (b.accion === "ganancia" && b.org && b.items?.length) return Response.json(await recalcularGanancia(b.org, b.items.slice(0, 500)));
+    if (b.accion === "ganancia" && b.org && b.items?.length) return Response.json(await recalcularGanancia(b.org, b.items.slice(0, 500), { via: b.via === "avion" ? "avion" : undefined }));
     if (b.accion === "leer" && b.urls?.length) {
       const urls = b.urls.filter((u) => /^https:\/\/[\w.]*mercadolibre\.com\.ar\//.test(u)).slice(0, 60);
       const c = await correrConEntrada(ACTOR_ML, { mode: "product", country: "AR", productUrls: urls, maxItems: urls.length,

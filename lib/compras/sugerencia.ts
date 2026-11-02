@@ -449,8 +449,9 @@ export async function filasDeLaPantalla(org: string, sp: Record<string, string |
 
 /** La ganancia por unidad de una lista de SKU con el FOB y el precio de venta que se pasen (Fer, 2/11: «¿sigue dando la
  *  ganancia con el precio de Luis y la publicación de referencia que marcó Rodrigo?»). La misma cuenta que la pantalla:
- *  precio − lo que se lleva Mercado Libre − costo puesto de la vía que le corresponde (avión si deja el margen; si no, barco). */
-export async function recalcularGanancia(org: string, items: { sku: string; fob: number | null; precio: number }[]) {
+ *  precio − lo que se lleva Mercado Libre − costo puesto de la vía que le corresponde (avión si deja el margen; si no, barco).
+ *  Con `via: "avion"`, siempre por avión (un pedido por courier); sin peso para calcularlo, sin ganancia. */
+export async function recalcularGanancia(org: string, items: { sku: string; fob: number | null; precio: number }[], o: { via?: "avion" } = {}) {
   const tcHoy = (await una<{ tc: number | null }>("select tc_del_dia($1, current_date)::float8 tc", [org]))?.tc ?? null;
   const info = await consulta<{ id: number; producto_id: number; familia_id: number | null; sku: string; costo_usd: number | null; comision_pct: number | null }>(`
     select va.id::int, va.producto_id::int, pr.familia_id::int, va.sku, va.costo_ultimo_usd::float8 costo_usd,
@@ -468,10 +469,13 @@ export async function recalcularGanancia(org: string, items: { sku: string; fob:
     const ml = costosMl(it.precio, d.comision_pct ?? comisionComun, g);
     const vv = calcularVia(it.fob, medidas.get(d.id) ?? { peso_g: null, cbm: null, origen: null, exacto: false }, (it.precio - ml) / tcHoy,
       resueltos.get(d.producto_id) ?? null, cfg, it.precio / tcHoy);
-    const [costo, de] = vv.avion && (vv.categoria === "avion" || vv.categoria === "barco") ? [vv.avion.final, "avion"]
+    // Con «via: avion» (Fer, 2/11: «estoy armando un courier»), el costo por avión aunque convenga el barco.
+    const [costo, de] = o.via === "avion" ? (vv.avion ? [vv.avion.final, "avion"] : [null, null])
+      : vv.avion && (vv.categoria === "avion" || vv.categoria === "barco") ? [vv.avion.final, "avion"]
       : vv.barco ? [vv.barco.final, "barco"] : d.costo_usd != null ? [d.costo_usd, "ficha"] : [null, null];
     const ganancia = costo != null ? Math.round(it.precio - ml - costo * tcHoy) : null;
     return { sku: it.sku, precio: it.precio, fob: it.fob, ml: Math.round(ml), via: vv.categoria, costo_usd: costo, costo_de: de, ganancia,
-      margen_pct: ganancia != null ? Math.round((ganancia / it.precio) * 1000) / 10 : null };
+      margen_pct: ganancia != null ? Math.round((ganancia / it.precio) * 1000) / 10 : null,
+      sobre_costo_pct: ganancia != null && costo ? Math.round((ganancia / (costo * tcHoy)) * 1000) / 10 : null };
   }) };
 }
