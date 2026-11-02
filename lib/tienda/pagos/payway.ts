@@ -30,7 +30,11 @@ export async function cobrar(cred: { private_key: string; ambiente?: string }, d
   if (!r) throw new ErrorErp("Payway no responde. Probá en un momento o elegí otro medio de pago.");
   const j = await r.json().catch(() => ({})) as { id?: number; status?: string; status_details?: { error?: { reason?: { description?: string } } }; validation_errors?: { code?: string; param?: string }[]; message?: string };
   const aprobado = j.status === "approved";
-  const motivo = j.status_details?.error?.reason?.description ?? j.validation_errors?.map((v) => v.param ?? v.code).join(", ") ?? j.message ?? j.status ?? `error ${r.status}`;
+  // «bin» (Fer, 2/11): Payway no la mandó a cobrar porque el número no es de la marca elegida (por ejemplo, una de
+  // crédito cargada como débito). Se dice así; lo técnico queda en el pago (crudo).
+  const porBin = j.validation_errors?.some((v) => v.param === "bin");
+  const motivo = porBin ? "la tarjeta no corresponde a la marca o al tipo elegido (crédito o débito)"
+    : j.status_details?.error?.reason?.description ?? j.validation_errors?.map((v) => v.param ?? v.code).join(", ") ?? j.message ?? j.status ?? `error ${r.status}`;
   return { aprobado, id: j.id ? String(j.id) : null, detalle: aprobado ? "Aprobado" : `Rechazado: ${motivo}`, crudo: j };
 }
 

@@ -1,6 +1,7 @@
 // Confirmar un pago (de MP o Payway, o a mano una transferencia / efectivo):
-// el pago queda aprobado, el pedido "pagado" (con su reserva de stock) y ML
-// se entera del stock nuevo. Repetirlo no hace nada.
+// el pago queda aprobado, el pedido "pagado" (con su reserva de stock), ML
+// se entera del stock nuevo y, si va por OCA, el envío se da de alta solo.
+// Repetirlo no hace nada.
 //
 // Un pedido «A cobrar» (efectivo al retirar, ver lib/pedidos) ya reservó y
 // puede estar más adelante (en preparación, preparado): ahí el pedido no se
@@ -73,6 +74,17 @@ export async function confirmarPago(org: string, pedidoId: number, d: DatosPago,
   if (p.estado_pago === "pagado" && !d.idExterno) return;
   await enTransaccion((c) => confirmarPagoEn(c, org, pedidoId, d, quien));
   await avisarStockMl(org, pedidoId);
+  await altaOcaAlPagar(org, pedidoId);
+}
+
+/** Si va por OCA, el envío se da de alta solo (lib/oca/envios.ts, altaOcaAutomatica): después de contestar, porque
+ *  OCA puede tardar; fuera de un pedido web (el reintento de los comprobantes, un proceso suelto), en el momento. */
+async function altaOcaAlPagar(org: string, pedidoId: number) {
+  const alta = async () => {
+    const { altaOcaAutomatica } = await import("@/lib/oca/envios");
+    await altaOcaAutomatica(org, pedidoId).catch((e) => console.error("[oca] alta al pagar", pedidoId, e));
+  };
+  try { after(alta); } catch { await alta(); }
 }
 
 /** «Entregado y cobrado» (retiro de un pedido «A cobrar» ya preparado): en

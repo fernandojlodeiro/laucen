@@ -252,6 +252,23 @@ export async function pagarConTarjeta(slug: string, codigo: string, tarjeta: { t
   }
 }
 
+/** Red y tipo de la tarjeta (lib/tienda/tarjetas.ts): sólo con los primeros 6 números y para un pedido de la tienda que espera
+ *  el pago con tarjeta, así no sirve para consultar tarjetas sueltas. null si no se sabe. */
+export async function tipoDeTarjetaDelPedido(slug: string, codigo: string, bin: string):
+  Promise<{ red: "visa" | "master" | "amex" | "cabal" | "naranja" | null; tipo: "credito" | "debito" | null } | null> {
+  try {
+    const t = await tiendaDe(slug);
+    const ok = await una(`select 1 from pedido where organizacion_id = $1 and canal_id = $2 and codigo_seguimiento = $3
+                            and estado_pago = 'pendiente' and estado <> 'cancelado' and datos_externos #>> '{tienda,medio}' = 'payway'`,
+      [t.organizacionId, t.canalId, String(codigo)]);
+    if (!ok) return null;
+    const { tipoDeTarjeta } = await import("@/lib/tienda/pagos/mercadopago");
+    return await tipoDeTarjeta(t.organizacionId, t.canalId, String(bin ?? ""));
+  } catch {
+    return null;
+  }
+}
+
 // ── Cuenta del comprador ────────────────────────────────
 export async function crearCuenta(fd: FormData) {
   const t = await tiendaDe(fd);

@@ -35,7 +35,7 @@ Está pensada para usarse desde el celular.
 - **"Sólo carritos (N)"** (al lado de "Orden"): caja para tildar; muestra sólo los pedidos que llevan **más de un producto**.
 - Cada pedido muestra:
   - una caja para tildarlo;
-  - el número de pedido (enlace al pedido), el número externo (de Mercado Libre o la tienda) y **una marca con el tipo de envío** ("Colecta", "Flex", "Correo", "OCA sucursal", "OCA domicilio", "Retira por el local"…); **lo que retiran en el local y ya está pago va primero**, con el cartel rojo **"Pagada · preparar urgente"** (la persona viene a buscarlo);
+  - el número de pedido (enlace al pedido), el número externo (de Mercado Libre o la tienda) y **una marca con el tipo de envío** ("Colecta", "Flex", "Correo", "OCA sucursal", "OCA domicilio", "Retira por el local"…); **lo que retiran en el local y ya está pago va primero**, con el cartel rojo **"Pagada · preparar urgente"** (la persona viene a buscarlo), y también **lo que va por OCA y ya está pago**, con **"Pagada · OCA viene a retirar · preparar urgente"** (OCA pasa a buscarlo por el local; lo de Mercado Libre, en cambio, lo lleva la empresa);
   - marcas: **"Ya empezado"** (quedó en preparación de un lote anterior), **"A cobrar $…"** (se cobra al entregar), **"Carrito: esperando"** (carrito de Mercado Libre en espera);
   - cliente y canal;
   - unidades y líneas, y **"Despachar antes: …"** (en rojo si vence hoy o ya venció; la tarjeta entera se pinta de rojo suave);
@@ -148,7 +148,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 ## Criterios y reglas
 
 - **Qué pedidos aparecen para preparar**: los de ese depósito que mueven stock, que no son de Full y que no están en un lote abierto, y que estén "pagado" o "en preparación" (por ejemplo, de un lote terminado sin cerrarlos), o que estén "nuevo" pero sean «A cobrar» (efectivo al retirar) o a convenir, que no esperan el pago.
-- **Orden**: primero los que tienen fecha de "despachar antes" (la más cercana primero), después los que no tienen, por fecha del pedido.
+- **Orden**: primero los pagos que retiran en el local o que van por OCA; después los que tienen fecha de "despachar antes" (la más cercana primero), y al final los que no tienen, por fecha del pedido.
 - **Depósito de cada pedido**: el que tiene asignado; si no, el primero activo del canal; si no, el primero activo de la empresa.
 - **Qué hay que juntar** sale de lo que cada pedido tiene **reservado**: la reserva ya dice de qué ubicación sale cada unidad, y los kits vienen abiertos en sus componentes. Un «A cobrar» que no tiene nada reservado reserva al armar el lote. Lo que no está vinculado a un producto va en la hoja igual, sin ubicación, al final.
 - **Orden de recorrido**: por el orden de recorrido de la ubicación (de menor a mayor), después el código de la ubicación, después el SKU. El orden de cada ubicación se carga en [Depósitos y ubicaciones](/stock/depositos).

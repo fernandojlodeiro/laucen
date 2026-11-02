@@ -59,3 +59,33 @@ export async function tasasCuotas(accessToken: string): Promise<Map<number, numb
   }
   return m;
 }
+
+/** Red y tipo (crédito o débito) de una tarjeta: la consulta de BIN de Mercado Pago (los primeros 6 números, que no
+ *  son un dato sensible) con una llave de MP de la organización: la del medio de pago Mercado Pago de la tienda o, si no,
+ *  la de la cuenta conectada al canal. null en lo que no se pudo saber. */
+export async function tipoDeTarjeta(org: string, canalId: number, bin: string):
+  Promise<{ red: import("@/lib/tienda/tarjetas").Red | null; tipo: import("@/lib/tienda/tarjetas").TipoTarjeta | null } | null> {
+  const seis = bin.replace(/\D/g, "").slice(0, 6);
+  if (seis.length < 6) return null;
+  const { una } = await import("@/lib/erp/base");
+  const cred = await una<{ token: string | null }>(`
+    select c.datos ->> 'access_token' token from medio_pago m join medio_pago_credencial c on c.medio_pago_id = m.id
+     where m.organizacion_id = $1 and (m.canal_id is null or m.canal_id = $2) and m.tipo = 'mercadopago' and c.datos ->> 'access_token' is not null
+     order by m.canal_id nulls last limit 1`, [org, canalId]);
+  let token = cred?.token ?? null;
+  if (!token) {
+    const cx = await una<{ id: number }>("select conexion_id::int id from canal_mp where canal_id = $1 and organizacion_id = $2 limit 1", [canalId, org]);
+    if (cx) token = await (await import("@/lib/mercadopago/conexion")).tokenDeConexion(cx.id);
+  }
+  if (!token) return null;
+  const r = await fetch(`${API}/v1/payment_methods/search?site_id=MLA&marketplace=NONE&bins=${seis}`, {
+    headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(6_000),
+  }).catch(() => null);
+  if (!r?.ok) return null;
+  const j = await r.json().catch(() => ({})) as { results?: { id?: string; payment_type_id?: string }[] };
+  const { tipoDeMetodoMp, redDeMetodoMp } = await import("@/lib/tienda/tarjetas");
+  const res = (j.results ?? []).filter((m) => m.payment_type_id === "credit_card" || m.payment_type_id === "debit_card" || m.payment_type_id === "prepaid_card");
+  const tipos = new Set(res.map(tipoDeMetodoMp).filter(Boolean));
+  const redes = new Set(res.map((m) => redDeMetodoMp(m.id)).filter(Boolean));
+  return { red: redes.size === 1 ? [...redes][0]! : null, tipo: tipos.size === 1 ? [...tipos][0]! : null };
+}

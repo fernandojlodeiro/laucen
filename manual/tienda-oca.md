@@ -12,7 +12,7 @@ resumen: Conectar la cuenta de OCA ePak para que la tienda cotice el envío por 
 Con la cuenta de OCA cargada:
 
 - La **tienda web** cotiza el envío de OCA en el momento, con el código postal del comprador y el peso y las medidas de lo que compra. Puede ser **a domicilio** o **a sucursal** (el comprador elige la sucursal de OCA donde retira).
-- Desde la **ficha del pedido** se lo da de alta en OCA con un botón, y sale la **etiqueta de OCA** para imprimir.
+- Un pedido que eligió envío por OCA **se da de alta solo en OCA apenas queda pagado** (con tarjeta, Mercado Pago, transferencia conciliada o el pago confirmado a mano), y sale la **etiqueta de OCA** para imprimir. Desde la **ficha del pedido** también se lo da de alta con un botón.
 - El **seguimiento** se lee solo de OCA cada media hora: el pedido pasa a **Despachado** cuando OCA lo tiene en camino y a **Entregado** cuando OCA lo entrega.
 
 ## Cómo se llega
@@ -55,6 +55,7 @@ En la ficha del pedido, debajo del número de envío, los últimos movimientos q
 - Si OCA no contesta o no cotiza ese código postal, la tienda le pide al comprador que lo revise o elija otra forma de entrega.
 - **OCA a sucursal**: el comprador elige entre las sucursales de OCA que entregan paquetes en su código postal; la sucursal queda en el pedido.
 - **El valor declarado** es el total de los productos (sin el envío).
+- **Alta automática**: cuando un pedido que no es de Mercado Libre y eligió «OCA a domicilio» u «OCA a sucursal» queda pagado, el envío se da de alta solo. Queda anotado en las **Notas** del pedido ("Envío de OCA … dado de alta solo al confirmarse el pago."). Si OCA no lo acepta (falta la dirección, la configuración, o OCA contesta un error), el motivo queda en las Notas y se hace con el botón. En el picking, esos pedidos van primero, porque OCA pasa a retirarlos por el local.
 - **Despachar por OCA** se ofrece en los pedidos que no son de Mercado Libre, tienen dirección con código postal y todavía no se despacharon. Si el pedido es «OCA a sucursal», usa la operativa a sucursal y la sucursal elegida; si no, la de domicilio.
 - **Seguimiento automático**: cada media hora, todos los envíos de OCA de los últimos 60 días que no terminaron. Cuando OCA informa el primer movimiento, el envío pasa a **En camino** y el pedido a **Despachado** (se descuenta el stock). Si el pedido estaba Nuevo (sin pagar), no se mueve. Cuando OCA lo entrega, el pedido pasa a **Entregado**. Si OCA lo devuelve, el envío queda **Devuelto**; el pedido no se toca.
 - **Anular** sólo se puede antes de que OCA lo tenga en camino.

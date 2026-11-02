@@ -74,8 +74,9 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
   // Filtro por tipo de envío (Fer, 6/10): pestañas cortas (se usa en el celular); la última queda recordada.
   const guardado = (await cookies()).get(COOKIE_ENVIO)?.value;
   const envio = [sp.envio, guardado].find((x) => x === "todos" || GRUPOS_ENVIO.some((g) => g.clave === x)) ?? "todos";
-  // Un retiro ya pago va primero, con su cartel (Fer, 29/10): la persona viene a buscarlo.
-  const conEnvio = pedidos.map((p) => { const e = envioDe(p); return { ...p, ...e, retiroPago: e.grupo === "retiro" && p.pagado }; });
+  // Un retiro ya pago va primero, con su cartel (Fer, 29/10): la persona viene a buscarlo. Lo mismo uno de OCA ya pago
+  // (Fer, 2/11): OCA lo viene a retirar al local (lo de Mercado Libre, en cambio, lo llevamos nosotros).
+  const conEnvio = pedidos.map((p) => { const e = envioDe(p); return { ...p, ...e, retiroPago: (e.grupo === "retiro" || e.grupo === "oca") && p.pagado }; });
   const cuenta = (g: string) => conEnvio.filter((p) => p.grupo === g).length;
   // Orden: "Despachar antes" (lo que vence primero; como venía) o "Más viejos primero" (por fecha de compra).
   const porFecha = sp.orden === "fecha";
@@ -154,7 +155,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                       <Link href={`/ventas/pedidos/${p.id}`} className="font-bold text-[#16577F]">#{p.id}</Link>
                       {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
                       <Estado texto={p.marca} tono={p.grupo === "meli" ? "amarillo" : p.grupo === "oca" ? "azul" : p.grupo === "retiro" ? "verde" : "gris"} />
-                      {p.retiroPago && <Estado texto="Pagada · preparar urgente" tono="rojo" />}
+                      {p.retiroPago && <Estado texto={p.grupo === "oca" ? "Pagada · OCA viene a retirar · preparar urgente" : "Pagada · preparar urgente"} tono="rojo" />}
                       {p.estado === "en_preparacion" && <Estado texto="Ya empezado" tono="amarillo" />}
                       {p.a_cobrar && <Estado texto={`A cobrar ${formatear(p.total_ars, "ARS")}`} tono="ambar" />}
                       {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
