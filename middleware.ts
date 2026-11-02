@@ -14,7 +14,14 @@ import { aGalleta, deGalleta, entradaDeVisita, esRobot, GALLETA_ENTRADAS, GALLET
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+// El id de una acción de servidor de Next es hexadecimal, de 42 letras (el largo que exige Next 15). Un pedido con otra cosa en ese encabezado
+// (robots que escanean) hacía que Next tirara «The Server Reference ID did not match the expected format» (bitácora #1009):
+// se contesta 400 acá, sin llegar a la página.
+const ID_ACCION = /^[0-9a-f]{42}$/i;
+
 export async function middleware(req: NextRequest, event: NextFetchEvent) {
+  const accion = req.headers.get("next-action");
+  if (accion !== null && !ID_ACCION.test(accion)) return new NextResponse(null, { status: 400 });
   const host = req.headers.get("host")?.split(":")[0].toLowerCase() ?? "";
   // laucen.com.ar y los www: al panel (laucen.com), con la misma ruta y query.
   if (REDIRIGEN_AL_PANEL.includes(host)) {

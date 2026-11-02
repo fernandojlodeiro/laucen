@@ -131,13 +131,26 @@ const COLS_ITEM = "promocion_id, tipo, estado, nombre, precio::float, min_precio
 
 /** Guarda lo leído de las campañas de UNA publicación (reemplaza a borrar y volver a cargar): anota qué cambió
  *  en la historia, actualiza las filas y saca las que ya no están. `primeraLectura`: nunca se había leído. */
-export async function registrarPromosDeItem(org: string, canal: number, item: string, lista: { fila: FilaPromoItem; datos: unknown }[], primeraLectura: boolean): Promise<number> {
+export async function registrarPromosDeItem(org: string, canal: number, item: string, leidas: { fila: FilaPromoItem; datos: unknown }[], primeraLectura: boolean): Promise<number> {
+  const lista = unaPorCampana(leidas);
   const antes = await consulta<FilaDb>(`select ${COLS_ITEM} from ml_promo_item where canal_id = $1 and item_id = $2`, [canal, item]);
   const eventos = diferenciasItem(item, antes, lista.map((x) => x.fila), primeraLectura);
   await guardarEventos(org, canal, eventos);
   await consulta("delete from ml_promo_item where canal_id = $1 and item_id = $2 and not (promocion_id = any($3::text[]))", [canal, item, lista.map((x) => x.fila.promocion_id)]);
   await escribirFilasItem(org, canal, item, lista);
   return eventos.length;
+}
+
+/** ML a veces trae la misma campaña dos veces en la lista de una publicación (bitácora #1009: el insert de abajo
+ *  fallaba con «ON CONFLICT … cannot affect row a second time» y esa publicación no se actualizaba). Queda una por
+ *  campaña: la que está en curso o programada; si no, la última que vino. */
+export function unaPorCampana<T extends { fila: Pick<FilaPromoItem, "promocion_id" | "estado"> }>(lista: T[]): T[] {
+  const por = new Map<string, T>();
+  for (const x of lista) {
+    const ya = por.get(x.fila.promocion_id);
+    if (!ya || enPromocion(x.fila.estado) || !enPromocion(ya.fila.estado)) por.set(x.fila.promocion_id, x);
+  }
+  return [...por.values()];
 }
 
 async function escribirFilasItem(org: string, canal: number, item: string, lista: { fila: FilaPromoItem; datos: unknown }[]): Promise<void> {

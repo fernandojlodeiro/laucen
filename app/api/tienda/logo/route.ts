@@ -17,8 +17,17 @@ export async function GET(req: Request) {
     const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) return Response.redirect(u, 302);
     const crudo = Buffer.from(await r.arrayBuffer());
-    const webp = await sharp(crudo).trim({ threshold: 25 }).resize(600, 200, { fit: "inside", withoutEnlargement: true }).webp({ quality: 90 }).toBuffer()
-      .catch(() => sharp(crudo).webp({ quality: 90 }).toBuffer());
+    // `failOn: "none"`: un PNG con un detalle fuera de norma (que el navegador muestra igual) no frena el recorte
+    // (bitácora #1009: «vipspng: libpng read error» en cada visita).
+    const abrir = () => sharp(crudo, { failOn: "none" });
+    const webp = await abrir().trim({ threshold: 25 }).resize(600, 200, { fit: "inside", withoutEnlargement: true }).webp({ quality: 90 }).toBuffer()
+      .catch(() => abrir().webp({ quality: 90 }).toBuffer())
+      .catch((e) => {
+        console.warn("[logo] no se pudo convertir, va el original:", u.split("/").pop(), e instanceof Error ? e.message : e);
+        return null;
+      });
+    // Si no se pudo convertir, el original tal cual, con la misma caché (así no se reintenta en cada visita).
+    if (!webp) return new Response(new Uint8Array(crudo), { headers: { "content-type": r.headers.get("content-type") ?? "image/png", "cache-control": CACHE } });
     return new Response(new Uint8Array(webp), { headers: { "content-type": "image/webp", "cache-control": CACHE } });
   } catch (e) {
     console.error("[logo]", e instanceof Error ? e.message : e);
