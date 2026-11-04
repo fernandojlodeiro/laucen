@@ -29,9 +29,10 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 
 - Pestaña **«Perdemos»** (la primera): los catálogos donde el botón de compra lo tiene un vendedor que no es ninguna de tus cuentas. Por cada catálogo, el producto (foto, SKU, título, enlace al catálogo y su precio de lista Clásicas), **Gana** (a cuánto vende el ganador y su publicación) y **una fila por cada publicación tuya en ese catálogo**, de todas las cuentas:
   - **Cuenta** y **Publicación** (con su plan).
-  - **Vende a**: a cuánto se vende hoy, con la campaña en curso (debajo, tachado, el precio publicado).
-  - **P/ganar**: el precio para ganar que da Mercado Libre para esa publicación. Es lo mínimo que hay que bajar para ganar.
-  - **Bajar**: cuánto % es eso desde el precio de hoy.
+  - **Hoy**: a cuánto se vende hoy, con la campaña en curso (debajo, tachado, el precio publicado).
+  - **Objetivo**: el precio para ganar que da Mercado Libre para esa publicación. Es lo mínimo que hay que bajar para ganar.
+  - **Bajar**: cuánto hay que bajar desde hoy para llegar al objetivo, en pesos y en %. «Ya alcanza» quiere decir que el precio de hoy alcanza y pierde por otra cosa (envío, cuotas, reputación).
+  - Si la publicación **no compite** en el catálogo, en lugar del objetivo dice por qué (por ejemplo, «no tiene Mercado Envíos»): bajar el precio no sirve y no tiene botón «Ganar».
   - **Neto hoy** y **Neto ganando**: lo que queda después de la comisión de Mercado Libre y el envío (con «*» si el envío todavía no se conoce).
   - El botón **«Ganar»**, o **«Fijada a $ …»** con el botón **«Soltar»** si ya se ganó con el botón.
 - Pestañas **«Armados por ML: para revisar»** y **«Armados por ML: todos»**: las publicaciones de catálogo que Mercado Libre creó solo en tus cuentas. Una fila por publicación: **Producto**, **Cuenta**, **Situación**, **Precio** (el publicado), **P/ganar**, **Ganador**, **% Clás.** (cuánto abajo de la Clásica queda el precio para ganar), **Qué hacer**, **Catálogo** (el producto de catálogo, su marca y si es el mismo producto) y **Visto**.
@@ -63,7 +64,8 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 - Usa el **precio para ganar que da Mercado Libre en ese momento** para esa publicación (redondeado para abajo). Es lo mínimo que hay que bajar.
 - Saca la publicación de las campañas en curso (así el comprador paga exactamente ese precio) y le cambia el precio. Sale por la cola de Mercado Libre, sin lote: el botón es el clic.
 - La publicación queda **fijada**: el cálculo de precios no la toca (ni tachado ni campañas) hasta que se la suelta.
-- Si la publicación ya está ganando o Mercado Libre no da un precio para ganar, no se cambia nada y la pantalla lo avisa.
+- Si la publicación ya está ganando, no compite (Mercado Libre no la pone en el catálogo, por ejemplo por no tener Mercado Envíos), el precio de hoy ya alcanza o Mercado Libre no da un precio para ganar, no se cambia nada y la pantalla lo avisa.
+- **Gana**: la publicación que tiene el botón de compra según Mercado Libre y su precio.
 
 ### Cuáles aparecen en «Armados por ML»
 

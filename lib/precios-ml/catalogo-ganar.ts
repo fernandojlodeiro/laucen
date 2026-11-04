@@ -49,6 +49,8 @@ export async function leerGanadoresCatalogos(org: string | null, hastaMs: number
 export type PubCatalogo = {
   canal_id: number; cuenta: string; item_id: string; plan: string; venta: number | null; publicado: number | null;
   ptw: number | null; estado_ptw: string | null; comision_pct: number; envio: number | null; fijada: number | null;
+  /** Por qué no compite, en criollo (null = compite). */
+  no_compite: string | null;
   /** Cómo salió el último «Ganar» de la cola: pendiente, ok o error (con el motivo). */
   ganar_estado: string | null; ganar_error: string | null;
 };
@@ -65,12 +67,13 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
     ganador_item: string | null; ganador_precio: number | null; leido_ts: Date;
     canal_id: number; cuenta: string; item_id: string; tipo: string | null; tags: unknown; categoria: string | null;
     venta: number | null; publicado: number | null; ptw: number | null; estado_ptw: string | null; envio: number | null; fijada: number | null;
-    ganar_estado: string | null; ganar_error: string | null;
+    ganar_estado: string | null; ganar_error: string | null; motivo: string | null;
   }>(`
     with lc as (select id from lista_precios where organizacion_id = $1 and lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by id limit 1),
     nuestros as (select meli_user_id from meli_cuenta where organizacion_id = $1 and canal_id is not null),
     pubs as (
-      select m.canal_id, m.item_id, m.datos_externos -> 'ml' ->> 'catalog_product_id' cpid, p.variacion_id, w.estado, w.precio ptw,
+      select m.canal_id, m.item_id, m.datos_externos -> 'ml' ->> 'catalog_product_id' cpid, p.variacion_id, w.estado, w.precio ptw, w.motivo,
+             w.ganador_item w_item, w.ganador_precio w_precio, w.leido_ts w_ts,
              m.datos_externos -> 'ml' ->> 'listing_type_id' tipo, m.datos_externos -> 'ml' -> 'tags' tags, m.datos_externos -> 'ml' ->> 'category_id' categoria,
              (m.datos_externos -> 'ml' ->> 'price')::numeric publicado
         from meli_item m join publicacion p on p.canal_id = m.canal_id and p.id_externo = m.item_id
@@ -84,13 +87,17 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
     select g.catalogo_id, (select a.catalogo_nombre from ml_catalogo_auto a where a.catalogo_id = g.catalogo_id and a.catalogo_nombre is not null limit 1) catalogo_nombre,
            v.producto_id::int, v.sku, titulo_variacion(v.id) titulo,
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) fotos,
-           cl.venta_ars::float8 clasica, g.item_id ganador_item, g.precio::float8 ganador_precio, g.leido_ts,
+           -- El ganador: el que da ML en el precio para ganar de nuestras publicaciones (el dueño del botón de compra); si
+           -- ninguna lo trae, el primero de la lista de ofertas del catálogo.
+           cl.venta_ars::float8 clasica, coalesce(wg.w_item, g.item_id) ganador_item, coalesce(wg.w_precio, g.precio)::float8 ganador_precio,
+           coalesce(wg.w_ts, g.leido_ts) leido_ts, pu.motivo,
            pu.canal_id::int, c.nombre cuenta, pu.item_id, pu.tipo, pu.tags, pu.categoria,
            least(pu.publicado, (select min(o.precio) from ml_promo_item o where o.canal_id = pu.canal_id and o.item_id = pu.item_id and o.estado = 'started'))::float8 venta,
            pu.publicado::float8, pu.ptw::float8, pu.estado estado_ptw,
            (select k.envio from ml_relampago_costo k where k.canal_id = pu.canal_id and k.item_id = pu.item_id and k.envio is not null order by k.leido_ts desc limit 1)::float8 envio,
            f.precio::float8 fijada, q.estado ganar_estado, q.ultimo_error ganar_error
       from cats g join pubs pu on pu.cpid = g.catalogo_id
+      left join lateral (select x.w_item, x.w_precio, x.w_ts from pubs x where x.cpid = g.catalogo_id and x.w_item is not null order by x.w_ts desc limit 1) wg on true
       join canal c on c.id = pu.canal_id
       join variacion v on v.id = pu.variacion_id
       left join ml_precio_ganar f on f.canal_id = pu.canal_id and f.item_id = pu.item_id
@@ -113,9 +120,23 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
       canal_id: f.canal_id, cuenta: f.cuenta, item_id: f.item_id, plan: PLAN_INFO[plan]?.nombre ?? plan, venta: f.venta, publicado: f.publicado,
       ptw: f.ptw, estado_ptw: f.estado_ptw, comision_pct: comisionesDe(f.categoria ? com.porCategoria.get(f.categoria) : null, com.general).valores[plan],
       envio: f.envio, fijada: f.fijada, ganar_estado: f.ganar_estado, ganar_error: f.ganar_error,
+      no_compite: f.estado_ptw && f.estado_ptw !== "competing" && f.estado_ptw !== "winning" && f.estado_ptw !== "sharing_first_place" ? motivoNoCompite(f.motivo) : null,
     });
   }
   return [...porCat.values()];
+}
+
+/** Por qué ML no pone a competir una publicación de catálogo (el reason de price_to_win), en criollo. */
+const MOTIVOS: Record<string, string> = {
+  shipping_mode_not_specified_me2: "no tiene Mercado Envíos",
+  item_not_opted_in: "no está en el catálogo",
+  not_active: "no está activa",
+  item_paused: "está pausada",
+  item_under_review: "está en revisión",
+};
+export function motivoNoCompite(m: string | null): string {
+  const lista = (m ?? "").split(",").filter(Boolean);
+  return lista.length ? lista.map((x) => MOTIVOS[x] ?? x).join(", ") : "Mercado Libre no dice por qué";
 }
 
 /** Lo que queda después de la comisión y el envío (el envío, si se conoce). */
@@ -133,11 +154,16 @@ export async function ganarCatalogo(org: string, canalId: number, itemId: string
   if (!pub) throw new ErrorErp("Esa publicación no es de catálogo o no está activa.");
   const cuenta = await cuentaDelCanal(org, canalId);
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre no está conectada.");
-  const r = await ml<{ price_to_win?: number | null; status?: string | null }>(cuenta, "GET", `/items/${itemId}/price_to_win?siteId=MLA&version=v2`);
+  const r = await ml<{ price_to_win?: number | null; current_price?: number | null; status?: string | null; reason?: string[] | null }>(cuenta, "GET", `/items/${itemId}/price_to_win?siteId=MLA&version=v2`);
   if (r.status !== 200) throw new ErrorErp("Mercado Libre no contestó el precio para ganar. Probá de nuevo en un rato.");
   if (r.datos.status === "winning") throw new ErrorErp("Esa publicación ya está ganando el catálogo.");
+  // Si no compite (ej. sin Mercado Envíos), ML devuelve como precio para ganar el mismo precio de hoy: bajar no sirve.
+  if (r.datos.status !== "competing" && r.datos.status !== "sharing_first_place")
+    throw new ErrorErp(`Esa publicación no compite en el catálogo: ${motivoNoCompite(r.datos.reason?.join(",") ?? null)}. Bajar el precio no la hace ganar.`);
   const ptw = Number(r.datos.price_to_win);
   if (!(ptw > 0)) throw new ErrorErp("Mercado Libre no da un precio para ganar para esa publicación.");
+  if (r.datos.current_price && ptw >= Number(r.datos.current_price) - 0.5)
+    throw new ErrorErp("El precio de hoy ya alcanza para ganar: pierde por otra cosa (envío, cuotas o reputación), no por precio.");
   const precio = Math.floor(ptw);
   // Sale de las campañas en curso (el precio que ve el comprador tiene que ser éste) y después cambia el precio.
   const campanas = await consulta<{ promocion_id: string; tipo: string; estado: string; precio: number | null }>(`

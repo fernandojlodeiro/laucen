@@ -141,9 +141,9 @@ function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: str
               <th className="py-1.5 px-2 text-left font-semibold" title="Quién gana hoy el catálogo y a cuánto">Gana</th>
               <th className="py-1.5 px-2 text-left font-semibold">Cuenta</th>
               <th className="py-1.5 px-2 text-left font-semibold">Publicación</th>
-              <th className="py-1.5 px-2 text-right font-semibold" title="A cuánto se vende hoy (con la campaña en curso)">Vende a</th>
-              <th className="py-1.5 px-2 text-right font-semibold" title="El precio para ganar que da Mercado Libre para esta publicación">P/ganar</th>
-              <th className="py-1.5 px-2 text-right font-semibold" title="Cuánto hay que bajar desde el precio de hoy">Bajar</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="El precio de hoy, con la campaña en curso (debajo, tachado, el publicado)">Hoy</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="El precio para ganar que da Mercado Libre para esta publicación: el objetivo">Objetivo</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="Cuánto hay que bajar desde el precio de hoy para llegar al objetivo">Bajar</th>
               <th className="py-1.5 px-2 text-right font-semibold" title="Lo que queda hoy, después de la comisión y el envío (si se conoce)">Neto hoy</th>
               <th className="py-1.5 px-2 text-right font-semibold" title="Lo que quedaría ganando, después de la comisión y el envío (si se conoce)">Neto ganando</th>
               <th className="py-1.5 px-2"></th>
@@ -152,7 +152,9 @@ function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: str
           <tbody>
             {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>{q ? "Nada con esa búsqueda." : "Ganamos o compartimos todos los catálogos."}</td></tr>}
             {filas.map((c) => c.pubs.map((p, i) => {
-              const bajar = p.venta && p.ptw ? Math.round((1 - p.ptw / p.venta) * 1000) / 10 : null;
+              const baja$ = p.venta && p.ptw && !p.no_compite ? p.venta - p.ptw : null;
+              const bajar = baja$ != null && p.venta ? Math.round((baja$ / p.venta) * 1000) / 10 : null;
+              const puedeGanar = !p.no_compite && baja$ != null && baja$ >= 1 && p.estado_ptw !== "winning";
               const conEnvio = p.envio != null;
               return (
                 <tr key={`${c.catalogo_id}:${p.canal_id}:${p.item_id}`} className={`${TR} ${i === 0 ? "border-t-2 border-[#C9D3DD]" : ""}`} data-canal={p.canal_id}>
@@ -180,10 +182,15 @@ function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: str
                     <span className="block text-[10px] text-[#5C6B76]">{p.plan}{p.estado_ptw === "winning" ? " · gana" : p.estado_ptw === "sharing_first_place" ? " · comparte" : ""}</span>
                   </td>
                   <td className={TDN}>{pesos(p.venta)}{p.publicado && p.venta && p.publicado > p.venta + 1 ? <span className="block text-[10px] text-[#5C6B76] line-through">{pesos(p.publicado)}</span> : null}</td>
-                  <td className={`${TDN} font-bold`}>{pesos(p.ptw)}</td>
-                  <td className={TDN}>{bajar == null ? "—" : bajar <= 0 ? "nada" : `${formatearNumero(bajar, "decimal")} %`}</td>
+                  {p.no_compite ? (
+                    <td colSpan={2} className={`${TD} text-[11px] text-[#C03420]`}>No compite: {p.no_compite}. Bajar el precio no sirve.</td>
+                  ) : <>
+                    <td className={`${TDN} font-bold`}>{pesos(p.ptw)}</td>
+                    <td className={TDN}>{baja$ == null ? "—" : baja$ < 1 ? <span className="text-[11px] text-[#5C6B76]" title="El precio de hoy ya alcanza: pierde por otra cosa (envío, cuotas, reputación)">ya alcanza</span>
+                      : <>{pesos(baja$)}<span className="block text-[10px] text-[#5C6B76]">{formatearNumero(bajar ?? 0, "decimal")} %</span></>}</td>
+                  </>}
                   <td className={TDN} title={conEnvio ? undefined : "Sin el envío: no se conoce"}>{pesos(netoDe(p.venta, p))}{!conEnvio && "*"}</td>
-                  <td className={TDN} title={conEnvio ? undefined : "Sin el envío: no se conoce"}>{pesos(netoDe(p.ptw, p))}{!conEnvio && "*"}</td>
+                  <td className={TDN} title={conEnvio ? undefined : "Sin el envío: no se conoce"}>{puedeGanar ? <>{pesos(netoDe(p.ptw, p))}{!conEnvio && "*"}</> : "—"}</td>
                   <td className={`${TD} whitespace-nowrap`}>
                     {p.fijada != null ? (
                       <form action={accionSoltar} className="flex items-center gap-2">
@@ -194,7 +201,7 @@ function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: str
                         </span>
                         <button className={SUAVE} title="Vuelve al motor de precios (tachado y campañas)">Soltar</button>
                       </form>
-                    ) : p.ptw && p.estado_ptw !== "winning" ? (
+                    ) : puedeGanar ? (
                       <form action={accionGanar}>
                         <input type="hidden" name="canal" value={p.canal_id} /><input type="hidden" name="item" value={p.item_id} />
                         <button className={VERDE} title="Pone ya el precio para ganar que da Mercado Libre en este momento, fuera de las campañas">Ganar</button>

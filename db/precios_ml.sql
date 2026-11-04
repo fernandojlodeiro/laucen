@@ -508,3 +508,6 @@ alter table ml_precio_ganar enable row level security;
 select erp_politica_org('ml_precio_ganar');
 -- Lo último que se le avisó por mail de ese catálogo perdido (publicación ganadora y precio).
 alter table ml_catalogo_ganador add column if not exists avisado text;
+-- Por qué una publicación de catálogo no compite (reason de ML) y cuál es la publicación que gana (winner.item_id).
+alter table ml_price_to_win add column if not exists motivo text;
+alter table ml_price_to_win add column if not exists ganador_item text;

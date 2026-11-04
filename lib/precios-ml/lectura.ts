@@ -15,7 +15,7 @@ import { filaDePromoItem, leerCampanas, registrarPromosDeItem, type FilaPromoIte
 export type Leer = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
 export const RITMO_LECTURA_MS = 150;
 
-type Ptw = { price_to_win?: number | null; current_price?: number | null; status?: string | null; winner?: { price?: number | null } | null };
+type Ptw = { price_to_win?: number | null; current_price?: number | null; status?: string | null; reason?: string[] | null; winner?: { item_id?: string | null; price?: number | null } | null };
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
 export type ResultadoLectura = { canales: number; ptw: number; promos: number; campanas: number; eventos_promo: number; errores: number; alertas: number };
@@ -74,12 +74,14 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
       const d = (r.datos ?? {}) as Ptw;
       const ok = r.status === 200;
       await consulta(`
-        insert into ml_price_to_win (organizacion_id, canal_id, item_id, precio, precio_actual, estado, ganador_precio, error, leido_ts)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+        insert into ml_price_to_win (organizacion_id, canal_id, item_id, precio, precio_actual, estado, ganador_precio, ganador_item, motivo, error, leido_ts)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
         on conflict (canal_id, item_id) do update set precio = coalesce(excluded.precio, ml_price_to_win.precio), precio_actual = coalesce(excluded.precio_actual, ml_price_to_win.precio_actual),
-          estado = coalesce(excluded.estado, ml_price_to_win.estado), ganador_precio = excluded.ganador_precio, error = excluded.error, leido_ts = now()`,
+          estado = coalesce(excluded.estado, ml_price_to_win.estado), ganador_precio = excluded.ganador_precio, ganador_item = excluded.ganador_item,
+          motivo = case when excluded.error is null then excluded.motivo else ml_price_to_win.motivo end, error = excluded.error, leido_ts = now()`,
         [org, canal, item, ok ? d.price_to_win ?? null : null, ok ? d.current_price ?? null : null, ok ? d.status ?? null : null,
-          ok ? d.winner?.price ?? null : null, ok ? null : `ML contestó ${r.status}`]);
+          ok ? d.winner?.price ?? null : null, ok ? d.winner?.item_id ?? null : null, ok && d.reason?.length ? d.reason.join(",") : null,
+          ok ? null : `ML contestó ${r.status}`]);
       if (ok) res.ptw++; else res.errores++;
     }
     // 2b. Campañas a las que puede entrar cada publicación: cada 12 h.
