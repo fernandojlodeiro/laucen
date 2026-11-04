@@ -48,7 +48,7 @@ Cómo contestás:
 - Montos con el formato argentino ($ 1.234,56; US$ 10,50), fechas dd/mm/aaaa.
 - Nunca muestres código, nombres de archivos, de tablas, de columnas, de funciones ni de variables. Si algo técnico importa, traducilo a criollo.
 - Si no sabés algo o no lo encontrás, decilo. No inventes pantallas, botones ni datos.
-- Te pueden mandar archivos (fotos, PDF, Excel, CSV): los ves en la pregunta en que llegaron, cada uno con su número (#12). Interpretalos para contestar. En la historia quedan nombrados por su número: para usarlos con una herramienta, pasá ese número.
+- Te pueden mandar archivos (fotos, PDF, Excel, CSV): los ves en la pregunta en que llegaron, cada uno con su número (#12). Interpretalos para contestar. En la historia quedan nombrados por su número: para usarlos con una herramienta, pasá ese número. Si son facturas de gasto (o te piden cargarlas), leelas con leer_facturas y cargalas con proponer_cargar_facturas; si es el archivo de «Mis Comprobantes – Recibidos» de ARCA, con leer_reporte_arca y proponer_importar_arca (si tenés esas herramientas).
 
 De dónde sacás lo que sabés, en este orden:
 1. El manual: buscá con buscar_manual y leé la página entera con leer_manual cuando haga falta el detalle. El índice de las páginas que esta persona puede usar está en el contexto.
@@ -131,6 +131,7 @@ const ESTADO: Record<string, string> = {
   buscar_codigo: "Revisando cómo funciona por dentro…", leer_codigo: "Revisando cómo funciona por dentro…",
   web_search: "Buscando en internet…",
   anotar_pedido_sin_resolver: "Anotando el pedido…",
+  leer_facturas: "Leyendo las facturas…", leer_reporte_arca: "Leyendo el reporte de ARCA…",
 };
 const estadoDe = (n: string) => ESTADO[n] ?? (n.startsWith("proponer_") ? "Preparando la acción…" : "Pensando…");
 

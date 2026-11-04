@@ -217,3 +217,33 @@ export async function bajarDelDrive(token: string, id: string): Promise<ArrayBuf
   if (!r.ok) throw new ErrorErp("No se pudo bajar el archivo del Drive.");
   return r.arrayBuffer();
 }
+
+/** Sube un archivo a la carpeta del mes de una ruta de carpetas (las de facturas: «Servicios y Gastos … › año › mes»;
+ *  Fer, 4/11: las facturas que se cargan por el asistente). La parte fija tiene que existir; el año y el mes se crean
+ *  si faltan. Si ya hay un archivo con ese nombre, lo reemplaza. Devuelve su id, su fecha de cambio y dónde quedó. */
+export async function subirACarpetaDelMes(org: string, segmentos: Segmento[], año: number, mes: number, a: { nombre: string; contenido: Buffer; tipo: string }):
+  Promise<{ id: string; modificado: string | null; donde: string }> {
+  const token = await tokenDeAcceso(org);
+  let padre = "root", variable = false;
+  for (const seg of segmentos) {
+    if (seg.tipo !== "fijo") variable = true;
+    const hijo = (await carpetasDe(token, padre)).find((c) => coincide(c.name, seg, año, mes));
+    if (hijo) { padre = hijo.id; if (seg.tipo === "mes") break; continue; }
+    if (!variable) throw new ErrorErp(`No encuentro la carpeta «${nombreNuevo(seg, año, mes)}» en el Drive: revisá las carpetas de facturas en Configuración › Google Drive.`);
+    padre = await crearCarpetaEn(token, nombreNuevo(seg, año, mes), padre);
+    if (seg.tipo === "mes") break;
+  }
+  const ya = await buscar(token, a.nombre, padre, false);
+  let r: { id: string; modifiedTime?: string };
+  if (ya) {
+    r = await api(token, `${SUBIR}/files/${ya}?uploadType=media&fields=id,modifiedTime`, { method: "PATCH", headers: { "content-type": a.tipo }, body: new Uint8Array(a.contenido) });
+  } else {
+    const limite = `laucen${crypto.randomUUID().replace(/-/g, "")}`;
+    const cuerpo = Buffer.concat([
+      Buffer.from(`--${limite}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: a.nombre, parents: [padre] })}\r\n--${limite}\r\ncontent-type: ${a.tipo}\r\n\r\n`),
+      a.contenido, Buffer.from(`\r\n--${limite}--`),
+    ]);
+    r = await api(token, `${SUBIR}/files?uploadType=multipart&fields=id,modifiedTime`, { method: "POST", headers: { "content-type": `multipart/related; boundary=${limite}` }, body: new Uint8Array(cuerpo) });
+  }
+  return { id: r.id, modificado: r.modifiedTime ?? null, donde: rutaDeMes(segmentos, año, mes) };
+}

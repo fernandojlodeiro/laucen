@@ -117,18 +117,24 @@ export async function vistaPrevia(org: string, loteId: number) {
   return { lote, filas, proveedores };
 }
 
-export type Resultado = { cargadas: number; yaEstaban: number; distintas: number; errores: string[]; proveedoresNuevos: number; ts: string; validadas?: number };
+export type Resultado = { cargadas: number; yaEstaban: number; distintas: number; errores: string[]; proveedoresNuevos: number; ts: string; validadas?: number;
+  /** Las que quedaron sin importar porque no se eligió la cuenta de su proveedor (opts.omitir). */
+  omitidas?: number };
 
 /** Condición de IVA probable del emisor, por la letra que factura. */
 const condicionPorLetra = (l: string) => (l === "A" || l === "M" ? "responsable_inscripto" : l === "C" ? "monotributo" : null);
 
 /** Importa lo nuevo del lote. `cuentas`: CUIT → cuenta de gasto elegida (se
  *  recuerda en el proveedor). Devuelve el resumen (queda también en el lote). */
-export async function importarLote(org: string, loteId: number, cuentas: Record<string, number | null>, usuarioId: string, opts: { contabilizar?: boolean } = {}): Promise<Resultado> {
-  const v = await vistaPrevia(org, loteId);
-  if (!v) throw new ErrorErp("Ese archivo ya no está: subilo de nuevo.");
+export async function importarLote(org: string, loteId: number, cuentas: Record<string, number | null>, usuarioId: string,
+  opts: { contabilizar?: boolean; /** CUITs que no se importan ahora (Fer, 4/11: el asistente, cuando no saben qué cuenta usar). */ omitir?: string[] } = {}): Promise<Resultado> {
+  const v0 = await vistaPrevia(org, loteId);
+  if (!v0) throw new ErrorErp("Ese archivo ya no está: subilo de nuevo.");
+  const omitir = new Set(opts.omitir ?? []);
+  const omitidas = v0.filas.filter((f) => omitir.has(f.c.cuit) && f.estado === "nueva").length;
+  const v = omitir.size ? { ...v0, filas: v0.filas.filter((f) => !omitir.has(f.c.cuit)), proveedores: v0.proveedores.filter((p) => !omitir.has(p.cuit)) } : v0;
   const validas = new Set((await consulta<{ id: number }>("select id::int from plan_cuenta where organizacion_id = $1 and imputable", [org])).map((x) => x.id));
-  const res: Resultado = { cargadas: 0, yaEstaban: 0, distintas: 0, errores: [], proveedoresNuevos: 0, ts: new Date().toISOString(), validadas: 0 };
+  const res: Resultado = { cargadas: 0, yaEstaban: 0, distintas: 0, errores: [], proveedoresNuevos: 0, ts: new Date().toISOString(), validadas: 0, ...(omitidas ? { omitidas } : {}) };
   // Todo proveedor con algo nuevo tiene que tener su cuenta de gasto elegida (Fer, 23/10).
   const sinCuenta = v.proveedores.filter((p) => p.nuevas > 0 && !(cuentas[p.cuit] && validas.has(Number(cuentas[p.cuit]))) && !p.cuentaId);
   if (sinCuenta.length) throw new ErrorErp(`Elegí la cuenta de gasto de: ${sinCuenta.map((p) => p.nombre).join(", ")}. Queda recordada en cada proveedor.`);

@@ -21,13 +21,19 @@ import { precioDe } from "@/lib/precios";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { crearPedidoAMano, validarPedidoAMano, TIPOS_A_MANO, MEDIOS_A_MANO, PAGOS_A_MANO, type PedidoAMano } from "@/lib/pedidos/a-mano";
+import {
+  HERRAMIENTA_CARGAR_FACTURAS, HERRAMIENTA_IMPORTAR_ARCA, HERRAMIENTA_LEER_ARCA, HERRAMIENTA_LEER_FACTURAS, PERMISO_COMPRAS,
+  hacerCargarFacturas, hacerImportarArca, leerFacturas, leerReporteArca, prepararCargarFacturas, prepararImportarArca,
+} from "./compras";
 
 export type CtxAccion = { org: string; usuarioId: string; permisos: Permisos; authId: string; superadmin: boolean };
 type Preparada = { resumen: string; detalle: string[]; datos: Record<string, unknown> };
 type Accion = {
   permiso: PermisoKey;
+  /** Alcanza con el permiso de su pantalla, sin «Pedirle al asistente que haga cosas» (Fer, 4/11: las facturas de gasto). */
+  libre?: boolean;
   herramienta: Anthropic.Beta.BetaTool;
-  preparar: (e: Record<string, unknown>, ctx: CtxAccion) => Promise<Preparada>;
+  preparar: (e: Record<string, unknown>, ctx: CtxAccion & { conversacionId: number }) => Promise<Preparada>;
   hacer: (datos: Record<string, unknown>, ctx: CtxAccion) => Promise<string>;
 };
 
@@ -299,7 +305,21 @@ export const HERRAMIENTA_CONSULTAR_SQL: Anthropic.Beta.BetaTool = {
 /** ¿Puede hacer consultas libres? El superadministrador, o con «Consultas libres al asistente». */
 export const puedeConsultar = (permisos: Permisos, superadmin: boolean) => superadmin || tienePermiso(permisos, "asistente_consultas");
 
-export const ACCIONES: Accion[] = [facturar, crearCliente, crearPedido, cambiarEstados, cambioEnDatos];
+// ── Facturas de gasto y el reporte de ARCA (lib/asistente/compras.ts) ──
+const cargarFacturas: Accion = {
+  permiso: PERMISO_COMPRAS, libre: true, herramienta: HERRAMIENTA_CARGAR_FACTURAS,
+  preparar: (e, ctx) => prepararCargarFacturas(ctx.org, ctx.conversacionId, e),
+  hacer: (d, ctx) => hacerCargarFacturas(ctx.org, ctx.usuarioId, d),
+};
+const importarArca: Accion = {
+  permiso: PERMISO_COMPRAS, libre: true, herramienta: HERRAMIENTA_IMPORTAR_ARCA,
+  preparar: (e, ctx) => prepararImportarArca(ctx.org, e),
+  hacer: (d, ctx) => hacerImportarArca(ctx.org, ctx.usuarioId, d),
+};
+/** Las que sólo leen y cuentan (sin confirmación), con el permiso de Compras. */
+const LECTURAS_COMPRAS = [HERRAMIENTA_LEER_FACTURAS, HERRAMIENTA_LEER_ARCA];
+
+export const ACCIONES: Accion[] = [facturar, crearCliente, crearPedido, cambiarEstados, cambioEnDatos, cargarFacturas, importarArca];
 const PORNOMBRE = new Map(ACCIONES.map((a) => [a.herramienta.name, a]));
 
 export const HERRAMIENTA_PENDIENTE: Anthropic.Beta.BetaTool = {
@@ -311,16 +331,18 @@ export const HERRAMIENTA_PENDIENTE: Anthropic.Beta.BetaTool = {
 /** Las herramientas de acciones que esta persona puede usar. */
 export function herramientasDeAcciones(permisos: Permisos, superadmin: boolean): Anthropic.Beta.BetaTool[] {
   const consultas = puedeConsultar(permisos, superadmin) ? [HERRAMIENTA_CONSULTAR_SQL] : [];
-  if (!tienePermiso(permisos, "asistente_acciones")) return consultas;
+  const compras = tienePermiso(permisos, PERMISO_COMPRAS) ? LECTURAS_COMPRAS : [];
+  const libres = ACCIONES.filter((a) => a.libre && tienePermiso(permisos, a.permiso)).map((a) => a.herramienta);
+  if (!tienePermiso(permisos, "asistente_acciones")) return [...libres, ...compras, ...consultas];
   const propias = ACCIONES.filter((a) => (a !== cambioEnDatos || superadmin) && tienePermiso(permisos, a.permiso)).map((a) => a.herramienta);
-  return [...propias, ...consultas, HERRAMIENTA_PENDIENTE];
+  return [...propias, ...compras, ...consultas, HERRAMIENTA_PENDIENTE];
 }
 
 export const esHerramientaDeAccion = (nombre: string) =>
-  PORNOMBRE.has(nombre) || nombre === HERRAMIENTA_PENDIENTE.name || nombre === HERRAMIENTA_CONSULTAR_SQL.name;
+  PORNOMBRE.has(nombre) || nombre === HERRAMIENTA_PENDIENTE.name || nombre === HERRAMIENTA_CONSULTAR_SQL.name || LECTURAS_COMPRAS.some((h) => h.name === nombre);
 
 function exigirPermisos(a: Accion, permisos: Permisos) {
-  if (!tienePermiso(permisos, "asistente_acciones")) throw new ErrorErp("Esta persona no tiene permiso para pedirle al asistente que haga cosas.");
+  if (!a.libre && !tienePermiso(permisos, "asistente_acciones")) throw new ErrorErp("Esta persona no tiene permiso para pedirle al asistente que haga cosas.");
   if (!tienePermiso(permisos, a.permiso)) throw new ErrorErp("Esta persona no tiene permiso para esa pantalla.");
 }
 
@@ -340,6 +362,12 @@ export async function correrAccion(nombre: string, entrada: Record<string, unkno
       }).slice(0, 60_000),
     };
   }
+  if (LECTURAS_COMPRAS.some((h) => h.name === nombre)) {
+    if (!tienePermiso(ctx.permisos, PERMISO_COMPRAS)) throw new ErrorErp("Esta persona no tiene el permiso de Facturas de compra.");
+    return { texto: nombre === HERRAMIENTA_LEER_FACTURAS.name
+      ? await leerFacturas(ctx.org, conversacionId, entrada)
+      : await leerReporteArca(ctx.org, ctx.usuarioId, conversacionId, entrada) };
+  }
   if (nombre === HERRAMIENTA_PENDIENTE.name) {
     if (!tienePermiso(ctx.permisos, "asistente_acciones")) throw new ErrorErp("Sin permiso.");
     const pedido = txt(entrada.pedido);
@@ -351,7 +379,7 @@ export async function correrAccion(nombre: string, entrada: Record<string, unkno
   const a = PORNOMBRE.get(nombre);
   if (!a) throw new ErrorErp(`No existe la acción ${nombre}.`);
   exigirPermisos(a, ctx.permisos);
-  const p = await a.preparar(entrada, ctx);
+  const p = await a.preparar(entrada, { ...ctx, conversacionId });
   const r = await una<{ id: number }>(`
     insert into asistente_accion (organizacion_id, conversacion_id, usuario_id, tipo, resumen, detalle, datos)
     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb) returning id::int`,

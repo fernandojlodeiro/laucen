@@ -41,6 +41,23 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 2. Escribí (o dictá con 🎤) la pregunta y apretá **"Enviar"**.
 3. Mientras trabaja muestra qué está haciendo ("Buscando en el manual…", "Consultando los datos…"). Los lugares que nombra son enlaces: tocándolos vas directo.
 
+### Cargar facturas de gasto
+Con el permiso de **Facturas de compra** (no hace falta otro):
+1. Mandale las facturas (PDF o fotos, varias a la vez) con el **📎** y escribí, por ejemplo, «cargá estas facturas».
+2. Las lee y te cuenta cada una: proveedor, CUIT, tipo y número, fecha, total y a nombre de qué razón social está. Te avisa si alguna **ya estaba cargada** (entonces sólo se le suma el archivo) o si **no es una factura** (un comprobante de pago, una boleta de impuestos), que no se carga.
+3. Si un proveedor **no tiene cuenta de gasto**, te pregunta cuál usar y te sugiere una; la que elijas queda guardada en el proveedor para la próxima. Si no sabés, decíselo: esa factura se carga igual y queda **en borrador**.
+4. Te muestra la tarjeta **"Para confirmar"** con lo que va a pasar; apretá **"Confirmar"**.
+5. Cada factura queda:
+   - **en el Drive**, si está conectado y su carpeta de facturas cargada ([Google Drive](/config/google-drive)): en la carpeta de gastos de su razón social y su mes (la del mes se crea si falta), con un nombre prolijo («2026-11-03 Edenor Factura A 00004-00012345.pdf»); las de Mercado Libre, en su carpeta. Si no, el archivo queda guardado en Laucen;
+   - **cargada** en [Facturas de compra](/compras/facturas), registrada si su proveedor tiene cuenta de gasto, con el comprobante a un clic desde la factura. La búsqueda de facturas en el Drive no la vuelve a cargar.
+
+### Importar el reporte de ARCA
+Con el mismo permiso:
+1. Bajá de ARCA «Mis Comprobantes – Recibidos» del mes (.csv o .xlsx), mandáselo con el **📎** y pedile que lo importe.
+2. Si la organización tiene más de una razón social y el nombre del archivo no trae el CUIT, te pregunta de cuál es.
+3. Te cuenta cuántas facturas son nuevas, cuántas ya estaban, las que tienen diferencias (ésas se corrigen a mano en la vista previa, que te deja enlazada) y los proveedores sin cuenta de gasto: para cada uno te pregunta la cuenta con una sugerida; si de alguno no sabés, sus facturas quedan sin importar por ahora (se importan cuando vuelvas a mandar el archivo).
+4. **"Confirmar"** en la tarjeta: importa lo nuevo (registrado) y marca como validadas con ARCA las que ya estaban. Al terminar te dice **qué facturas siguen sin su comprobante** (PDF), para conseguirlas y mandárselas.
+
 ### Pedirle que haga algo
 Si tu rol tiene el permiso «Pedirle al asistente que haga cosas», le podés pedir:
 - **Facturar pedidos**: uno o varios (hasta 50), por ejemplo "facturá los pedidos preparados que no tienen factura".
