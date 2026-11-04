@@ -57,6 +57,7 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 
 - Todos los catálogos donde tenés al menos una publicación de catálogo activa y no gana ni comparte el primer lugar ninguna tuya, y el primero de la lista de vendedores del catálogo no es ninguna de tus cuentas. Quién gana se lee de Mercado Libre cada 6 horas.
 - Si gana o comparte cualquiera de tus publicaciones (de cualquier cuenta), el catálogo no aparece.
+- **Una sola cuenta por producto**: de cada catálogo se muestran sólo las publicaciones de la primera cuenta, en el orden de las cuentas (la principal primero), que tenga alguna publicación que compite. Las de las otras cuentas no se muestran (salvo las ya fijadas con «Ganar», para poder soltarlas). Si ninguna compite, se muestran todas con el motivo.
 - Una publicación fijada con «Ganar» sigue apareciendo para poder soltarla.
 
 ### Qué hace «Ganar»

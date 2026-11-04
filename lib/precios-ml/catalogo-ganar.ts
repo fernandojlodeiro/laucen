@@ -123,6 +123,14 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
       no_compite: f.estado_ptw && f.estado_ptw !== "competing" && f.estado_ptw !== "winning" && f.estado_ptw !== "sharing_first_place" ? motivoNoCompite(f.motivo) : null,
     });
   }
+  // Una sola cuenta por producto (Fer, 4/11): la primera cuenta, en el orden de las cuentas (DAITOM primero), que tenga
+  // alguna publicación que compite en ese catálogo; sólo se muestran sus publicaciones (y las que ya se fijaron con «Ganar»).
+  for (const c of porCat.values()) {
+    const compiten = c.pubs.filter((p) => !p.no_compite);
+    if (!compiten.length) continue;
+    const cuenta = Math.min(...compiten.map((p) => p.canal_id));
+    c.pubs = c.pubs.filter((p) => p.canal_id === cuenta || p.fijada != null);
+  }
   return [...porCat.values()];
 }
 
