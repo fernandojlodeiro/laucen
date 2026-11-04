@@ -16,7 +16,7 @@ Muestra lo que **Mercado Libre y Mercado Pago le facturan** a cada cuenta, leíd
 
 Se puede ver **una cuenta de Mercado Libre sola o todas juntas** con el filtro **Cuenta**.
 
-Es **sólo lectura**: no cambia nada en Mercado Libre y **no registra facturas**. Las facturas de Mercado Libre y Mercado Pago entran al sistema únicamente por la importación de ARCA en [Facturas de compra](/compras/facturas).
+Es **sólo lectura**: no cambia nada en Mercado Libre. **Las facturas que Mercado Libre y Mercado Pago le hacen a cada cuenta entran solas a [Facturas de compra](/compras/facturas)**: cada factura y nota de crédito leída trae su PDF, Laucen lo baja, lo lee y, si esa factura ya estaba (entró por la importación de ARCA), le suma el PDF y **las percepciones de Ingresos Brutos por provincia** (ARCA las trae todas juntas); si no estaba, la carga registrada con la cuenta de gasto del proveedor (de fábrica, la de comisiones). El PDF queda en la carpeta de Mercado Libre del [Google Drive](/config/google-drive) si está conectado; si no, al abrir la factura se le pide a Mercado Libre. Corre después de cada lectura (de noche y con **Traer facturación de ML**); un PDF que no se pudo bajar se reintenta al día siguiente.
 
 Además, cada cargo unido a una venta alimenta el costo de esa venta: se ve en la ficha del pedido ("Cargos de Mercado Libre"), en la lista de pedidos ("Neto ML") y en el informe de [Rentabilidad por venta](/informes/rentabilidad).
 
@@ -28,7 +28,7 @@ Además, cada cargo unido a una venta alimenta el costo de esa venta: se ve en l
 
 Arriba a la derecha:
 - **Descargar Excel**: sólo en la pestaña Retenciones y percepciones.
-- **Traer facturación de ML**: lee ya de Mercado Libre (mientras lee dice "Leyendo de Mercado Libre…"). Lee la cuenta elegida en el filtro, o todas si está en "Todas las cuentas".
+- **Traer facturación de ML**: lee ya de Mercado Libre (mientras lee dice "Leyendo de Mercado Libre…"). Lee la cuenta elegida en el filtro, o todas si está en "Todas las cuentas". Después baja los PDF de las facturas nuevas y las pasa a Facturas de compra; el cartel del final dice cuántas cargó y cuántas completó con su PDF.
 
 Debajo del título:
 - **Cuenta**: desplegable con las cuentas de Mercado Libre de la organización (cada una es un canal de Mercado Libre, con el nombre del canal) y **Todas las cuentas**, que es lo que aparece de entrada. Al elegir una, la pantalla cambia al momento. Se ve aunque haya una sola cuenta. Al lado, un recordatorio de qué va a leer el botón: "«Traer facturación de ML» lee todas las cuentas" o "lee sólo …".
@@ -120,8 +120,8 @@ Los cargos que vienen del detalle de las notas de crédito restan. Los importes 
 
 ## Preguntas frecuentes
 
-**¿Desde acá se cargan las facturas de Mercado Libre?**
-No. Acá sólo se leen y se controlan. Las facturas entran por [Facturas de compra](/compras/facturas) → **Importar de ARCA (Mis Comprobantes)**.
+**¿Hay que bajar las facturas de Mercado Libre y subirlas?**
+No. Después de cada lectura, Laucen baja el PDF de cada factura y nota de crédito de Mercado Libre y Mercado Pago y la pasa sola a [Facturas de compra](/compras/facturas): la carga, o le suma el PDF y las percepciones de Ingresos Brutos por provincia a la que entró por la importación de ARCA.
 
 **¿Cada cuánto se actualiza?**
 Sola cada noche (los últimos 2 períodos). Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).

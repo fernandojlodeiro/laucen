@@ -7,7 +7,8 @@
 // Cada archivo se lee una sola vez (drive_archivo_leido), salvo que cambie o que haya dado error.
 
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
-import { archivosDe, bajarDelDrive, carpetaDelMes, carpetasDe, tokenDeAcceso } from "@/lib/google/drive";
+import { archivosDe, bajarDelDrive, carpetaDelMes, carpetasDe, subirACarpetaDelMes, tokenDeAcceso } from "@/lib/google/drive";
+import { esMercadoLibre } from "@/lib/administracion/arca-mc";
 import { parsearRutaBase, type Segmento } from "@/lib/google/ruta";
 import { leerFacturaArchivo } from "@/lib/compras/factura-leer";
 import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
@@ -134,4 +135,42 @@ export async function organizacionesParaLeerFacturas() {
   return (await consulta<{ organizacion_id: string }>(`select organizacion_id from google_drive
      where refresh_token is not null and jsonb_array_length(coalesce(rutas_facturas, '[]'::jsonb)) > 0
        and (facturas_leido_ts is null or facturas_leido_ts < now() - interval '20 hours')`)).map((x) => x.organizacion_id);
+}
+
+// ── Dejar una factura en su carpeta (Fer, 4/11: las que se cargan por el asistente y las de Mercado Libre) ──
+const normal = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** La carpeta de facturas de una razón social: la de gastos o servicios con su nombre; las de Mercado Libre, la de
+ *  Mercado Libre. null si no hay. */
+export async function carpetaFacturasDe(org: string, emisor: string, cuitProveedor: string): Promise<CarpetaFacturas | null> {
+  const carpetas = await carpetasFacturas(org).catch(() => []);
+  if (!carpetas.length) return null;
+  if (esMercadoLibre(cuitProveedor)) {
+    const ml = carpetas.find((c) => /mercado\s*libre/.test(normal(c.texto)));
+    if (ml) return ml;
+  }
+  const palabras = normal(emisor).split(/[^a-z0-9]+/).filter((p) => p.length >= 4 && !["argentina", "sociedad", "anonima"].includes(p));
+  return carpetas.find((c) => /gasto|servicio/.test(normal(c.texto)) && palabras.some((p) => normal(c.texto).includes(p))) ?? null;
+}
+
+/** Sube la factura a su carpeta del mes con un nombre prolijo («2026-11-03 Edenor Factura A 00004-00012345.pdf») y la
+ *  anota como leída (la búsqueda en el Drive no la vuelve a cargar). null si no hay Drive o carpeta para ella. */
+export async function subirFacturaAlDrive(org: string, datos: Buffer, tipo: string,
+  f: { emisor: string; cuitProveedor: string; proveedor: string; fecha: string; tipoTexto: string; pv: number; numero: number }): Promise<{ id: string; donde: string } | null> {
+  const carpeta = await carpetaFacturasDe(org, f.emisor, f.cuitProveedor);
+  if (!carpeta) return null;
+  try {
+    const ext = tipo === "application/pdf" ? "pdf" : tipo.split("/")[1]?.replace("jpeg", "jpg") ?? "pdf";
+    const limpio = (t: string) => t.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+    const nombre = `${f.fecha} ${limpio(f.proveedor).slice(0, 60)} ${f.tipoTexto} ${String(f.pv).padStart(5, "0")}-${String(f.numero).padStart(8, "0")}.${ext}`;
+    const [año, mes] = f.fecha.split("-").map(Number);
+    const r = await subirACarpetaDelMes(org, carpeta.segmentos, año, mes, { nombre, contenido: datos, tipo });
+    await consulta(`insert into drive_archivo_leido (organizacion_id, archivo_id, nombre, modificado, carpeta, estado, mensaje) values ($1, $2, $3, $4, $5, 'factura', 'cargada por Laucen')
+                    on conflict (organizacion_id, archivo_id) do update set modificado = excluded.modificado, estado = excluded.estado, mensaje = excluded.mensaje, leido_ts = now()`,
+      [org, r.id, nombre, r.modificado, r.donde]).catch(() => {});
+    return { id: r.id, donde: r.donde };
+  } catch (e) {
+    console.error("[facturas-drive] subir", org, motivoErp(e));
+    return null;
+  }
 }

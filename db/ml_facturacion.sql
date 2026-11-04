@@ -111,3 +111,11 @@ update ml_cargo t set canal_id = mc.canal_id from meli_cuenta mc
  where t.canal_id is null and mc.id = t.cuenta_id and mc.canal_id is not null;
 create index if not exists ml_factura_documento_canal on ml_factura_documento (organizacion_id, canal_id, clave);
 create index if not exists ml_cargo_canal on ml_cargo (organizacion_id, canal_id, clave);
+
+-- El PDF de cada factura de ML y MP (Fer, 4/11): se baja por la API (GET /billing/integration/legal_document/{file_id}),
+-- se lee y queda como factura de compra (o completa la que entró por ARCA: el PDF y las percepciones de IIBB por
+-- provincia). lib/mercadolibre/facturas-pdf.ts. pdf_estado: cargada · ya_estaba · borrador · otro · error.
+alter table ml_factura_documento add column if not exists pdf_estado text;
+alter table ml_factura_documento add column if not exists pdf_factura_id bigint;
+alter table ml_factura_documento add column if not exists pdf_mensaje text;
+alter table ml_factura_documento add column if not exists pdf_ts timestamptz;

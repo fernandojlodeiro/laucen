@@ -30,6 +30,11 @@ export async function accionTraerFacturacionMl(fd: FormData) {
     if (!t.periodos && avisos.length) throw new ErrorErp(`Mercado Libre no dio la facturación (${avisos[0]}).`);
     const incompleto = rs.some((r) => r.incompleto);
     const de = canal ? ` de ${nombre}` : rs.length > 1 ? ` de ${rs.length} cuentas` : "";
-    return `Leídos${de} ${t.periodos} períodos: ${t.documentos} facturas y notas de crédito, ${t.cargos} cargos.${incompleto ? " No alcanzó el tiempo para todo: apretá de nuevo para seguir." : ""}`;
+    // Los PDF de las facturas, a Facturas de compra (lib/mercadolibre/facturas-pdf.ts); lo que no alcance sigue solo.
+    const { procesarFacturasMl } = await import("@/lib/mercadolibre/facturas-pdf");
+    const pdf = await procesarFacturasMl(s.org.id, Date.now() + 70_000).catch(() => null);
+    const deFacturas = pdf && (pdf.cargadas || pdf.completadas)
+      ? ` En Facturas de compra: ${pdf.cargadas} cargada${pdf.cargadas === 1 ? "" : "s"} y ${pdf.completadas} completada${pdf.completadas === 1 ? "" : "s"} con su PDF.` : "";
+    return `Leídos${de} ${t.periodos} períodos: ${t.documentos} facturas y notas de crédito, ${t.cargos} cargos.${deFacturas}${incompleto ? " No alcanzó el tiempo para todo: apretá de nuevo para seguir." : ""}`;
   });
 }

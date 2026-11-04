@@ -16,10 +16,9 @@ import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { leerFacturaArchivo, aComprobante, type LecturaFactura } from "@/lib/compras/factura-leer";
 import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
-import { carpetasFacturas } from "@/lib/compras/drive-facturas";
-import { subirACarpetaDelMes } from "@/lib/google/drive";
+import { subirFacturaAlDrive } from "@/lib/compras/drive-facturas";
 import { registrarFactura } from "@/lib/administracion/compras";
-import { esMercadoLibre, guardarLote, importarLote, vistaPrevia, contarEstados } from "@/lib/administracion/arca-mc";
+import { guardarLote, importarLote, vistaPrevia, contarEstados } from "@/lib/administracion/arca-mc";
 import { leerArchivoArca } from "@/lib/administracion/arca-mc-archivo";
 import { adjuntosPorId, bajarAdjunto, tipoDe } from "./adjuntos";
 
@@ -125,41 +124,12 @@ export async function leerFacturas(org: string, conversacionId: number, e: Recor
 // ── Cargar ───────────────────────────────────────────────────────────
 type Eleccion = { archivo: number; cuenta: number | null | undefined };
 
-/** La carpeta del Drive de facturas de una razón social: la de «gastos» con su nombre (o, para Mercado Libre, la de
- *  Mercado Libre). null si no hay. */
-async function carpetaDe(org: string, emisor: string, cuitProveedor: string) {
-  const carpetas = await carpetasFacturas(org).catch(() => []);
-  if (!carpetas.length) return null;
-  const n = (c: { texto: string }) => normal(c.texto);
-  if (esMercadoLibre(cuitProveedor)) {
-    const ml = carpetas.find((c) => /mercado\s*libre/.test(n(c)));
-    if (ml) return ml;
-  }
-  const palabras = normal(emisor).split(/[^a-z0-9]+/).filter((p) => p.length >= 4 && !["argentina", "sociedad", "anonima", "s.a."].includes(p));
-  return carpetas.find((c) => /gasto|servicio/.test(n(c)) && palabras.some((p) => n(c).includes(p))) ?? null;
-}
-
 /** Deja el archivo en el Drive (si se puede) y devuelve con qué queda en la factura. */
 async function guardarArchivo(org: string, l: Leida, s: Extract<Situacion, { que: "lista" | "ya_estaba" }>): Promise<{ archivo: string; donde: string | null }> {
   if (s.que !== "lista") return { archivo: l.ruta, donde: null };
-  const carpeta = await carpetaDe(org, s.emisor, s.cuit);
-  if (!carpeta) return { archivo: l.ruta, donde: null };
-  try {
-    const datos = Buffer.from(await bajarAdjunto(l.ruta));
-    const ext = l.tipo === "application/pdf" ? "pdf" : l.tipo.split("/")[1]?.replace("jpeg", "jpg") ?? "pdf";
-    const limpio = (t: string) => t.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
-    const nombre = `${s.fecha} ${limpio(s.proveedor).slice(0, 60)} ${s.tipoTexto} ${String(s.pv).padStart(5, "0")}-${String(s.numero).padStart(8, "0")}.${ext}`;
-    const [año, mes] = s.fecha.split("-").map(Number);
-    const r = await subirACarpetaDelMes(org, carpeta.segmentos, año, mes, { nombre, contenido: datos, tipo: l.tipo });
-    // Que la lectura del Drive no la vuelva a cargar.
-    await consulta(`insert into drive_archivo_leido (organizacion_id, archivo_id, nombre, modificado, carpeta, estado, mensaje) values ($1, $2, $3, $4, $5, 'factura', 'cargada por el asistente')
-                    on conflict (organizacion_id, archivo_id) do update set modificado = excluded.modificado, estado = excluded.estado, mensaje = excluded.mensaje, leido_ts = now()`,
-      [org, r.id, nombre, r.modificado, r.donde]).catch(() => {});
-    return { archivo: `drive:${r.id}`, donde: r.donde };
-  } catch (e) {
-    console.error("[asistente-facturas] drive", org, motivoErp(e));
-    return { archivo: l.ruta, donde: null };
-  }
+  const r = await subirFacturaAlDrive(org, Buffer.from(await bajarAdjunto(l.ruta)), l.tipo,
+    { emisor: s.emisor, cuitProveedor: s.cuit, proveedor: s.proveedor, fecha: s.fecha, tipoTexto: s.tipoTexto, pv: s.pv, numero: s.numero }).catch(() => null);
+  return r ? { archivo: `drive:${r.id}`, donde: r.donde } : { archivo: l.ruta, donde: null };
 }
 
 export const HERRAMIENTA_CARGAR_FACTURAS: Anthropic.Beta.BetaTool = {

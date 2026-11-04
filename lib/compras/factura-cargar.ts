@@ -27,11 +27,16 @@ export async function cargarFacturaLeida(org: string, usuarioId: string, lectura
   if (!emisor) throw new ErrorErp(`La factura está a nombre del CUIT ${receptor}, que no es de ninguna de tus razones sociales.`);
   let prov = await una<{ id: number; nombre: string; cuenta_gasto_id: number | null }>(
     "select id::int, nombre, cuenta_gasto_id::int from proveedor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2 order by (estado = 'activo') desc, id limit 1", [org, c.cuit]);
-  const ya = prov ? await una<{ id: number; archivo: string | null }>(`select id::int, archivo from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3
+  const ya = prov ? await una<{ id: number; archivo: string | null; percepcion_iibb: string | null; con_detalle: boolean }>(`select id::int, archivo, percepcion_iibb,
+      percepcion_iibb_detalle is not null con_detalle from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3
       and es_nota_credito = $4 and es_nota_debito = $5 and punto_venta is not distinct from $6 and numero = $7 and estado <> 'anulada'`,
     [org, prov.id, c.letra, c.nc, c.nd, c.puntoVenta, c.numero]) : null;
   if (ya) {
     if (!ya.archivo) await consulta("update factura_compra set archivo = $3 where id = $1 and organizacion_id = $2 and archivo is null", [ya.id, org, archivo]);
+    // Las percepciones de IIBB por provincia, si el papel las discrimina y la cargada (de ARCA, que las trae juntas) no las
+    // tiene (Fer, 4/11: las facturas de Mercado Libre).
+    const det = !ya.con_detalle && Number(ya.percepcion_iibb) > 0 ? detalleIibb(lectura, Number(ya.percepcion_iibb)) : null;
+    if (det) await consulta("update factura_compra set percepcion_iibb_detalle = $3::jsonb where id = $1 and organizacion_id = $2 and percepcion_iibb_detalle is null", [ya.id, org, JSON.stringify(det)]);
     return { id: ya.id, estado: "ya_estaba", mensaje: `ya estaba cargada (factura de compra #${ya.id})${ya.archivo ? "" : "; le sumé el archivo"}` };
   }
   if (!prov) {

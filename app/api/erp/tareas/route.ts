@@ -23,6 +23,7 @@ import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from 
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
+import { procesarFacturasMl } from "@/lib/mercadolibre/facturas-pdf";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { reintentarComprobantes } from "@/lib/pagos/comprobante";
@@ -182,6 +183,15 @@ export async function GET(req: Request) {
             console.log("[tareas] facturación ML", JSON.stringify(await traerFacturacionMl(null, { hastaMs: t0 + 100_000, periodos: 2 })));
           } catch (e) {
             console.error("[tareas] facturación ML", e instanceof Error ? e.message : e);
+          }
+        })(),
+        // Los PDF de las facturas de ML y MP que ya se leyeron y todavía no se cargaron (Fer, 4/11; sale enseguida si no hay).
+        (async () => {
+          try {
+            const r = await procesarFacturasMl(null, t0 + 110_000);
+            if (r.procesadas) console.log("[tareas] facturas PDF de ML", JSON.stringify(r));
+          } catch (e) {
+            console.error("[tareas] facturas PDF de ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {

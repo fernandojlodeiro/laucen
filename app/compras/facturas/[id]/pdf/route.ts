@@ -20,6 +20,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!f) return textoPlano("Esa factura no existe.", 404);
   const bajar = new URL(req.url).searchParams.get("bajar") === "1";
   const nombre = `factura-${f.letra}-${String(f.punto_venta ?? 0).padStart(5, "0")}-${String(f.numero ?? id).padStart(8, "0")}`;
+  // Una factura de Mercado Libre o Mercado Pago sin Drive: el PDF se le pide a ML (lib/mercadolibre/facturas-pdf.ts).
+  if (f.archivo?.startsWith("ml:")) {
+    const { bajarPdfMl } = await import("@/lib/mercadolibre/facturas-pdf");
+    const datos = await bajarPdfMl(sesion.org.id, f.archivo).catch(() => null);
+    if (!datos) return textoPlano("Mercado Libre no dio el PDF de esta factura. Probá de nuevo en un rato.", 502);
+    return new Response(datos, { headers: { "content-type": "application/pdf",
+      "content-disposition": `${bajar ? "attachment" : "inline"}; filename="${nombre}.pdf"`, "cache-control": "private, no-store" } });
+  }
   // Leída de una carpeta del Drive: se trae de ahí (lib/compras/drive-facturas.ts).
   if (f.archivo?.startsWith("drive:")) {
     try {

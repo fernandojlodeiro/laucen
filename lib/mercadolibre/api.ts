@@ -32,6 +32,11 @@ export async function cuentaDelCanal(org: string, canalId: number): Promise<Cuen
   return f ? aCuenta(f) : null;
 }
 
+export async function cuentaPorId(org: string, id: number): Promise<CuentaMl | null> {
+  const f = await una<FilaCuenta>(`select ${COLS} from meli_cuenta where organizacion_id = $1 and id = $2`, [org, id]);
+  return f ? aCuenta(f) : null;
+}
+
 export type RespuestaMl<T = unknown> = { status: number; datos: T };
 
 /** Un pedido a la API con la llave de la cuenta. Nunca tira por HTTP:
