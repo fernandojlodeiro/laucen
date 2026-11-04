@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 type SP = { q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ver?: string; ok?: string; error?: string };
 
 const TONO: Record<CatalogoAuto["situacion"], string> = {
-  gana: "text-[#167655]", comparte: "text-[#167655]", contra_otro: "text-[#C03420] font-bold", contra_nosotros: "text-[#8a6100] font-bold", sin_listar: "text-[#5C6B76]",
+  gana: "text-[#167655]", comparte: "text-[#167655]", contra_otro: "text-[#C03420] font-bold", contra_nosotros: "text-[#167655]", en_revision: "text-[#5C6B76]", sin_listar: "text-[#5C6B76]",
 };
 const VEREDICTO: Record<string, string> = { mismo: "Mismo producto", parecido: "Parecido", distinto: "Otro producto" };
 

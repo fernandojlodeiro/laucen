@@ -4,8 +4,9 @@
 //      la cola no creó.
 //   2. Se controla el catálogo: la marca (catalogo-marca.ts: una página armada por ML con la marca de otro vendedor,
 //      o una marca vetada, no sirve) y si es el mismo producto que el nuestro (la IA, juez-similar.ts).
-//   3. Con el precio para ganar que ya se lee cada 6 h (lectura.ts) se ve cómo le va: gana, comparte el primer
-//      lugar, pierde contra otro vendedor (¿cuánto hay que bajar?) o pierde contra otra publicación nuestra.
+//   3. Con el precio para ganar que ya se lee cada 6 h (lectura.ts) y quién gana el catálogo (la lista de ofertas de
+//      ML, con su vendedor) se ve cómo le va: gana, comparte el primer lugar, gana otra nuestra (de cualquiera de
+//      nuestras cuentas: no pide nada) o pierde contra otro vendedor (¿cuánto hay que bajar?).
 //   4. Al superadministrador: aviso en la barra de estado y un mail con lo nuevo o lo que cambió.
 // Sólo lectura de ML: los cambios de precio se preparan en Precios en Mercado Libre, como siempre.
 
@@ -85,10 +86,34 @@ export async function juzgarCatalogosAuto(org: string | null, hastaMs: number, m
   return n;
 }
 
-export type Situacion = "gana" | "comparte" | "contra_otro" | "contra_nosotros" | "sin_listar";
+/** Quién gana cada catálogo: la primera de la lista de ofertas del producto de catálogo (GET /products/{id}/items),
+ *  con su vendedor. Así se sabe si gana una de nuestras cuentas o un vendedor de afuera. Cada 6 h, las activas. */
+export async function leerGanadores(org: string | null, hastaMs: number, max = 40): Promise<number> {
+  const filas = await consulta<{ organizacion_id: string; canal_id: number; item_id: string; catalogo_id: string }>(`
+    select a.organizacion_id, a.canal_id::int, a.item_id, a.catalogo_id
+      from ml_catalogo_auto a join meli_item m on m.canal_id = a.canal_id and m.item_id = a.item_id and m.estado = 'active'
+     where ($1::text is null or a.organizacion_id = $1) and a.catalogo_id is not null
+       and (a.ganador_ts is null or a.ganador_ts < now() - interval '6 hours')
+     order by a.ganador_ts nulls first limit $2`, [org, max]);
+  let n = 0;
+  for (const f of filas) {
+    if (Date.now() > hastaMs) break;
+    const cuenta = await cuentaDelCanal(f.organizacion_id, f.canal_id);
+    if (!cuenta) continue;
+    const r = await ml<{ results?: { item_id?: string; seller_id?: number; price?: number }[] }>(cuenta, "GET", `/products/${f.catalogo_id}/items?limit=1`);
+    if (r.status !== 200) continue;
+    const g = r.datos.results?.[0];
+    await consulta("update ml_catalogo_auto set ganador_item = $3, ganador_vendedor = $4, ganador_precio = $5, ganador_ts = now() where canal_id = $1 and item_id = $2",
+      [f.canal_id, f.item_id, g?.item_id ?? null, g?.seller_id ?? null, g?.price ?? null]);
+    n++;
+  }
+  return n;
+}
+
+export type Situacion = "gana" | "comparte" | "contra_otro" | "contra_nosotros" | "en_revision" | "sin_listar";
 export const TEXTO_SITUACION: Record<Situacion, string> = {
   gana: "Gana", comparte: "Comparte el 1.er lugar", contra_otro: "Pierde contra otro vendedor",
-  contra_nosotros: "Pierde contra una nuestra", sin_listar: "Todavía no compite",
+  contra_nosotros: "Gana otra nuestra", en_revision: "En revisión de ML", sin_listar: "Todavía no compite",
 };
 
 export type CatalogoAuto = {
@@ -96,7 +121,8 @@ export type CatalogoAuto = {
   producto_id: number | null; variacion_id: number | null; sku: string | null; titulo: string | null; fotos: string[] | null;
   catalogo_id: string | null; catalogo_nombre: string | null; marca: string | null; marca_ok: boolean | null;
   veredicto: string | null; motivo: string | null; juzgado: boolean;
-  situacion: Situacion; ptw: number | null; ganador: number | null; clasica: number | null; leido_ts: Date | null; visto_ts: Date;
+  situacion: Situacion; ptw: number | null; ganador: number | null; ganador_item: string | null; ganador_cuenta: string | null;
+  clasica: number | null; leido_ts: Date | null; visto_ts: Date;
   aviso_estado: string | null;
 };
 
@@ -114,15 +140,23 @@ export async function catalogosAuto(org: string): Promise<CatalogoAuto[]> {
            (m.datos_externos -> 'ml' ->> 'price')::float8 precio, v.producto_id::int, v.id::int variacion_id, v.sku, titulo_variacion(v.id) titulo,
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) fotos,
            a.catalogo_id, a.catalogo_nombre, a.marca, a.marca_ok, a.veredicto, a.motivo, a.juzgado_ts is not null or a.intentos >= 3 juzgado,
-           case when w.estado = 'winning' then 'gana' when w.estado = 'sharing_first_place' then 'comparte'
-                when w.estado = 'competing' and exists (select 1 from nuestros n where n.cpid = a.catalogo_id and n.item_id <> a.item_id and abs(n.precio - w.ganador_precio) <= 1) then 'contra_nosotros'
+           -- En revisión, ML no la pone a competir. Si compite, el que gana se ve en la lista de ofertas del catálogo (leerGanadores):
+           -- si el vendedor es una de nuestras cuentas, gana otra nuestra; si no se leyó todavía, se compara con nuestras de catálogo activas.
+           case when m.estado = 'under_review' then 'en_revision'
+                when w.estado = 'winning' then 'gana' when w.estado = 'sharing_first_place' then 'comparte'
+                when w.estado = 'competing' and gc.canal_id is not null then 'contra_nosotros'
+                when w.estado = 'competing' and a.ganador_vendedor is null
+                     and exists (select 1 from nuestros n where n.cpid = a.catalogo_id and n.item_id <> a.item_id and abs(n.precio - w.ganador_precio) <= 1) then 'contra_nosotros'
                 when w.estado = 'competing' then 'contra_otro' else 'sin_listar' end situacion,
-           w.precio::float8 ptw, w.ganador_precio::float8 ganador, cl.venta_ars::float8 clasica, w.leido_ts, a.visto_ts, a.aviso_estado
+           w.precio::float8 ptw, coalesce(a.ganador_precio, w.ganador_precio)::float8 ganador, a.ganador_item, gcc.nombre ganador_cuenta,
+           cl.venta_ars::float8 clasica, w.leido_ts, a.visto_ts, a.aviso_estado
       from ml_catalogo_auto a join canal c on c.id = a.canal_id
       left join meli_item m on m.canal_id = a.canal_id and m.item_id = a.item_id
       left join publicacion pu on pu.canal_id = a.canal_id and pu.id_externo = a.item_id
       left join variacion v on v.id = pu.variacion_id
       left join ml_price_to_win w on w.canal_id = a.canal_id and w.item_id = a.item_id and w.error is null
+      left join meli_cuenta gc on gc.organizacion_id = a.organizacion_id and gc.meli_user_id = a.ganador_vendedor and gc.canal_id is not null
+      left join canal gcc on gcc.id = gc.canal_id
       left join lc on true
       left join lateral precio_de($1, v.id, lc.id) cl on v.id is not null
      where a.organizacion_id = $1 and coalesce(m.estado, '') <> 'closed'
@@ -147,12 +181,13 @@ export function queHacer(c: CatalogoAuto): string | null {
     else if (b <= TOPE_BAJA_PCT) partes.push(`Para ganar hay que bajar a ${pesos(c.ptw)}, ${formatearNumero(Math.max(b, 0), "decimal")} % abajo de la Clásica: se puede (Precios en Mercado Libre › Preparar cambios).`);
     else partes.push(`Para ganar habría que bajar a ${pesos(c.ptw)}, ${formatearNumero(b, "decimal")} % abajo de la Clásica: más del ${TOPE_BAJA_PCT} %.`);
   }
-  if (c.situacion === "contra_nosotros") partes.push(`La que gana es otra publicación nuestra a ${pesos(c.ganador)}: que ésta entre a la campaña (Precios en Mercado Libre › Preparar cambios) o pausala.`);
+  if (c.situacion === "contra_nosotros") partes.push(`Gana otra publicación nuestra${c.ganador_cuenta ? ` de ${c.ganador_cuenta}` : ""}${c.ganador_item ? ` (${c.ganador_item})` : ""} a ${pesos(c.ganador)}: no hace falta nada.`);
   return partes.length ? partes.join(" ") : null;
 }
 
 /** Lo que pide atención (el aviso de la barra de estado). */
-export const pideAtencion = (c: CatalogoAuto) => c.marca_ok === false || c.veredicto === "distinto" || c.situacion === "contra_otro" || c.situacion === "contra_nosotros";
+/** Que gane otra publicación nuestra no pide nada (Fer, 4/11): el comprador igual nos compra a nosotros. */
+export const pideAtencion = (c: CatalogoAuto) => c.marca_ok === false || c.veredicto === "distinto" || c.situacion === "contra_otro";
 
 /** Lo que se le avisó por mail: cambia cuando cambia lo que hay que hacer. */
 const estadoAviso = (c: CatalogoAuto) => [c.situacion, c.veredicto ?? "-", c.marca_ok === false ? "marca" : "-", c.situacion === "contra_otro" ? Math.round(c.ptw ?? 0) : ""].join("|");
@@ -191,9 +226,10 @@ export async function avisarCatalogosAuto(org: string | null): Promise<number> {
 }
 
 /** Una vuelta entera: anotar, juzgar y avisar (la corre el barrido de ML después de leer los precios). */
-export async function revisarCatalogosAuto(hastaMs: number): Promise<{ nuevos: number; juzgados: number; mails: number }> {
+export async function revisarCatalogosAuto(hastaMs: number): Promise<{ nuevos: number; juzgados: number; ganadores: number; mails: number }> {
   const nuevos = await registrarCatalogosAuto(null);
   const juzgados = await juzgarCatalogosAuto(null, hastaMs);
+  const ganadores = await leerGanadores(null, hastaMs);
   const mails = await avisarCatalogosAuto(null);
-  return { nuevos, juzgados, mails };
+  return { nuevos, juzgados, ganadores, mails };
 }

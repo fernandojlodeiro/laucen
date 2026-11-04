@@ -12,7 +12,7 @@ resumen: Las publicaciones de catálogo que Mercado Libre creó solo en tus cuen
 Mercado Libre a veces pone por su cuenta una publicación tuya a competir en un catálogo (el aviso «ahora competís para ser la primera opción de compra»): crea una publicación de catálogo nueva en tu cuenta, vinculada al mismo producto. Esta pantalla las junta para revisar tres cosas:
 
 - **Si el catálogo es el mismo producto** que el tuyo y si su marca sirve.
-- **Cómo le va**: si gana el botón de compra, lo comparte o lo pierde, y contra quién.
+- **Cómo le va**: si gana el botón de compra, lo comparte o lo pierde, y si el que gana es otra de tus cuentas o un vendedor de afuera.
 - **Qué conviene hacer**, en una frase.
 
 Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precios en Mercado Libre](/catalogo/precios-ml) con «Preparar cambios».
@@ -39,9 +39,15 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 
 - **Gana**: tiene el botón de compra.
 - **Comparte el 1.er lugar**: lo comparte con otros vendedores.
-- **Pierde contra otro vendedor**: gana otro vendedor. «Qué hacer» dice a cuánto hay que bajar.
-- **Pierde contra una nuestra**: la que gana es otra publicación tuya (de la misma u otra cuenta), al mismo precio que el ganador. Bajar el precio no sirve: conviene que la publicación nueva entre a la campaña (y quede al precio de la tuya) o pausarla.
+- **Gana otra nuestra**: el botón de compra lo tiene otra publicación de cualquiera de tus cuentas de Mercado Libre (se ve cuál en «Qué hacer»). No hace falta nada: el comprador igual te compra a vos.
+- **Pierde contra otro vendedor**: gana un vendedor que no es ninguna de tus cuentas. «Qué hacer» dice a cuánto hay que bajar.
+- **En revisión de ML**: Mercado Libre la está revisando y todavía no la pone a competir.
 - **Todavía no compite**: Mercado Libre todavía no la puso en el catálogo, o no hay precio para ganar leído.
+- Quién gana se lee de Mercado Libre cada 6 horas: el primero de la lista de vendedores del catálogo.
+
+### La campaña
+
+- Las publicaciones de catálogo que crea Mercado Libre entran solas a la campaña, como cualquier publicación nueva, en las cuentas que tienen prendidos los precios automáticos (Configuración › Canales). No hace falta nada desde esta pantalla.
 
 ### Cuánto se puede bajar
 
@@ -55,7 +61,7 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 
 ### Qué pide atención
 
-Una fila va a «Para revisar» si pierde contra otro vendedor, pierde contra una nuestra, el catálogo es otro producto o tiene la marca de otro vendedor.
+Una fila va a «Para revisar» si pierde contra otro vendedor, el catálogo es otro producto o tiene la marca de otro vendedor. Que gane otra publicación nuestra no pide atención.
 
 ### Los avisos
 

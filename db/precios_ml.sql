@@ -471,3 +471,8 @@ create table if not exists ml_catalogo_auto (
 );
 alter table ml_catalogo_auto enable row level security;
 select erp_politica_org('ml_catalogo_auto');
+-- Quién gana el catálogo, según la lista de ofertas de ML (la primera): publicación, vendedor y precio.
+alter table ml_catalogo_auto add column if not exists ganador_item text;
+alter table ml_catalogo_auto add column if not exists ganador_vendedor bigint;
+alter table ml_catalogo_auto add column if not exists ganador_precio numeric(16, 2);
+alter table ml_catalogo_auto add column if not exists ganador_ts timestamptz;
