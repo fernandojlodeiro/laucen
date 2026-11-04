@@ -52,6 +52,11 @@ export async function GET(req: Request) {
             console.error("[meli] envío gratis", e instanceof Error ? e.message : e);
           }
           if (t0 + 105_000 - Date.now() > 10_000) console.log("[meli] lecturas de precios", JSON.stringify(await leerPreciosMl(t0 + 105_000, { tanda: 1000 })));
+          // Los catálogos que armó ML solo: anotar, controlar marca y producto, y avisar (lib/precios-ml/catalogo-auto.ts).
+          if (t0 + 110_000 - Date.now() > 5_000) {
+            const ca = await (await import("@/lib/precios-ml/catalogo-auto")).revisarCatalogosAuto(t0 + 110_000);
+            if (ca.nuevos || ca.juzgados || ca.mails) console.log("[meli] catálogos que armó ML", JSON.stringify(ca));
+          }
           // Lo que cobra ML en las ofertas relámpago propuestas (lib/precios-ml/relampago.ts): sólo lectura.
           if (t0 + 112_000 - Date.now() > 5_000) {
             const n = await (await import("@/lib/precios-ml/relampago")).actualizarCostosRelampago(t0 + 112_000);

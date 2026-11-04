@@ -36,6 +36,7 @@ import { AvisosTareas } from "@/app/componentes/TareasFondo";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
 import { estilosCanales } from "@/lib/canales/colores";
 import { casosDejarFull, type CasoDejarFull } from "@/lib/full/dejar-full";
+import { catalogosAuto, pideAtencion } from "@/lib/precios-ml/catalogo-auto";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
   const sesion = await sesionActual();
@@ -45,7 +46,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales, personal, dejarFull] = await Promise.all([
+  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales, personal, dejarFull, catalogosMl] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: { reclamos: false, mensajes: false, preguntas: false, whatsapp: false, pedidos: false, facturas: false, prohibidas: false }, pedidoDetalle: false, cadaMin: 1 } })),
@@ -59,6 +60,8 @@ export default async function Marco({ children, version }: { children: React.Rea
     tieneEspacio(sesion.usuario.id).catch(() => false),
     // Productos para probar «Dejar de ofrecer Full» (Fer, 4/11): sólo lo ve el superadministrador.
     sesion.superadmin ? casosDejarFull(sesion.org.id).catch((): CasoDejarFull[] => []) : Promise.resolve([] as CasoDejarFull[]),
+    // Catálogos que armó ML que piden atención (Fer, 4/11): también sólo para el superadministrador.
+    sesion.superadmin ? catalogosAuto(sesion.org.id).then((l) => l.filter(pideAtencion).length).catch(() => 0) : Promise.resolve(0),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
@@ -113,6 +116,12 @@ export default async function Marco({ children, version }: { children: React.Rea
         </span>
         {/* Se refrescan solos; lo nuevo que no viste, en amarillo (Fer, 10/10). */}
         <ContadoresEstado inicial={avisos.contadores} />
+        {catalogosMl > 0 && (
+          <Link href="/catalogo/catalogos-ml" title="Catálogos que armó Mercado Libre solo y piden atención: precio para ganar, marca o producto."
+            className="rounded px-1.5 py-0.5 font-bold bg-[#F2C94C] text-[#16577F] whitespace-nowrap">
+            Catálogos ML ({catalogosMl})
+          </Link>
+        )}
         {dejarFull.length > 0 && (
           <Link href={`/stock/full/stock?q=${encodeURIComponent(dejarFull[0].sku)}`}
             title={`Sin nada en Full, nada en camino y con stock propio: es el caso para probar «Dejar de ofrecer Full» por API.\n${dejarFull.map((c) => `${c.cuenta} · ${c.sku} · ${c.item_id} (${c.publicaciones} publ., ${c.disponible} u. propias)`).join("\n")}`}
