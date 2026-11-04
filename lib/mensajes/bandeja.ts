@@ -224,7 +224,7 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
       herramientas: (m.herramientas ?? []).map((h) => h.nombre),
       // La foto o el archivo que mandó por WhatsApp: se pide a Meta al verlo (/api/mensajes/adjunto).
       ...(m.adjunto ? { adjuntos: [{ url: `/api/mensajes/adjunto?c=${m.id}`, nombre: m.adjunto.nombre || (String(m.adjunto.tipo ?? "").startsWith("image") ? "Foto" : "Archivo"),
-        imagen: String(m.adjunto.tipo ?? "").startsWith("image") }] } : {}),
+        imagen: String(m.adjunto.tipo ?? "").startsWith("image"), audio: String(m.adjunto.tipo ?? "").startsWith("audio") }] } : {}),
       ...(m.clase === "ia" && ch.canal !== "prueba" ? { corregir: { origen: "whatsapp" as const, id: String(m.id) } } : {}),
     })),
     aviso: null,

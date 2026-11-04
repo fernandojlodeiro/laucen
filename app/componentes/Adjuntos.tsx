@@ -7,7 +7,10 @@ import type { Adjunto } from "@/lib/mensajes/bandeja-tipos";
 export default function Adjuntos({ lista, tamano = 96 }: { lista: Adjunto[]; tamano?: number }) {
   return (
     <div className="mt-1 flex flex-wrap gap-1.5">
-      {lista.map((a) => a.imagen
+      {lista.map((a) => a.audio
+        // Una nota de voz de WhatsApp (Fer, 4/11): se escucha ahí mismo.
+        ? <audio key={a.url} controls preload="none" src={a.url} aria-label={a.nombre} className="h-8 w-64 max-w-full" />
+        : a.imagen
         ? <a key={a.url} href={a.url} target="_blank" rel="noopener" title={`${a.nombre} ↗`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={a.url} alt={a.nombre} loading="lazy" style={{ width: tamano, height: tamano }} className="rounded-md border border-[#E3E9F0] object-cover bg-[#F7F9FB]" />

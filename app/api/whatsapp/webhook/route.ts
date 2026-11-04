@@ -15,11 +15,14 @@ import { recibirComprobanteWhatsapp, avisarComprobanteAlCliente } from "@/lib/pa
 import { anotarAnuncio, anotarEntrega, anotarOrigen, anotarEvento, chatDe, credencialDeNumero, ganaLaEspera, guardarMensaje, ponerIa, verifyTokenValido } from "@/lib/mensajes/chats";
 import { configMensajes } from "@/lib/mensajes/config";
 import { consulta } from "@/lib/erp/base";
-import { contestar } from "@/lib/mensajes/estela";
+import { contestar, mandar } from "@/lib/mensajes/estela";
+import { escucharAudio } from "@/lib/mensajes/audios";
+import { hayTranscriptor } from "@/lib/mensajes/voz";
 import { conQuienHablaban, ecosDelCambio, esOrdenDeMando, loQueDijo, sinLaMarca } from "@/lib/mensajes/reglas";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Una nota de voz suma escucharla y hablar la respuesta (Fer, 4/11).
+export const maxDuration = 120;
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
@@ -142,6 +145,20 @@ export async function POST(req: NextRequest) {
               if (pago) { await avisarComprobanteAlCliente(org, chat.id, pago.pedidoId, pago.conciliado); return; }
             }
             const cfg = await configMensajes(org);
+            // Una nota de voz se escucha primero (Fer, 4/11; lib/mensajes/audios.ts): el texto queda en el chat y la IA
+            // contesta como a cualquier mensaje. Si no se pudo, queda un caso para una persona y se le pide que lo escriba.
+            if (m.type === "audio" && m.audio?.id && hayTranscriptor()) {
+              // Mientras se escucha, otro mensaje del mismo cliente no se contesta antes (ganaLaEspera sigue esperando).
+              await consulta(`insert into chat_espera (chat_id, procesar_desde) values ($1, now() + interval '45 seconds')
+                              on conflict (chat_id) do update set procesar_desde = excluded.procesar_desde`, [chat.id]).catch(() => {});
+              const oido = await escucharAudio(org, chat.id, id, m.audio.id);
+              if (!oido.ok) {
+                await consulta("update chat_espera set procesar_desde = now() where chat_id = $1", [chat.id]).catch(() => {});
+                const ahora = await chatDe(org, "whatsapp", tel);
+                if (cfg.iaActiva && !ahora.atiendePersonaDesde) await mandar(org, ahora, oido.acuse, { clase: "ia" });
+                return;
+              }
+            }
             if (!cfg.iaActiva) return;
             if (!(await ganaLaEspera(chat.id, cfg.esperaSeg))) return;
             await contestar(org, chat.id);

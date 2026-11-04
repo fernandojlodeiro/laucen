@@ -108,6 +108,8 @@ export type Clase = "entrante" | "ia" | "operador" | "desde_el_telefono";
 export type NuevoMensaje = {
   org: string; chatId: number; clase: Clase; texto: string; wamid?: string | null; estado?: "enviado" | "fallido" | null;
   motivo?: string | null; usuarioId?: string | null; herramientas?: unknown; tokensIn?: number; tokensOut?: number; usd?: number;
+  /** El archivo que va con el mensaje (una nota de voz de la IA: { media_id, tipo }). */
+  adjunto?: Record<string, unknown> | null;
 };
 
 /** Guarda un mensaje. Si Meta reenvía uno que ya está (mismo wamid), no lo
@@ -115,12 +117,12 @@ export type NuevoMensaje = {
 export async function guardarMensaje(m: NuevoMensaje): Promise<number | null> {
   const direccion = m.clase === "entrante" ? "entrante" : "saliente";
   const r = await una<{ id: number }>(`
-    insert into chat_mensaje (organizacion_id, chat_id, direccion, clase, texto, wamid, estado_entrega, entrega_motivo, usuario_id, herramientas, tokens_in, tokens_out, usd)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13)
+    insert into chat_mensaje (organizacion_id, chat_id, direccion, clase, texto, wamid, estado_entrega, entrega_motivo, usuario_id, herramientas, tokens_in, tokens_out, usd, adjunto)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14::jsonb)
     on conflict (wamid) where wamid is not null do nothing
     returning id::int`,
   [m.org, m.chatId, direccion, m.clase, m.texto, m.wamid ?? null, m.estado ?? null, m.motivo ?? null, m.usuarioId ?? null,
-    JSON.stringify(m.herramientas ?? []), m.tokensIn ?? 0, m.tokensOut ?? 0, m.usd ?? 0]);
+    JSON.stringify(m.herramientas ?? []), m.tokensIn ?? 0, m.tokensOut ?? 0, m.usd ?? 0, m.adjunto ? JSON.stringify(m.adjunto) : null]);
   if (!r) return null;
   await consulta(`update chat set ultimo_ts = now()${direccion === "entrante" ? ", ultimo_entrante_ts = now()" : ""} where id = $1`, [m.chatId]);
   // Nos escribió por WhatsApp un cliente de la ficha: ése es su WhatsApp confirmado (pedido de Fer, 13/10).
@@ -145,12 +147,12 @@ export async function anotarEntrega(wamid: string, estado: "entregado" | "leido"
 }
 
 /** automatico: un aviso que mandó el sistema solo (pago recibido, despachado, la factura…), no una persona. */
-export type Turno = { clase: Clase; texto: string; ts: string; automatico: boolean };
+export type Turno = { clase: Clase; texto: string; ts: string; automatico: boolean; audio: boolean };
 
 /** Los últimos mensajes del chat, del más viejo al más nuevo. */
 export async function historialDe(chatId: number, n = 20): Promise<Turno[]> {
   const filas = await consulta<Turno>(`
-    select clase, texto, ts::text, (clase = 'operador' and usuario_id is null) automatico
+    select clase, texto, ts::text, (clase = 'operador' and usuario_id is null) automatico, coalesce(adjunto ->> 'tipo' like 'audio%', false) audio
       from (select * from chat_mensaje where chat_id = $1 and texto <> '' order by id desc limit $2) x order by id`, [chatId, n]);
   return filas;
 }

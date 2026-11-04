@@ -72,7 +72,8 @@ export type MensajeVista = {
   adjuntos?: Adjunto[];
 };
 
-export type Adjunto = { url: string; nombre: string; imagen: boolean };
+/** `audio`: una nota de voz, se escucha ahí mismo. */
+export type Adjunto = { url: string; nombre: string; imagen: boolean; audio?: boolean };
 
 /** Los adjuntos de un mensaje de ML o de un reclamo, como los anota Mercado Libre, con el enlace para verlos. Pura. */
 export function adjuntosMl(lista: unknown, param: "m" | "r", id: string | number): Adjunto[] {

@@ -187,6 +187,21 @@ async function mandar(cuenta: CuentaWa, cuerpo: Record<string, unknown>): Promis
   return { ok: true, wamid: ((r.data?.messages ?? []) as { id?: string }[])[0]?.id ?? null };
 }
 
+/** Sube un archivo a Meta y devuelve su id (con eso se manda; dura unos días del lado de Meta). null si no se pudo.
+ *  Sin Content-Type a mano: lo pone fetch con el boundary del multipart. Copiado de CadaMes (whatsapp.ts). */
+export async function subirMedia(cuenta: CuentaWa, datos: Buffer, tipo: string, nombre: string): Promise<string | null> {
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", tipo);
+  form.append("file", new Blob([new Uint8Array(datos)], { type: tipo }), nombre);
+  const r = await pedir(`${GRAPH}/${cuenta.phoneNumberId}/media`, { method: "POST", headers: { Authorization: `Bearer ${cuenta.token}` }, body: form });
+  if (!r.ok) { console.error("[wa-subir]", cuenta.phoneNumberId, motivoCrudo(r)); return null; }
+  return (r.data as { id?: string }).id ?? null;
+}
+
+/** Una nota de voz ya subida (subirMedia). Como el texto libre, sólo dentro de las 24 h. */
+export const enviarAudio = (cuenta: CuentaWa, para: string, mediaId: string) => mandar(cuenta, { to: para, type: "audio", audio: { id: mediaId } });
+
 /** Un documento (el PDF de una factura) por su dirección pública: Meta lo baja y lo manda.
  *  Como el texto libre, sólo dentro de las 24 h desde el último mensaje del cliente. */
 export const enviarDocumento = (cuenta: CuentaWa, para: string, link: string, nombreArchivo: string, texto: string) =>

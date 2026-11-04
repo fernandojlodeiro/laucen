@@ -7,6 +7,7 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { MARCA_POR_DEFECTO } from "./reglas";
+import { esVoz, type VozElegida } from "./voz";
 
 export type ConfigMensajes = {
   iaActiva: boolean;
@@ -17,10 +18,14 @@ export type ConfigMensajes = {
   porHora: number;
   marca: string;
   esperaSeg: number;
+  /** La voz de las notas de voz (Fer, 4/11; lib/mensajes/voz.ts): apagada, mujer (Sofía) u hombre (MaxiAraya). */
+  voz: VozElegida;
+  /** true: contesta siempre con audio; false: sólo a quien mandó un audio. */
+  vozSiempre: boolean;
 };
 
 export const CONFIG_DEFECTO: ConfigMensajes = {
-  iaActiva: true, nombre: "Estela", info: "", topeUsd: 20, porHora: 15, marca: MARCA_POR_DEFECTO, esperaSeg: 12,
+  iaActiva: true, nombre: "Estela", info: "", topeUsd: 20, porHora: 15, marca: MARCA_POR_DEFECTO, esperaSeg: 12, voz: "apagado", vozSiempre: false,
 };
 
 const numero = (v: unknown, def: number, min = 0, max = Infinity) => {
@@ -40,6 +45,8 @@ export async function configMensajes(org: string): Promise<ConfigMensajes> {
     porHora: numero(v.porHora, CONFIG_DEFECTO.porHora, 1, 200),
     marca: typeof v.marca === "string" && v.marca.trim() ? v.marca.trim() : CONFIG_DEFECTO.marca,
     esperaSeg: numero(v.esperaSeg, CONFIG_DEFECTO.esperaSeg, 0, 40),
+    voz: esVoz(v.voz) ? v.voz : CONFIG_DEFECTO.voz,
+    vozSiempre: typeof v.vozSiempre === "boolean" ? v.vozSiempre : CONFIG_DEFECTO.vozSiempre,
   };
 }
 

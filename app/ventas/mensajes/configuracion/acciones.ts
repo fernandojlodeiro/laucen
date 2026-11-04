@@ -9,6 +9,7 @@ import { consulta, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero } from "@/lib/erp/acciones";
 import { configMensajes, guardarConfigMensajes } from "@/lib/mensajes/config";
 import { revisarMarca } from "@/lib/mensajes/reglas";
+import { esVoz } from "@/lib/mensajes/voz";
 import { pendienteDe, terminarAlta } from "@/lib/mensajes/alta";
 import { redirect } from "next/navigation";
 import { guardarRespuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
@@ -31,6 +32,18 @@ export async function accionGuardarMensajes(fd: FormData) {
     if (!marca.ok) throw new ErrorErp(marca.motivo);
     const info = String(fd.get("info") ?? "").slice(0, 20_000);
     await guardarConfigMensajes(s.org.id, { ...(await configMensajes(s.org.id)), nombre, topeUsd: tope, porHora, esperaSeg: espera, marca: marca.marca, info });
+    revalidatePath("/ventas/mensajes", "layout");
+    return { ir: `${VOLVER}?ok=${encodeURIComponent("Grabado.")}` };
+  });
+}
+
+/** Los audios (Fer, 4/11): la voz de las notas de voz y si contesta siempre con audio. */
+export async function accionGuardarVoz(fd: FormData) {
+  const s = await entrarErp("mensajes_config");
+  await intentar(`${VOLVER}?editar=voz`, async () => {
+    const voz = String(fd.get("voz") ?? "");
+    if (!esVoz(voz)) throw new ErrorErp("Elegí la voz.");
+    await guardarConfigMensajes(s.org.id, { ...(await configMensajes(s.org.id)), voz, vozSiempre: fd.get("voz_siempre") === "1" });
     revalidatePath("/ventas/mensajes", "layout");
     return { ir: `${VOLVER}?ok=${encodeURIComponent("Grabado.")}` };
   });

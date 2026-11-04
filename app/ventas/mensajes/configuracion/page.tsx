@@ -13,7 +13,8 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionIaGeneral, accionRespuestaAuto } from "./acciones";
+import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionGuardarVoz, accionIaGeneral, accionRespuestaAuto } from "./acciones";
+import { VOCES, hayTranscriptor, hayVoz, LARGO_MAXIMO_PARA_HABLAR, TOPE_AUDIO_KB } from "@/lib/mensajes/voz";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { tienePermiso } from "@/lib/permisos";
 import { appInstagram, claveDeVerificacion, cuentaDeOrg, hayAppInstagram } from "@/lib/mensajes/instagram";
@@ -62,6 +63,7 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const [c, gasto, cred] = await Promise.all([configMensajes(s.org.id), gastoMensajesDelMes(s.org.id), credencialDeOrg(s.org.id)]);
   const editando = editandoFicha(sp);
+  const editandoVoz = sp.editar === "voz";
   const vuelta = sp.wa ? VUELTA[sp.wa] : sp.ig ? VUELTA_IG[sp.ig] : null;
   const [ig, appIg, esDueno] = await Promise.all([cuentaDeOrg(s.org.id), appInstagram(), sosVos()]);
   const verifyIg = esDueno ? await claveDeVerificacion() : null;
@@ -246,6 +248,41 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
             <span className={AYUDA}>Los productos, precios y stock los consulta sola de la tienda web; acá va lo demás.</span></label>
         </form>
       )}
+      <TituloSeccion titulo="Audios">
+        <BotonesFicha editando={editandoVoz} ver={VOLVER} editar={`${VOLVER}?editar=voz`} form="voz" />
+      </TituloSeccion>
+      <form id="voz" action={accionGuardarVoz} className={`${CAJA} grid gap-3`}>
+        <div className="grid gap-1 text-sm">
+          <span className={ETIQUETA}>Escuchar los audios que mandan</span>
+          <p>{hayTranscriptor()
+            ? `Lista: cada nota de voz de WhatsApp se pasa a texto sola (queda escrita en el chat, con el audio para escucharlo) y ${c.nombre} la contesta como a cualquier mensaje. Un audio de más de uno o dos minutos (${TOPE_AUDIO_KB} KB) no se escucha: le pide que lo escriba y queda En espera para una persona.`
+            : `Falta cargar la llave de OpenAI: mientras tanto, a quien manda un audio ${c.nombre} le pide que lo escriba.`}</p>
+        </div>
+        <fieldset className="grid gap-1.5">
+          <span className={ETIQUETA}>Contestar con audio (voz de {c.nombre})</span>
+          {!hayVoz() && <p className="text-[12px] text-[#C03420]">Falta cargar la llave de ElevenLabs: hasta entonces no sale ningún audio, aunque elijas una voz.</p>}
+          {([["apagado", "Apagado", "Contesta sólo con texto."], ...Object.entries(VOCES).map(([k, v]) => [k, `${k === "mujer" ? "Mujer" : "Hombre"} — ${v.nombre}`, v.descripcion])] as [string, string, string][]).map(([valor, titulo, ayuda]) => (
+            <label key={valor} className="flex flex-wrap items-center gap-3 rounded-md border border-[#E3E9F0] px-3 py-2">
+              <input type="radio" name="voz" value={valor} defaultChecked={c.voz === valor} disabled={!editandoVoz} className="accent-[#16577F]" />
+              <span className="flex-1 min-w-40"><b>{titulo}</b> <span className="text-[#5C6B76]">— {ayuda}</span></span>
+              {valor !== "apagado" && hayVoz() && (
+                <audio controls preload="none" src={`/api/mensajes/voz-muestra?voz=${valor}`} aria-label={`Escuchar cómo suena ${titulo}`} className="h-8 w-56 max-w-full" />
+              )}
+            </label>
+          ))}
+          <label className="inline-flex items-center gap-1.5 text-sm mt-1">
+            <input type="checkbox" name="voz_siempre" value="1" defaultChecked={c.vozSiempre} disabled={!editandoVoz} className="h-4 w-4 accent-[#16577F]" />
+            Contestar siempre con audio (no sólo a quien escribió con audio)
+          </label>
+          <p className="text-[11px] text-[#5C6B76]">
+            Apagado: {c.nombre} contesta sólo con texto. Con una voz elegida y la caja sin tildar: a quien manda una nota de voz, {c.nombre} le contesta
+            con una nota de voz y, enseguida, el mismo texto escrito; a quien escribe, sólo texto. Con la caja tildada: todas sus respuestas van con nota
+            de voz y texto. Nunca va en audio una respuesta de más de {LARGO_MAXIMO_PARA_HABLAR} caracteres (unos 45 segundos) ni una que es sólo un link
+            o un número: ésas, sólo texto. Sólo por WhatsApp (en Instagram, siempre texto). Los audios cuentan para el tope de gasto del mes.
+          </p>
+        </fieldset>
+      </form>
+
       <div className="text-[11px] text-[#5C6B76] mt-4 space-y-1">
         <p>La IA contesta siempre; lo que no sabe resolver (un reclamo, una devolución, un precio especial, o si piden hablar con una persona) lo deja <b>En espera</b> en la bandeja de Mensajes y sigue atendiendo lo demás. Desde el panel o desde el teléfono, cualquiera puede contestar; para que la IA no se meta, se apaga el interruptor del chat (o se escribe desde el teléfono un mensaje que empiece con la marca).</p>
       </div>
