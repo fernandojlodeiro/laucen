@@ -119,3 +119,7 @@ alter table ml_factura_documento add column if not exists pdf_estado text;
 alter table ml_factura_documento add column if not exists pdf_factura_id bigint;
 alter table ml_factura_documento add column if not exists pdf_mensaje text;
 alter table ml_factura_documento add column if not exists pdf_ts timestamptz;
+
+-- La última lectura de la cuenta falló (Fer, 4/11: ML contestaba 429 de noche, con la barrida): se reintenta a la hora,
+-- fuera de la ventana de la barrida (lib/mercadolibre/facturacion.ts, facturacionAReintentar).
+alter table ml_facturacion_lectura add column if not exists fallo boolean not null default false;

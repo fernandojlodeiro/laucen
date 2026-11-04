@@ -124,7 +124,7 @@ Los cargos que vienen del detalle de las notas de crédito restan. Los importes 
 No. Después de cada lectura, Laucen baja el PDF de cada factura y nota de crédito de Mercado Libre y Mercado Pago y la pasa sola a [Facturas de compra](/compras/facturas): la carga, o le suma el PDF y las percepciones de Ingresos Brutos por provincia a la que entró por la importación de ARCA.
 
 **¿Cada cuánto se actualiza?**
-Sola cada noche (los últimos 2 períodos). Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).
+Sola cada noche (los últimos 2 períodos). Si Mercado Libre no la da en ese momento (de noche a veces rechaza las lecturas por exceso de pedidos), Laucen la vuelve a intentar sola cada una hora durante el día, hasta que sale. Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).
 
 **Dice "Falta en la importación de ARCA", ¿qué hago?**
 Importá en Facturas de compra el archivo "Mis Comprobantes – Recibidos" de ARCA del mes de ese comprobante.

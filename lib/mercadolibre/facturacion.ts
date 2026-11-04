@@ -148,8 +148,10 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
     if (Date.now() > opts.hastaMs - 3_000) break;
     const cuenta: CuentaMl = { id: f.id, organizacionId: f.organizacion_id, canalId: f.canal_id, meliUserId: Number(f.meli_user_id), nickname: f.nickname, estado: f.estado };
     const r = await leerCuenta(cuenta, leer, opts);
-    await consulta(`insert into ml_facturacion_lectura (cuenta_id, organizacion_id, ultimo_ts, resultado) values ($1, $2, now(), $3::jsonb)
-                    on conflict (cuenta_id) do update set ultimo_ts = now(), resultado = excluded.resultado`, [cuenta.id, cuenta.organizacionId, JSON.stringify(r)]);
+    // Falló (Fer, 4/11: de noche, junto con la barrida, ML contestaba 429 a todo): se reintenta a la hora, fuera de la barrida.
+    const fallo = r.avisos.some((a) => /\b(429|5\d\d|0)\b/.test(a)) || (r.periodos === 0 && r.avisos.length > 0);
+    await consulta(`insert into ml_facturacion_lectura (cuenta_id, organizacion_id, ultimo_ts, resultado, fallo) values ($1, $2, now(), $3::jsonb, $4)
+                    on conflict (cuenta_id) do update set ultimo_ts = now(), resultado = excluded.resultado, fallo = excluded.fallo`, [cuenta.id, cuenta.organizacionId, JSON.stringify(r), fallo]);
     informe[cuenta.nickname ?? String(cuenta.id)] = r;
   }
   const orgs = [...new Set(cuentas.map((c) => c.organizacion_id))];
@@ -265,6 +267,13 @@ export async function vincularCargos(org: string) {
        and l.datos_externos #>> '{ml,order_id}' = c.order_id and p.organizacion_id = c.organizacion_id and (c.canal_id is null or p.canal_id = c.canal_id)
     returning c.id`, [org]);
   return a.length + b.length;
+}
+
+/** ¿Hay alguna cuenta cuya última lectura falló hace más de una hora? (se reintenta fuera de la barrida) */
+export async function facturacionAReintentar(): Promise<boolean> {
+  return !!(await una(`
+    select 1 from meli_cuenta mc join ml_facturacion_lectura l on l.cuenta_id = mc.id
+     where mc.estado = 'activa' and mc.canal_id is not null and l.fallo and l.ultimo_ts < now() - interval '1 hour' limit 1`));
 }
 
 /** ¿Hay alguna cuenta que no se leyó en las últimas 20 horas? (para la nocturna) */
