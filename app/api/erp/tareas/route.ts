@@ -22,7 +22,7 @@ import { procesarCola, hayPendientes } from "@/lib/mercadolibre/cola";
 import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
-import { traerFacturacionMl, facturacionPendiente, facturacionAReintentar } from "@/lib/mercadolibre/facturacion";
+import { traerFacturacionMl, facturacionPendiente, facturacionAReintentar, enVentanaFacturacion } from "@/lib/mercadolibre/facturacion";
 import { procesarFacturasMl } from "@/lib/mercadolibre/facturas-pdf";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
@@ -130,10 +130,10 @@ export async function GET(req: Request) {
     informe.importaciones_vs = vs.map((i) => i.id);
   }
   // La facturación de ML (sólo lectura): una vez por noche y por cuenta.
-  // De noche, la lectura del día; si falló (ML contesta 429 mientras corre la barrida), se reintenta a la hora, fuera de la barrida.
-  const facturacionMl = enVentanaBarrida()
+  // La lectura del día, de 8 a 10 (lejos de la barrida de 2 a 5, Fer 4/11); si falló, se reintenta a la hora, nunca durante la barrida.
+  const facturacionMl = enVentanaFacturacion()
     ? await facturacionPendiente().catch(() => false)
-    : await facturacionAReintentar().catch(() => false);
+    : !enVentanaBarrida() && await facturacionAReintentar().catch(() => false);
   if (cola) informe.cola_ml = true;
   if (barrida) informe.barrida_ml = true;
   if (facturacionMl) informe.facturacion_ml = true;

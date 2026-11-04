@@ -91,7 +91,7 @@ export default async function FacturacionMl({ searchParams }: { searchParams: Pr
           Última lectura: {lecturas.map((l, i) => (
             <span key={i}>{i ? " · " : ""}{l.nickname ?? "cuenta"} {l.ultimo_ts.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
               {l.resultado?.incompleto ? " (quedó a medias)" : ""}{l.resultado?.avisos?.length ? ` — ${l.resultado.avisos[0]}` : ""}</span>
-          ))}. Se lee sola cada noche.
+          ))}. Se lee sola todas las mañanas.
         </p>
       )}
       {!periodo ? (

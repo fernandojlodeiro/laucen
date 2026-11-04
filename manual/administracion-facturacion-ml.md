@@ -32,7 +32,7 @@ Arriba a la derecha:
 
 Debajo del título:
 - **Cuenta**: desplegable con las cuentas de Mercado Libre de la organización (cada una es un canal de Mercado Libre, con el nombre del canal) y **Todas las cuentas**, que es lo que aparece de entrada. Al elegir una, la pantalla cambia al momento. Se ve aunque haya una sola cuenta. Al lado, un recordatorio de qué va a leer el botón: "«Traer facturación de ML» lee todas las cuentas" o "lee sólo …".
-- "Última lectura:" con cada cuenta (las de la cuenta elegida, o todas), el día y la hora, "(quedó a medias)" si no terminó, y el primer aviso si hubo. "Se lee sola cada noche."
+- "Última lectura:" con cada cuenta (las de la cuenta elegida, o todas), el día y la hora, "(quedó a medias)" si no terminó, y el primer aviso si hubo. "Se lee sola todas las mañanas."
 
 Si todavía no se leyó nada: "Todavía no se leyó la facturación. Apretá «Traer facturación de ML»."
 
@@ -82,7 +82,7 @@ Errores:
 
 ### Lectura de Mercado Libre
 - Se leen las cuentas de Mercado Libre **activas y conectadas a un canal**. Para cada una, los dos grupos: **Mercado Libre** y **Mercado Pago**.
-- **Sola, cada noche**, entre las 2 y las 5 (hora argentina), si una cuenta no se leyó en las últimas 20 horas: los **últimos 2 períodos**, de todas las cuentas.
+- **Sola, todas las mañanas**, entre las 8 y las 10 (hora argentina, tres horas después de la lectura nocturna de publicaciones, para que Mercado Libre no la rechace por exceso de pedidos), si una cuenta no se leyó en las últimas 20 horas: los **últimos 2 períodos**, de todas las cuentas. Si falla, se reintenta sola cada una hora (nunca entre las 2 y las 5).
 - Con el botón **Traer facturación de ML**: los **últimos 3 períodos**, de la cuenta elegida en **Cuenta**, o de todas las cuentas de tu organización si está en "Todas las cuentas".
 - De cada período se leen: el período (fechas, monto, vencimiento, impago), los **documentos** (facturas y notas de crédito que emitió Mercado Libre) y el **detalle de cargos**.
 - Leer dos veces no duplica: cada documento y cada cargo se guarda una sola vez (se actualiza si cambió).
@@ -124,7 +124,7 @@ Los cargos que vienen del detalle de las notas de crédito restan. Los importes 
 No. Después de cada lectura, Laucen baja el PDF de cada factura y nota de crédito de Mercado Libre y Mercado Pago y la pasa sola a [Facturas de compra](/compras/facturas): la carga, o le suma el PDF y las percepciones de Ingresos Brutos por provincia a la que entró por la importación de ARCA.
 
 **¿Cada cuánto se actualiza?**
-Sola cada noche (los últimos 2 períodos). Si Mercado Libre no la da en ese momento (de noche a veces rechaza las lecturas por exceso de pedidos), Laucen la vuelve a intentar sola cada una hora durante el día, hasta que sale. Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).
+Sola todos los días entre las 8 y las 10 de la mañana (los últimos 2 períodos), lejos de la lectura nocturna de publicaciones. Si Mercado Libre no la da en ese momento, Laucen la vuelve a intentar sola cada una hora, hasta que sale. Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).
 
 **Dice "Falta en la importación de ARCA", ¿qué hago?**
 Importá en Facturas de compra el archivo "Mis Comprobantes – Recibidos" de ARCA del mes de ese comprobante.

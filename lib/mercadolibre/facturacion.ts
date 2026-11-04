@@ -269,6 +269,14 @@ export async function vincularCargos(org: string) {
   return a.length + b.length;
 }
 
+/** La ventana de la lectura del día (Fer, 4/11): de 8 a 10 de la mañana (hora argentina), tres horas después de que
+ *  termina la barrida de publicaciones (2 a 5): la barrida lee cientos de miles de datos y, si coinciden, ML rechaza
+ *  la facturación por exceso de pedidos (429). */
+export function enVentanaFacturacion(ahora = new Date()): boolean {
+  const hora = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", hourCycle: "h23" }).format(ahora));
+  return hora >= 8 && hora < 10;
+}
+
 /** ¿Hay alguna cuenta cuya última lectura falló hace más de una hora? (se reintenta fuera de la barrida) */
 export async function facturacionAReintentar(): Promise<boolean> {
   return !!(await una(`
@@ -276,7 +284,7 @@ export async function facturacionAReintentar(): Promise<boolean> {
      where mc.estado = 'activa' and mc.canal_id is not null and l.fallo and l.ultimo_ts < now() - interval '1 hour' limit 1`));
 }
 
-/** ¿Hay alguna cuenta que no se leyó en las últimas 20 horas? (para la nocturna) */
+/** ¿Hay alguna cuenta que no se leyó en las últimas 20 horas? (para la lectura del día, en su ventana) */
 export async function facturacionPendiente(): Promise<boolean> {
   return !!(await una(`
     select 1 from meli_cuenta mc where mc.estado = 'activa' and mc.canal_id is not null
