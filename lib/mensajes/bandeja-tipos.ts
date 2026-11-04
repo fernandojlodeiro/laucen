@@ -90,7 +90,8 @@ export type PreguntaAnterior = { id: string; texto: string; respuesta: string | 
 
 export type CasoVista = { id: number; asunto: string; motivo: string; abiertoTs: string; asignado: string | null; resolver: boolean };
 
-export type Enlace = { texto: string; href: string; afuera?: boolean };
+/** `corto`: lo que se ve en el celular; `titulo`: al pasar el mouse. */
+export type Enlace = { texto: string; href: string; afuera?: boolean; corto?: string; titulo?: string };
 
 export type ChatAbierto = {
   clave: string; origen: Origen; nombre: string; detalle: string; enlaces: Enlace[];

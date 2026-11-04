@@ -276,8 +276,8 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
           <div className="text-[11px] text-[#5C6B76] truncate flex items-center gap-1"><LogoOrigen origen={chat.origen} clase="h-3 w-3 shrink-0" /><span className="truncate">{chat.detalle}</span></div>
         </button>
         {chat.pedidos.map((e) => (
-          <Link key={e.href} href={e.href} className={`${SUAVE} shrink-0`} title={`Abrir el ${e.texto.toLowerCase()}`}>
-            🧾<span className="hidden md:inline"> {e.texto}</span><span className="md:hidden"> {e.texto.replace(/^\D+/, "")}</span>
+          <Link key={e.href} href={e.href} className={`${SUAVE} shrink-0`} title={e.titulo ?? `Abrir el ${e.texto.toLowerCase()}`}>
+            🧾<span className="hidden md:inline"> {e.texto}</span><span className="md:hidden"> {e.corto ?? e.texto.replace(/^\D+/, "")}</span>
           </Link>
         ))}
         {terminado ? <span className="text-xs font-bold text-[#167655] px-1" role="status">✓ Terminado</span>

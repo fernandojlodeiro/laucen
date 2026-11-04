@@ -15,7 +15,7 @@ import { telefonoLindo, ventanaAbierta } from "./reglas";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import {
   partirClave, ORIGENES, adjuntosMl,
-  type ChatAbierto, type FiltroBandeja, type FiltroOrigen, type FilaBandeja, type FotoBandeja, type MensajeVista, type Origen, type PreguntaAnterior,
+  type ChatAbierto, type Enlace, type FiltroBandeja, type FiltroOrigen, type FilaBandeja, type FotoBandeja, type MensajeVista, type Origen, type PreguntaAnterior,
 } from "./bandeja-tipos";
 
 type Puede = (p: PermisoKey) => boolean;
@@ -237,15 +237,28 @@ export async function chatAbierto(org: string, id: number): Promise<ChatAbierto 
 
 /** Los pedidos del cliente para la conversación: los que siguen en curso (hasta 2; un presupuesto también) o, si no
  *  hay, el último. */
-async function pedidosDelCliente(org: string, clienteId: number): Promise<{ texto: string; href: string }[]> {
-  const filas = await consulta<{ id: number; estado: string; en_curso: boolean }>(`
-    select id::int, estado, estado not in ('entregado', 'cancelado', 'devuelto') en_curso from pedido
-     where organizacion_id = $1 and cliente_id = $2
-     order by (estado not in ('entregado', 'cancelado', 'devuelto')) desc, fecha desc limit 3`, [org, clienteId])
-    .catch((e) => { console.error("[bandeja] pedidos del cliente", e); return []; });
-  const enCurso = filas.filter((f) => f.en_curso).slice(0, 2);
-  return (enCurso.length ? enCurso : filas.slice(0, 1))
-    .map((f) => ({ texto: `${f.estado === "presupuesto" ? "Presupuesto" : "Pedido"} #${f.id}`, href: `/ventas/pedidos/${f.id}` }));
+/** Arriba del chat, lo que compró el cliente (Fer, 4/11): «Única compra» o «Compró N veces», con la fecha y hora de la
+ *  última («hoy 10:20», para saber si fue recién) y el link a ese pedido. No cuentan los presupuestos ni los
+ *  cancelados; si sólo tiene presupuestos, el último. */
+async function pedidosDelCliente(org: string, clienteId: number): Promise<Enlace[]> {
+  const r = await una<{ compras: number; id: number | null; cuando: string | null; presupuesto: number | null }>(`
+    select count(*) filter (where estado not in ('presupuesto', 'cancelado'))::int compras,
+           (array_agg(id order by fecha desc) filter (where estado not in ('presupuesto', 'cancelado')))[1]::int id,
+           (array_agg(case when (fecha at time zone 'America/Argentina/Buenos_Aires')::date = (now() at time zone 'America/Argentina/Buenos_Aires')::date
+                           then 'hoy ' || to_char(fecha at time zone 'America/Argentina/Buenos_Aires', 'HH24:MI')
+                           when (fecha at time zone 'America/Argentina/Buenos_Aires')::date = (now() at time zone 'America/Argentina/Buenos_Aires')::date - 1
+                           then 'ayer ' || to_char(fecha at time zone 'America/Argentina/Buenos_Aires', 'HH24:MI')
+                           else to_char(fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YY HH24:MI') end
+                      order by fecha desc) filter (where estado not in ('presupuesto', 'cancelado')))[1] cuando,
+           (array_agg(id order by fecha desc) filter (where estado = 'presupuesto'))[1]::int presupuesto
+      from pedido where organizacion_id = $1 and cliente_id = $2`, [org, clienteId])
+    .catch((e) => { console.error("[bandeja] pedidos del cliente", e); return null; });
+  if (r?.id) {
+    const veces = r.compras === 1 ? "Única compra" : `Compró ${r.compras} veces`;
+    return [{ texto: `${veces} · ${r.compras === 1 ? "" : "última "}${r.cuando}`, corto: r.cuando ?? "", href: `/ventas/pedidos/${r.id}`,
+      titulo: `Abrir ${r.compras === 1 ? "su pedido" : "su último pedido"} (#${r.id}, ${r.cuando})` }];
+  }
+  return r?.presupuesto ? [{ texto: `Presupuesto #${r.presupuesto}`, href: `/ventas/pedidos/${r.presupuesto}` }] : [];
 }
 
 const AVISO_IA: Record<string, string> = {
