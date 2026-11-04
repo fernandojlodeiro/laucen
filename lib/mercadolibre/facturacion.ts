@@ -19,6 +19,7 @@
 import { consulta, una } from "@/lib/erp/base";
 import { ml, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import { RITMO_LECTURA_MS } from "@/lib/mercadolibre/barrida";
+import { turnoFacturacion } from "@/lib/mercadolibre/cupo-facturacion";
 
 export type Grupo = "ML" | "MP";
 export type TipoCargo = "comision" | "envio" | "cargo_fijo" | "publicidad" | "impuesto" | "bonificacion" | "otro";
@@ -130,7 +131,9 @@ export function mapearDocumento(d: DocumentoMl, tipo: "BILL" | "CREDIT_NOTE"): F
 export type Leer = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
 const POR_PAGINA = 150;
 
-type Opciones = { hastaMs: number; leer?: Leer; periodos?: number; cuentaId?: number; canalId?: number | null };
+type Opciones = { hastaMs: number; leer?: Leer; periodos?: number; cuentaId?: number; canalId?: number | null;
+  /** Sigue donde quedó (Fer, 4/11): saltea las cuentas y los períodos ya leídos en las últimas 20 horas. */
+  seguir?: boolean };
 
 /** Lee la facturación de las cuentas de ML (de la organización, o de todas
  *  si `org` es null; sólo la del canal `canalId` si viene): los últimos
@@ -144,8 +147,12 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
        and ($3::bigint is null or canal_id = $3)
      order by id`, [org, opts.cuentaId ?? null, opts.canalId ?? null]);
   const informe: Record<string, unknown> = {};
+  // Las que ya quedaron leídas enteras hoy no se vuelven a leer (sólo al seguir).
+  const listas = opts.seguir ? new Set((await consulta<{ cuenta_id: number }>(
+    "select cuenta_id::int from ml_facturacion_lectura where not fallo and ultimo_ts > now() - interval '20 hours'")).map((x) => x.cuenta_id)) : new Set<number>();
   for (const f of cuentas) {
     if (Date.now() > opts.hastaMs - 3_000) break;
+    if (listas.has(f.id)) continue;
     const cuenta: CuentaMl = { id: f.id, organizacionId: f.organizacion_id, canalId: f.canal_id, meliUserId: Number(f.meli_user_id), nickname: f.nickname, estado: f.estado };
     const r = await leerCuenta(cuenta, leer, opts);
     // Falló (Fer, 4/11: de noche, junto con la barrida, ML contestaba 429 a todo): se reintenta a la hora, fuera de la barrida.
@@ -159,30 +166,49 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
   return informe;
 }
 
-const RITMO_FACTURACION_MS = 1_000;
-
 async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
   let ultimo = 0;
-  const pedir = async (ruta: string) => {
-    // Un pedido por segundo (Fer, 4/11): la API de facturación rechaza por exceso de pedidos (429) mucho antes que el resto.
-    const espera = ultimo + Math.max(RITMO_LECTURA_MS, RITMO_FACTURACION_MS) - Date.now();
-    if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
-    ultimo = Date.now();
+  let sinTurno = false;
+  const pedir = async (ruta: string): Promise<RespuestaMl> => {
+    if (opts.leer) {
+      // Con una lectura armada (tests), el ritmo de siempre.
+      const espera = ultimo + RITMO_LECTURA_MS - Date.now();
+      if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
+      ultimo = Date.now();
+      return leer(cuenta, ruta);
+    }
+    // Con ML de verdad, el turno compartido: unos 5 pedidos por minuto (Fer, 4/11; lib/mercadolibre/cupo-facturacion.ts).
+    if (!(await turnoFacturacion(opts.hastaMs - 2_000))) { sinTurno = true; return { status: -1, datos: null }; }
     return leer(cuenta, ruta);
   };
-  const sinTiempo = () => Date.now() > opts.hastaMs - 2_000;
+  const sinTiempo = () => sinTurno || Date.now() > opts.hastaMs - 2_000;
   const res = { periodos: 0, documentos: 0, cargos: 0, incompleto: false, avisos: [] as string[] };
   const n = Math.max(1, Math.min(opts.periodos ?? 2, 12));
   for (const grupo of ["ML", "MP"] as Grupo[]) {
     if (sinTiempo()) { res.incompleto = true; break; }
-    const rp = await pedir(`/billing/integration/monthly/periods?group=${grupo}&document_type=BILL&offset=0&limit=${n}`);
-    if (rp.status !== 200) {
-      res.avisos.push(`${grupo}: Mercado Libre contestó ${rp.status} a la lista de períodos`);
-      continue;
+    // Al seguir, los períodos ya pedidos hoy salen de la base (no se gasta un pedido en la lista).
+    const guardados = opts.seguir ? await consulta<{ clave: string; detalle: boolean }>(`
+      select clave, coalesce(detalle_ts > now() - interval '20 hours', false) detalle from ml_factura_periodo
+       where cuenta_id = $1 and grupo = $2 and leido_ts > now() - interval '20 hours' order by clave desc limit $3`, [cuenta.id, grupo, n]) : [];
+    let periodos: PeriodoMl[];
+    let leidos = new Set<string>();
+    if (guardados.length) {
+      periodos = [];
+      leidos = new Set(guardados.filter((g) => g.detalle).map((g) => g.clave));
+      for (const g of guardados) periodos.push({ key: g.clave });
+    } else {
+      const rp = await pedir(`/billing/integration/monthly/periods?group=${grupo}&document_type=BILL&offset=0&limit=${n}`);
+      if (rp.status === -1) { res.incompleto = true; break; }
+      if (rp.status !== 200) {
+        res.avisos.push(`${grupo}: Mercado Libre contestó ${rp.status} a la lista de períodos`);
+        continue;
+      }
+      periodos = ((rp.datos as { results?: PeriodoMl[] })?.results ?? []).filter((p) => p.key)
+        .sort((a, b) => String(b.key).localeCompare(String(a.key))).slice(0, n);
     }
-    const periodos = ((rp.datos as { results?: PeriodoMl[] })?.results ?? []).filter((p) => p.key)
-      .sort((a, b) => String(b.key).localeCompare(String(a.key))).slice(0, n);
     for (const p of periodos) {
+      if (leidos.has(p.key!)) continue;
+      if (!guardados.length) {
       await consulta(`
         insert into ml_factura_periodo (organizacion_id, cuenta_id, canal_id, grupo, clave, desde, hasta, vencimiento, monto, impago, datos, leido_ts)
         values ($1, $2, $3, $4, $5, $6::date, $7::date, $8::date, $9, $10, $11::jsonb, now())
@@ -190,6 +216,7 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
           monto = excluded.monto, impago = excluded.impago, datos = excluded.datos, canal_id = excluded.canal_id, leido_ts = now()`,
         [cuenta.organizacionId, cuenta.id, cuenta.canalId, grupo, p.key, p.period?.date_from?.slice(0, 10) ?? null, p.period?.date_to?.slice(0, 10) ?? null,
           p.expiration_date?.slice(0, 10) ?? null, p.amount ?? null, p.unpaid_amount ?? null, JSON.stringify(p)]);
+      }
       res.periodos++;
       let completo = true;
       // Documentos (facturas y notas de crédito de ML).
@@ -197,7 +224,8 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
         for (let offset = 0; ; offset += POR_PAGINA) {
           if (sinTiempo()) { completo = false; break; }
           const r = await pedir(`/billing/integration/periods/key/${encodeURIComponent(p.key!)}/documents?group=${grupo}&document_type=${tipo}&offset=${offset}&limit=${POR_PAGINA}`);
-          if (r.status !== 200) { if (r.status !== 404) res.avisos.push(`${grupo} ${p.key} documentos ${tipo}: ${r.status}`); break; }
+          // Sin turno o rechazado: el período no queda como leído (se sigue en la próxima vuelta).
+          if (r.status !== 200) { if (r.status !== 404) { completo = false; if (r.status !== -1) res.avisos.push(`${grupo} ${p.key} documentos ${tipo}: ${r.status}`); } break; }
           const d = r.datos as { results?: DocumentoMl[]; total?: number };
           const filas = (d.results ?? []).map((x) => mapearDocumento(x, tipo)).filter((x): x is FilaDocumento => !!x);
           res.documentos += await guardarDocumentos(cuenta, grupo, p.key!, filas);
@@ -209,7 +237,7 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
         for (let offset = 0; ; offset += POR_PAGINA) {
           if (sinTiempo()) { completo = false; break; }
           const r = await pedir(`/billing/integration/periods/key/${encodeURIComponent(p.key!)}/group/${grupo}/details?document_type=${tipo}&offset=${offset}&limit=${POR_PAGINA}`);
-          if (r.status !== 200) { if (r.status !== 404) res.avisos.push(`${grupo} ${p.key} detalle ${tipo}: ${r.status}`); break; }
+          if (r.status !== 200) { if (r.status !== 404) { completo = false; if (r.status !== -1) res.avisos.push(`${grupo} ${p.key} detalle ${tipo}: ${r.status}`); } break; }
           const d = r.datos as { results?: DetalleMl[]; total?: number };
           const filas = (d.results ?? []).map((x) => mapearCargo(x, tipo === "CREDIT_NOTE")).filter((x): x is FilaCargo => !!x);
           res.cargos += await guardarCargos(cuenta, grupo, p.key!, filas, tipo === "CREDIT_NOTE");
@@ -280,11 +308,23 @@ export function enVentanaFacturacion(ahora = new Date()): boolean {
   return hora >= 8 && hora < 10;
 }
 
-/** ¿Hay alguna cuenta cuya última lectura falló hace más de una hora? (se reintenta fuera de la barrida) */
+/** ¿Hay alguna cuenta que quedó a medias (se sigue enseguida, de a poco) o que ML rechazó (429: se reintenta a la
+ *  hora)? Siempre fuera de la barrida. */
 export async function facturacionAReintentar(): Promise<boolean> {
   return !!(await una(`
     select 1 from meli_cuenta mc join ml_facturacion_lectura l on l.cuenta_id = mc.id
-     where mc.estado = 'activa' and mc.canal_id is not null and l.fallo and l.ultimo_ts < now() - interval '1 hour' limit 1`));
+     where mc.estado = 'activa' and mc.canal_id is not null and l.fallo
+       and l.ultimo_ts < now() - case when l.resultado::text ~ '\m429\M' then interval '1 hour' else interval '1 minute' end limit 1`));
+}
+
+/** «Traer facturación de ML»: las cuentas elegidas se vuelven a leer enteras, de a poco (con el cupo de ML). */
+export async function pedirRelectura(org: string, canalId: number | null) {
+  const ids = (await consulta<{ id: number }>("select id::int from meli_cuenta where organizacion_id = $1 and ($2::bigint is null or canal_id = $2)", [org, canalId])).map((x) => x.id);
+  if (!ids.length) return;
+  await consulta("update ml_factura_periodo set leido_ts = leido_ts - interval '1 day', detalle_ts = null where cuenta_id = any($1::bigint[])", [ids]);
+  await consulta(`insert into ml_facturacion_lectura (cuenta_id, organizacion_id, ultimo_ts, resultado, fallo)
+                  select id, organizacion_id, now() - interval '1 hour', '{"incompleto": true, "avisos": []}'::jsonb, true from meli_cuenta where id = any($1::bigint[])
+                  on conflict (cuenta_id) do update set fallo = true, ultimo_ts = now() - interval '1 hour', resultado = excluded.resultado`, [ids]);
 }
 
 /** ¿Hay alguna cuenta que no se leyó en las últimas 20 horas? (para la lectura del día, en su ventana) */

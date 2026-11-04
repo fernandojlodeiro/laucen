@@ -384,7 +384,8 @@ select erp_politica_org('ml_consulta');
 -- cruzó el umbral en un canal que sincroniza, un cambio de stock que no se
 -- avisó al instante (stock_cambio_pendiente de más de un minuto: falló la
 -- llamada de pg_net, ver db/stock.sql), publicaciones en revisión en ML sin el
--- motivo leído en el último día, la barrida nocturna de 2 a 5) y,
+-- motivo leído en el último día, la barrida nocturna de 2 a 5, la facturación
+-- de ML a medias y los PDF de sus facturas) y,
 -- como red de seguridad, a los minutos 1 y 31 (asientos y cuenta corriente).
 -- 'meli-barrido' (avisos que fallaron, ventas y preguntas perdidas) pasa a
 -- cada 30 minutos: los avisos de ML se procesan en el momento en que llegan.
@@ -420,6 +421,11 @@ declare
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
      or (extract(hour from now() at time zone 'America/Argentina/Buenos_Aires') between 2 and 4
          and exists (select 1 from public.canal where tipo = 'mercadolibre' and estado = 'activo' and coalesce((config ->> 'sincronizar_stock')::boolean, false)))
+     -- La facturación de ML a medias y los PDF de sus facturas por bajar (Fer, 4/11; de a poco, fuera de la barrida).
+     or (extract(hour from now() at time zone 'America/Argentina/Buenos_Aires') not between 2 and 4
+         and (exists (select 1 from public.ml_facturacion_lectura where fallo)
+              or exists (select 1 from public.ml_factura_documento where jsonb_array_length(coalesce(archivos, '[]'::jsonb)) > 0
+                           and (pdf_estado is null or (pdf_estado = 'sin_pdf' and pdf_ts < now() - interval '1 hour')))))
 $cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;

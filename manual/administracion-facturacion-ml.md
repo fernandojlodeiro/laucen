@@ -28,7 +28,7 @@ Además, cada cargo unido a una venta alimenta el costo de esa venta: se ve en l
 
 Arriba a la derecha:
 - **Descargar Excel**: sólo en la pestaña Retenciones y percepciones.
-- **Traer facturación de ML**: lee ya de Mercado Libre (mientras lee dice "Leyendo de Mercado Libre…"). Lee la cuenta elegida en el filtro, o todas si está en "Todas las cuentas". Después baja los PDF de las facturas nuevas y las pasa a Facturas de compra; el cartel del final dice cuántas cargó y cuántas completó con su PDF.
+- **Traer facturación de ML**: lee ya de Mercado Libre (mientras lee dice "Leyendo de Mercado Libre…"). Lee la cuenta elegida en el filtro, o todas si está en "Todas las cuentas". Empieza a leer en el momento y lo que no alcanza sigue solo de a poco (el cartel del final lo dice); después los PDF de las facturas pasan solos a Facturas de compra.
 
 Debajo del título:
 - **Cuenta**: desplegable con las cuentas de Mercado Libre de la organización (cada una es un canal de Mercado Libre, con el nombre del canal) y **Todas las cuentas**, que es lo que aparece de entrada. Al elegir una, la pantalla cambia al momento. Se ve aunque haya una sola cuenta. Al lado, un recordatorio de qué va a leer el botón: "«Traer facturación de ML» lee todas las cuentas" o "lee sólo …".
@@ -82,7 +82,7 @@ Errores:
 
 ### Lectura de Mercado Libre
 - Se leen las cuentas de Mercado Libre **activas y conectadas a un canal**. Para cada una, los dos grupos: **Mercado Libre** y **Mercado Pago**.
-- **Sola, todas las mañanas**, entre las 8 y las 10 (hora argentina, tres horas después de la lectura nocturna de publicaciones, para que Mercado Libre no la rechace por exceso de pedidos), si una cuenta no se leyó en las últimas 20 horas: los **últimos 2 períodos**, de todas las cuentas. Si falla, se reintenta sola cada una hora (nunca entre las 2 y las 5).
+- **Sola, todas las mañanas**, entre las 8 y las 10 (hora argentina, tres horas después de la lectura nocturna de publicaciones, para que Mercado Libre no la rechace por exceso de pedidos), si una cuenta no se leyó en las últimas 20 horas: los **últimos 2 períodos**, de todas las cuentas. Mercado Libre deja leer su facturación de a poco (unos 5 pedidos por minuto), así que la lectura va de a un pedido cada 13 segundos y sigue sola donde quedó, cada 2 minutos, hasta terminar las cuentas (unos 20 a 30 minutos); si Mercado Libre la rechaza, se reintenta a la hora (nunca entre las 2 y las 5). Ese mismo ritmo lo comparten los PDF de las facturas y los cargos de Full.
 - Con el botón **Traer facturación de ML**: los **últimos 3 períodos**, de la cuenta elegida en **Cuenta**, o de todas las cuentas de tu organización si está en "Todas las cuentas".
 - De cada período se leen: el período (fechas, monto, vencimiento, impago), los **documentos** (facturas y notas de crédito que emitió Mercado Libre) y el **detalle de cargos**.
 - Leer dos veces no duplica: cada documento y cada cargo se guarda una sola vez (se actualiza si cambió).
@@ -124,7 +124,7 @@ Los cargos que vienen del detalle de las notas de crédito restan. Los importes 
 No. Después de cada lectura, Laucen baja el PDF de cada factura y nota de crédito de Mercado Libre y Mercado Pago y la pasa sola a [Facturas de compra](/compras/facturas): la carga, o le suma el PDF y las percepciones de Ingresos Brutos por provincia a la que entró por la importación de ARCA.
 
 **¿Cada cuánto se actualiza?**
-Sola todos los días entre las 8 y las 10 de la mañana (los últimos 2 períodos), lejos de la lectura nocturna de publicaciones. Si Mercado Libre no la da en ese momento, Laucen la vuelve a intentar sola cada una hora, hasta que sale. Si necesitás ya, apretá **Traer facturación de ML** (lee los últimos 3).
+Sola todos los días entre las 8 y las 10 de la mañana (los últimos 2 períodos), lejos de la lectura nocturna de publicaciones. Va de a poco (Mercado Libre deja unos 5 pedidos por minuto) y sigue sola hasta terminar; si Mercado Libre no la da, Laucen la vuelve a intentar a la hora. Si necesitás ya, apretá **Traer facturación de ML**: lee los últimos 3 períodos de la cuenta elegida, empieza en el momento y sigue sola de a poco; en unos minutos está todo.
 
 **Dice "Falta en la importación de ARCA", ¿qué hago?**
 Importá en Facturas de compra el archivo "Mis Comprobantes – Recibidos" de ARCA del mes de ese comprobante.

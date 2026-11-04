@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, texto } from "@/lib/erp/acciones";
-import { traerFacturacionMl, cuentasMl, canalElegido } from "@/lib/mercadolibre/facturacion";
+import { traerFacturacionMl, cuentasMl, canalElegido, pedirRelectura } from "@/lib/mercadolibre/facturacion";
 
 const BASE = "/administracion/facturacion-ml";
 
@@ -20,7 +20,9 @@ export async function accionTraerFacturacionMl(fd: FormData) {
   return deFondo(s, `facturacion-ml:${texto(fd, "canal") ?? "todas"}`, "Facturación de Mercado Libre", async () => {
     const cuentas = await cuentasMl(s.org.id);
     const canal = canalElegido(texto(fd, "canal"), cuentas);
-    const informe = await traerFacturacionMl(s.org.id, { hastaMs: Date.now() + 50_000, periodos: 3, canalId: canal });
+    // Mercado Libre deja unos 5 pedidos por minuto a esta API: se marca para releer y sigue sola de a poco (Fer, 4/11).
+    await pedirRelectura(s.org.id, canal);
+    const informe = await traerFacturacionMl(s.org.id, { hastaMs: Date.now() + 50_000, periodos: 3, canalId: canal, seguir: true });
     const rs = Object.values(informe) as { periodos: number; documentos: number; cargos: number; incompleto: boolean; avisos: string[] }[];
     const nombre = cuentas.find((c) => c.id === canal)?.nombre;
     if (!rs.length) throw new ErrorErp(canal ? `La cuenta «${nombre}» no está conectada a Mercado Libre o la conexión no está activa: revisala en Canales.` : "No hay ninguna cuenta de Mercado Libre conectada con un canal.");
@@ -30,11 +32,7 @@ export async function accionTraerFacturacionMl(fd: FormData) {
     if (!t.periodos && avisos.length) throw new ErrorErp(`Mercado Libre no dio la facturación (${avisos[0]}).`);
     const incompleto = rs.some((r) => r.incompleto);
     const de = canal ? ` de ${nombre}` : rs.length > 1 ? ` de ${rs.length} cuentas` : "";
-    // Los PDF de las facturas, a Facturas de compra (lib/mercadolibre/facturas-pdf.ts); lo que no alcance sigue solo.
-    const { procesarFacturasMl } = await import("@/lib/mercadolibre/facturas-pdf");
-    const pdf = await procesarFacturasMl(s.org.id, Date.now() + 70_000).catch(() => null);
-    const deFacturas = pdf && (pdf.cargadas || pdf.completadas)
-      ? ` En Facturas de compra: ${pdf.cargadas} cargada${pdf.cargadas === 1 ? "" : "s"} y ${pdf.completadas} completada${pdf.completadas === 1 ? "" : "s"} con su PDF.` : "";
-    return `Leídos${de} ${t.periodos} períodos: ${t.documentos} facturas y notas de crédito, ${t.cargos} cargos.${deFacturas}${incompleto ? " No alcanzó el tiempo para todo: apretá de nuevo para seguir." : ""}`;
+    // Lo que no alcanzó sigue solo de a poco (las tareas), y después los PDF de las facturas pasan a Facturas de compra.
+    return `Leídos${de} ${t.periodos} períodos: ${t.documentos} facturas y notas de crédito, ${t.cargos} cargos.${incompleto ? " Mercado Libre deja unos 5 pedidos por minuto: el resto se lee solo de a poco, en unos minutos está todo (y las facturas pasan solas a Facturas de compra)." : ""}`;
   });
 }

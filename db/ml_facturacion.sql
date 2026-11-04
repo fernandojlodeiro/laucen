@@ -123,3 +123,10 @@ alter table ml_factura_documento add column if not exists pdf_ts timestamptz;
 -- La última lectura de la cuenta falló (Fer, 4/11: ML contestaba 429 de noche, con la barrida): se reintenta a la hora,
 -- fuera de la ventana de la barrida (lib/mercadolibre/facturacion.ts, facturacionAReintentar).
 alter table ml_facturacion_lectura add column if not exists fallo boolean not null default false;
+
+-- El turno compartido de la API de facturación de ML (unos 5 pedidos por minuto; lib/mercadolibre/cupo-facturacion.ts).
+create table if not exists ml_cupo_facturacion (
+  id        int primary key,
+  libre_ts  timestamptz not null default now()
+);
+alter table ml_cupo_facturacion enable row level security;

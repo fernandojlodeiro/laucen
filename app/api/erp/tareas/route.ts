@@ -131,9 +131,9 @@ export async function GET(req: Request) {
   }
   // La facturación de ML (sólo lectura): una vez por noche y por cuenta.
   // La lectura del día, de 8 a 10 (lejos de la barrida de 2 a 5, Fer 4/11); si falló, se reintenta a la hora, nunca durante la barrida.
-  const facturacionMl = enVentanaFacturacion()
-    ? await facturacionPendiente().catch(() => false)
-    : !enVentanaBarrida() && await facturacionAReintentar().catch(() => false);
+  // Lo que quedó a medias sigue enseguida, de a poco (unos 5 pedidos por minuto: lib/mercadolibre/cupo-facturacion.ts).
+  const facturacionMl = !enVentanaBarrida()
+    && ((enVentanaFacturacion() && await facturacionPendiente().catch(() => false)) || await facturacionAReintentar().catch(() => false));
   if (cola) informe.cola_ml = true;
   if (barrida) informe.barrida_ml = true;
   if (facturacionMl) informe.facturacion_ml = true;
@@ -186,7 +186,7 @@ export async function GET(req: Request) {
         (async () => {
           if (!facturacionMl) return;
           try {
-            console.log("[tareas] facturación ML", JSON.stringify(await traerFacturacionMl(null, { hastaMs: t0 + 100_000, periodos: 2 })));
+            console.log("[tareas] facturación ML", JSON.stringify(await traerFacturacionMl(null, { hastaMs: t0 + 100_000, periodos: 2, seguir: true })));
           } catch (e) {
             console.error("[tareas] facturación ML", e instanceof Error ? e.message : e);
           }

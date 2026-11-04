@@ -16,6 +16,7 @@ import { mlBinario, cuentaPorId } from "@/lib/mercadolibre/api";
 import { leerFacturaArchivo, aComprobante } from "@/lib/compras/factura-leer";
 import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
 import { subirFacturaAlDrive } from "@/lib/compras/drive-facturas";
+import { turnoFacturacion } from "@/lib/mercadolibre/cupo-facturacion";
 
 const ES_PDF = (b: ArrayBuffer) => { const x = new Uint8Array(b.slice(0, 4)); return x[0] === 0x25 && x[1] === 0x50 && x[2] === 0x44 && x[3] === 0x46; };
 
@@ -52,6 +53,8 @@ export async function procesarFacturasMl(org: string | null, hastaMs: number): P
      order by id limit 30`, [org]);
   for (const d of docs) {
     if (Date.now() > hastaMs - 25_000) break;
+    // El PDF sale de la API de facturación: con su cupo compartido (unos 5 pedidos por minuto).
+    if (!(await turnoFacturacion(hastaMs - 25_000))) break;
     res.procesadas++;
     const anotar = (estado: string, mensaje: string | null, facturaId: number | null = null) => consulta(
       "update ml_factura_documento set pdf_estado = $2, pdf_mensaje = $3, pdf_factura_id = $4, pdf_ts = now() where id = $1", [d.id, estado, mensaje?.slice(0, 500) ?? null, facturaId]);

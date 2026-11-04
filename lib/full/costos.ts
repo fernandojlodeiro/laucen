@@ -13,6 +13,7 @@
 // 4. La colecta cobrada por producto se guarda en la línea del envío (por número de envío de ML), y la
 //    rentabilidad la suma al flete.
 
+import { turnoFacturacion } from "@/lib/mercadolibre/cupo-facturacion";
 import { consulta, una, enTransaccion } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 
@@ -197,6 +198,8 @@ export async function leerCargosFull(org: string | null, hastaMs: number, opts: 
     let offset = 0, estado = "ok", error: string | null = null;
     for (;;) {
       if (pedidos >= max) { estado = "cortado"; break; }
+      // El cupo compartido de la API de facturación (lib/mercadolibre/cupo-facturacion.ts).
+      if (!(await turnoFacturacion(hastaMs))) { estado = "cortado"; break; }
       pedidos++;
       const r = await ml<{ total?: number; results?: CargoMl[]; message?: string }>(cuenta, "GET",
         `/billing/integration/periods/key/${p.periodo}/group/ML/full/details?document_type=BILL&offset=${offset}&limit=200`);
