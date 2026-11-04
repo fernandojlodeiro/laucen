@@ -193,7 +193,8 @@ export async function GET(req: Request) {
         })(),
         // Los PDF de las facturas de ML y MP que ya se leyeron y todavía no se cargaron (Fer, 4/11; sale enseguida si no hay).
         (async () => {
-          if (!pdfMl && !facturacionMl) return;
+          // Nunca a la vez que la lectura de la facturación: las dos piden a ML y se rechazan por exceso de pedidos.
+          if (!pdfMl || facturacionMl) return;
           try {
             const r = await procesarFacturasMl(null, t0 + 110_000);
             if (r.procesadas) console.log("[tareas] facturas PDF de ML", JSON.stringify(r));

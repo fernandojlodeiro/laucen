@@ -142,10 +142,11 @@ const normal = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 
 /** La carpeta de facturas de una razón social: la de gastos o servicios con su nombre; las de Mercado Libre, la de
  *  Mercado Libre. null si no hay. */
-export async function carpetaFacturasDe(org: string, emisor: string, cuitProveedor: string): Promise<CarpetaFacturas | null> {
+export async function carpetaFacturasDe(org: string, emisor: string, cuitProveedor: string, proveedor = ""): Promise<CarpetaFacturas | null> {
   const carpetas = await carpetasFacturas(org).catch(() => []);
   if (!carpetas.length) return null;
-  if (esMercadoLibre(cuitProveedor)) {
+  // Mercado Libre, Mercado Pago y su logística (MELI LOG), a la carpeta de Mercado Libre.
+  if (esMercadoLibre(cuitProveedor, proveedor) || /^meli\b/i.test(proveedor.trim())) {
     const ml = carpetas.find((c) => /mercado\s*libre/.test(normal(c.texto)));
     if (ml) return ml;
   }
@@ -157,7 +158,7 @@ export async function carpetaFacturasDe(org: string, emisor: string, cuitProveed
  *  anota como leída (la búsqueda en el Drive no la vuelve a cargar). null si no hay Drive o carpeta para ella. */
 export async function subirFacturaAlDrive(org: string, datos: Buffer, tipo: string,
   f: { emisor: string; cuitProveedor: string; proveedor: string; fecha: string; tipoTexto: string; pv: number; numero: number }): Promise<{ id: string; donde: string } | null> {
-  const carpeta = await carpetaFacturasDe(org, f.emisor, f.cuitProveedor);
+  const carpeta = await carpetaFacturasDe(org, f.emisor, f.cuitProveedor, f.proveedor);
   if (!carpeta) return null;
   try {
     const ext = tipo === "application/pdf" ? "pdf" : tipo.split("/")[1]?.replace("jpeg", "jpg") ?? "pdf";

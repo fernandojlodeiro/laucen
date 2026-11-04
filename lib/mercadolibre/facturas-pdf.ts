@@ -8,7 +8,8 @@
 //      si no, se carga como factura de compra, registrada con la cuenta del proveedor (de fábrica, «Comisiones»);
 //   4. el PDF queda en la carpeta de Mercado Libre del Drive si está conectado; si no, la factura lo pide a ML al abrirlo
 //      (archivo «ml:<cuenta>:<file_id>», app/compras/facturas/[id]/pdf).
-// Corre después de leer la facturación (de noche y con «Traer facturación de ML»). Un PDF que falló se reintenta al día.
+// Corre en las tareas (nunca a la vez que la lectura de la facturación, que gasta el cupo de ML) y con «Traer facturación
+// de ML». Si ML no da el PDF (casi siempre por exceso de pedidos) se reintenta a la hora; otro error, al día.
 
 import { consulta, una, motivoErp } from "@/lib/erp/base";
 import { mlBinario, cuentaPorId } from "@/lib/mercadolibre/api";
@@ -37,7 +38,7 @@ export async function bajarPdfMl(org: string, archivo: string): Promise<ArrayBuf
 /** ¿Hay facturas de ML con PDF todavía sin procesar (o con error de hace más de un día)? */
 export async function hayFacturasMlPendientes(): Promise<boolean> {
   return !!(await una(`select 1 from ml_factura_documento where jsonb_array_length(coalesce(archivos, '[]'::jsonb)) > 0
-     and (pdf_estado is null or (pdf_estado = 'error' and pdf_ts < now() - interval '1 day')) limit 1`));
+     and (pdf_estado is null or (pdf_estado = 'error' and pdf_ts < now() - interval '1 day') or (pdf_estado = 'sin_pdf' and pdf_ts < now() - interval '1 hour')) limit 1`));
 }
 
 export type ResultadoPdfMl = { procesadas: number; cargadas: number; completadas: number; errores: number };
@@ -47,7 +48,7 @@ export async function procesarFacturasMl(org: string | null, hastaMs: number): P
   const docs = await consulta<{ id: number; organizacion_id: string; cuenta_id: number; archivos: { file_id?: string }[]; numero: string | null }>(`
     select id::int, organizacion_id, cuenta_id::int, archivos, numero from ml_factura_documento
      where jsonb_array_length(coalesce(archivos, '[]'::jsonb)) > 0 and ($1::text is null or organizacion_id = $1)
-       and (pdf_estado is null or (pdf_estado = 'error' and pdf_ts < now() - interval '1 day'))
+       and (pdf_estado is null or (pdf_estado = 'error' and pdf_ts < now() - interval '1 day') or (pdf_estado = 'sin_pdf' and pdf_ts < now() - interval '1 hour'))
      order by id limit 30`, [org]);
   for (const d of docs) {
     if (Date.now() > hastaMs - 25_000) break;
@@ -60,7 +61,8 @@ export async function procesarFacturasMl(org: string | null, hastaMs: number): P
       if (!fileId || !cuenta) { await anotar("error", "sin archivo o sin la cuenta"); res.errores++; continue; }
       const archivo = `ml:${cuenta.id}:${fileId}`;
       const datos = await bajarPdfMl(d.organizacion_id, archivo);
-      if (!datos) { await anotar("error", "Mercado Libre no dio el PDF"); res.errores++; continue; }
+      // Casi siempre es ML rechazando por exceso de pedidos (429): se reintenta a la hora, no al día.
+      if (!datos) { await anotar("sin_pdf", "Mercado Libre no dio el PDF (se reintenta a la hora)"); res.errores++; continue; }
       const r = await leerFacturaArchivo(datos, "application/pdf");
       if ("error" in r) { await anotar("error", r.error); res.errores++; continue; }
       if (r.lectura.es_comprobante === false) { await anotar("otro", r.lectura.que_es ?? "no es una factura"); continue; }

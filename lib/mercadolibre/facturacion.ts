@@ -12,7 +12,7 @@
 //   GET /billing/integration/monthly/periods?group=G&document_type=BILL&offset&limit
 //   GET /billing/integration/periods/key/{key}/documents?group=G&document_type=BILL|CREDIT_NOTE&offset&limit
 //   GET /billing/integration/periods/key/{key}/group/G/details?document_type=BILL|CREDIT_NOTE&offset&limit
-// Con 150 ms entre lecturas de una misma cuenta. Se lee una vez por noche
+// Con un segundo entre lecturas de una misma cuenta. Se lee una vez por noche
 // (en la ventana de la barrida, lo llama /api/erp/tareas) y con el botón
 // "Traer facturación de ML".
 
@@ -149,7 +149,7 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
     const cuenta: CuentaMl = { id: f.id, organizacionId: f.organizacion_id, canalId: f.canal_id, meliUserId: Number(f.meli_user_id), nickname: f.nickname, estado: f.estado };
     const r = await leerCuenta(cuenta, leer, opts);
     // Falló (Fer, 4/11: de noche, junto con la barrida, ML contestaba 429 a todo): se reintenta a la hora, fuera de la barrida.
-    const fallo = r.avisos.some((a) => /\b(429|5\d\d|0)\b/.test(a)) || (r.periodos === 0 && r.avisos.length > 0);
+    const fallo = r.incompleto || r.avisos.some((a) => /\b(429|5\d\d|0)\b/.test(a)) || (r.periodos === 0 && r.avisos.length > 0);
     await consulta(`insert into ml_facturacion_lectura (cuenta_id, organizacion_id, ultimo_ts, resultado, fallo) values ($1, $2, now(), $3::jsonb, $4)
                     on conflict (cuenta_id) do update set ultimo_ts = now(), resultado = excluded.resultado, fallo = excluded.fallo`, [cuenta.id, cuenta.organizacionId, JSON.stringify(r), fallo]);
     informe[cuenta.nickname ?? String(cuenta.id)] = r;
@@ -159,10 +159,13 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
   return informe;
 }
 
+const RITMO_FACTURACION_MS = 1_000;
+
 async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
   let ultimo = 0;
   const pedir = async (ruta: string) => {
-    const espera = ultimo + RITMO_LECTURA_MS - Date.now();
+    // Un pedido por segundo (Fer, 4/11): la API de facturación rechaza por exceso de pedidos (429) mucho antes que el resto.
+    const espera = ultimo + Math.max(RITMO_LECTURA_MS, RITMO_FACTURACION_MS) - Date.now();
     if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
     ultimo = Date.now();
     return leer(cuenta, ruta);
