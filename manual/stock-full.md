@@ -160,6 +160,11 @@ Se puede cargar antes o después de despachar, y cambiar cuando llega la factura
 - Cada ajuste queda en [Movimientos de stock](/stock/movimientos) con la nota «Igualado con Full de Mercado Libre» y lo que decía cada uno.
 - Las unidades no disponibles no se cuentan en el depósito Full: se ven en la columna «No disponible en ML».
 
+### Cuando Full queda en cero y hay stock propio
+
+- Cuando se vende todo lo que había en Full, las publicaciones Full de ese producto quedan pausadas por falta de stock: **no vuelven solas** a vender desde el depósito propio. En el panel de Mercado Libre, la opción **«Dejar de ofrecer Full»** las pasa a envío desde el depósito propio.
+- Si un producto de una cuenta queda sin nada en Full (ni disponible ni en ingreso), sin unidades en camino a Full y con stock en el depósito propio, el **superadministrador** ve en la barra de estado el aviso **«Probar «Dejar Full» (N)»** (al pasar el mouse dice cuáles son; al tocarlo abre su fila en **Stock en Full**) y recibe un mail, como mucho uno por día mientras el caso siga.
+
 ### A qué publicaciones va cada producto
 
 En Full el stock no es del producto sino de cada **Código ML** (el de la etiqueta). Una publicación común y su gemela de catálogo sincronizada comparten el mismo código, y por lo tanto el mismo stock de Full. Pero cada plan de cuotas (Clásica, Premium, 3x…) tiene su propio código, aunque Mercado Libre lo muestre como una variante de la misma publicación: lo que se manda con el código de la Clásica sólo lo venden la Clásica y su gemela de catálogo; los demás planes del producto siguen vendiendo lo del depósito propio.

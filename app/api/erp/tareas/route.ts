@@ -28,6 +28,7 @@ import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { reintentarComprobantes } from "@/lib/pagos/comprobante";
 import { repasarComprobantesWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
+import { avisarDejarFull } from "@/lib/full/dejar-full";
 import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
 import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
@@ -215,6 +216,8 @@ export async function GET(req: Request) {
           if (!full && !cargosFull) return;
           try {
             if (full) console.log("[tareas] Full ML", JSON.stringify(await leerFull(null, t0 + 90_000)));
+            // Un producto de Full que quedó en 0 sin nada en camino: mail al superadministrador para probar «Dejar de ofrecer Full».
+            if (full) await avisarDejarFull(null).catch((e) => console.error("[tareas] aviso dejar Full", e instanceof Error ? e.message : e));
             if (cargosFull) console.log("[tareas] cargos de Full ML", JSON.stringify(await leerCargosFull(null, t0 + 100_000)));
           } catch (e) {
             console.error("[tareas] Full ML", e instanceof Error ? e.message : e);

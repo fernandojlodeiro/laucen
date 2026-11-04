@@ -35,6 +35,7 @@ import Asistente from "@/app/componentes/asistente/Asistente";
 import { AvisosTareas } from "@/app/componentes/TareasFondo";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
 import { estilosCanales } from "@/lib/canales/colores";
+import { casosDejarFull, type CasoDejarFull } from "@/lib/full/dejar-full";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
   const sesion = await sesionActual();
@@ -44,7 +45,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales, personal] = await Promise.all([
+  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales, personal, dejarFull] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: { reclamos: false, mensajes: false, preguntas: false, whatsapp: false, pedidos: false, facturas: false, prohibidas: false }, pedidoDetalle: false, cadaMin: 1 } })),
@@ -56,6 +57,8 @@ export default async function Marco({ children, version }: { children: React.Rea
     estilosCanales(sesion.org.id).catch(() => ""),
     // El espacio personal (aparte de la empresa): sólo para su dueño y quien él autorizó.
     tieneEspacio(sesion.usuario.id).catch(() => false),
+    // Productos para probar «Dejar de ofrecer Full» (Fer, 4/11): sólo lo ve el superadministrador.
+    sesion.superadmin ? casosDejarFull(sesion.org.id).catch((): CasoDejarFull[] => []) : Promise.resolve([] as CasoDejarFull[]),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
@@ -110,6 +113,13 @@ export default async function Marco({ children, version }: { children: React.Rea
         </span>
         {/* Se refrescan solos; lo nuevo que no viste, en amarillo (Fer, 10/10). */}
         <ContadoresEstado inicial={avisos.contadores} />
+        {dejarFull.length > 0 && (
+          <Link href={`/stock/full/stock?q=${encodeURIComponent(dejarFull[0].sku)}`}
+            title={`Sin nada en Full, nada en camino y con stock propio: es el caso para probar «Dejar de ofrecer Full» por API.\n${dejarFull.map((c) => `${c.cuenta} · ${c.sku} · ${c.item_id} (${c.publicaciones} publ., ${c.disponible} u. propias)`).join("\n")}`}
+            className="rounded px-1.5 py-0.5 font-bold bg-[#F2C94C] text-[#16577F] whitespace-nowrap">
+            Probar «Dejar Full» ({dejarFull.length})
+          </Link>
+        )}
         {/* Lo último que viste: «Historial» en la barra (se despliega hacia arriba) y, si sobra lugar, también al costado. */}
         <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
