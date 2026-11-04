@@ -23,7 +23,7 @@ import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from 
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { traerFacturacionMl, facturacionPendiente, facturacionAReintentar, enVentanaFacturacion } from "@/lib/mercadolibre/facturacion";
-import { procesarFacturasMl } from "@/lib/mercadolibre/facturas-pdf";
+import { procesarFacturasMl, hayFacturasMlPendientes } from "@/lib/mercadolibre/facturas-pdf";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { reintentarComprobantes } from "@/lib/pagos/comprobante";
@@ -137,6 +137,9 @@ export async function GET(req: Request) {
   if (cola) informe.cola_ml = true;
   if (barrida) informe.barrida_ml = true;
   if (facturacionMl) informe.facturacion_ml = true;
+  // Los PDF de las facturas de ML y MP que todavía no pasaron a Facturas de compra (lib/mercadolibre/facturas-pdf.ts).
+  const pdfMl = await hayFacturasMlPendientes().catch(() => false);
+  if (pdfMl) informe.facturas_pdf_ml = true;
   // Por qué está en revisión cada publicación (sólo lectura, una vez por día cada una).
   const motivos = await hayMotivosPendientes().catch(() => false);
   if (motivos) informe.motivos_revision_ml = true;
@@ -161,7 +164,7 @@ export async function GET(req: Request) {
   // Las facturas de compra que se dejan en las carpetas del Drive (lib/compras/drive-facturas.ts): también una vez por noche.
   const facturasDrive = enVentanaBarrida() ? await organizacionesParaLeerFacturas().catch(() => [] as string[]) : [];
   if (facturasDrive.length) informe.facturas_drive = facturasDrive.length;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length || facturasDrive.length) {
+  if (imps.length || vs.length || cola || barrida || facturacionMl || pdfMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length || facturasDrive.length) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -190,6 +193,7 @@ export async function GET(req: Request) {
         })(),
         // Los PDF de las facturas de ML y MP que ya se leyeron y todavía no se cargaron (Fer, 4/11; sale enseguida si no hay).
         (async () => {
+          if (!pdfMl && !facturacionMl) return;
           try {
             const r = await procesarFacturasMl(null, t0 + 110_000);
             if (r.procesadas) console.log("[tareas] facturas PDF de ML", JSON.stringify(r));

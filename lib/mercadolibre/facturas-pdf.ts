@@ -34,6 +34,12 @@ export async function bajarPdfMl(org: string, archivo: string): Promise<ArrayBuf
   return r && ES_PDF(r.datos) ? r.datos : null;
 }
 
+/** ¿Hay facturas de ML con PDF todavía sin procesar (o con error de hace más de un día)? */
+export async function hayFacturasMlPendientes(): Promise<boolean> {
+  return !!(await una(`select 1 from ml_factura_documento where jsonb_array_length(coalesce(archivos, '[]'::jsonb)) > 0
+     and (pdf_estado is null or (pdf_estado = 'error' and pdf_ts < now() - interval '1 day')) limit 1`));
+}
+
 export type ResultadoPdfMl = { procesadas: number; cargadas: number; completadas: number; errores: number };
 
 export async function procesarFacturasMl(org: string | null, hastaMs: number): Promise<ResultadoPdfMl> {
