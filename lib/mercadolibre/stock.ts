@@ -75,8 +75,11 @@ export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" 
     // De 0 a algo: además de la cantidad, que se active en el mismo envío (Fer, 6/10), por si ML
     // la había pausado al quedar sin stock.
     const activar = !p.variacion_externa && (p.cantidad_publicada ?? 0) === 0;
+    // Una baja sale antes que cualquier suba o reactivación (Fer, 4/11): cuando el reparto pasa una unidad de una
+    // publicación a otra, si la suba saliera primero, por un momento ML mostraría más de lo que hay (sobreventa).
+    const baja = p.cantidad_publicada != null && cant < p.cantidad_publicada;
     return {
-      ...base, que: "cantidad", prioridad: PRIORIDAD.normal, antes,
+      ...base, que: "cantidad", prioridad: baja ? PRIORIDAD.pausa : PRIORIDAD.normal, antes,
       payload: activar ? { cantidad: cant, estado: "active" } : { cantidad: cant },
       efecto: { publicacion: { id: p.id, cantidad_publicada: cant } },
     };

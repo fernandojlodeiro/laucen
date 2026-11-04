@@ -514,3 +514,16 @@ alter table ml_price_to_win add column if not exists ganador_item text;
 -- De qué tipo es el catálogo (type de /products/{id}): catalog_product (ficha de ML o de la marca) o flex (página que
 -- arma ML juntando publicaciones). En las flex, quién gana según la API no coincide con lo que ve el comprador.
 alter table ml_catalogo_ganador add column if not exists tipo text;
+
+-- De qué tipo es cada catálogo donde tenemos publicaciones (type de /products/{id}): catalog_product (ficha de ML o de
+-- la marca) o flex (página que arma ML). Lo usa el reparto del stock (lib/mercadolibre/reparto.ts): primero lo que
+-- gana en un catálogo de verdad.
+create table if not exists ml_catalogo_tipo (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  catalogo_id      text not null,
+  tipo             text,
+  leido_ts         timestamptz not null default now(),
+  primary key (organizacion_id, catalogo_id)
+);
+alter table ml_catalogo_tipo enable row level security;
+select erp_politica_org('ml_catalogo_tipo');

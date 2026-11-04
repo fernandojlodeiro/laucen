@@ -20,6 +20,13 @@
 // pasa lo que hay, ni con un carrito en la misma cuenta (Fer, 26/10). Lo que
 // queda en 0 se pausa por stock y se reactiva solo cuando le vuelve a tocar.
 //
+// Catálogos (Fer, 4/11): si no ganás el catálogo, casi nadie te ve. Lo que gana (o comparte el primer lugar) en un
+// catálogo de verdad (ficha de ML o de la marca, no una página que arma ML: ml_catalogo_tipo) va primero: la cuenta
+// que lo tiene recibe antes que las demás y, dentro de la cuenta, ese grupo de stock antes que los otros. Lo que ML
+// dice que pierde en un catálogo de verdad va último dentro de la cuenta; una página armada por ML o una publicación
+// de catálogo sin dato (pausada) quedan como una común. Sólo cambia el ORDEN: la suma
+// de lo que se muestra sigue sin pasar nunca lo que hay.
+//
 // Prendido en Configuración › Canales, caja «Reparto del stock entre cuentas
 // de ML» (config_org 'reparto_stock_ml'). Lo usa lib/mercadolibre/stock.ts.
 
@@ -39,9 +46,22 @@ export async function guardarReparto(org: string, c: ConfigReparto) {
                   on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`, [org, JSON.stringify(c)]);
 }
 
-/** Un grupo de publicaciones de una cuenta que comparten stock en ML. */
-export type Grupo = { clave: string; vendidos: number; pubs: number[] };
+/** Un grupo de publicaciones de una cuenta que comparten stock en ML. `prioridad`: 0 = gana en un catálogo de verdad,
+ *  1 = común, página armada por ML o sin dato (lo de siempre), 2 = pierde en un catálogo de verdad. */
+export type Grupo = { clave: string; vendidos: number; pubs: number[]; prioridad?: number };
 export type CuentaReparto = { canal: number; vendidos: number; grupos: Grupo[] };
+
+/** Prioridad de una publicación en el reparto (ver arriba). Sólo un catálogo de verdad cuenta: en una página armada
+ *  por ML el dato de quién gana no es confiable, y una de catálogo pausada no tiene dato (ML no la pone a competir):
+ *  las dos quedan neutras, como una común. Al final va sólo lo que ML dice que pierde en un catálogo de verdad. */
+export function prioridadPub(p: { catalogo: boolean; estadoGanar: string | null; tipoCatalogo: string | null }): number {
+  if (!p.catalogo || p.tipoCatalogo !== "catalog_product") return 1;
+  if (p.estadoGanar === "winning" || p.estadoGanar === "sharing_first_place") return 0;
+  return p.estadoGanar === "competing" ? 2 : 1;
+}
+
+/** ¿La cuenta tiene algo que gana en un catálogo de verdad? */
+const ganaCatalogo = (c: { grupos?: Grupo[] }) => (c.grupos ?? []).some((g) => (g.prioridad ?? 1) === 0);
 
 /** Sorteo fijo (el "al azar" del empate): el mismo producto y cuenta dan siempre lo mismo. */
 export function sorteo(variacion: number, canal: number): number {
@@ -50,9 +70,9 @@ export function sorteo(variacion: number, canal: number): number {
   return (h ^ (h >>> 13)) >>> 0;
 }
 
-/** El orden de las cuentas: más vendidos → la preferida → sorteo. */
-export function ordenCuentas<T extends { canal: number; vendidos: number }>(cuentas: T[], variacion: number, preferida: number | null): T[] {
-  return [...cuentas].sort((a, b) => b.vendidos - a.vendidos
+/** El orden de las cuentas: la que gana un catálogo de verdad → más vendidos → la preferida → sorteo. */
+export function ordenCuentas<T extends { canal: number; vendidos: number; grupos?: Grupo[] }>(cuentas: T[], variacion: number, preferida: number | null): T[] {
+  return [...cuentas].sort((a, b) => Number(ganaCatalogo(b)) - Number(ganaCatalogo(a)) || b.vendidos - a.vendidos
     || Number(b.canal === preferida) - Number(a.canal === preferida)
     || sorteo(variacion, a.canal) - sorteo(variacion, b.canal) || a.canal - b.canal);
 }
@@ -77,7 +97,7 @@ export function repartir(total: number, cuentas: CuentaReparto[], variacion: num
     if (!dio) break;
   }
   orden.forEach((c, i) => {
-    const grupos = [...c.grupos].sort((a, b) => b.vendidos - a.vendidos || a.clave.localeCompare(b.clave));
+    const grupos = [...c.grupos].sort((a, b) => (a.prioridad ?? 1) - (b.prioridad ?? 1) || b.vendidos - a.vendidos || a.clave.localeCompare(b.clave));
     const deGrupo = grupos.map(() => 0);
     for (let u = 0; u < parte[i]; u++) deGrupo[u % grupos.length]++;
     grupos.forEach((g, j) => { for (const p of g.pubs) res.set(p, deGrupo[j]); });
@@ -85,7 +105,8 @@ export function repartir(total: number, cuentas: CuentaReparto[], variacion: num
   return res;
 }
 
-type FilaReparto = { pub: number; variacion: number; canal: number; lista: number | null; grupo: string; vendidos: number; disponible: number };
+type FilaReparto = { pub: number; variacion: number; canal: number; lista: number | null; grupo: string; vendidos: number; disponible: number;
+  catalogo: boolean; estado_ganar: string | null; tipo_catalogo: string | null };
 
 /** Lo que le toca a cada publicación de ML de estas variaciones, sólo para las
  *  que entran en el reparto (disponible ≤ desde y precio de lista < tope). Las
@@ -106,10 +127,15 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
            -- comparten producto, así que van juntas.
            coalesce(p.datos_externos ->> 'user_product_id', p.id_externo) grupo,
            coalesce(mi.vendidos, 0)::int vendidos,
-           stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible
+           stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible,
+           -- Para la prioridad de catálogo: si es de catálogo, cómo le va (precio para ganar) y si el catálogo es de verdad.
+           coalesce((p.datos_externos ->> 'catalogo')::boolean, (mi.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) catalogo,
+           w.estado estado_ganar, ct.tipo tipo_catalogo
       from publicacion p join canal c on c.id = p.canal_id
       join meli_cuenta mc on mc.canal_id = c.id and mc.estado = 'activa'
       left join meli_item mi on mi.canal_id = p.canal_id and mi.item_id = p.id_externo and mi.variation_id = coalesce(p.variacion_externa, '')
+      left join ml_price_to_win w on w.canal_id = p.canal_id and w.item_id = p.id_externo and w.error is null
+      left join ml_catalogo_tipo ct on ct.organizacion_id = p.organizacion_id and ct.catalogo_id = mi.datos_externos -> 'ml' ->> 'catalog_product_id'
      where p.organizacion_id = $1 and p.variacion_id = any($2::bigint[])
        and c.tipo = 'mercadolibre' and c.estado = 'activo' and coalesce((c.config ->> 'sincronizar_stock')::boolean, false)
        and p.id_externo is not null and p.estado <> 'cerrada' and not p.pausada_manual
@@ -142,7 +168,10 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
       const cu = cuentas.get(f.canal) ?? { canal: f.canal, vendidos: 0, grupos: [] };
       cu.vendidos += f.vendidos;
       const g = cu.grupos.find((x) => x.clave === f.grupo);
-      if (g) { g.vendidos += f.vendidos; g.pubs.push(f.pub); } else cu.grupos.push({ clave: f.grupo, vendidos: f.vendidos, pubs: [f.pub] });
+      // Un grupo vale lo que su mejor publicación (la común y su gemela de catálogo comparten stock).
+      const pri = prioridadPub({ catalogo: f.catalogo, estadoGanar: f.estado_ganar, tipoCatalogo: f.tipo_catalogo });
+      if (g) { g.vendidos += f.vendidos; g.pubs.push(f.pub); g.prioridad = Math.min(g.prioridad ?? 1, pri); }
+      else cu.grupos.push({ clave: f.grupo, vendidos: f.vendidos, pubs: [f.pub], prioridad: pri });
       cuentas.set(f.canal, cu);
     }
     for (const [pub, n] of repartir(total, [...cuentas.values()], v, c.preferida, (canal) => dispCanal.get(canal) ?? 0)) res.set(pub, n);

@@ -231,8 +231,10 @@ export async function revisarCatalogosAuto(hastaMs: number): Promise<{ nuevos: n
   const juzgados = await juzgarCatalogosAuto(null, hastaMs);
   const ganadores = await leerGanadores(null, hastaMs);
   // Todos nuestros catálogos donde no gana ninguna nuestra: quién gana, y el mail si perdemos (catalogo-ganar.ts).
-  const { leerGanadoresCatalogos, avisarPerdidos } = await import("@/lib/precios-ml/catalogo-ganar");
+  const { leerGanadoresCatalogos, avisarPerdidos, leerTiposCatalogo } = await import("@/lib/precios-ml/catalogo-ganar");
   const catalogos = await leerGanadoresCatalogos(null, hastaMs);
+  // De qué tipo es cada catálogo (lo usa el reparto del stock, lib/mercadolibre/reparto.ts).
+  await leerTiposCatalogo(null, hastaMs).catch((e) => console.error("[catálogos] tipos", e instanceof Error ? e.message : e));
   const mails = await avisarCatalogosAuto(null) + await avisarPerdidos(null);
   return { nuevos, juzgados, ganadores, catalogos, mails };
 }

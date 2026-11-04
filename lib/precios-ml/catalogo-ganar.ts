@@ -252,3 +252,29 @@ export async function avisarPerdidos(org: string | null): Promise<number> {
   }
   return enviados;
 }
+
+/** De qué tipo es cada catálogo donde tenemos publicaciones de catálogo activas (una vez por catálogo, y de nuevo
+ *  cada 30 días): lo usa el reparto del stock para priorizar lo que gana en un catálogo de verdad. */
+export async function leerTiposCatalogo(org: string | null, hastaMs: number, max = 80): Promise<number> {
+  const cats = await consulta<{ organizacion_id: string; catalogo_id: string; canal_id: number }>(`
+    select m.organizacion_id, m.datos_externos -> 'ml' ->> 'catalog_product_id' catalogo_id, min(m.canal_id)::int canal_id
+      from meli_item m
+      left join ml_catalogo_tipo t on t.organizacion_id = m.organizacion_id and t.catalogo_id = m.datos_externos -> 'ml' ->> 'catalog_product_id'
+     where ($1::text is null or m.organizacion_id = $1) and m.estado in ('active', 'paused')
+       and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) and m.datos_externos -> 'ml' ->> 'catalog_product_id' is not null
+       and (t.catalogo_id is null or t.leido_ts < now() - interval '30 days')
+     group by 1, 2 limit $2`, [org, max]);
+  let n = 0;
+  for (const c of cats) {
+    if (Date.now() > hastaMs) break;
+    const cuenta = await cuentaDelCanal(c.organizacion_id, c.canal_id);
+    if (!cuenta) continue;
+    const r = await ml<{ type?: string }>(cuenta, "GET", `/products/${c.catalogo_id}`);
+    if (r.status !== 200) continue;
+    await consulta(`insert into ml_catalogo_tipo (organizacion_id, catalogo_id, tipo, leido_ts) values ($1, $2, $3, now())
+                    on conflict (organizacion_id, catalogo_id) do update set tipo = excluded.tipo, leido_ts = now()`,
+      [c.organizacion_id, c.catalogo_id, r.datos.type ?? null]);
+    n++;
+  }
+  return n;
+}
