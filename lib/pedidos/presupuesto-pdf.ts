@@ -73,12 +73,13 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   const p = await una<{ id: number; fecha: string; vigencia: string | null; estado: string; canal_id: number; total_ars: number; total_usd: number;
     envio_ars: number; notas: string | null; envio: { metodo?: string | null; direccion?: Record<string, string | null> | null } | null;
     cliente: string | null; razon_social: string | null; cuit: string | null; doc_tipo: string | null; doc_nro: string | null; cond_iva: string | null;
-    email: string | null; telefono: string | null; cliente_id: number | null; para: string | null }>(`
+    email: string | null; telefono: string | null; cliente_id: number | null; para: string | null;
+    pres: { cuit?: string; direccion?: string; contacto?: string } | null }>(`
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha, to_char(p.vigencia, 'YYYY-MM-DD') vigencia, p.estado,
            p.canal_id::int, p.total_ars::float, p.total_usd::float, p.costo_envio_ars::float envio_ars, p.notas, p.envio,
            cl.nombre cliente, cl.razon_social, cl.cuit, cl.documento_tipo doc_tipo, cl.documento_numero doc_nro, cl.condicion_iva cond_iva,
            cl.email, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono, cl.id::int cliente_id,
-           p.datos_externos #>> '{presupuesto,para}' para
+           p.datos_externos #>> '{presupuesto,para}' para, p.datos_externos -> 'presupuesto' pres
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
   if (!p) throw new ErrorErp("El presupuesto no existe.");
   const lineas = await consulta<Linea>(`
@@ -93,11 +94,15 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     direccion: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null }>(
     "select nombre_fantasia, logo, email, telefono, whatsapp, web, direccion, localidad, provincia, codigo_postal from empresa where organizacion_id = $1", [org]);
   const emisor = await emisorDeCanal(org, p.canal_id).catch(() => null);
+  // A nombre de otro (Fer, 4/11): quien escribió pidió el presupuesto para una escuela o una empresa. Va su nombre con
+  // los datos que dio, y no los del cliente del chat.
+  const sinTildes = (x: string | null) => (x ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const aOtro = !!p.para && sinTildes(p.para) !== sinTildes(p.cliente) && sinTildes(p.para) !== sinTildes(p.razon_social);
   // Cliente Responsable Inscripto y nosotros también (Fer, 7/10): precios sin IVA y el IVA abajo, como en la factura A.
-  const discrimina = emisor?.condicion_iva === "responsable_inscripto" && p.cond_iva === "responsable_inscripto";
+  const discrimina = !aOtro && emisor?.condicion_iva === "responsable_inscripto" && p.cond_iva === "responsable_inscripto";
   const neto = (x: number, pct: number) => Math.round((x / (1 + pct / 100)) * 100) / 100;
   const ivas = new Map<number, number>();
-  const dirCliente = p.envio?.direccion ?? (p.cliente_id ? await una<Record<string, string | null>>(
+  const dirCliente = aOtro ? null : p.envio?.direccion ?? (p.cliente_id ? await una<Record<string, string | null>>(
     "select calle, numero, piso_depto, localidad, provincia, codigo_postal from cliente_direccion where cliente_id = $1 order by principal desc, id desc limit 1", [p.cliente_id]) : null);
 
   const doc = await PDFDocument.create();
@@ -144,14 +149,19 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   // ── Cliente ──
   const ladoCliente: string[] = [];
   // «para»: a nombre de quién lo pidió, cuando no es un cliente cargado (el que arma la IA de los mensajes).
-  const nombreCliente = p.razon_social || p.cliente || p.para || "Consumidor final";
+  const nombreCliente = aOtro ? p.para! : p.razon_social || p.cliente || p.para || "Consumidor final";
+  if (aOtro) {
+    const cuit = (p.pres?.cuit ?? "").replace(/\D/g, "");
+    ladoCliente.push(cuit.length === 11 ? `CUIT ${cuitLegible(cuit)}` : p.pres?.cuit ?? "", p.pres?.direccion ?? "", p.pres?.contacto ?? "");
+  } else {
   const docCliente = p.cuit ? `CUIT ${cuitLegible(p.cuit)}` : p.doc_nro ? `${p.doc_tipo ?? "Doc."} ${p.doc_nro}` : null;
   ladoCliente.push([docCliente, p.cond_iva ? IVA[p.cond_iva] ?? p.cond_iva : null].filter(Boolean).join(" · "));
+  }
   if (dirCliente) {
     const d = dirCliente;
     ladoCliente.push([[d.calle, d.numero].filter(Boolean).join(" "), d.piso_depto, [d.codigo_postal && `(${d.codigo_postal})`, d.localidad].filter(Boolean).join(" "), d.provincia].filter(Boolean).join(", "));
   }
-  ladoCliente.push([p.telefono && `Tel. ${p.telefono}`, p.email].filter(Boolean).join(" · "));
+  if (!aOtro) ladoCliente.push([p.telefono && `Tel. ${p.telefono}`, p.email].filter(Boolean).join(" · "));
   const lineasCliente = ladoCliente.filter(Boolean);
   const altoCliente = 22 + lineasCliente.length * 11.5;
   pg.drawRectangle({ x: M, y: y - altoCliente, width: W - 2 * M, height: altoCliente, color: FONDO, borderColor: LINEA, borderWidth: 1 });

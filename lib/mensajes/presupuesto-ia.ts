@@ -62,7 +62,11 @@ export async function armarPresupuestoIa(org: string, chat: Chat, t: Tienda, e: 
     console.error("[presupuesto-ia]", motivoErp(err));
     return "No se pudo armar el presupuesto: derivalo a una persona.";
   }
-  await consulta("update pedido set datos_externos = jsonb_set(datos_externos, '{presupuesto}', jsonb_build_object('para', $2::text)) where id = $1", [pedidoId, para]);
+  // A nombre de quien se pidió (Fer, 4/11: salía a nombre del que escribía, no de la escuela), con los datos que dio.
+  const dato = (k: string) => String(e[k] ?? "").trim().slice(0, 200) || null;
+  await consulta(`update pedido set datos_externos = jsonb_set(datos_externos, '{presupuesto}',
+                    jsonb_strip_nulls(jsonb_build_object('para', $2::text, 'cuit', $3::text, 'direccion', $4::text, 'contacto', $5::text))) where id = $1`,
+    [pedidoId, para, dato("cuit"), dato("direccion"), dato("contacto")]);
   const codigo = await asegurarCodigo(org, pedidoId);
   const link = codigo ? await urlTienda(t, `/pedido/${codigo}/pdf`) : null;
   const resumen = `Presupuesto N.º ${pedidoId} por ${formatear(total, t.moneda)} (no menciones su validez)`;
