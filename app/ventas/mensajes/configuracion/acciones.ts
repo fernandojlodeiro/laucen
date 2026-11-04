@@ -10,6 +10,7 @@ import { intentar, texto, numero } from "@/lib/erp/acciones";
 import { configMensajes, guardarConfigMensajes } from "@/lib/mensajes/config";
 import { revisarMarca } from "@/lib/mensajes/reglas";
 import { esVoz } from "@/lib/mensajes/voz";
+import { borrarLlave, guardarLlave, probarLlave } from "@/lib/mensajes/llaves";
 import { pendienteDe, terminarAlta } from "@/lib/mensajes/alta";
 import { redirect } from "next/navigation";
 import { guardarRespuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
@@ -43,21 +44,30 @@ export async function accionGuardarVoz(fd: FormData) {
   await intentar(`${VOLVER}?editar=voz`, async () => {
     const voz = String(fd.get("voz") ?? "");
     if (!esVoz(voz)) throw new ErrorErp("Elegí la voz.");
+    // Las llaves que se pegaron (vacío: queda la que estaba). Se prueban antes de grabarlas.
+    for (const p of ["openai", "elevenlabs"] as const) {
+      const llave = String(fd.get(`llave_${p}`) ?? "").trim();
+      if (!llave) continue;
+      if (llave.length > 300 || /\s/.test(llave)) throw new ErrorErp(`La llave de ${p === "openai" ? "OpenAI" : "ElevenLabs"} no parece una llave: copiala de nuevo, entera y sin espacios.`);
+      const mal = await probarLlave(p, llave);
+      if (mal) throw new ErrorErp(mal);
+      await guardarLlave(s.org.id, p, llave, s.usuario.id);
+    }
     await guardarConfigMensajes(s.org.id, { ...(await configMensajes(s.org.id)), voz, vozSiempre: fd.get("voz_siempre") === "1" });
     revalidatePath("/ventas/mensajes", "layout");
     return { ir: `${VOLVER}?ok=${encodeURIComponent("Grabado.")}` };
   });
 }
 
-/** Copia de CadaMes las llaves de los audios (OpenAI y ElevenLabs) y despliega (Fer, 4/11). Sólo el dueño del
- *  sistema; los valores nunca se muestran. */
-export async function accionCopiarLlavesAudio() {
-  await entrarErp("mensajes_config");
-  const { sosVos } = await import("@/lib/admin");
+/** Borra la llave de OpenAI o ElevenLabs de la organización (el tacho, con Sí / No). */
+export async function accionBorrarLlaveAudio(fd: FormData) {
+  const s = await entrarErp("mensajes_config");
   await intentar(VOLVER, async () => {
-    if (!(await sosVos())) throw new ErrorErp("Sólo el dueño del sistema puede cargar llaves.");
-    const { copiarVariablesDeCadames } = await import("@/lib/tienda/vercel");
-    return await copiarVariablesDeCadames(["OPENAI_API_KEY", "ELEVENLABS_API_KEY"]);
+    const p = fd.get("proveedor");
+    if (p !== "openai" && p !== "elevenlabs") throw new ErrorErp("¿Qué llave?");
+    await borrarLlave(s.org.id, p);
+    revalidatePath("/ventas/mensajes", "layout");
+    return "Llave borrada.";
   });
 }
 

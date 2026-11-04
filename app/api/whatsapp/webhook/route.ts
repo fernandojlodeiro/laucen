@@ -17,7 +17,7 @@ import { configMensajes } from "@/lib/mensajes/config";
 import { consulta } from "@/lib/erp/base";
 import { contestar, mandar } from "@/lib/mensajes/estela";
 import { escucharAudio } from "@/lib/mensajes/audios";
-import { hayTranscriptor } from "@/lib/mensajes/voz";
+import { hayLlave } from "@/lib/mensajes/llaves";
 import { conQuienHablaban, ecosDelCambio, esOrdenDeMando, loQueDijo, sinLaMarca } from "@/lib/mensajes/reglas";
 
 export const dynamic = "force-dynamic";
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
             const cfg = await configMensajes(org);
             // Una nota de voz se escucha primero (Fer, 4/11; lib/mensajes/audios.ts): el texto queda en el chat y la IA
             // contesta como a cualquier mensaje. Si no se pudo, queda un caso para una persona y se le pide que lo escriba.
-            if (m.type === "audio" && m.audio?.id && hayTranscriptor()) {
+            if (m.type === "audio" && m.audio?.id && (await hayLlave(org, "openai"))) {
               // Mientras se escucha, otro mensaje del mismo cliente no se contesta antes (ganaLaEspera sigue esperando).
               await consulta(`insert into chat_espera (chat_id, procesar_desde) values ($1, now() + interval '45 seconds')
                               on conflict (chat_id) do update set procesar_desde = excluded.procesar_desde`, [chat.id]).catch(() => {});

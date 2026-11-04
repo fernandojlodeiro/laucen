@@ -207,3 +207,16 @@ alter table chat add column if not exists no_responder_ts timestamptz;
 -- La foto, el PDF, el video o el audio que mandó el cliente por WhatsApp (Fer, 29/10: no se veían): el id del archivo en
 -- Meta (vale unos 30 días); el panel lo pide a Meta al mostrarlo (/api/mensajes/adjunto). No se copia.
 alter table chat_mensaje add column if not exists adjunto jsonb;
+
+-- Las llaves de los audios de cada organización (Fer, 4/11: «todo debe configurarse en las pantallas de Laucen»):
+-- OpenAI para escuchar y ElevenLabs para hablar. Las carga cada organización en Ventas › Mensajes › Configuración ›
+-- Audios; nunca se muestran. Sólo las lee el servidor: RLS sin políticas.
+create table if not exists ia_llave (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  proveedor        text not null check (proveedor in ('openai', 'elevenlabs')),
+  llave            text not null,
+  cargada_ts       timestamptz not null default now(),
+  usuario_id       text,
+  primary key (organizacion_id, proveedor)
+);
+alter table ia_llave enable row level security;

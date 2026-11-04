@@ -7,6 +7,7 @@ import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { configMensajes } from "@/lib/mensajes/config";
 import { fraseDeMuestra, hablar } from "@/lib/mensajes/voz";
+import { llavesDe } from "@/lib/mensajes/llaves";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,10 @@ export async function GET(req: Request) {
   const voz = new URL(req.url).searchParams.get("voz");
   if (voz !== "mujer" && voz !== "hombre") return new Response("voz desconocida", { status: 400 });
   const frase = fraseDeMuestra((await configMensajes(s.org.id)).nombre);
-  const clave = `${voz}|${frase}`;
+  const clave = `${s.org.id}|${voz}|${frase}`;
   let audio = guardadas.get(clave);
   if (!audio) {
-    const h = await hablar(frase, voz);
+    const h = await hablar(frase, voz, await llavesDe(s.org.id));
     if (!h.ok) return new Response("No se pudo armar la muestra", { status: 503 });
     audio = h.audio;
     guardadas.set(clave, audio);

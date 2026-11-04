@@ -4,7 +4,7 @@
 // tope de gasto, límite por hora, marca del teléfono y espera). Abre en
 // vista; se edita con el lápiz.
 
-import { entrarErp, Pantalla, Avisos, Dato, BotonesFicha, editandoFicha, CAMPO, ETIQUETA, CAJA, TituloSeccion } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Dato, ValorVista, BotonesFicha, editandoFicha, CAMPO, ETIQUETA, CAJA, TituloSeccion } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { Interruptor } from "@/app/radar/Piezas";
 import { PRIMARIO, SUAVE, BORRAR } from "@/app/botones";
@@ -13,8 +13,10 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionCopiarLlavesAudio, accionGuardarMensajes, accionGuardarVoz, accionIaGeneral, accionRespuestaAuto } from "./acciones";
-import { VOCES, hayTranscriptor, hayVoz, LARGO_MAXIMO_PARA_HABLAR, TOPE_AUDIO_KB } from "@/lib/mensajes/voz";
+import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionBorrarLlaveAudio, accionGuardarMensajes, accionGuardarVoz, accionIaGeneral, accionRespuestaAuto } from "./acciones";
+import { VOCES, LARGO_MAXIMO_PARA_HABLAR, TOPE_AUDIO_KB } from "@/lib/mensajes/voz";
+import { estadoLlaves } from "@/lib/mensajes/llaves";
+import { TachoConfirmar } from "@/app/radar/Cliente";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { tienePermiso } from "@/lib/permisos";
 import { appInstagram, claveDeVerificacion, cuentaDeOrg, hayAppInstagram } from "@/lib/mensajes/instagram";
@@ -64,6 +66,7 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
   const [c, gasto, cred] = await Promise.all([configMensajes(s.org.id), gastoMensajesDelMes(s.org.id), credencialDeOrg(s.org.id)]);
   const editando = editandoFicha(sp);
   const editandoVoz = sp.editar === "voz";
+  const llaves = await estadoLlaves(s.org.id);
   const vuelta = sp.wa ? VUELTA[sp.wa] : sp.ig ? VUELTA_IG[sp.ig] : null;
   const [ig, appIg, esDueno] = await Promise.all([cuentaDeOrg(s.org.id), appInstagram(), sosVos()]);
   const verifyIg = esDueno ? await claveDeVerificacion() : null;
@@ -251,27 +254,51 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
       <TituloSeccion titulo="Audios">
         <BotonesFicha editando={editandoVoz} ver={VOLVER} editar={`${VOLVER}?editar=voz`} form="voz" />
       </TituloSeccion>
-      {esDueno && (!hayTranscriptor() || !hayVoz()) && (
-        <form action={accionCopiarLlavesAudio} className={`${CAJA} mb-3 flex flex-wrap items-center gap-3 text-sm`}>
-          <span className="flex-1 min-w-60">Faltan llaves para los audios ({[!hayTranscriptor() && "OpenAI", !hayVoz() && "ElevenLabs"].filter(Boolean).join(" y ")}). Se pueden copiar las mismas de CadaMes: después Laucen se despliega solo y en unos minutos quedan andando.</span>
-          <button className={PRIMARIO}>Copiar las llaves de CadaMes</button>
-        </form>
-      )}
+      <div className={`${CAJA} mb-3 grid gap-3`}>
+        <p className="text-[12px] text-[#5C6B76]">
+          Para escuchar y mandar audios, {c.nombre} usa dos servicios de afuera, cada uno con su llave: <b>OpenAI</b> pasa a texto las notas de voz
+          que mandan los clientes, y <b>ElevenLabs</b> pone la voz cuando contesta con audio. Cada llave se saca en la cuenta propia de cada
+          servicio (lo que se use se paga ahí) y se pega acá con el lápiz. Antes de grabarla, Laucen la prueba; después nunca se vuelve a mostrar.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          {([
+            ["openai", "Llave de OpenAI (escuchar los audios)", "https://platform.openai.com/api-keys", "platform.openai.com", "› API keys › botón «Create new secret key», arriba a la derecha. Hace falta tener saldo cargado (Settings › Billing)."],
+            ["elevenlabs", "Llave de ElevenLabs (la voz)", "https://elevenlabs.io/app/settings/api-keys", "elevenlabs.io", "› abajo a la izquierda, Developers › pestaña API Keys › «Create API Key», con el permiso «Text to Speech»."],
+          ] as const).map(([prov, titulo, url, sitio, como]) => {
+            const e = llaves[prov];
+            return (
+              <div key={prov} className="grid gap-1">
+                <span className={ETIQUETA}>{titulo}</span>
+                {editandoVoz ? (
+                  <input form="voz" name={`llave_${prov}`} type="password" autoComplete="off" spellCheck={false}
+                    placeholder={e.de === "propia" ? "Ya hay una cargada: pegá otra sólo para cambiarla" : "Pegá la llave"} className={`${CAMPO} w-full font-mono`} />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1"><ValorVista>{e.de === "propia" ? `Cargada el ${e.cargada}` : e.de === "laucen" ? "Usa la de Laucen" : null}</ValorVista></span>
+                    {e.de === "propia" && <TachoConfirmar accion={accionBorrarLlaveAudio} campos={{ proveedor: prov }} pregunta="¿Borrar la llave?" />}
+                  </div>
+                )}
+                <span className={AYUDA}>Se saca en <a href={url} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{sitio} ↗</a> {como}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <form id="voz" action={accionGuardarVoz} className={`${CAJA} grid gap-3`}>
         <div className="grid gap-1 text-sm">
           <span className={ETIQUETA}>Escuchar los audios que mandan</span>
-          <p>{hayTranscriptor()
-            ? `Lista: cada nota de voz de WhatsApp se pasa a texto sola (queda escrita en el chat, con el audio para escucharlo) y ${c.nombre} la contesta como a cualquier mensaje. Un audio de más de uno o dos minutos (${TOPE_AUDIO_KB} KB) no se escucha: le pide que lo escriba y queda En espera para una persona.`
-            : `Falta cargar la llave de OpenAI: mientras tanto, a quien manda un audio ${c.nombre} le pide que lo escriba.`}</p>
+          <p>{llaves.openai.de !== "falta"
+            ? `Listo: cada nota de voz de WhatsApp se pasa a texto sola (queda escrita en el chat, con el audio para escucharlo) y ${c.nombre} la contesta como a cualquier mensaje. Un audio de más de uno o dos minutos (${TOPE_AUDIO_KB} KB) no se escucha: le pide que lo escriba y queda En espera para una persona.`
+            : `Falta la llave de OpenAI: mientras tanto, a quien manda un audio ${c.nombre} le pide que lo escriba.`}</p>
         </div>
         <fieldset className="grid gap-1.5">
           <span className={ETIQUETA}>Contestar con audio (voz de {c.nombre})</span>
-          {!hayVoz() && <p className="text-[12px] text-[#C03420]">Falta cargar la llave de ElevenLabs: hasta entonces no sale ningún audio, aunque elijas una voz.</p>}
+          {llaves.elevenlabs.de === "falta" && <p className="text-[12px] text-[#C03420]">Falta la llave de ElevenLabs: hasta cargarla no sale ningún audio, aunque elijas una voz.</p>}
           {([["apagado", "Apagado", "Contesta sólo con texto."], ...Object.entries(VOCES).map(([k, v]) => [k, `${k === "mujer" ? "Mujer" : "Hombre"} — ${v.nombre}`, v.descripcion])] as [string, string, string][]).map(([valor, titulo, ayuda]) => (
             <label key={valor} className="flex flex-wrap items-center gap-3 rounded-md border border-[#E3E9F0] px-3 py-2">
               <input type="radio" name="voz" value={valor} defaultChecked={c.voz === valor} disabled={!editandoVoz} className="accent-[#16577F]" />
               <span className="flex-1 min-w-40"><b>{titulo}</b> <span className="text-[#5C6B76]">— {ayuda}</span></span>
-              {valor !== "apagado" && hayVoz() && (
+              {valor !== "apagado" && llaves.elevenlabs.de !== "falta" && (
                 <audio controls preload="none" src={`/api/mensajes/voz-muestra?voz=${valor}`} aria-label={`Escuchar cómo suena ${titulo}`} className="h-8 w-56 max-w-full" />
               )}
             </label>

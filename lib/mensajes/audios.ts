@@ -6,6 +6,7 @@ import { bajarDeWhatsapp } from "@/lib/pagos/comprobante-whatsapp";
 import { nombreTienda, tiendaDeOrg } from "@/lib/tienda/tienda";
 import { abrirCaso, credencialDeOrg, guardarMensaje, type Chat } from "./chats";
 import { enviarAudio, subirMedia } from "./meta";
+import { llavesDe } from "./llaves";
 import { acuseDeAudio, contextoTienda, hablar, segundosDeAudio, transcribir, USD_HABLAR_MIN, USD_TRANSCRIBIR_MIN, type VozElegida } from "./voz";
 
 /** Lo gastado fuera de una respuesta (transcribir) cuenta para el tope igual: queda en un mensaje vacío que no se ve. */
@@ -22,8 +23,9 @@ export async function escucharAudio(org: string, chatId: number, mensajeId: numb
   Promise<{ ok: true } | { ok: false; acuse: string }> {
   const cred = await credencialDeOrg(org);
   const archivo = cred ? await bajarDeWhatsapp(cred.token, mediaId) : null;
+  const llave = (await llavesDe(org)).openai;
   const t = archivo
-    ? await transcribir({ datos: archivo.datos, tipo: archivo.tipo, contexto: contextoTienda(await tiendaDeOrg(org).then((x) => (x ? nombreTienda(x) : "")).catch(() => "")) })
+    ? await transcribir({ datos: archivo.datos, tipo: archivo.tipo, llave, contexto: contextoTienda(await tiendaDeOrg(org).then((x) => (x ? nombreTienda(x) : "")).catch(() => "")) })
     : ({ que: "no_se_pudo" } as const);
   if (archivo && t.que !== "muy_largo") await anotarGasto(org, chatId, (segundosDeAudio(archivo.datos.length) / 60) * USD_TRANSCRIBIR_MIN, "transcribir_audio");
   if (t.que !== "listo") {
@@ -43,7 +45,7 @@ export async function hablarPorWhatsapp(org: string, chat: Chat, texto: string, 
     if (chat.canal !== "whatsapp") return false;
     const cred = await credencialDeOrg(org);
     if (!cred) return false;
-    const h = await hablar(texto, voz);
+    const h = await hablar(texto, voz, await llavesDe(org));
     if (!h.ok) return false;
     const cuenta = { token: cred.token, phoneNumberId: cred.phoneNumberId };
     const mediaId = await subirMedia(cuenta, h.audio, "audio/ogg", "respuesta.ogg");

@@ -12,8 +12,8 @@
 //  - Cuándo: si la voz está prendida, a quien mandó un audio (espejo) o a todos si se tildó «Contestar siempre con
 //    audio»; nunca un texto de más de 600 caracteres ni uno que es sólo un link, un número o emojis. La nota de voz
 //    sale ANTES del texto, nunca en su lugar.
-// Las claves (OPENAI_API_KEY, ELEVENLABS_API_KEY) van siempre en el header, nunca en la URL, y ningún error del
-// proveedor llega a una pantalla: va al log.
+// Las llaves son de cada organización (lib/mensajes/llaves.ts): van siempre en el header, nunca en la URL, y ningún
+// error del proveedor llega a una pantalla: va al log.
 
 import { textoParaVoz } from "./texto-para-voz";
 
@@ -36,8 +36,8 @@ export const USD_TRANSCRIBIR_MIN = 0.006;
 export const USD_HABLAR_MIN = 0.3;
 export const segundosDeAudio = (bytes: number) => Math.max(1, Math.round(bytes / 2500));
 
-export const hayTranscriptor = () => !!process.env.OPENAI_API_KEY;
-export const hayVoz = () => !!process.env.ELEVENLABS_API_KEY;
+/** Las llaves de la organización (lib/mensajes/llaves.ts). */
+export type LlavesAudio = { openai: string | null; elevenlabs: string | null };
 
 // ── Escuchar ────────────────────────────────────────────────────────
 export const TOPE_AUDIO_KB = 200;
@@ -60,10 +60,10 @@ export function extension(mime: string): string {
 }
 
 /** Convierte el audio en texto. Nunca tira: devuelve por qué no se pudo. */
-export async function transcribir(p: { datos: Buffer; tipo: string; contexto?: string }): Promise<Transcripcion> {
+export async function transcribir(p: { datos: Buffer; tipo: string; contexto?: string; llave: string | null }): Promise<Transcripcion> {
   if (p.datos.length > TOPE_AUDIO_KB * 1024) return { que: "muy_largo" };
-  const clave = process.env.OPENAI_API_KEY;
-  if (!clave) { console.error("[transcripcion] falta OPENAI_API_KEY"); return { que: "no_se_pudo" }; }
+  const clave = p.llave;
+  if (!clave) { console.error("[transcripcion] falta la llave de OpenAI"); return { que: "no_se_pudo" }; }
   // WhatsApp manda «audio/ogg; codecs=opus»: con el parámetro pegado, del otro lado no reconocen el formato.
   const mime = (p.tipo || "audio/ogg").split(";")[0].trim().toLowerCase();
   const form = new FormData();
@@ -104,8 +104,7 @@ async function conTimeout<T>(ms: number, hacer: (s: AbortSignal) => Promise<T>):
 }
 
 /** Con marcas de tiempo: es la forma de que ElevenLabs diga cuánto dura sin abrir el Opus acá. */
-async function conElevenLabs(texto: string, voiceId: string): Promise<Hablado | null> {
-  const clave = process.env.ELEVENLABS_API_KEY;
+async function conElevenLabs(texto: string, voiceId: string, clave: string | null): Promise<Hablado | null> {
   if (!clave) return null;
   try {
     const r = await conTimeout(TIMEOUT_ELEVENLABS_MS, (signal) => fetch(
@@ -124,8 +123,7 @@ async function conElevenLabs(texto: string, voiceId: string): Promise<Hablado | 
   }
 }
 
-async function conOpenAi(texto: string): Promise<Hablado | null> {
-  const clave = process.env.OPENAI_API_KEY;
+async function conOpenAi(texto: string, clave: string | null): Promise<Hablado | null> {
   if (!clave) return null;
   try {
     const r = await conTimeout(TIMEOUT_OPENAI_MS, (signal) => fetch("https://api.openai.com/v1/audio/speech", {
@@ -142,13 +140,13 @@ async function conOpenAi(texto: string): Promise<Hablado | null> {
 }
 
 /** Sintetiza el texto (pasado a «texto para escuchar»: montos, fechas y horas en palabras). Nunca tira. */
-export async function hablar(texto: string, voz: Exclude<VozElegida, "apagado">): Promise<Hablado> {
+export async function hablar(texto: string, voz: Exclude<VozElegida, "apagado">, llaves: LlavesAudio): Promise<Hablado> {
   const t = textoParaVoz(texto.trim());
   if (!t) return { ok: false };
-  const principal = await conElevenLabs(t, VOCES[voz].voiceId);
+  const principal = await conElevenLabs(t, VOCES[voz].voiceId, llaves.elevenlabs);
   if (principal) return principal;
   // Respaldo: perder la voz elegida es mejor que perder el audio.
-  const respaldo = await conOpenAi(t);
+  const respaldo = await conOpenAi(t, llaves.openai);
   if (respaldo) return respaldo;
   console.error("[voz] los dos proveedores fallaron, sigue sólo el texto");
   return { ok: false };
