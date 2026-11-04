@@ -5,8 +5,8 @@
 //  - Escuchar: OpenAI `gpt-4o-transcribe` (el que ganó el bench de Fer con audios reales: voseo, montos, ruido),
 //    con una frase de contexto de la tienda. Tope 200 KB (uno o dos minutos de nota de voz): un audio más largo
 //    casi nunca es una pregunta, lo lee una persona.
-//  - Hablar: ElevenLabs `eleven_flash_v2_5` con la voz elegida (Sofía, mujer; MaxiAraya, hombre: las de CadaMes)
-//    y el ajuste de entonación de CadaMes; si ElevenLabs falla o tarda, OpenAI `gpt-4o-mini-tts` (voz onyx); si
+//  - Hablar: ElevenLabs `eleven_multilingual_v2` (Fer, 4/11: el de los planes Ilimitado de CadaMes, entona mejor
+//    las preguntas que Flash) con la voz elegida (Sofía, mujer; MaxiAraya, hombre: las de CadaMes); si ElevenLabs falla o tarda, OpenAI `gpt-4o-mini-tts` (voz onyx); si
 //    también falla, sale sólo el texto (nunca queda muda). Se pide ya en OGG/Opus: es lo único que WhatsApp
 //    muestra como nota de voz.
 //  - Cuándo: si la voz está prendida, a quien mandó un audio (espejo) o a todos si se tildó «Contestar siempre con
@@ -25,16 +25,15 @@ export const VOCES: Record<Exclude<VozElegida, "apagado">, { nombre: string; des
 };
 export const esVoz = (v: unknown): v is VozElegida => v === "apagado" || v === "mujer" || v === "hombre";
 
-export const MODELO_VOZ = "eleven_flash_v2_5";
-/** Ajuste de CadaMes (bitácora #208 de CadaMes): de fábrica Flash entona poco y una pregunta sonaba afirmativa. */
-const AJUSTE_VOZ = { stability: 0.4, style: 0.4 };
+/** Multilingual v2 con sus valores de fábrica (en CadaMes el ajuste de entonación es sólo para Flash). */
+export const MODELO_VOZ = "eleven_multilingual_v2";
 const TIMEOUT_ELEVENLABS_MS = 6_000;
 const TIMEOUT_OPENAI_MS = 4_000;
 
 /** Lo que cuesta, aproximado, para el tope de gasto de la IA (US$). Transcribir: US$ 0,006 por minuto. Hablar con
- *  Flash: unos US$ 0,15 por minuto. El audio de WhatsApp (Opus, 16 a 24 kbps) son unos 2,5 KB por segundo. */
+ *  Multilingual v2: unos US$ 0,30 por minuto. El audio de WhatsApp (Opus, 16 a 24 kbps) son unos 2,5 KB por segundo. */
 export const USD_TRANSCRIBIR_MIN = 0.006;
-export const USD_HABLAR_MIN = 0.15;
+export const USD_HABLAR_MIN = 0.3;
 export const segundosDeAudio = (bytes: number) => Math.max(1, Math.round(bytes / 2500));
 
 export const hayTranscriptor = () => !!process.env.OPENAI_API_KEY;
@@ -112,7 +111,7 @@ async function conElevenLabs(texto: string, voiceId: string): Promise<Hablado | 
     const r = await conTimeout(TIMEOUT_ELEVENLABS_MS, (signal) => fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=opus_48000_32`, {
         method: "POST", headers: { "xi-api-key": clave, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: texto, model_id: MODELO_VOZ, voice_settings: AJUSTE_VOZ }), signal,
+        body: JSON.stringify({ text: texto, model_id: MODELO_VOZ }), signal,
       }));
     if (!r.ok) { console.error("[voz-elevenlabs]", r.status, (await r.text()).slice(0, 300)); return null; }
     const d = (await r.json()) as { audio_base64?: string; alignment?: { character_end_times_seconds?: number[] } };

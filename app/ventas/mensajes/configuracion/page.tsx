@@ -13,7 +13,7 @@ import { configMensajes, gastoMensajesDelMes } from "@/lib/mensajes/config";
 import { credencialDeOrg } from "@/lib/mensajes/chats";
 import { hayAppDeMeta } from "@/lib/mensajes/meta";
 import { PestanasMensajes } from "../comun";
-import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionGuardarMensajes, accionGuardarVoz, accionIaGeneral, accionRespuestaAuto } from "./acciones";
+import { accionDesconectar, accionDesconectarInstagram, accionElegirNumero, accionGuardarAppInstagram, accionCopiarLlavesAudio, accionGuardarMensajes, accionGuardarVoz, accionIaGeneral, accionRespuestaAuto } from "./acciones";
 import { VOCES, hayTranscriptor, hayVoz, LARGO_MAXIMO_PARA_HABLAR, TOPE_AUDIO_KB } from "@/lib/mensajes/voz";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { tienePermiso } from "@/lib/permisos";
@@ -251,6 +251,12 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
       <TituloSeccion titulo="Audios">
         <BotonesFicha editando={editandoVoz} ver={VOLVER} editar={`${VOLVER}?editar=voz`} form="voz" />
       </TituloSeccion>
+      {esDueno && (!hayTranscriptor() || !hayVoz()) && (
+        <form action={accionCopiarLlavesAudio} className={`${CAJA} mb-3 flex flex-wrap items-center gap-3 text-sm`}>
+          <span className="flex-1 min-w-60">Faltan llaves para los audios ({[!hayTranscriptor() && "OpenAI", !hayVoz() && "ElevenLabs"].filter(Boolean).join(" y ")}). Se pueden copiar las mismas de CadaMes: después Laucen se despliega solo y en unos minutos quedan andando.</span>
+          <button className={PRIMARIO}>Copiar las llaves de CadaMes</button>
+        </form>
+      )}
       <form id="voz" action={accionGuardarVoz} className={`${CAJA} grid gap-3`}>
         <div className="grid gap-1 text-sm">
           <span className={ETIQUETA}>Escuchar los audios que mandan</span>

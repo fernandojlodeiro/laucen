@@ -49,6 +49,18 @@ export async function accionGuardarVoz(fd: FormData) {
   });
 }
 
+/** Copia de CadaMes las llaves de los audios (OpenAI y ElevenLabs) y despliega (Fer, 4/11). Sólo el dueño del
+ *  sistema; los valores nunca se muestran. */
+export async function accionCopiarLlavesAudio() {
+  await entrarErp("mensajes_config");
+  const { sosVos } = await import("@/lib/admin");
+  await intentar(VOLVER, async () => {
+    if (!(await sosVos())) throw new ErrorErp("Sólo el dueño del sistema puede cargar llaves.");
+    const { copiarVariablesDeCadames } = await import("@/lib/tienda/vercel");
+    return await copiarVariablesDeCadames(["OPENAI_API_KEY", "ELEVENLABS_API_KEY"]);
+  });
+}
+
 /** La IA de todos los chats, con un clic. */
 export async function accionIaGeneral(fd: FormData) {
   const s = await entrarErp("mensajes_config");
