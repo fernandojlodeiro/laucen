@@ -317,6 +317,27 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
     ? (await una<{ c: string | null }>("select datos_externos #>> '{ml,orden,buyer,id}' c from pedido where id = $1", [conv.pedido_id]))?.c
     : (await una<{ c: string | null }>("select datos_externos #>> '{ml,from,user_id}' c from meli_mensaje where pack_id = $1 and not de_vendedor limit 1", [packId]))?.c;
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
+  // Si nadie escribió todavía en esta venta, ML no deja un mensaje común: el vendedor la abre con un «motivo para
+  // comunicarse», el libre («OTHER», hasta 350 caracteres y con cupo). Si ML dice que ya hay conversación, sigue normal
+  // (Fer, 4/11: escribirle a un comprador que nunca escribió).
+  const vacia = !(await una("select 1 from meli_mensaje where organizacion_id = $1 and pack_id = $2 limit 1", [org, packId]));
+  if (vacia) {
+    const r = await ml<{ message?: string; error?: string }>(cuenta, "POST", `/messages/action_guide/packs/${packId}/option?tag=post_sale`, { option_id: "OTHER", text: t });
+    const detalle = `${r.datos?.error ?? ""} ${r.datos?.message ?? ""}`.toLowerCase();
+    if (r.status >= 200 && r.status < 300) {
+      await importarConversacion(cuenta, packId, true);
+      await consulta("update meli_conversacion set sugerencia = null where organizacion_id = $1 and pack_id = $2", [org, packId]);
+      return;
+    }
+    if (r.status === 403 && /limit_exceeded|cap/.test(detalle)) {
+      throw new ErrorErp("Mercado Libre ya no deja iniciar otra conversación en esta venta (el primer mensaje del vendedor tiene cupo). Cuando el comprador conteste, seguís desde acá.");
+    }
+    if (r.status === 403 && /blocked|bloque/.test(detalle)) throw new ErrorErp("Mercado Libre tiene bloqueada la mensajería de esta venta.");
+    if (!(r.status === 403 && /open|abierta|already/.test(detalle))) {
+      console.error("[ml-primer-mensaje]", org, packId, r.status, detalle.slice(0, 300));
+      throw new ErrorErp("Mercado Libre no aceptó el primer mensaje de esta venta. Probá de nuevo en un rato o escribile desde Mercado Libre («Ver la venta»).");
+    }
+  }
   const ruta = `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`;
   const cuerpo = { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t };
   await mlOk(cuenta, "POST", ruta, cuerpo).catch(async (e) => {

@@ -4,6 +4,7 @@
 // operar los pedidos que no son de ML: confirmar el pago y cambiar el estado.
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { entrarErp } from "@/app/componentes/erp";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { sesionRequerida } from "@/lib/tenancy";
@@ -501,4 +502,19 @@ export async function accionAgregarEnvio(pid: number, metodoId: number, d: Direc
   } catch (e) {
     return { error: motivoErp(e) };
   }
+}
+
+/** «✉ Mensaje al comprador» (Fer, 4/11): abre en Mensajes la conversación de una venta de Mercado Libre, aunque el
+ *  comprador nunca haya escrito (se crea vacía; el primer mensaje sale por el «motivo para comunicarse» de ML). */
+export async function accionMensajeComprador(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = Number(fd.get("pedido_id")) || 0;
+  const p = await una<{ canal_id: number; pack: string | null; tipo: string }>(`
+    select p.canal_id::int, coalesce(p.envio ->> 'pack_id', p.id_externo) pack, c.tipo from pedido p join canal c on c.id = p.canal_id
+     where p.id = $1 and p.organizacion_id = $2`, [pid, s.org.id]);
+  if (!p || p.tipo !== "mercadolibre" || !p.pack || !/^\d+$/.test(p.pack)) redirect(`/ventas/pedidos/${pid}?error=${encodeURIComponent("Esta venta no tiene conversación en Mercado Libre.")}`);
+  await consulta(`insert into meli_conversacion (organizacion_id, canal_id, pack_id, pedido_id, sin_leer, ultimo_ts) values ($1, $2, $3, $4, 0, now())
+                  on conflict (organizacion_id, pack_id) do update set pedido_id = coalesce(meli_conversacion.pedido_id, excluded.pedido_id)`,
+    [s.org.id, p.canal_id, p.pack, pid]);
+  redirect(`/ventas/mensajes?con=${encodeURIComponent(`m:${p.pack}`)}`);
 }

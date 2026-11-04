@@ -19,7 +19,7 @@ import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import CancelarPedido from "./CancelarPedido";
 import CancelarMl from "./CancelarMl";
 import { mensaje, telefonoWhatsapp } from "./Operacion";
-import { accionPasarAPedido, accionPasarAPresupuesto, accionEliminarPedido, accionLevantarPedido } from "./acciones";
+import { accionPasarAPedido, accionPasarAPresupuesto, accionEliminarPedido, accionLevantarPedido, accionMensajeComprador } from "./acciones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 
 const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
@@ -45,7 +45,14 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   if (esMl) {
     const cancelable = !CERRADOS.includes(p.estado) && p.estado !== "despachado";
     const enlaceMl = p.id_externo && /^\d+$/.test(p.id_externo) ? `https://www.mercadolibre.com.ar/ventas/${p.id_externo}/detalle` : null;
-    return <>{imprimir}{cancelable ? <CancelarMl enlace={enlaceMl} /> : null}</>;
+    // Escribirle al comprador aunque él no haya escrito nunca (Fer, 4/11): abre su conversación en Mensajes.
+    const escribir = (
+      <form action={accionMensajeComprador}>
+        <input type="hidden" name="pedido_id" value={pid} />
+        <button className={SUAVE} title="Abre la conversación de esta venta en Mensajes, para escribirle al comprador aunque todavía no haya escrito">✉ Mensaje al comprador</button>
+      </form>
+    );
+    return <>{imprimir}{escribir}{cancelable ? <CancelarMl enlace={enlaceMl} /> : null}</>;
   }
 
   // WhatsApp: con el link de seguimiento si es un pedido de la tienda.

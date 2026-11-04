@@ -125,6 +125,8 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 ## Criterios y reglas
 
+- **Escribirle primero a un comprador de Mercado Libre**: desde la ficha de la venta, **"✉ Mensaje al comprador"** abre su conversación aunque no haya escrito nunca. El primer mensaje del vendedor Mercado Libre lo deja mandar una vez por venta (hasta 350 caracteres, con la firma); después, cuando el comprador contesta, la charla sigue normal. Si ese primer mensaje ya se usó, avisa que hay que esperar a que el comprador conteste.
+
 - **Otros productos**: si el cliente pide productos distintos, la IA los busca en el catálogo de la tienda (con sus herramientas de búsqueda) y le pasa el link de la tienda de los que tienen stock. Si no hay o no tienen stock, dice lo que indiquen las [Respuestas de la IA](/config/respuestas-ia) de la empresa (por ejemplo, que por el momento no hay stock y que está por ingresar).
 
 - **La IA contesta siempre**, salvo que: esté apagada para todos (Configuración), el interruptor de ese chat esté apagado, se haya llegado al tope de gasto del mes, o haya contestado más de lo permitido en la última hora en ese chat. En los dos últimos casos deja el chat **Para atender** con el motivo.
