@@ -25,7 +25,8 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 **El chat** (al tocar la carita):
 - Arriba: el nombre del asistente, **"Nueva"** (empieza otra conversación) y **✕** (cierra; la conversación sigue si lo volvés a abrir).
 - Las preguntas y respuestas. Debajo de cada respuesta, **👍** (me sirvió) y **👎** (no me sirvió).
-- Abajo: el cuadro para escribir, el **🎤** para dictar la pregunta (si el navegador lo permite; anda en Chrome y Edge) y **"Enviar"**. Enter envía; Mayúscula+Enter hace un renglón nuevo.
+- Abajo: el **📎** para mandarle archivos, el cuadro para escribir, el **🎤** para dictar la pregunta (si el navegador lo permite; anda en Chrome y Edge) y **"Enviar"**. Enter envía; Mayúscula+Enter hace un renglón nuevo.
+- **Archivos**: fotos, PDF, Excel y CSV, hasta 20 por vez y de hasta 20 MB cada uno. Se eligen con el **📎**, se arrastran sobre el chat o se pega una captura en el cuadro de escribir. Antes de mandar, quedan arriba del cuadro con su **✕** para sacarlos. El asistente los mira y los interpreta («¿qué dice esta etiqueta?», «¿este remito coincide con el pedido?»); en la conversación se ven arriba de la pregunta. Se pueden mandar sin escribir nada.
 
 **Configuración**: Nombre, Cómo se ve (carita o signo de pregunta), Tope de gasto por mes (US$) con lo gastado en el mes, y Preguntas fuera del sistema. Se edita con el lápiz de arriba a la derecha y se graba con **"Grabar"**.
 

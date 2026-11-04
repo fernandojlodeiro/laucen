@@ -48,6 +48,7 @@ Cómo contestás:
 - Montos con el formato argentino ($ 1.234,56; US$ 10,50), fechas dd/mm/aaaa.
 - Nunca muestres código, nombres de archivos, de tablas, de columnas, de funciones ni de variables. Si algo técnico importa, traducilo a criollo.
 - Si no sabés algo o no lo encontrás, decilo. No inventes pantallas, botones ni datos.
+- Te pueden mandar archivos (fotos, PDF, Excel, CSV): los ves en la pregunta en que llegaron, cada uno con su número (#12). Interpretalos para contestar. En la historia quedan nombrados por su número: para usarlos con una herramienta, pasá ese número.
 
 De dónde sacás lo que sabés, en este orden:
 1. El manual: buscá con buscar_manual y leé la página entera con leer_manual cuando haga falta el detalle. El índice de las páginas que esta persona puede usar está en el contexto.
@@ -208,8 +209,10 @@ async function correr(nombre: string, entrada: Record<string, unknown>, q: Quien
 }
 
 /** Contesta una pregunta. `alAvanzar` recibe lo que está haciendo (para la pantalla). */
-export async function preguntar({ nombre, fuera, q, ruta, historia, pregunta, conversacionId, alAvanzar }: {
+export async function preguntar({ nombre, fuera, q, ruta, historia, pregunta, conversacionId, alAvanzar, adjuntos = [] }: {
   nombre: string; fuera: boolean; q: Quien; ruta: string; historia: Turno[]; pregunta: string; conversacionId: number; alAvanzar?: (estado: string) => void;
+  /** Lo que se ve de los archivos de esta pregunta (lib/asistente/adjuntos.ts). */
+  adjuntos?: Anthropic.Beta.BetaContentBlockParam[];
 }): Promise<Respuesta> {
   const uso = { tokensIn: 0, tokensOut: 0, busquedas: 0, usd: 0, propuestas: [] as number[] };
   const herramientas: Respuesta["herramientas"] = [];
@@ -222,7 +225,7 @@ export async function preguntar({ nombre, fuera, q, ruta, historia, pregunta, co
 
   const mensajes: Anthropic.Beta.BetaMessageParam[] = [
     ...historia.slice(-20).map((t) => ({ role: t.rol === "usuario" ? "user" as const : "assistant" as const, content: t.texto })),
-    { role: "user", content: pregunta },
+    { role: "user", content: adjuntos.length ? [...adjuntos, { type: "text", text: pregunta }] : pregunta },
   ];
   const sistema: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: SISTEMA, cache_control: { type: "ephemeral" } },

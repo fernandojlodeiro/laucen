@@ -5,15 +5,24 @@
 // escribe o se dicta (micrófono del navegador) y contesta
 // app/api/asistente, que va avisando qué está haciendo. La conversación
 // sigue al cambiar de pantalla y se recupera al recargar (sessionStorage).
+// Se le pueden mandar archivos (Fer, 4/11): el clip, arrastrarlos o pegar una
+// captura; se suben a Storage y van con la pregunta (lib/asistente/adjuntos.ts).
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Carita from "./Carita";
 import Texto from "./Texto";
 import { PRIMARIO, SUAVE } from "@/app/botones";
+import { subirArchivo } from "@/lib/supabase-navegador";
 
 type Accion = { id: number; resumen: string; detalle: string[]; estado: string; resultado: string | null };
-type Mensaje = { id?: number; rol: "usuario" | "asistente"; texto: string; voto?: number | null; error?: boolean; acciones?: Accion[] };
+type Archivo = { id?: number; nombre: string; tipo: string };
+type Mensaje = { id?: number; rol: "usuario" | "asistente"; texto: string; voto?: number | null; error?: boolean; acciones?: Accion[]; adjuntos?: Archivo[] };
+/** Lo que se le puede mandar: fotos, PDF, Excel y CSV, hasta 20 por vez y 20 MB cada uno. */
+const ACEPTA = "image/*,application/pdf,.pdf,.xlsx,.csv,.txt";
+const MAX_ARCHIVOS = 20;
+const MAX_MB = 20;
+const icono = (tipo: string, nombre: string) => (tipo.startsWith("image/") ? "🖼" : /pdf/i.test(tipo) || /\.pdf$/i.test(nombre) ? "📄" : /\.(xlsx|csv|txt)$/i.test(nombre) ? "📊" : "📎");
 
 const CLAVE = "asistente_conversacion";
 /** Hasta dónde crece el cuadro de escribir (unos 10 renglones), en píxeles. */
@@ -33,7 +42,7 @@ function crearReconocedor(): Reconocedor | null {
   return C ? new C() : null;
 }
 
-export default function Asistente({ nombre, carita, usuario }: { nombre: string; carita: boolean; usuario: string }) {
+export default function Asistente({ nombre, carita, usuario, organizacionId }: { nombre: string; carita: boolean; usuario: string; organizacionId: string }) {
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [conversacion, setConversacion] = useState<number | null>(null);
@@ -41,6 +50,10 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
   const [estado, setEstado] = useState<string | null>(null);
   const [escuchando, setEscuchando] = useState(false);
   const [hayMicrofono, setHayMicrofono] = useState(false);
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [avisoArchivo, setAvisoArchivo] = useState<string | null>(null);
+  const [arrastrando, setArrastrando] = useState(false);
+  const elegir = useRef<HTMLInputElement>(null);
   const reconocedor = useRef<Reconocedor | null>(null);
   const baseDictado = useRef("");
   const fondo = useRef<HTMLDivElement>(null);
@@ -83,17 +96,39 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
     campo.current?.focus();
   }
 
+  /** Suma archivos a los que van con la próxima pregunta (con sus topes). */
+  function sumarArchivos(lista: FileList | File[] | null) {
+    const nuevos = Array.from(lista ?? []);
+    if (!nuevos.length) return;
+    const grandes = nuevos.filter((f) => f.size > MAX_MB * 1024 * 1024);
+    const buenos = nuevos.filter((f) => f.size <= MAX_MB * 1024 * 1024);
+    const todos = [...archivos, ...buenos];
+    setAvisoArchivo(grandes.length ? `«${grandes[0].name}» pesa más de ${MAX_MB} MB: no se puede mandar.`
+      : todos.length > MAX_ARCHIVOS ? `Van hasta ${MAX_ARCHIVOS} archivos por vez.` : null);
+    setArchivos(todos.slice(0, MAX_ARCHIVOS));
+    campo.current?.focus();
+  }
+
   async function enviar() {
-    const pregunta = texto.trim();
-    if (!pregunta || estado) return;
+    const escrito = texto.trim();
+    if ((!escrito && !archivos.length) || estado) return;
     reconocedor.current?.stop();
-    setTexto("");
-    setMensajes((m) => [...m, { rol: "usuario", texto: pregunta }]);
-    setEstado("Pensando…");
+    const van = archivos;
+    const pregunta = escrito || "Mirá lo que te mando.";
+    setTexto(""); setArchivos([]); setAvisoArchivo(null);
+    setMensajes((m) => [...m, { rol: "usuario", texto: escrito, adjuntos: van.map((f) => ({ nombre: f.name, tipo: f.type })) }]);
+    setEstado(van.length ? "Subiendo los archivos…" : "Pensando…");
     try {
+      const adjuntos: { ruta: string; nombre: string; tipo: string; tamano: number }[] = [];
+      for (const f of van) {
+        const sub = await subirArchivo("importaciones", organizacionId, f, "asistente");
+        if ("motivo" in sub) throw new Error(`No se pudo subir «${f.name}». Probá de nuevo.`);
+        adjuntos.push({ ruta: sub.ruta, nombre: f.name, tipo: f.type, tamano: f.size });
+      }
+      setEstado("Pensando…");
       const r = await fetch("/api/asistente", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversacion, pregunta, ruta }),
+        body: JSON.stringify({ conversacion, pregunta, ruta, adjuntos }),
       });
       if (!r.ok || !r.body) throw new Error(String(r.status));
       const lector = r.body.getReader();
@@ -117,8 +152,9 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
           }
         }
       }
-    } catch {
-      setMensajes((m) => [...m, { rol: "asistente", texto: "No me pude conectar. Probá de nuevo en un momento.", error: true }]);
+    } catch (e) {
+      const motivo = e instanceof Error && e.message.startsWith("No se pudo subir") ? e.message : "No me pude conectar. Probá de nuevo en un momento.";
+      setMensajes((m) => [...m, { rol: "asistente", texto: motivo, error: true }]);
     } finally {
       setEstado(null);
     }
@@ -184,6 +220,9 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
       )}
       {abierto && (
         <section aria-label={nombre}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setArrastrando(true); } }}
+          onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastrando(false); }}
+          onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setArrastrando(false); sumarArchivos(e.dataTransfer.files); } }}
           className="print:hidden fixed z-40 inset-x-2 top-14 bottom-20 md:inset-x-auto md:right-3 md:top-auto md:bottom-11 md:w-[400px] md:h-[min(640px,calc(100vh-7rem))] flex flex-col bg-white border border-[#E3E9F0] rounded-2xl shadow-2xl overflow-hidden">
           <header className="flex items-center gap-2 px-3 py-2 border-b border-[#E3E9F0] bg-[#F7F9FB]">
             <Carita tamano={36} carita={carita} />
@@ -208,8 +247,17 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
               </div>
             </div>
             {mensajes.map((m, i) => m.rol === "usuario" ? (
-              <div key={i} className="flex justify-end">
-                <div className="rounded-2xl rounded-tr-sm bg-[#16577F] text-white px-3 py-2 max-w-[85%] whitespace-pre-wrap break-words">{m.texto}</div>
+              <div key={i} className="flex flex-col items-end gap-1">
+                {!!m.adjuntos?.length && (
+                  <div className="flex flex-wrap justify-end gap-1 max-w-[85%]">
+                    {m.adjuntos.map((a, j) => (
+                      <span key={j} className="inline-flex items-center gap-1 rounded-lg border border-[#C9D6E2] bg-white px-2 py-1 text-[11px] text-[#16577F] max-w-full">
+                        <span aria-hidden>{icono(a.tipo, a.nombre)}</span><span className="truncate">{a.nombre}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {m.texto && <div className="rounded-2xl rounded-tr-sm bg-[#16577F] text-white px-3 py-2 max-w-[85%] whitespace-pre-wrap break-words">{m.texto}</div>}
               </div>
             ) : (
               <div key={i} className="flex gap-2">
@@ -237,9 +285,26 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
             <div ref={fondo} />
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className="border-t border-[#E3E9F0] p-2">
+          <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className={`border-t border-[#E3E9F0] p-2 ${arrastrando ? "bg-[#EEF3F8]" : ""}`}>
+            {arrastrando && <p className="text-[11px] text-[#16577F] font-semibold mb-1">Soltalos acá para mandárselos a {nombre}</p>}
+            {archivos.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {archivos.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E9F0] bg-[#F7F9FB] pl-2 pr-1 py-0.5 text-[11px] max-w-full">
+                    <span aria-hidden>{icono(f.type, f.name)}</span><span className="truncate max-w-48">{f.name}</span>
+                    <button type="button" onClick={() => setArchivos((a) => a.filter((_, j) => j !== i))} aria-label={`Sacar ${f.name}`}
+                      className="rounded px-1 text-[#5C6B76] hover:bg-[#E3E9F0]">✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {avisoArchivo && <p role="alert" className="text-[11px] text-[#C03420] mb-1">{avisoArchivo}</p>}
             <div className="flex items-end gap-1.5">
+              <input ref={elegir} type="file" multiple accept={ACEPTA} className="hidden" onChange={(e) => { sumarArchivos(e.target.files); e.target.value = ""; }} />
+              <button type="button" onClick={() => elegir.current?.click()} aria-label="Adjuntar archivos" title="Adjuntar fotos, PDF, Excel o CSV (también los podés arrastrar o pegar)"
+                className="text-sm leading-none rounded-lg px-2 py-2 border bg-[#EEF3F8] border-[#E3E9F0]">📎</button>
               <textarea ref={campo} value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={4000}
+                onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); sumarArchivos(e.clipboardData.files); } }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
                 placeholder={escuchando ? "Te escucho…" : "Escribí tu pregunta…"} aria-label="Tu pregunta"
                 className="flex-1 resize-none border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white" />
@@ -247,7 +312,7 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
                 <button type="button" onClick={microfono} aria-label={escuchando ? "Dejar de escuchar" : "Dictar la pregunta"} title={escuchando ? "Dejar de escuchar" : "Dictar la pregunta"}
                   className={`text-sm leading-none rounded-lg px-2 py-2 border ${escuchando ? "bg-[#FDF0EE] border-[#C03420] animate-pulse" : "bg-[#EEF3F8] border-[#E3E9F0]"}`}>🎤</button>
               )}
-              <button type="submit" disabled={!texto.trim() || !!estado} className={`${PRIMARIO} disabled:opacity-50`}>Enviar</button>
+              <button type="submit" disabled={(!texto.trim() && !archivos.length) || !!estado} className={`${PRIMARIO} disabled:opacity-50`}>Enviar</button>
             </div>
             <p className="text-[10px] text-[#5C6B76] mt-1">Las preguntas quedan guardadas. {nombre} no cambia nada: te explica cómo hacerlo.</p>
           </form>

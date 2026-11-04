@@ -149,7 +149,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (
         <Suspense fallback={null}>
-          <Asistente nombre={asistente.nombre} carita={asistente.carita} usuario={quien} />
+          <Asistente nombre={asistente.nombre} carita={asistente.carita} usuario={quien} organizacionId={sesion.org.id} />
         </Suspense>
       )}
 

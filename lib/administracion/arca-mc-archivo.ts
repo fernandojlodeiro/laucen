@@ -18,7 +18,7 @@ function decodificar(buf: ArrayBuffer): string {
 }
 
 /** La primera hoja del Excel como tabla de celdas (fechas → AAAA-MM-DD). */
-async function tablaDeExcel(buf: ArrayBuffer): Promise<(string | number | null)[][]> {
+export async function tablaDeExcel(buf: ArrayBuffer): Promise<(string | number | null)[][]> {
   const libro = new ExcelJS.Workbook();
   try { await libro.xlsx.load(buf); } catch { throw new ErrorErp("No se pudo leer el Excel. Bajá de ARCA el .csv o el .xlsx de \"Mis Comprobantes – Recibidos\"."); }
   const hoja = libro.worksheets[0];

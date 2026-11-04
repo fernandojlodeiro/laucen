@@ -97,3 +97,23 @@ create table if not exists asistente_consulta (
 create index if not exists asistente_consulta_org on asistente_consulta (organizacion_id, creada_ts desc);
 alter table asistente_consulta enable row level security;
 select erp_politica_org('asistente_consulta');
+
+-- Los archivos que se le mandan al asistente (Fer, 4/11): fotos, PDF, Excel o CSV, subidos a Storage (bucket
+-- «importaciones», carpeta <org>/asistente). La IA los ve en la pregunta en que se mandaron; después se los nombra por
+-- su número (#id) para que una herramienta los use (cargar facturas de gasto, el reporte de ARCA). `lectura`: lo que
+-- leyó la IA de una factura, para no leerla dos veces.
+create table if not exists asistente_adjunto (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  conversacion_id  bigint not null references asistente_conversacion(id) on delete cascade,
+  mensaje_id       bigint references asistente_mensaje(id) on delete set null,
+  usuario_id       text not null,
+  ruta             text not null,
+  nombre           text not null,
+  tipo             text not null,
+  tamano           int not null default 0,
+  lectura          jsonb,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists asistente_adjunto_conversacion on asistente_adjunto (conversacion_id);
+alter table asistente_adjunto enable row level security;

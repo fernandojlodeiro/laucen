@@ -15,6 +15,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { configAsistente, gastoDelMes } from "@/lib/asistente/config";
 import { preguntar, type Turno } from "@/lib/asistente/motor";
+import { adjuntosDeMensajes, anotarAdjuntos, bloquesDeAdjuntos, notaDeAdjuntos, type AdjuntoNuevo } from "@/lib/asistente/adjuntos";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -50,14 +51,17 @@ export async function GET(req: NextRequest) {
   const mensajes = await consulta<{ id: number; rol: string; texto: string; voto: number | null }>(
     "select id::int id, rol, texto, voto from asistente_mensaje where conversacion_id = $1 order by id", [id]);
   const acciones = await accionesDe(s.org.id, { conversacion: id });
-  return json({ mensajes: mensajes.map((m) => ({ ...m, acciones: acciones.filter((a) => a.mensaje_id === m.id) })) });
+  const adjuntos = await adjuntosDeMensajes(s.org.id, mensajes.map((m) => m.id));
+  return json({ mensajes: mensajes.map((m) => ({ ...m, acciones: acciones.filter((a) => a.mensaje_id === m.id), adjuntos: adjuntos.get(m.id) ?? [] })) });
 }
 
 export async function POST(req: NextRequest) {
   const s = await entrar();
   if (!s) return json({ error: "Sin permiso." }, 403);
-  const cuerpo = await req.json().catch(() => ({})) as { conversacion?: number; pregunta?: string; ruta?: string };
-  const pregunta = String(cuerpo.pregunta ?? "").trim().slice(0, 4000);
+  const cuerpo = await req.json().catch(() => ({})) as { conversacion?: number; pregunta?: string; ruta?: string; adjuntos?: AdjuntoNuevo[] };
+  const nuevos = Array.isArray(cuerpo.adjuntos) ? cuerpo.adjuntos : [];
+  // Con archivos y sin texto, la pregunta es «mirá esto».
+  const pregunta = (String(cuerpo.pregunta ?? "").trim() || (nuevos.length ? "Mirá lo que te mando." : "")).slice(0, 4000);
   const ruta = String(cuerpo.ruta ?? "/panel").slice(0, 300);
   if (!pregunta) return json({ error: "Escribí la pregunta." }, 400);
 
@@ -74,11 +78,15 @@ export async function POST(req: NextRequest) {
       [org, s.usuario.id, pregunta.slice(0, 120), ruta]);
     conversacion = c!.id;
   }
-  const historia = await consulta<{ rol: Turno["rol"]; texto: string }>(
-    "select rol, texto from asistente_mensaje where conversacion_id = $1 and error is null order by id desc limit 20", [conversacion]);
-  await consulta(
-    "insert into asistente_mensaje (organizacion_id, conversacion_id, rol, texto, ruta) values ($1, $2, 'usuario', $3, $4)",
+  const historiaCruda = await consulta<{ id: number; rol: Turno["rol"]; texto: string }>(
+    "select id::int, rol, texto from asistente_mensaje where conversacion_id = $1 and error is null order by id desc limit 20", [conversacion]);
+  // Los archivos de antes quedan nombrados por su número (para que una herramienta los use).
+  const deAntes = await adjuntosDeMensajes(org, historiaCruda.map((h) => h.id));
+  const historia = historiaCruda.map((h) => ({ rol: h.rol, texto: h.texto + notaDeAdjuntos(deAntes.get(h.id) ?? []) }));
+  const mu = await una<{ id: number }>(
+    "insert into asistente_mensaje (organizacion_id, conversacion_id, rol, texto, ruta) values ($1, $2, 'usuario', $3, $4) returning id::int id",
     [org, conversacion, pregunta, ruta]);
+  const adjuntos = nuevos.length ? await anotarAdjuntos(org, conversacion, mu!.id, s.usuario.id, nuevos) : [];
   await consulta("update asistente_conversacion set actualizada_ts = now() where id = $1", [conversacion]);
 
   const codificador = new TextEncoder();
@@ -98,7 +106,9 @@ export async function POST(req: NextRequest) {
         return;
       }
 
+      if (adjuntos.length) enviar({ tipo: "estado", texto: "Mirando lo que mandaste…" });
       const r = await preguntar({
+        adjuntos: adjuntos.length ? await bloquesDeAdjuntos(adjuntos) : [],
         nombre: config.nombre, fuera: config.fueraDelSistema, ruta, pregunta, conversacionId: conversacion!,
         historia: historia.reverse(),
         q: { org, orgNombre: s.org.nombre, usuario: s.usuario.nombre || s.usuario.email, usuarioId: s.usuario.id, authId: s.usuario.authId ?? "", superadmin: s.superadmin, esFer, permisos: s.permisos, moneda },
