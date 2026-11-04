@@ -448,3 +448,26 @@ begin
 end $$;
 create or replace trigger publicacion_emitir_reactivada after update of estado on publicacion
   for each row execute function publicacion_emitir_reactivada();
+
+-- Catálogos que armó Mercado Libre solo (Fer, 4/11; lib/precios-ml/catalogo-auto.ts): publicaciones de catálogo de
+-- nuestras cuentas que no salieron de la cola de Laucen. Se anota cuándo se vio, si el producto de catálogo es el
+-- mismo que el nuestro (la IA) y su marca, y qué se le avisó al superadministrador por última vez.
+create table if not exists ml_catalogo_auto (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  catalogo_id      text,                    -- catalog_product_id
+  catalogo_nombre  text,
+  marca            text,
+  marca_ok         boolean,                 -- false: marca de otro vendedor (página armada por ML) o vetada
+  veredicto        text,                    -- mismo | parecido | distinto (la IA); null = sin juzgar
+  motivo           text,
+  intentos         smallint not null default 0,
+  visto_ts         timestamptz not null default now(),
+  juzgado_ts       timestamptz,
+  aviso_estado     text,                    -- lo último que se le mandó por mail (ver estadoAviso)
+  aviso_ts         timestamptz,
+  primary key (canal_id, item_id)
+);
+alter table ml_catalogo_auto enable row level security;
+select erp_politica_org('ml_catalogo_auto');
