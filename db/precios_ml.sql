@@ -476,3 +476,35 @@ alter table ml_catalogo_auto add column if not exists ganador_item text;
 alter table ml_catalogo_auto add column if not exists ganador_vendedor bigint;
 alter table ml_catalogo_auto add column if not exists ganador_precio numeric(16, 2);
 alter table ml_catalogo_auto add column if not exists ganador_ts timestamptz;
+
+-- Quién gana cada catálogo donde no gana ninguna nuestra (Fer, 4/11; lib/precios-ml/catalogo-ganar.ts): la primera
+-- de la lista de ofertas del producto de catálogo, con su vendedor. Si el vendedor no es una de nuestras cuentas,
+-- perdemos ese catálogo.
+create table if not exists ml_catalogo_ganador (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  catalogo_id      text not null,
+  item_id          text,
+  vendedor         bigint,
+  precio           numeric(16, 2),
+  leido_ts         timestamptz not null default now(),
+  primary key (organizacion_id, catalogo_id)
+);
+alter table ml_catalogo_ganador enable row level security;
+select erp_politica_org('ml_catalogo_ganador');
+
+-- «Ganar» (Fer, 4/11): una publicación de catálogo a la que se le puso el precio para ganar con un clic. El motor de
+-- precios no la toca mientras esté acá (lib/precios-ml/datos.ts calcularCanal); «Soltar» la devuelve al motor.
+create table if not exists ml_precio_ganar (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  precio           numeric(16, 2) not null,
+  venta_antes      numeric(16, 2),
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_precio_ganar enable row level security;
+select erp_politica_org('ml_precio_ganar');
+-- Lo último que se le avisó por mail de ese catálogo perdido (publicación ganadora y precio).
+alter table ml_catalogo_ganador add column if not exists avisado text;

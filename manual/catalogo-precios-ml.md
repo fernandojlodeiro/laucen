@@ -259,6 +259,7 @@ Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
   - una **pasada entera por noche** (entre las 2 y las 4, hora argentina), que toma los cambios del tipo de cambio en productos en dólares y del stock en los escalones de volumen.
 - Todo pasa por la cola: se manda con ritmo, se reintenta si ML corta o falla, y queda registrado qué se mandó, cuándo y con qué resultado. Un cambio automático que dio error no se vuelve a mandar igual durante 6 horas.
 - Se considera que una publicación **cambia de precio** si el precio calculado difiere en $ 1 o más del que tiene en ML.
+- **Publicaciones fijadas con «Ganar»**: una publicación de catálogo a la que se le puso el precio para ganar con el botón «Ganar» de [Catálogos que armó ML](/catalogo/catalogos-ml) queda **fuera de este cálculo**: no se le propone ni se le manda ningún cambio de precio ni de campañas (tampoco en la vista previa) hasta que se la **suelta** desde esa misma pantalla.
 
 ### 12. Redondeo
 Todos los precios (tachado, planes, destacado, escalones de volumen) se redondean a **pesos enteros**.

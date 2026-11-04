@@ -149,6 +149,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
      order by v.sku, p.id`,
     [org, canal.id, canal.listaId, opts.variaciones?.length ? opts.variaciones : null, opts.fecha ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })]);
   const items = [...new Set(filas.map((f) => f.item))];
+  const fijadas = new Set((await consulta<{ item_id: string }>("select item_id from ml_precio_ganar where canal_id = $1", [canal.id])).map((x) => x.item_id));
   const [promos, volumen] = items.length ? await Promise.all([
     consulta<{ item_id: string; promocion_id: string; tipo: string; estado: string | null; nombre: string | null; precio: number | null; min_precio: number | null; max_precio: number | null;
                precio_original: number | null; pct_vendedor: number | null; desde: string | null }>(`
@@ -199,9 +200,13 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
       clasica: f0.clasica, stock: f0.stock, comisiones: c.valores, comisionEstimada: c.estimada, pubs,
       planesPausados: [...(pausados.get(variacionId) ?? [])].filter(Boolean) as PlanOClasica[],
     };
+    const propuesta = proponer(entrada, reglas);
+    // Las publicaciones fijadas con «Ganar» (Fer, 4/11; lib/precios-ml/catalogo-ganar.ts): el precio lo puso Fer para
+    // ganar el catálogo; el motor no les propone cambios de precio ni de campañas hasta que se suelten.
+    if (fijadas.size) propuesta.pubs = propuesta.pubs.filter((pa) => !fijadas.has(pa.pub.itemId));
     propuestas.push({
       info: { variacionId, productoId: f0.producto_id, sku: f0.sku, titulo: f0.titulo, familiaId: f0.familia_id, comisionEstimada: c.estimada, stock: f0.stock },
-      propuesta: proponer(entrada, reglas),
+      propuesta,
     });
   }
   return { canal, propuestas, familias };

@@ -226,10 +226,13 @@ export async function avisarCatalogosAuto(org: string | null): Promise<number> {
 }
 
 /** Una vuelta entera: anotar, juzgar y avisar (la corre el barrido de ML después de leer los precios). */
-export async function revisarCatalogosAuto(hastaMs: number): Promise<{ nuevos: number; juzgados: number; ganadores: number; mails: number }> {
+export async function revisarCatalogosAuto(hastaMs: number): Promise<{ nuevos: number; juzgados: number; ganadores: number; catalogos: number; mails: number }> {
   const nuevos = await registrarCatalogosAuto(null);
   const juzgados = await juzgarCatalogosAuto(null, hastaMs);
   const ganadores = await leerGanadores(null, hastaMs);
-  const mails = await avisarCatalogosAuto(null);
-  return { nuevos, juzgados, ganadores, mails };
+  // Todos nuestros catálogos donde no gana ninguna nuestra: quién gana, y el mail si perdemos (catalogo-ganar.ts).
+  const { leerGanadoresCatalogos, avisarPerdidos } = await import("@/lib/precios-ml/catalogo-ganar");
+  const catalogos = await leerGanadoresCatalogos(null, hastaMs);
+  const mails = await avisarCatalogosAuto(null) + await avisarPerdidos(null);
+  return { nuevos, juzgados, ganadores, catalogos, mails };
 }

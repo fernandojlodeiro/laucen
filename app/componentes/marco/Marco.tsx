@@ -36,7 +36,8 @@ import { AvisosTareas } from "@/app/componentes/TareasFondo";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
 import { estilosCanales } from "@/lib/canales/colores";
 import { casosDejarFull, type CasoDejarFull } from "@/lib/full/dejar-full";
-import { catalogosAuto, pideAtencion } from "@/lib/precios-ml/catalogo-auto";
+import { catalogosAuto } from "@/lib/precios-ml/catalogo-auto";
+import { catalogosPerdidos } from "@/lib/precios-ml/catalogo-ganar";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
   const sesion = await sesionActual();
@@ -61,7 +62,8 @@ export default async function Marco({ children, version }: { children: React.Rea
     // Productos para probar «Dejar de ofrecer Full» (Fer, 4/11): sólo lo ve el superadministrador.
     sesion.superadmin ? casosDejarFull(sesion.org.id).catch((): CasoDejarFull[] => []) : Promise.resolve([] as CasoDejarFull[]),
     // Catálogos que armó ML que piden atención (Fer, 4/11): también sólo para el superadministrador.
-    sesion.superadmin ? catalogosAuto(sesion.org.id).then((l) => l.filter(pideAtencion).length).catch(() => 0) : Promise.resolve(0),
+    sesion.superadmin ? Promise.all([catalogosAuto(sesion.org.id), catalogosPerdidos(sesion.org.id)])
+      .then(([a, p]) => a.filter((c) => c.marca_ok === false || c.veredicto === "distinto").length + p.filter((c) => !c.pubs.some((x) => x.fijada != null)).length).catch(() => 0) : Promise.resolve(0),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
@@ -117,7 +119,7 @@ export default async function Marco({ children, version }: { children: React.Rea
         {/* Se refrescan solos; lo nuevo que no viste, en amarillo (Fer, 10/10). */}
         <ContadoresEstado inicial={avisos.contadores} />
         {catalogosMl > 0 && (
-          <Link href="/catalogo/catalogos-ml" title="Catálogos que armó Mercado Libre solo y piden atención: precio para ganar, marca o producto."
+          <Link href="/catalogo/catalogos-ml" title="Catálogos que perdemos contra otro vendedor y catálogos que armó Mercado Libre con la marca de otro o con otro producto."
             className="rounded px-1.5 py-0.5 font-bold bg-[#F2C94C] text-[#16577F] whitespace-nowrap">
             Catálogos ML ({catalogosMl})
           </Link>

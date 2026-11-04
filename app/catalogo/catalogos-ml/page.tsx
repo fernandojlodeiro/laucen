@@ -15,6 +15,9 @@ import { formatearNumero } from "@/lib/numeros";
 import { fechaHora } from "@/app/ventas/formato";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { catalogosAuto, queHacer, pideAtencion, bajaPct, TEXTO_SITUACION, TOPE_BAJA_PCT, type CatalogoAuto } from "@/lib/precios-ml/catalogo-auto";
+import { catalogosPerdidos, netoDe, type CatalogoPerdido } from "@/lib/precios-ml/catalogo-ganar";
+import { VERDE, SUAVE } from "@/app/botones";
+import { accionGanar, accionSoltar } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +31,9 @@ const VEREDICTO: Record<string, string> = { mismo: "Mismo producto", parecido: "
 export default async function CatalogosMl({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("precios_ml_ver");
   const sp = await searchParams;
-  const todos = await catalogosAuto(s.org.id);
+  const [todos, perdidos] = await Promise.all([catalogosAuto(s.org.id), catalogosPerdidos(s.org.id)]);
   const revisar = todos.filter(pideAtencion);
-  const ver = sp.ver === "todos" ? "todos" : "revisar";
+  const ver = sp.ver === "todos" ? "todos" : sp.ver === "revisar" ? "revisar" : "perdemos";
   const q = sp.q ?? "";
   const filtradas = (ver === "todos" ? todos : revisar)
     .filter((c) => coincideBusqueda([c.sku, c.titulo, c.item_id, c.cuenta, c.catalogo_id, c.catalogo_nombre, c.marca], q, sp.contiene !== "1"));
@@ -39,16 +42,17 @@ export default async function CatalogosMl({ searchParams }: { searchParams: Prom
     ganador: (c) => c.ganador, baja: (c) => bajaPct(c), visto: (c) => new Date(c.visto_ts).getTime(),
   });
   const filas = paginarEnMemoria(ordenadas, sp);
-  const pesos = (x: number | null) => (x == null ? "—" : formatearNumero(x, "entero"));
 
   return (
     <Pantalla titulo="Catálogos que armó ML" ancho="max-w-[99rem]"
       subtitulo="Publicaciones de catálogo que Mercado Libre creó solo en tus cuentas: si el catálogo es el mismo producto, cómo les va y qué conviene hacer.">
       <Avisos sp={sp} />
       <Pestanas items={[
-        { clave: "revisar", texto: "Para revisar", href: "/catalogo/catalogos-ml", activa: ver === "revisar", cuenta: revisar.length },
-        { clave: "todos", texto: "Todos", href: "/catalogo/catalogos-ml?ver=todos", activa: ver === "todos", cuenta: todos.length },
+        { clave: "perdemos", texto: "Perdemos", href: "/catalogo/catalogos-ml", activa: ver === "perdemos", cuenta: perdidos.length },
+        { clave: "revisar", texto: "Armados por ML: para revisar", href: "/catalogo/catalogos-ml?ver=revisar", activa: ver === "revisar", cuenta: revisar.length },
+        { clave: "todos", texto: "Armados por ML: todos", href: "/catalogo/catalogos-ml?ver=todos", activa: ver === "todos", cuenta: todos.length },
       ]} />
+      {ver === "perdemos" ? <Perdemos lista={perdidos} q={q} comienza={sp.contiene !== "1"} sp={sp} /> : <>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         Se revisa solo con cada lectura de Mercado Libre. El precio para ganar se actualiza cada 6 horas. Para bajar un precio o hacer entrar una publicación a la campaña,
         usá <Link href="/catalogo/precios-ml" className="text-[#16577F] underline">Precios en Mercado Libre</Link> › «Preparar cambios»: nada se cambia desde acá.
@@ -109,6 +113,102 @@ export default async function CatalogosMl({ searchParams }: { searchParams: Prom
         </table>
       </div>
       <Paginado total={ordenadas.length} />
+      </>}
     </Pantalla>
+  );
+}
+
+const pesos = (x: number | null | undefined) => (x == null ? "—" : formatearNumero(x, "entero"));
+
+/** Los catálogos donde gana un vendedor que no es ninguna de nuestras cuentas, con todas nuestras publicaciones de
+ *  cada uno y el botón «Ganar» (lib/precios-ml/catalogo-ganar.ts). */
+function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: string; comienza: boolean; sp: SP }) {
+  const filtradas = lista.filter((c) => coincideBusqueda([c.sku, c.titulo, c.catalogo_id, c.catalogo_nombre, ...c.pubs.map((p) => p.item_id), ...c.pubs.map((p) => p.cuenta)], q, comienza));
+  const filas = paginarEnMemoria(filtradas, sp);
+  return (
+    <>
+      <p className="text-[11px] text-[#5C6B76] mb-2">
+        Catálogos donde el botón de compra lo tiene un vendedor que no es ninguna de tus cuentas. Por cada publicación nuestra: a cuánto se vende hoy,
+        el precio para ganar que da Mercado Libre (lo mínimo que hay que bajar), cuánto es eso y cuánto queda neto (después de la comisión y el envío, si se conoce).
+        «Ganar» manda en el momento ese precio a Mercado Libre, fuera de las campañas, y el motor de precios no la vuelve a tocar hasta que la sueltes.
+      </p>
+      <div className="mb-3"><BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por SKU, título, publicación, cuenta o catálogo" limpiar={["p"]} /></div>
+      <div className={CAJA_TABLA}>
+        <table className={TABLA}>
+          <thead className={THEAD}>
+            <tr>
+              <th className="py-1.5 px-2 text-left font-semibold">Producto</th>
+              <th className="py-1.5 px-2 text-left font-semibold" title="Quién gana hoy el catálogo y a cuánto">Gana</th>
+              <th className="py-1.5 px-2 text-left font-semibold">Cuenta</th>
+              <th className="py-1.5 px-2 text-left font-semibold">Publicación</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="A cuánto se vende hoy (con la campaña en curso)">Vende a</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="El precio para ganar que da Mercado Libre para esta publicación">P/ganar</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="Cuánto hay que bajar desde el precio de hoy">Bajar</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="Lo que queda hoy, después de la comisión y el envío (si se conoce)">Neto hoy</th>
+              <th className="py-1.5 px-2 text-right font-semibold" title="Lo que quedaría ganando, después de la comisión y el envío (si se conoce)">Neto ganando</th>
+              <th className="py-1.5 px-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>{q ? "Nada con esa búsqueda." : "Ganamos o compartimos todos los catálogos."}</td></tr>}
+            {filas.map((c) => c.pubs.map((p, i) => {
+              const bajar = p.venta && p.ptw ? Math.round((1 - p.ptw / p.venta) * 1000) / 10 : null;
+              const conEnvio = p.envio != null;
+              return (
+                <tr key={`${c.catalogo_id}:${p.canal_id}:${p.item_id}`} className={`${TR} ${i === 0 ? "border-t-2 border-[#C9D3DD]" : ""}`} data-canal={p.canal_id}>
+                  {i === 0 && <>
+                    <td rowSpan={c.pubs.length} className={`${TD} min-w-56 max-w-80 align-top bg-white`}>
+                      <div className="flex items-start gap-2">
+                        <FotosProducto fotos={c.fotos} titulo={c.titulo} />
+                        <div className="min-w-0">
+                          <Link href={`/catalogo/productos/${c.producto_id}`} className="font-mono text-[#16577F] hover:underline">{c.sku}</Link>
+                          <TituloCorto titulo={c.titulo} />
+                          <a href={`https://www.mercadolibre.com.ar/p/${c.catalogo_id}`} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-[#16577F] hover:underline">Catálogo {c.catalogo_id} ↗</a>
+                          {c.clasica != null && <span className="block text-[10px] text-[#5C6B76]">Clásica (lista) $ {pesos(c.clasica)}</span>}
+                        </div>
+                      </div>
+                    </td>
+                    <td rowSpan={c.pubs.length} className={`${TD} align-top bg-white whitespace-nowrap`}>
+                      <b>$ {pesos(c.ganador_precio)}</b>
+                      {c.ganador_item && <span className="block font-mono text-[10px]"><a href={enlaceMl(c.ganador_item)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{c.ganador_item} ↗</a></span>}
+                      <span className="block text-[10px] text-[#5C6B76]">otro vendedor · {fechaHora(c.leido_ts)}</span>
+                    </td>
+                  </>}
+                  <td className={TD}>{p.cuenta}</td>
+                  <td className={`${TD} whitespace-nowrap`}>
+                    <Link href={historialPublicacion(p.item_id)} className="font-mono text-[#16577F] hover:underline">{p.item_id}</Link> <a href={enlaceMl(p.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a>
+                    <span className="block text-[10px] text-[#5C6B76]">{p.plan}{p.estado_ptw === "winning" ? " · gana" : p.estado_ptw === "sharing_first_place" ? " · comparte" : ""}</span>
+                  </td>
+                  <td className={TDN}>{pesos(p.venta)}{p.publicado && p.venta && p.publicado > p.venta + 1 ? <span className="block text-[10px] text-[#5C6B76] line-through">{pesos(p.publicado)}</span> : null}</td>
+                  <td className={`${TDN} font-bold`}>{pesos(p.ptw)}</td>
+                  <td className={TDN}>{bajar == null ? "—" : bajar <= 0 ? "nada" : `${formatearNumero(bajar, "decimal")} %`}</td>
+                  <td className={TDN} title={conEnvio ? undefined : "Sin el envío: no se conoce"}>{pesos(netoDe(p.venta, p))}{!conEnvio && "*"}</td>
+                  <td className={TDN} title={conEnvio ? undefined : "Sin el envío: no se conoce"}>{pesos(netoDe(p.ptw, p))}{!conEnvio && "*"}</td>
+                  <td className={`${TD} whitespace-nowrap`}>
+                    {p.fijada != null ? (
+                      <form action={accionSoltar} className="flex items-center gap-2">
+                        <input type="hidden" name="canal" value={p.canal_id} /><input type="hidden" name="item" value={p.item_id} />
+                        <span className={`text-[11px] font-bold ${p.ganar_estado === "error" ? "text-[#C03420]" : "text-[#167655]"}`}
+                          title={p.ganar_error ?? undefined}>
+                          {p.ganar_estado === "error" ? `ML no lo aceptó: ${p.ganar_error ?? "sin motivo"}` : p.ganar_estado === "ok" ? `Fijada a $ ${pesos(p.fijada)}` : `Mandando $ ${pesos(p.fijada)}…`}
+                        </span>
+                        <button className={SUAVE} title="Vuelve al motor de precios (tachado y campañas)">Soltar</button>
+                      </form>
+                    ) : p.ptw && p.estado_ptw !== "winning" ? (
+                      <form action={accionGanar}>
+                        <input type="hidden" name="canal" value={p.canal_id} /><input type="hidden" name="item" value={p.item_id} />
+                        <button className={VERDE} title="Pone ya el precio para ganar que da Mercado Libre en este momento, fuera de las campañas">Ganar</button>
+                      </form>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            }))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-[#5C6B76] mt-1">* Sin el envío: todavía no se leyó de Mercado Libre cuánto cobra por el envío de esa publicación.</p>
+      <Paginado total={filtradas.length} />
+    </>
   );
 }
