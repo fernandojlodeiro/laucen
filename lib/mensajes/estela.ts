@@ -485,7 +485,7 @@ async function mandarRespuesta(org: string, chat: Chat, c: ConfigMensajes, texto
     const { hablado, escrito } = partirParaVoz(texto);
     if (correspondeAudio({ voz: c.voz, siempre: true, entradaFueAudio: true, texto: hablado })
       && (await hablarPorWhatsapp(org, chat, hablado, c.voz, extra))) {
-      if (escrito) await mandar(org, chat, escrito, { clase: "ia" });
+      if (escrito) await mandar(org, chat, escrito, { clase: "ia", herramientas: [{ nombre: "escrito_de_nota_de_voz" }] });
       return;
     }
   }

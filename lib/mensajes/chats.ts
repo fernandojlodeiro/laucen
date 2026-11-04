@@ -157,8 +157,12 @@ export async function historialDe(chatId: number, n = 20): Promise<Turno[]> {
   return filas;
 }
 
+/** Las respuestas de la IA en la última hora. Una respuesta es una (Fer, 4/11: se cortó a las 6 respuestas): no cuentan
+ *  los registros de gasto que no se ven (texto vacío, como el de escuchar un audio) ni la lista escrita que sigue a una
+ *  nota de voz. */
 export async function iaRespuestasUltimaHora(chatId: number): Promise<number> {
-  const r = await una<{ n: number }>("select count(*)::int n from chat_mensaje where chat_id = $1 and clase = 'ia' and ts > now() - interval '1 hour'", [chatId]);
+  const r = await una<{ n: number }>(`select count(*)::int n from chat_mensaje where chat_id = $1 and clase = 'ia' and ts > now() - interval '1 hour'
+     and texto <> '' and not herramientas @> '[{"nombre": "escrito_de_nota_de_voz"}]'::jsonb`, [chatId]);
   return r?.n ?? 0;
 }
 

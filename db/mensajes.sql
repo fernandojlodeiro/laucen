@@ -187,7 +187,8 @@ declare
      where ch.canal in ('whatsapp', 'instagram') and ch.atiende_persona_desde is null
        and ch.ultimo_entrante_ts between now() - interval '1 hour' and now() - interval '90 seconds'
        and (ch.repaso_ts is null or ch.repaso_ts < ch.ultimo_entrante_ts)
-       and not exists (select 1 from public.chat_mensaje m where m.chat_id = ch.id and m.clase <> 'entrante' and m.ts > ch.ultimo_entrante_ts))
+       and not exists (select 1 from public.chat_mensaje m where m.chat_id = ch.id and m.clase <> 'entrante' and m.ts > ch.ultimo_entrante_ts
+                         and not (m.texto = '' and m.herramientas @> '[{"nombre": "transcribir_audio"}]'::jsonb)))
 $cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;
