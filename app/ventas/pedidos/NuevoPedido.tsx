@@ -235,6 +235,8 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   const [lineas, setLineas] = useState<Linea[]>(() => (edicion?.lineas ?? []).map((l, i) => ({ ...l, clave: 1000 + i, version: 0 })));
   const [borrando, setBorrando] = useState<number | null>(null);
   const [pago, setPago] = useState("a_convenir");
+  // «Cliente presente» (Fer, 4/11): tildada de entrada; con el cliente en el mostrador no se le manda ningún aviso.
+  const [presente, setPresente] = useState(true);
   // La lista de precios (null = la del cliente o la del canal) y la moneda, elegidas de entrada (Fer, 7/10).
   const [listaId, setListaId] = useState<number | null>(edicion?.listaId ?? null);
   // Pedido o presupuesto (Fer, 7/10): el presupuesto no reserva stock y va sólo por el canal local.
@@ -603,6 +605,20 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
           )}
         </fieldset>
       </div>
+
+      {!edicion && tipo === "pedido" && (
+        <fieldset className="grid gap-1">
+          <label className="inline-flex items-center gap-1.5 font-medium">
+            <input type="checkbox" name="cliente_presente" value="1" checked={presente} onChange={(e) => setPresente(e.target.checked)} className="h-4 w-4 accent-[#16577F]" />
+            Cliente presente
+          </label>
+          <p className="text-[11px] text-[#5C6B76]">
+            {presente
+              ? "Tildada: el cliente está acá, así que no le llega ningún aviso de este pedido (ni «recibimos tu pedido», ni «ya tenemos el pago», ni «listo para retirar» o «despachado», ni recordatorios de pago). La factura sí le llega, si eligió recibirla por mail o por WhatsApp."
+              : `Sin tildar (pedido por teléfono, WhatsApp o para enviar): ${pago === "a_convenir" ? "si a la hora de cargarlo sigue sin pagar, le llega «recibimos tu pedido» con la reserva y cómo pagar, y después los recordatorios; " : ""}cuando se registra el pago, cuando está listo para retirar y cuando se despacha, le llega el aviso por mail y por WhatsApp, como a un pedido de la web.`}
+          </p>
+        </fieldset>
+      )}
 
       <label><span className={ETIQUETA}>Notas</span>
         <textarea name="notas" rows={2} defaultValue={edicion?.notas ?? ""} className={`${CAMPO} w-full`} /></label>

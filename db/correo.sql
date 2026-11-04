@@ -69,12 +69,19 @@ begin
     on conflict (pedido_id, tipo) do nothing;
     return new;
   end if;
-  if not exists (select 1 from pedido p join canal c on c.id = p.canal_id where p.id = new.pedido_id and c.tipo = 'web_minorista') then return new; end if;
+  -- Los de la tienda y los cargados a mano sin el cliente presente, en cualquier canal (Fer, 4/11). Con el cliente
+  -- presente en el mostrador, ningún aviso. Los cargados a mano antes de la casilla (sin «presente») siguen como eran.
+  if not exists (select 1 from pedido p join canal c on c.id = p.canal_id where p.id = new.pedido_id and c.tipo <> 'mercadolibre'
+       and coalesce(p.datos_externos #>> '{a_mano,presente}', '') <> 'true'
+       and (c.tipo = 'web_minorista' or p.datos_externos #>> '{a_mano,presente}' = 'false')) then return new; end if;
   v_tipo := case
-    when new.estado_nuevo = 'pagado' then 'pagado'
+    -- A cuenta corriente no está pagado: queda confirmado, sin el «ya tenemos el pago».
+    when new.estado_nuevo = 'pagado' and not exists (select 1 from pedido p where p.id = new.pedido_id
+                                                     and p.datos_externos #>> '{a_mano,pago}' = 'cuenta_corriente') then 'pagado'
     when new.estado_nuevo = 'despachado' then 'despachado'
-    when new.estado_nuevo = 'preparado' and exists (select 1 from pedido p join metodo_envio m on m.id = p.metodo_envio_id
-                                                    where p.id = new.pedido_id and m.tipo = 'retiro') then 'listo_retirar'
+    when new.estado_nuevo = 'preparado' and exists (select 1 from pedido p left join metodo_envio m on m.id = p.metodo_envio_id
+                                                    where p.id = new.pedido_id and (m.tipo = 'retiro'
+                                                      or (p.datos_externos #>> '{a_mano,presente}' = 'false' and p.envio ->> 'metodo' = 'Retira'))) then 'listo_retirar'
   end;
   if v_tipo is not null then
     insert into correo_cola (organizacion_id, pedido_id, tipo, nota) values (new.organizacion_id, new.pedido_id, v_tipo, new.nota)
@@ -149,6 +156,15 @@ begin
   update pedido set reserva_vence_ts = now() + interval '24 hours',
                     reserva_hasta = ((now() + interval '24 hours') at time zone 'America/Argentina/Buenos_Aires')::date
    where id in (select pedido_id from nuevos);
+  get diagnostics k = row_count; n := n + k;
+  -- Cargado a mano sin el cliente presente (Fer, 4/11): el «recibido» recién a la hora, si sigue sin pagar (aunque ya
+  -- haya entrado en picking: «A cobrar» no espera el pago). Con el cliente presente no sale nunca.
+  insert into correo_cola (organizacion_id, pedido_id, tipo)
+  select p.organizacion_id, p.id, 'recibido' from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+   where p.datos_externos #>> '{a_mano,presente}' = 'false' and p.estado in ('nuevo', 'en_preparacion', 'preparado')
+     and p.estado_pago in ('pendiente', 'a_cobrar') and p.fecha <= now() - interval '1 hour' and p.fecha > now() - interval '3 days'
+     and p.avisos_reserva and p.reserva_hasta is not null and c.tipo <> 'mercadolibre' and not coalesce(cl.cuenta_corriente, false)
+  on conflict (pedido_id, tipo) do nothing;
   get diagnostics k = row_count; n := n + k;
   -- A los 2 días, si todavía falta para el último día.
   insert into correo_cola (organizacion_id, pedido_id, tipo)

@@ -1,7 +1,8 @@
 // El seguimiento de los pedidos sin pagar (Fer, 25/10). Mientras un pedido guarda stock sin estar pago, se le
 // escribe al cliente por mail y por WhatsApp —por WhatsApp aunque no lo haya tildado—:
-//   - recibido: al crearse (la tienda, por transferencia o efectivo; o cargado a mano): el pedido, la
-//     reserva y cómo pagar.
+//   - recibido: al crearse (la tienda, por transferencia o efectivo; un presupuesto que pasa a pedido): el pedido,
+//     la reserva y cómo pagar. Cargado a mano sin «Cliente presente», a la hora y si sigue sin pagar (lo encola
+//     pg_cron); con el cliente presente, nunca (Fer, 4/11).
 //   - pago_incompleto: tarjeta o Mercado Pago que a los 10 minutos no se pagó. La reserva pasa a 24 horas
 //     desde el aviso (pedido.reserva_vence_ts) y el link lleva a la página del pedido, donde puede
 //     reintentar o cambiar la forma de pago.

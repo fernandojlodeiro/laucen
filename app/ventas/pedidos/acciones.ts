@@ -233,6 +233,7 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       presupuesto: esPresupuesto ? { vigencia: texto(fd, "vigencia") } : null,
       moneda: fd.get("moneda") === "USD" ? "USD" : fd.get("moneda") === "ARS" ? "ARS" : null,
       listaId: Number(fd.get("lista_id")) || null,
+      clientePresente: fd.get("cliente_presente") === "1",
     });
     pedidoId = creado.pedidoId;
   } catch (e) {

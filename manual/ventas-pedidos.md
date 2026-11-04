@@ -80,6 +80,9 @@ Se abre con **"+ Nuevo pedido o presupuesto"**, debajo del encabezado. Sirve par
 - **Tabla de líneas**: SKU, Producto (con avisos "Sin stock disponible en el canal" o "Sin precio en la lista: escribilo"), **Cantidad** (arranca en 1), **Precio** (el de la lista, editable), **Descuento %**, Subtotal y el tacho (pregunta **"¿Sacar?"** **"Sí"** / **"No"**).
 - **"Pago"**: **"A cobrar (a convenir)"** (marcado de entrada), **"Pagado"** o **"Cuenta corriente"**. Debajo, **"Medio de pago"**: Efectivo, Transferencia, Tarjeta de débito, Tarjeta de crédito, Mercado Pago, Cheque, Otro (con "A cobrar" es opcional, "si ya se sabe"; con "Pagado" es obligatorio; con "Cuenta corriente" no se pide).
 - **"Entrega"**: **"Retira"** o **"Envío"**. Con Envío aparecen Calle, Número, Piso/depto, Localidad, Provincia, CP, Referencia y **"Costo del envío"**. Si elegiste un cliente con dirección, se completa sola (primero la que tiene etiqueta "Envío", si no la principal).
+- **"Cliente presente"** (caja para tildar, **tildada de entrada**; no aparece en un presupuesto). Debajo, la pantalla explica qué pasa en cada caso:
+  - **Tildada**: el cliente está en el mostrador, así que **no le llega ningún aviso de ese pedido**: ni «recibimos tu pedido», ni «ya tenemos el pago», ni «listo para retirar» o «despachado», ni recordatorios de pago. La factura sí le llega, si eligió recibirla por mail o por WhatsApp.
+  - **Sin tildar** (pedido por teléfono, por WhatsApp o para enviar): si el pedido queda «A cobrar», **a la hora de cargarlo**, si sigue sin pagar, le llega **«Pedido recibido»** con la reserva y cómo pagar, y después los recordatorios. Cuando se registra el pago, cuando queda listo para retirar y cuando se despacha, le llega el aviso por mail y por WhatsApp (por WhatsApp, si lo eligió), igual que a un pedido de la tienda, sea del canal que sea. Un pedido a cuenta corriente no recibe el de «ya tenemos el pago».
 - **"Notas"**.
 - Abajo, el **"Total"** (se recalcula mientras escribís) y el botón **"Crear pedido"**.
 
@@ -386,13 +389,13 @@ Mientras un pedido guarda stock sin estar pago, Laucen le escribe al cliente sol
 
 | Cuándo | Aviso | Qué dice |
 |---|---|---|
-| Al entrar un pedido que espera el pago (transferencia o efectivo por la tienda, cargado a mano, o un presupuesto que pasa a pedido) | **Pedido recibido** | El pedido, hasta cuándo se guarda y el botón "Ver mi pedido" (lo que compró, cómo pagarlo y cómo recibirlo). Por mail, con los datos para transferir. |
+| Al entrar un pedido que espera el pago (transferencia o efectivo por la tienda, o un presupuesto que pasa a pedido). Uno cargado a mano sin el cliente presente, **a la hora**, si sigue sin pagar | **Pedido recibido** | El pedido, hasta cuándo se guarda y el botón "Ver mi pedido" (lo que compró, cómo pagarlo y cómo recibirlo). Por mail, con los datos para transferir. |
 | A los 10 minutos de un pedido de la tienda con tarjeta o Mercado Pago sin pagar | **Pago sin completar** | Que se le guarda 24 horas, que puede reintentar o elegir otra forma de pago (botón "Elegir cómo pagar") y que si busca una forma que no vio, consulte. |
 | A los 2 días, si todavía falta para el último | **Recordatorio** | Que no llegó el pago, hasta cuándo se guarda, y que si ya pagó mande el comprobante. |
 | El último día de la reserva, desde las 9 | **Último día** | Que mañana se liberan los productos si no llega el pago. |
 | Cuando se cancela solo por la reserva vencida | **Reserva anulada** | Que se liberó la reserva y que, si todavía lo quiere, escriba. |
 
-- **Quiénes no los reciben**: las ventas de Mercado Libre, los clientes con **cuenta corriente** y los pedidos que ya existían cuando se sumaron estos avisos.
+- **Quiénes no los reciben**: las ventas de Mercado Libre, los clientes con **cuenta corriente**, los pedidos cargados a mano con **"Cliente presente"** y los pedidos que ya existían cuando se sumaron estos avisos.
 - Antes de mandar cada uno se vuelve a mirar el pedido: si ya se pagó o se canceló, el recordatorio no sale.
 - Por mail, el de "pedido recibido" lo reciben todos los pedidos de la tienda (como siempre); el de WhatsApp, sólo los que esperan el pago (no quien está pagando con tarjeta en ese momento).
 - **Si el cliente contesta por WhatsApp**, la IA ya sabe de su pedido sin pagar: si dice que pagó, se fija si figura pagado (y le confirma) o le pide el comprobante, que se revisa solo; si quiere otra forma de pago, le explica las de la tienda y que puede cambiarla desde el link del pedido; si pide algo que la tienda no tiene, lo pasa a una persona.

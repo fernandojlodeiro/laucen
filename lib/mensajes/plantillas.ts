@@ -15,7 +15,7 @@ export const PLANTILLAS: PlantillaLaucen[] = [
   { nombre: nombrePlantilla("despachado"), titulo: "Pedido en camino", cuando: "Con el botón «Despachado» del pedido.", armar: (c) => plantillaAviso("despachado", c.tienda) },
   { nombre: nombrePlantilla("listo_retirar"), titulo: "Listo para retirar", cuando: "Con el botón «Preparado» de un pedido que retira.", armar: (c) => plantillaAviso("listo_retirar", c.tienda) },
   // El seguimiento de los pedidos sin pagar (lib/pedidos/seguimiento.ts): textos aprobados por Fer el 25/10.
-  { nombre: nombrePlantilla("recibido"), titulo: "Pedido recibido (sin pagar)", cuando: "Al entrar un pedido que espera el pago: transferencia o efectivo por la tienda, o cargado a mano.", armar: (c) => plantillaAviso("recibido", c.tienda) },
+  { nombre: nombrePlantilla("recibido"), titulo: "Pedido recibido (sin pagar)", cuando: "Al entrar un pedido que espera el pago: transferencia o efectivo por la tienda; cargado a mano sin el cliente presente, a la hora si sigue sin pagar.", armar: (c) => plantillaAviso("recibido", c.tienda) },
   { nombre: nombrePlantilla("pago_incompleto"), titulo: "Pago sin completar", cuando: "A los 10 minutos de un pedido con tarjeta o Mercado Pago que no se pagó.", armar: (c) => plantillaAviso("pago_incompleto", c.tienda) },
   { nombre: nombrePlantilla("recordatorio"), titulo: "Recordatorio de pago", cuando: "A los 2 días de un pedido que sigue sin pagar.", armar: (c) => plantillaAviso("recordatorio", c.tienda) },
   { nombre: nombrePlantilla("ultimo_dia"), titulo: "Último día de la reserva", cuando: "El último día de la reserva, a la mañana.", armar: (c) => plantillaAviso("ultimo_dia", c.tienda) },

@@ -4,11 +4,11 @@
 // la facturación andan igual. La pantalla arma los datos desde su formulario;
 // el asistente, desde lo que le dijeron.
 
-import { una, ErrorErp } from "@/lib/erp/base";
+import { una, consulta, ErrorErp } from "@/lib/erp/base";
 import { crearPedido, cambiarEstado, type LineaEntrada } from "@/lib/pedidos";
 import { confirmarPago, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 import { DIAS_VIGENCIA } from "@/lib/pedidos/presupuestos";
-import { encolarRecibido } from "@/lib/pedidos/seguimiento";
+import { asegurarCodigo } from "@/lib/pedidos/seguimiento";
 
 /** Canales donde se carga un pedido a mano: todos menos Mercado Libre (sus
  *  pedidos entran solos) y las ventas históricas. */
@@ -42,6 +42,10 @@ export type PedidoAMano = {
   moneda?: "ARS" | "USD" | null;
   /** La lista de precios elegida; sin esto, la del cliente o la del canal. */
   listaId?: number | null;
+  /** «Cliente presente» (Fer, 4/11): está en el mostrador, así que el pedido no le manda ningún aviso (ni recibido,
+   *  ni pagado, ni listo para retirar o despachado, ni recordatorios). Sin tildar: el «recibido» sale recién a la
+   *  hora si sigue sin pagar (pg_cron pedido_seguimiento_encolar) y los demás avisos, como un pedido de la web. */
+  clientePresente?: boolean;
 };
 
 /** Valida lo que no depende de la base (para mostrarlo antes de confirmar). */
@@ -114,8 +118,12 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
     envio: { metodo: p.entrega === "envio" ? "Envío" : "Retira", a_mano: true, direccion: p.entrega === "envio" ? p.direccion ?? null : null },
     costo_envio: p.entrega === "envio" ? p.costoEnvio || null : null,
     notas: p.notas ?? null,
-    datos_externos: { a_mano: { usuario: usuarioId, pago: p.pago, origen } },
+    datos_externos: { a_mano: { usuario: usuarioId, pago: p.pago, origen, presente: !!p.clientePresente } },
   }, usuarioId);
+  // Con el cliente presente no sale ningún aviso de la reserva (recibido, recordatorios, anulada); sin él, el pedido
+  // necesita su link para los avisos (el «recibido» lo encola pg_cron a la hora: db/correo.sql).
+  if (p.clientePresente) await consulta("update pedido set avisos_reserva = false where id = $1 and organizacion_id = $2", [creado.pedidoId, org]);
+  else await asegurarCodigo(org, creado.pedidoId).catch((e) => console.error("[seguimiento] código", creado.pedidoId, e));
   if (p.pago === "pagado") {
     // Igual que «Confirmar pago» de la ficha: queda el pago, el pedido pagado y la reserva.
     await confirmarPago(org, creado.pedidoId, { medio: p.medio!, importe: creado.total.ars }, usuarioId);
@@ -124,7 +132,5 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
     await cambiarEstado(org, creado.pedidoId, "pagado", usuarioId, "a cuenta corriente");
   }
   if (creado.reservo && p.pago !== "pagado") await avisarStockMl(org, creado.pedidoId);
-  // Sin pagar: el cliente recibe el pedido, la reserva y cómo pagar, y después los recordatorios (Fer, 25/10).
-  if (p.pago === "a_convenir") await encolarRecibido(org, creado.pedidoId).catch((e) => console.error("[seguimiento] recibido", creado.pedidoId, e));
   return { pedidoId: creado.pedidoId, totalArs: creado.total.ars };
 }

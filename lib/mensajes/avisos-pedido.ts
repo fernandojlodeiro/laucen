@@ -63,8 +63,9 @@ export type ResultadoAviso = { estado: "enviado" | "pendiente" | "error" | "no_c
 /** Manda el aviso por WhatsApp si le corresponde. No tira: devuelve qué pasó. */
 export async function avisarPorWhatsapp(org: string, pedidoId: number, tipo: TipoAviso, nota?: string | null): Promise<ResultadoAviso> {
   const seguimiento = esSeguimiento(tipo);
-  const p = await una<{ codigo: string | null; whatsapp: string | null; quiere: boolean | null; nombre: string | null; canal_tipo: string; medio: string | null; en_seguimiento: boolean }>(`
+  const p = await una<{ codigo: string | null; whatsapp: string | null; quiere: boolean | null; nombre: string | null; canal_tipo: string; medio: string | null; en_seguimiento: boolean; a_mano_ausente: boolean }>(`
     select p.codigo_seguimiento codigo, p.datos_externos #>> '{tienda,medio}' medio, pedido_en_seguimiento(p.id) en_seguimiento,
+           coalesce(p.datos_externos #>> '{a_mano,presente}' = 'false', false) a_mano_ausente,
            ${seguimiento ? "coalesce(cl.whatsapp, whatsapp_normal(p.datos_externos #>> '{tienda,contacto,telefono}'), whatsapp_normal(cl.telefono_movil))" : "cl.whatsapp"} whatsapp,
            cl.factura_por_whatsapp quiere, coalesce(cl.nombre_pila, p.datos_externos #>> '{tienda,contacto,nombre}', cl.nombre) nombre, c.tipo canal_tipo
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
@@ -73,7 +74,8 @@ export async function avisarPorWhatsapp(org: string, pedidoId: number, tipo: Tip
   if (seguimiento) {
     if (!(await sigueCorrespondiendo(pedidoId, tipo))) return { estado: "no_corresponde", detalle: "El pedido ya se pagó o cambió: el aviso no hace falta." };
     // El primero, sólo a los que esperan el pago (no a quien está pagando con tarjeta o Mercado Pago en ese momento).
-    if (tipo === "recibido" && (!p.en_seguimiento || p.medio === "payway" || p.medio === "mercadopago")) return { estado: "no_corresponde", detalle: "No espera el pago." };
+    // Uno cargado a mano sin el cliente presente lo encola pg_cron a la hora y vale aunque ya haya entrado en picking (Fer, 4/11).
+    if (tipo === "recibido" && ((!p.en_seguimiento && !p.a_mano_ausente) || p.medio === "payway" || p.medio === "mercadopago")) return { estado: "no_corresponde", detalle: "No espera el pago." };
     if (!p.whatsapp) return { estado: "no_corresponde", detalle: "El cliente no tiene un WhatsApp cargado." };
   } else if (!p.whatsapp || p.quiere !== true) return { estado: "no_corresponde", detalle: "El cliente no eligió WhatsApp o no tiene el número." };
   const { credencialDeOrg, chatDe, guardarMensaje } = await import("@/lib/mensajes/chats");
