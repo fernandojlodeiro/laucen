@@ -63,7 +63,7 @@ export default async function Marco({ children, version }: { children: React.Rea
     sesion.superadmin ? casosDejarFull(sesion.org.id).catch((): CasoDejarFull[] => []) : Promise.resolve([] as CasoDejarFull[]),
     // Catálogos que armó ML que piden atención (Fer, 4/11): también sólo para el superadministrador.
     sesion.superadmin ? Promise.all([catalogosAuto(sesion.org.id), catalogosPerdidos(sesion.org.id)])
-      .then(([a, p]) => a.filter((c) => c.marca_ok === false || c.veredicto === "distinto").length + p.filter((c) => !c.pubs.some((x) => x.fijada != null)).length).catch(() => 0) : Promise.resolve(0),
+      .then(([a, p]) => a.filter((c) => c.marca_ok === false || c.veredicto === "distinto").length + p.filter((c) => !c.flex && !c.pubs.some((x) => x.fijada != null)).length).catch(() => 0) : Promise.resolve(0),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))

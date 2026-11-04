@@ -33,7 +33,8 @@ export default async function CatalogosMl({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const [todos, perdidos] = await Promise.all([catalogosAuto(s.org.id), catalogosPerdidos(s.org.id)]);
   const revisar = todos.filter(pideAtencion);
-  const ver = sp.ver === "todos" ? "todos" : sp.ver === "revisar" ? "revisar" : "perdemos";
+  const ver = sp.ver === "todos" ? "todos" : sp.ver === "revisar" ? "revisar" : sp.ver === "paginas" ? "paginas" : "perdemos";
+  const catalogos = perdidos.filter((c) => !c.flex), paginas = perdidos.filter((c) => c.flex);
   const q = sp.q ?? "";
   const filtradas = (ver === "todos" ? todos : revisar)
     .filter((c) => coincideBusqueda([c.sku, c.titulo, c.item_id, c.cuenta, c.catalogo_id, c.catalogo_nombre, c.marca], q, sp.contiene !== "1"));
@@ -48,11 +49,12 @@ export default async function CatalogosMl({ searchParams }: { searchParams: Prom
       subtitulo="Publicaciones de catálogo que Mercado Libre creó solo en tus cuentas: si el catálogo es el mismo producto, cómo les va y qué conviene hacer.">
       <Avisos sp={sp} />
       <Pestanas items={[
-        { clave: "perdemos", texto: "Perdemos", href: "/catalogo/catalogos-ml", activa: ver === "perdemos", cuenta: perdidos.length },
+        { clave: "perdemos", texto: "Perdemos", href: "/catalogo/catalogos-ml", activa: ver === "perdemos", cuenta: catalogos.length },
+        { clave: "paginas", texto: "Páginas armadas por ML", href: "/catalogo/catalogos-ml?ver=paginas", activa: ver === "paginas", cuenta: paginas.length },
         { clave: "revisar", texto: "Armados por ML: para revisar", href: "/catalogo/catalogos-ml?ver=revisar", activa: ver === "revisar", cuenta: revisar.length },
         { clave: "todos", texto: "Armados por ML: todos", href: "/catalogo/catalogos-ml?ver=todos", activa: ver === "todos", cuenta: todos.length },
       ]} />
-      {ver === "perdemos" ? <Perdemos lista={perdidos} q={q} comienza={sp.contiene !== "1"} sp={sp} /> : <>
+      {ver === "perdemos" || ver === "paginas" ? <Perdemos lista={ver === "paginas" ? paginas : catalogos} paginas={ver === "paginas"} q={q} comienza={sp.contiene !== "1"} sp={sp} /> : <>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         Se revisa solo con cada lectura de Mercado Libre. El precio para ganar se actualiza cada 6 horas. Para bajar un precio o hacer entrar una publicación a la campaña,
         usá <Link href="/catalogo/precios-ml" className="text-[#16577F] underline">Precios en Mercado Libre</Link> › «Preparar cambios»: nada se cambia desde acá.
@@ -122,11 +124,17 @@ const pesos = (x: number | null | undefined) => (x == null ? "—" : formatearNu
 
 /** Los catálogos donde gana un vendedor que no es ninguna de nuestras cuentas, con todas nuestras publicaciones de
  *  cada uno y el botón «Ganar» (lib/precios-ml/catalogo-ganar.ts). */
-function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: string; comienza: boolean; sp: SP }) {
+function Perdemos({ lista, paginas, q, comienza, sp }: { lista: CatalogoPerdido[]; paginas: boolean; q: string; comienza: boolean; sp: SP }) {
   const filtradas = lista.filter((c) => coincideBusqueda([c.sku, c.titulo, c.catalogo_id, c.catalogo_nombre, ...c.pubs.map((p) => p.item_id), ...c.pubs.map((p) => p.cuenta)], q, comienza));
   const filas = paginarEnMemoria(filtradas, sp);
   return (
     <>
+      {paginas && (
+        <p className="text-[11px] text-[#8a6100] mb-2 font-semibold">
+          Páginas que armó Mercado Libre juntando publicaciones parecidas. Acá la API de Mercado Libre no dice bien quién gana: el orden de vendedores va por precio
+          y el precio para ganar puede ser absurdo. Lo que vale es lo que ve el comprador: mirá la página (enlace en cada producto). No hay botón «Ganar».
+        </p>
+      )}
       <p className="text-[11px] text-[#5C6B76] mb-2">
         Catálogos donde el botón de compra lo tiene un vendedor que no es ninguna de tus cuentas. Por cada publicación nuestra: a cuánto se vende hoy,
         el precio para ganar que da Mercado Libre (lo mínimo que hay que bajar), cuánto es eso y cuánto queda neto (después de la comisión y el envío, si se conoce).
@@ -201,7 +209,7 @@ function Perdemos({ lista, q, comienza, sp }: { lista: CatalogoPerdido[]; q: str
                         </span>
                         <button className={SUAVE} title="Vuelve al motor de precios (tachado y campañas)">Soltar</button>
                       </form>
-                    ) : puedeGanar ? (
+                    ) : puedeGanar && !paginas ? (
                       <form action={accionGanar}>
                         <input type="hidden" name="canal" value={p.canal_id} /><input type="hidden" name="item" value={p.item_id} />
                         <button className={VERDE} title="Pone ya el precio para ganar que da Mercado Libre en este momento, fuera de las campañas">Ganar</button>

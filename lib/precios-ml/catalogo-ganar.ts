@@ -37,10 +37,18 @@ export async function leerGanadoresCatalogos(org: string | null, hastaMs: number
     const r = await ml<{ results?: { item_id?: string; seller_id?: number; price?: number }[] }>(cuenta, "GET", `/products/${c.catalogo_id}/items?limit=1`);
     if (r.status !== 200) continue;
     const g = r.datos.results?.[0];
+    // El tipo del catálogo (una vez): en las páginas que arma ML (flex) la API no dice bien quién gana.
+    const t = await una<{ tipo: string | null }>("select tipo from ml_catalogo_ganador where organizacion_id = $1 and catalogo_id = $2", [c.organizacion_id, c.catalogo_id]);
+    let tipo = t?.tipo ?? null;
+    if (!tipo) {
+      const p = await ml<{ type?: string }>(cuenta, "GET", `/products/${c.catalogo_id}`);
+      tipo = p.status === 200 ? p.datos.type ?? null : null;
+    }
     await consulta(`
-      insert into ml_catalogo_ganador (organizacion_id, catalogo_id, item_id, vendedor, precio, leido_ts) values ($1, $2, $3, $4, $5, now())
-      on conflict (organizacion_id, catalogo_id) do update set item_id = excluded.item_id, vendedor = excluded.vendedor, precio = excluded.precio, leido_ts = now()`,
-      [c.organizacion_id, c.catalogo_id, g?.item_id ?? null, g?.seller_id ?? null, g?.price ?? null]);
+      insert into ml_catalogo_ganador (organizacion_id, catalogo_id, item_id, vendedor, precio, tipo, leido_ts) values ($1, $2, $3, $4, $5, $6, now())
+      on conflict (organizacion_id, catalogo_id) do update set item_id = excluded.item_id, vendedor = excluded.vendedor, precio = excluded.precio,
+        tipo = coalesce(excluded.tipo, ml_catalogo_ganador.tipo), leido_ts = now()`,
+      [c.organizacion_id, c.catalogo_id, g?.item_id ?? null, g?.seller_id ?? null, g?.price ?? null, tipo]);
     n++;
   }
   return n;
@@ -57,6 +65,8 @@ export type PubCatalogo = {
 export type CatalogoPerdido = {
   catalogo_id: string; catalogo_nombre: string | null; producto_id: number; sku: string; titulo: string; fotos: string[] | null; clasica: number | null;
   ganador_item: string | null; ganador_precio: number | null; leido_ts: Date; pubs: PubCatalogo[];
+  /** Página que armó ML juntando publicaciones (type flex): quién gana según la API no es confiable. */
+  flex: boolean;
 };
 
 /** Los catálogos donde gana un vendedor que no es ninguna de nuestras cuentas, con todas nuestras publicaciones
@@ -67,7 +77,7 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
     ganador_item: string | null; ganador_precio: number | null; leido_ts: Date;
     canal_id: number; cuenta: string; item_id: string; tipo: string | null; tags: unknown; categoria: string | null;
     venta: number | null; publicado: number | null; ptw: number | null; estado_ptw: string | null; envio: number | null; fijada: number | null;
-    ganar_estado: string | null; ganar_error: string | null; motivo: string | null;
+    ganar_estado: string | null; ganar_error: string | null; motivo: string | null; cat_tipo: string | null;
   }>(`
     with lc as (select id from lista_precios where organizacion_id = $1 and lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by id limit 1),
     nuestros as (select meli_user_id from meli_cuenta where organizacion_id = $1 and canal_id is not null),
@@ -90,7 +100,7 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
            -- El ganador: el que da ML en el precio para ganar de nuestras publicaciones (el dueño del botón de compra); si
            -- ninguna lo trae, el primero de la lista de ofertas del catálogo.
            cl.venta_ars::float8 clasica, coalesce(wg.w_item, g.item_id) ganador_item, coalesce(wg.w_precio, g.precio)::float8 ganador_precio,
-           coalesce(wg.w_ts, g.leido_ts) leido_ts, pu.motivo,
+           coalesce(wg.w_ts, g.leido_ts) leido_ts, pu.motivo, g.tipo cat_tipo,
            pu.canal_id::int, c.nombre cuenta, pu.item_id, pu.tipo, pu.tags, pu.categoria,
            least(pu.publicado, (select min(o.precio) from ml_promo_item o where o.canal_id = pu.canal_id and o.item_id = pu.item_id and o.estado = 'started'))::float8 venta,
            pu.publicado::float8, pu.ptw::float8, pu.estado estado_ptw,
@@ -112,7 +122,7 @@ export async function catalogosPerdidos(org: string): Promise<CatalogoPerdido[]>
     let c = porCat.get(f.catalogo_id);
     if (!c) {
       c = { catalogo_id: f.catalogo_id, catalogo_nombre: f.catalogo_nombre, producto_id: f.producto_id, sku: f.sku, titulo: f.titulo, fotos: f.fotos, clasica: f.clasica,
-        ganador_item: f.ganador_item, ganador_precio: f.ganador_precio, leido_ts: f.leido_ts, pubs: [] };
+        ganador_item: f.ganador_item, ganador_precio: f.ganador_precio, leido_ts: f.leido_ts, pubs: [], flex: f.cat_tipo === "flex" };
       porCat.set(f.catalogo_id, c);
     }
     const plan = planDePublicacion(f.tipo, f.tags) ?? "clasica";
@@ -214,7 +224,7 @@ export async function avisarPerdidos(org: string | null): Promise<number> {
     const estados = new Map((await consulta<{ catalogo_id: string; avisado: string | null }>(
       "select catalogo_id, avisado from ml_catalogo_ganador where organizacion_id = $1", [o])).map((x) => [x.catalogo_id, x.avisado]));
     const firma = (c: CatalogoPerdido) => `${c.ganador_item ?? ""}|${Math.round(c.ganador_precio ?? 0)}`;
-    const cambios = (await catalogosPerdidos(o)).filter((c) => !c.pubs.some((p) => p.fijada != null) && estados.get(c.catalogo_id) !== firma(c));
+    const cambios = (await catalogosPerdidos(o)).filter((c) => !c.flex && !c.pubs.some((p) => p.fijada != null) && estados.get(c.catalogo_id) !== firma(c));
     if (!cambios.length) continue;
     const para = await consulta<{ email: string }>(`
       select distinct u.email from membresias m join usuarios u on u.id = m.usuario_id

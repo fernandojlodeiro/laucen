@@ -35,6 +35,7 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
   - Si la publicación **no compite** en el catálogo, en lugar del objetivo dice por qué (por ejemplo, «no tiene Mercado Envíos»): bajar el precio no sirve y no tiene botón «Ganar».
   - **Neto hoy** y **Neto ganando**: lo que queda después de la comisión de Mercado Libre y el envío (con «*» si el envío todavía no se conoce).
   - El botón **«Ganar»**, o **«Fijada a $ …»** con el botón **«Soltar»** si ya se ganó con el botón.
+- Pestaña **«Páginas armadas por ML»**: lo mismo que «Perdemos», pero de las páginas que arma Mercado Libre juntando publicaciones parecidas (no son una ficha de catálogo de la marca o de Mercado Libre). En ellas la información de Mercado Libre sobre quién gana no coincide con lo que ve el comprador (el orden de vendedores va por precio y el precio para ganar puede ser absurdo), así que hay que mirar la página: no tienen botón «Ganar» y no cuentan en los avisos.
 - Pestañas **«Armados por ML: para revisar»** y **«Armados por ML: todos»**: las publicaciones de catálogo que Mercado Libre creó solo en tus cuentas. Una fila por publicación: **Producto**, **Cuenta**, **Situación**, **Precio** (el publicado), **P/ganar**, **Ganador**, **% Clás.** (cuánto abajo de la Clásica queda el precio para ganar), **Qué hacer**, **Catálogo** (el producto de catálogo, su marca y si es el mismo producto) y **Visto**.
 - Buscador por SKU, título, publicación, cuenta o catálogo.
 
@@ -52,6 +53,12 @@ Desde acá no se cambia nada en Mercado Libre: los precios se cambian en [Precio
 - **«Soltar»** en la fila: la publicación vuelve al cálculo de [Precios en Mercado Libre](/catalogo/precios-ml) y, si la cuenta tiene los precios automáticos prendidos, se recalcula en el acto (vuelve a su tachado y sus campañas).
 
 ## Criterios y reglas
+
+### Catálogo de verdad y página armada por ML
+
+- Mercado Libre tiene dos clases de catálogo: la **ficha de catálogo**, con los datos del producto de la marca o de Mercado Libre (por ejemplo, una cámara Raspberry Pi), y la **página armada por Mercado Libre**, que se arma con los datos de la publicación de un vendedor y junta las parecidas (por eso puede llevar la marca propia de ese vendedor).
+- En los dos se compite por el botón de compra, que no lo gana sólo el precio: también cuentan la reputación, el envío y la demora.
+- «Perdemos» muestra sólo las fichas de catálogo; las páginas armadas por Mercado Libre van en su pestaña aparte.
 
 ### Cuáles aparecen en «Perdemos»
 
@@ -102,7 +109,7 @@ Una fila va a «Para revisar» si pierde contra otro vendedor, el catálogo es o
 
 ### Los avisos
 
-- **Barra de estado**: el superadministrador ve «Catálogos ML (N)» con los catálogos que perdemos (sin fijar) más los armados por ML con la marca de otro vendedor o con otro producto.
+- **Barra de estado**: el superadministrador ve «Catálogos ML (N)» con las fichas de catálogo que perdemos (sin fijar; las páginas armadas por Mercado Libre no cuentan) más los armados por ML con la marca de otro vendedor o con otro producto.
 - **Mail**: al superadministrador, con los catálogos que perdemos nuevos o que cambiaron de ganador o de precio (con la publicación nuestra que gana dejando más neto y a cuánto), y con los catálogos armados por ML nuevos o que cambiaron. Un mismo estado no se avisa dos veces.
 
 ## Relacionado

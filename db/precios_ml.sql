@@ -511,3 +511,6 @@ alter table ml_catalogo_ganador add column if not exists avisado text;
 -- Por qué una publicación de catálogo no compite (reason de ML) y cuál es la publicación que gana (winner.item_id).
 alter table ml_price_to_win add column if not exists motivo text;
 alter table ml_price_to_win add column if not exists ganador_item text;
+-- De qué tipo es el catálogo (type de /products/{id}): catalog_product (ficha de ML o de la marca) o flex (página que
+-- arma ML juntando publicaciones). En las flex, quién gana según la API no coincide con lo que ve el comprador.
+alter table ml_catalogo_ganador add column if not exists tipo text;
