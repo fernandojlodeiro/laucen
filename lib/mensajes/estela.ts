@@ -29,7 +29,8 @@ import {
 } from "./chats";
 import { enviarTexto } from "./meta";
 import { lineaMarcas, sitiosDeLaTienda, telefonoLindo, mismoTelefono } from "./reglas";
-import { correspondeAudio, marcaDeAudio } from "./voz";
+import { AVISO_VA_EN_AUDIO, correspondeAudio, marcaDeAudio, partirParaVoz } from "./voz";
+import { hayLlave } from "./llaves";
 import { hablarPorWhatsapp, ultimoFueAudio } from "./audios";
 
 /** Claude Sonnet 5.5 (pedido de Fer: más barato que el del panel); US$ por millón de tokens. */
@@ -377,10 +378,9 @@ export async function contestar(org: string, chatId: number, encargo?: string, o
   const t = await tiendaDeOrg(org);
   const mensajes: Anthropic.Beta.BetaMessageParam[] = [];
   for (const h of historia) {
-    // La nota de voz de la IA repite el texto que va después: no se cuenta dos veces.
-    if (h.clase === "ia" && h.audio) continue;
     const rol = h.clase === "entrante" ? "user" as const : "assistant" as const;
-    const texto = h.audio && h.clase === "entrante" && h.texto.startsWith("🎤 ") && h.texto !== "🎤 (mandó un audio)" ? marcaDeAudio(h.texto.slice(2).trim())
+    const texto = h.audio && h.clase === "ia" ? h.texto.replace(/^🎤\s*/, "")
+      : h.audio && h.clase === "entrante" && h.texto.startsWith("🎤 ") && h.texto !== "🎤 (mandó un audio)" ? marcaDeAudio(h.texto.slice(2).trim())
       : h.automatico ? `[Aviso automático de la tienda] ${h.texto}`
       : h.clase === "operador" || h.clase === "desde_el_telefono" ? `[Lo escribió una persona del equipo] ${h.texto}` : h.texto;
     const previo = mensajes.at(-1);
@@ -399,9 +399,13 @@ export async function contestar(org: string, chatId: number, encargo?: string, o
   while (mensajes[0]?.role === "assistant") mensajes.shift();
   if (!mensajes.length) return { texto: null, motivo: "No hay nada para contestar." };
 
+  // ¿La respuesta sale como nota de voz? (voz elegida, y el cliente mandó un audio o «Contestar siempre con audio»).
+  // Se sabe antes de escribir, así la IA pone los links aparte y no los dicta (Fer, 4/11).
+  const enAudio = !soloProponer && chat.canal === "whatsapp" && c.voz !== "apagado"
+    && (c.vozSiempre || (await ultimoFueAudio(chatId))) && (await hayLlave(org, "elevenlabs"));
   const sistema: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: SISTEMA, cache_control: { type: "ephemeral" } },
-    { type: "text", text: `${await contexto(c, chat, t)}` },
+    { type: "text", text: `${await contexto(c, chat, t)}${enAudio ? `\n\n${AVISO_VA_EN_AUDIO}` : ""}` },
   ];
   const uso = { tokensIn: 0, tokensOut: 0, usd: 0 };
   const herramientas: { nombre: string; entrada: unknown }[] = [];
@@ -469,14 +473,23 @@ export async function contestar(org: string, chatId: number, encargo?: string, o
   const ahora = await chatPorId(org, chatId);
   if (ahora?.atiendePersonaDesde) return { texto: null, motivo: "Mientras pensaba, lo tomó una persona." };
 
-  // La nota de voz sale ANTES que el texto, nunca en su lugar (como en CadaMes; lib/mensajes/voz.ts). Si no
-  // corresponde o falla, sigue el texto solo.
-  if (chat.canal === "whatsapp" && c.voz !== "apagado"
-    && correspondeAudio({ voz: c.voz, siempre: c.vozSiempre, entradaFueAudio: await ultimoFueAudio(chatId), texto })) {
-    await hablarPorWhatsapp(org, ahora ?? chat, texto, c.voz);
-  }
-  await mandar(org, ahora ?? chat, texto, { clase: "ia", herramientas, ...uso });
+  await mandarRespuesta(org, ahora ?? chat, c, texto, enAudio, { herramientas, ...uso });
   return { texto };
+}
+
+/** Manda la respuesta: si corresponde, como nota de voz (lo que se dice) y, aparte y escritos, sólo los renglones con
+ *  links (Fer, 4/11: una conversación normal, audio por audio; los links no se leen). Si la voz falla, el texto entero. */
+async function mandarRespuesta(org: string, chat: Chat, c: ConfigMensajes, texto: string, enAudio: boolean,
+  extra: { herramientas: unknown[]; tokensIn: number; tokensOut: number; usd: number }) {
+  if (enAudio && c.voz !== "apagado") {
+    const { hablado, escrito } = partirParaVoz(texto);
+    if (correspondeAudio({ voz: c.voz, siempre: true, entradaFueAudio: true, texto: hablado })
+      && (await hablarPorWhatsapp(org, chat, hablado, c.voz, extra))) {
+      if (escrito) await mandar(org, chat, escrito, { clase: "ia" });
+      return;
+    }
+  }
+  await mandar(org, chat, texto, { clase: "ia", ...extra });
 }
 
 /** Manda un mensaje al cliente (por WhatsApp o, en el probador, sólo lo

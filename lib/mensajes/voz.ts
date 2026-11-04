@@ -163,6 +163,21 @@ export function esSoloLinkNumeroOEmoji(texto: string): boolean {
   return sinEmoji.replace(/[\d.,\-+()/%$\s]/g, "").trim().length === 0;
 }
 
+/** Lo que se dice y lo que va escrito (Fer, 4/11: «los links en la voz quedan horribles»): los renglones con un link
+ *  van sólo como texto; el resto se dice en la nota de voz. Pura. */
+export function partirParaVoz(texto: string): { hablado: string; escrito: string | null } {
+  const conLink = /https?:\/\/\S+|\b[\w-]+(\.[\w-]+)+\/\S*/i;
+  const renglones = texto.split("\n");
+  const escrito = renglones.filter((r) => conLink.test(r)).map((r) => r.trim()).filter(Boolean);
+  const hablado = renglones.filter((r) => !conLink.test(r)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { hablado, escrito: escrito.length ? escrito.join("\n") : null };
+}
+
+/** Lo que se le avisa a la IA antes de escribir cuando su respuesta va a salir como nota de voz. */
+export const AVISO_VA_EN_AUDIO = "[Tu respuesta va a salir como nota de voz: lo que escribas se escucha, salvo los renglones que tienen un link, que le llegan escritos aparte. "
+  + "Poné cada link solo en su renglón, al final, con el nombre del producto adelante (ej. «Conversor CP2102: https://…»), y en lo que decís avisale que le pasás el link por escrito. "
+  + "Nunca dictes un link, un código ni un número largo.]";
+
 /** ¿Va nota de voz con esta respuesta? Pura. */
 export function correspondeAudio(p: { voz: VozElegida; siempre: boolean; entradaFueAudio: boolean; texto: string }): boolean {
   if (p.voz === "apagado") return false;

@@ -199,8 +199,10 @@ export async function subirMedia(cuenta: CuentaWa, datos: Buffer, tipo: string, 
   return (r.data as { id?: string }).id ?? null;
 }
 
-/** Una nota de voz ya subida (subirMedia). Como el texto libre, sólo dentro de las 24 h. */
-export const enviarAudio = (cuenta: CuentaWa, para: string, mediaId: string) => mandar(cuenta, { to: para, type: "audio", audio: { id: mediaId } });
+/** Una nota de voz ya subida (subirMedia). Como el texto libre, sólo dentro de las 24 h. `voice: true` (Fer, 4/11): sin
+ *  eso WhatsApp la muestra como un archivo de audio para descargar, no como nota de voz con su ▶ (vale sólo para
+ *  OGG/Opus mono, que es lo que se pide a ElevenLabs y a OpenAI). */
+export const enviarAudio = (cuenta: CuentaWa, para: string, mediaId: string) => mandar(cuenta, { to: para, type: "audio", audio: { id: mediaId, voice: true } });
 
 /** Un documento (el PDF de una factura) por su dirección pública: Meta lo baja y lo manda.
  *  Como el texto libre, sólo dentro de las 24 h desde el último mensaje del cliente. */

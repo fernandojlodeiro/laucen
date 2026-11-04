@@ -24,3 +24,20 @@ describe("nota de voz de la IA", () => {
     assert.equal(extension("audio/webm"), "webm");
   });
 });
+
+describe("los links no se dicen", () => {
+  it("los renglones con link van escritos; el resto, en la voz", async () => {
+    const { partirParaVoz } = await import("@/lib/mensajes/voz");
+    const r = partirParaVoz("¡Sí, lo tenemos! Sale $ 5.854 cada uno. Te paso el link por escrito.\nConversor CP2102: https://daitom.com.ar/producto/504");
+    assert.equal(r.hablado, "¡Sí, lo tenemos! Sale $ 5.854 cada uno. Te paso el link por escrito.");
+    assert.equal(r.escrito, "Conversor CP2102: https://daitom.com.ar/producto/504");
+  });
+  it("sin links, todo en la voz y nada escrito", async () => {
+    const { partirParaVoz } = await import("@/lib/mensajes/voz");
+    assert.deepEqual(partirParaVoz("Retirás en barrio General Paz, de 9 a 18."), { hablado: "Retirás en barrio General Paz, de 9 a 18.", escrito: null });
+  });
+  it("un link sin https también", async () => {
+    const { partirParaVoz } = await import("@/lib/mensajes/voz");
+    assert.equal(partirParaVoz("Miralo\ndaitom.com.ar/producto/696").escrito, "daitom.com.ar/producto/696");
+  });
+});

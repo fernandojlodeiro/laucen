@@ -40,7 +40,8 @@ export async function escucharAudio(org: string, chatId: number, mensajeId: numb
 
 /** Manda la respuesta como nota de voz (antes del texto, nunca en su lugar). Nunca tira y nunca corta: si no sale,
  *  sigue el texto solo. Queda en el chat como «🎤 …» con el audio para escucharlo. */
-export async function hablarPorWhatsapp(org: string, chat: Chat, texto: string, voz: Exclude<VozElegida, "apagado">): Promise<boolean> {
+export async function hablarPorWhatsapp(org: string, chat: Chat, texto: string, voz: Exclude<VozElegida, "apagado">,
+  extra: { herramientas?: unknown[]; tokensIn?: number; tokensOut?: number; usd?: number } = {}): Promise<boolean> {
   try {
     if (chat.canal !== "whatsapp") return false;
     const cred = await credencialDeOrg(org);
@@ -51,10 +52,12 @@ export async function hablarPorWhatsapp(org: string, chat: Chat, texto: string, 
     const mediaId = await subirMedia(cuenta, h.audio, "audio/ogg", "respuesta.ogg");
     if (!mediaId) return false;
     const r = await enviarAudio(cuenta, chat.externo, mediaId);
-    const usd = (Math.max(1, h.duracionSeg) / 60) * USD_HABLAR_MIN;
+    // Lo que costó escribir la respuesta va con la nota de voz (el texto que sigue, si hay, son sólo los links).
+    const usd = (Math.max(1, h.duracionSeg) / 60) * USD_HABLAR_MIN + (extra.usd ?? 0);
     await guardarMensaje({
       org, chatId: chat.id, clase: "ia", texto: `🎤 ${texto}`, wamid: r.ok ? r.wamid : null, estado: r.ok ? "enviado" : "fallido",
-      motivo: r.ok ? null : r.motivo, usd, herramientas: [{ nombre: "nota_de_voz" }],
+      motivo: r.ok ? null : r.motivo, usd, herramientas: [...(extra.herramientas ?? []), { nombre: "nota_de_voz" }],
+      tokensIn: extra.tokensIn, tokensOut: extra.tokensOut,
       adjunto: { media_id: mediaId, tipo: "audio/ogg", nombre: "Nota de voz" },
     });
     return r.ok;
