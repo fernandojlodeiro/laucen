@@ -28,7 +28,7 @@ import {
   type Chat,
 } from "./chats";
 import { enviarTexto } from "./meta";
-import { telefonoLindo, mismoTelefono } from "./reglas";
+import { lineaMarcas, sitiosDeLaTienda, telefonoLindo, mismoTelefono } from "./reglas";
 
 /** Claude Sonnet 5.5 (pedido de Fer: más barato que el del panel); US$ por millón de tokens. */
 export const MODELO_TIENDA = "claude-sonnet-5-5";
@@ -41,6 +41,7 @@ Cómo escribís:
 - Castellano rioplatense ("vos", "tenés", "fijate"), cálido y corto, como se escribe por WhatsApp: una o dos frases, tres como mucho. Sin títulos ni listas largas; si hace falta enumerar, pocos renglones cortos con guiones.
 - Formato de WhatsApp: *negrita* con un asterisco, sin markdown de enlaces (el link va pegado tal cual). Por Instagram, texto sin asteriscos ni formato, hasta 1.000 caracteres.
 - Precios con formato argentino ($ 12.345). Nunca digas que el precio puede cambiar ni que vale el de la tienda al momento de comprar, ni hables de la validez de un presupuesto (Fer, 26/10).
+- Al saludar o presentarte, decí sólo tu nombre («¡Hola! Soy …, ¿en qué te ayudo?»), nunca «de» una marca o tienda: la empresa tiene varias marcas y el cliente puede venir de cualquiera. Si el cliente nombra una de nuestras marcas o páginas, es nuestra.
 - Nunca digas que sos una inteligencia artificial salvo que te lo pregunten directamente; si te lo preguntan, decí la verdad.
 
 De dónde sacás lo que decís:
@@ -188,7 +189,7 @@ const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
 async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promise<string> {
   const lineas: string[] = [`- Te llamás ${c.nombre}.`, `- ${await ahoraYHorario(chat.organizacionId)}`];
   if (t) {
-    lineas.push(`- La tienda: «${nombreTienda(t)}», web ${await urlTienda(t)}. Precios en ${t.moneda === "USD" ? "dólares" : "pesos"}.`);
+    lineas.push(`- La tienda web principal: «${nombreTienda(t)}», ${await urlTienda(t)} (los links que mandás son de ésta). Precios en ${t.moneda === "USD" ? "dólares" : "pesos"}.`);
     const cf = t.config;
     if (cf.direccion) lineas.push(`- Dirección: ${cf.direccion}`);
     if (cf.email) lineas.push(`- Mail: ${cf.email}`);
@@ -200,6 +201,11 @@ async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promis
       if (e.gratisDesde != null) lineas.push(`- Envío gratis desde ${formatear(e.gratisDesde, "ARS")}.`);
       if (e.retiro) lineas.push(`- Retiro: ${e.retiro.nombre}${e.retiro.plazo ? `, ${e.retiro.plazo}` : ""}.`);
     }
+    // Las marcas (Fer, 4/11): una vez dijo que tiendavirtual.com «no es nuestro» porque sólo conocía la principal.
+    const dominios = await consulta<{ dominio: string; principal: boolean }>("select dominio, principal from tienda_dominio where organizacion_id = $1 and canal_id = $2", [t.organizacionId, t.canalId]).catch(() => []);
+    const cuentasMl = await consulta<{ nombre: string }>("select nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado' order by id", [t.organizacionId]).catch(() => []);
+    const marcas = lineaMarcas(sitiosDeLaTienda(dominios), cuentasMl.map((c) => c.nombre));
+    if (marcas) lineas.push(marcas);
     const medios = await consulta<{ nombre: string }>("select nombre from medio_pago where organizacion_id = $1 and activo and (canal_id is null or canal_id = $2) order by orden, id", [t.organizacionId, t.canalId]).catch(() => []);
     if (medios.length) lineas.push(`- Medios de pago de la tienda: ${medios.map((m) => m.nombre).join(", ")}.`);
   } else {

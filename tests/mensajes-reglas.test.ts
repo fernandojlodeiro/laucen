@@ -81,3 +81,20 @@ describe("firma de Meta y estado del alta", () => {
     assert.equal(verificarEstado(`${cuerpo}.x`), null);
   });
 });
+
+describe("marcas de la tienda", () => {
+  it("sitios sin www, sin repetir, el principal primero", async () => {
+    const { sitiosDeLaTienda } = await import("@/lib/mensajes/reglas");
+    assert.deepEqual(sitiosDeLaTienda([
+      { dominio: "www.tiendavirtual.com" }, { dominio: "tiendavirtual.com" }, { dominio: "daitom.com.ar", principal: true }, { dominio: "deirolab.com" },
+    ]), ["daitom.com.ar", "tiendavirtual.com", "deirolab.com"]);
+  });
+  it("con una sola marca no dice nada; con varias, que todas somos nosotros", async () => {
+    const { lineaMarcas } = await import("@/lib/mensajes/reglas");
+    assert.equal(lineaMarcas(["daitom.com.ar"], []), null);
+    const l = lineaMarcas(["daitom.com.ar", "tiendavirtual.com"], ["DEIROLAB SAS"]) ?? "";
+    assert.match(l, /TODAS SOMOS NOSOTROS/);
+    assert.match(l, /tiendavirtual\.com/);
+    assert.match(l, /DEIROLAB SAS/);
+  });
+});

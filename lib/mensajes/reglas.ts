@@ -100,3 +100,26 @@ export function telefonoLindo(waId: string): string {
   }
   return d ? `+${d}` : waId;
 }
+
+// ── Las marcas de la tienda (Fer, 4/11): varias webs y cuentas, una sola empresa ─────────
+/** Los sitios de la tienda a partir de sus dominios: sin «www.», sin repetir, el principal primero. Pura. */
+export function sitiosDeLaTienda(dominios: { dominio: string; principal?: boolean }[]): string[] {
+  const orden = [...dominios].sort((a, b) => Number(!!b.principal) - Number(!!a.principal));
+  const vistos = new Set<string>();
+  for (const d of orden) {
+    const s = d.dominio.trim().toLowerCase().replace(/^www\./, "");
+    if (s) vistos.add(s);
+  }
+  return [...vistos];
+}
+
+/** Lo que la IA tiene que saber de las marcas: que todas son la misma empresa y que no se presenta con una sola. Pura. */
+export function lineaMarcas(sitios: string[], cuentasMl: string[]): string | null {
+  if (sitios.length + cuentasMl.length < 2) return null;
+  const partes: string[] = [];
+  if (sitios.length) partes.push(`las páginas web ${sitios.join(", ")}`);
+  if (cuentasMl.length) partes.push(`las cuentas de Mercado Libre ${cuentasMl.join(", ")}`);
+  return `- MARCAS: la empresa vende con varias marcas y páginas web distintas, y TODAS SOMOS NOSOTROS: ${partes.join(" y ")}. `
+    + "Es la misma tienda (mismo catálogo, precios y stock). El cliente puede venir por cualquiera de ellas: nunca digas que una no es nuestra, "
+    + "que no la conocés o que no tenés que ver con ella. Si nombra una, hablale de esa como nuestra.";
+}
