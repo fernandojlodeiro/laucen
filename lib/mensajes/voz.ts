@@ -5,8 +5,9 @@
 //  - Escuchar: OpenAI `gpt-4o-transcribe` (el que ganó el bench de Fer con audios reales: voseo, montos, ruido),
 //    con una frase de contexto de la tienda. Tope 200 KB (uno o dos minutos de nota de voz): un audio más largo
 //    casi nunca es una pregunta, lo lee una persona.
-//  - Hablar: ElevenLabs `eleven_multilingual_v2` (Fer, 4/11: el de los planes Ilimitado de CadaMes, entona mejor
-//    las preguntas que Flash) con la voz elegida (Sofía, mujer; MaxiAraya, hombre: las de CadaMes); si ElevenLabs falla o tarda, OpenAI `gpt-4o-mini-tts` (voz onyx); si
+//  - Hablar: ElevenLabs `eleven_flash_v2_5` con el ajuste de entonación de CadaMes (Fer, 4/11: lo eligió en CadaMes
+//    porque, además de más barato, entonaba mejor las preguntas), con la voz elegida (Sofía, mujer; MaxiAraya,
+//    hombre: las de CadaMes); si ElevenLabs falla o tarda, OpenAI `gpt-4o-mini-tts` (voz onyx); si
 //    también falla, sale sólo el texto (nunca queda muda). Se pide ya en OGG/Opus: es lo único que WhatsApp
 //    muestra como nota de voz.
 //  - Cuándo: si la voz está prendida, a quien mandó un audio (espejo) o a todos si se tildó «Contestar siempre con
@@ -25,15 +26,16 @@ export const VOCES: Record<Exclude<VozElegida, "apagado">, { nombre: string; des
 };
 export const esVoz = (v: unknown): v is VozElegida => v === "apagado" || v === "mujer" || v === "hombre";
 
-/** Multilingual v2 con sus valores de fábrica (en CadaMes el ajuste de entonación es sólo para Flash). */
-export const MODELO_VOZ = "eleven_multilingual_v2";
+export const MODELO_VOZ = "eleven_flash_v2_5";
+/** Ajuste de CadaMes (su bitácora #208): de fábrica Flash entona poco y una pregunta sonaba afirmativa. */
+const AJUSTE_VOZ = { stability: 0.4, style: 0.4 };
 const TIMEOUT_ELEVENLABS_MS = 6_000;
 const TIMEOUT_OPENAI_MS = 4_000;
 
 /** Lo que cuesta, aproximado, para el tope de gasto de la IA (US$). Transcribir: US$ 0,006 por minuto. Hablar con
- *  Multilingual v2: unos US$ 0,30 por minuto. El audio de WhatsApp (Opus, 16 a 24 kbps) son unos 2,5 KB por segundo. */
+ *  Flash: unos US$ 0,15 por minuto. El audio de WhatsApp (Opus, 16 a 24 kbps) son unos 2,5 KB por segundo. */
 export const USD_TRANSCRIBIR_MIN = 0.006;
-export const USD_HABLAR_MIN = 0.3;
+export const USD_HABLAR_MIN = 0.15;
 export const segundosDeAudio = (bytes: number) => Math.max(1, Math.round(bytes / 2500));
 
 /** Las llaves de la organización (lib/mensajes/llaves.ts). */
@@ -110,7 +112,7 @@ async function conElevenLabs(texto: string, voiceId: string, clave: string | nul
     const r = await conTimeout(TIMEOUT_ELEVENLABS_MS, (signal) => fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=opus_48000_32`, {
         method: "POST", headers: { "xi-api-key": clave, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: texto, model_id: MODELO_VOZ }), signal,
+        body: JSON.stringify({ text: texto, model_id: MODELO_VOZ, voice_settings: AJUSTE_VOZ }), signal,
       }));
     if (!r.ok) { console.error("[voz-elevenlabs]", r.status, (await r.text()).slice(0, 300)); return null; }
     const d = (await r.json()) as { audio_base64?: string; alignment?: { character_end_times_seconds?: number[] } };
@@ -163,20 +165,33 @@ export function esSoloLinkNumeroOEmoji(texto: string): boolean {
   return sinEmoji.replace(/[\d.,\-+()/%$\s]/g, "").trim().length === 0;
 }
 
-/** Lo que se dice y lo que va escrito (Fer, 4/11: «los links en la voz quedan horribles»): los renglones con un link
- *  van sólo como texto; el resto se dice en la nota de voz. Pura. */
+/** El renglón que separa lo que se dice de lo que va escrito (la IA lo pone cuando contesta en audio). */
+export const SEPARADOR_ESCRITO = "---";
+
+/** Lo que se dice y lo que va escrito (Fer, 4/11: «los links en la voz quedan horribles» y «que no detalle los
+ *  productos hablando»): lo que sigue al renglón «---» va sólo escrito (la lista de productos con sus links); antes,
+ *  lo que se dice. Un renglón con link que quedó arriba también pasa a lo escrito. Pura. */
 export function partirParaVoz(texto: string): { hablado: string; escrito: string | null } {
   const conLink = /https?:\/\/\S+|\b[\w-]+(\.[\w-]+)+\/\S*/i;
-  const renglones = texto.split("\n");
-  const escrito = renglones.filter((r) => conLink.test(r)).map((r) => r.trim()).filter(Boolean);
+  const todos = texto.split("\n");
+  const corte = todos.findIndex((r) => r.trim() === SEPARADOR_ESCRITO);
+  const renglones = corte >= 0 ? todos.slice(0, corte) : todos;
+  const abajo = corte >= 0 ? todos.slice(corte + 1).map((r) => r.trimEnd()) : [];
+  const arriba = renglones.filter((r) => conLink.test(r)).map((r) => r.trim()).filter(Boolean);
+  const escritoTodo = [...arriba, ...abajo].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const hablado = renglones.filter((r) => !conLink.test(r)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return { hablado, escrito: escrito.length ? escrito.join("\n") : null };
+  return { hablado, escrito: escritoTodo || null };
 }
 
+/** Lo mismo para cuando sale todo escrito (la voz falló o es muy largo): sin el renglón «---». Pura. */
+export const sinSeparador = (texto: string) => texto.split("\n").filter((r) => r.trim() !== SEPARADOR_ESCRITO).join("\n").trim();
+
 /** Lo que se le avisa a la IA antes de escribir cuando su respuesta va a salir como nota de voz. */
-export const AVISO_VA_EN_AUDIO = "[Tu respuesta va a salir como nota de voz: lo que escribas se escucha, salvo los renglones que tienen un link, que le llegan escritos aparte. "
-  + "Poné cada link solo en su renglón, al final, con el nombre del producto adelante (ej. «Conversor CP2102: https://…»), y en lo que decís avisale que le pasás el link por escrito. "
-  + "Nunca dictes un link, un código ni un número largo.]";
+export const AVISO_VA_EN_AUDIO = "[Tu respuesta va a salir como nota de voz. Escribila en dos partes separadas por un renglón que diga sólo ---. "
+  + "Arriba, lo que se escucha: corto y conversado, sin nombres de productos, modelos, características técnicas, precios, links ni números largos. "
+  + "Si le ofrecés productos, decí sólo cuántas opciones hay y que le pasás la lista por escrito (ej. «Tengo tres opciones, te paso la lista con los links para que las veas»). "
+  + "Abajo del ---, lo que le llega escrito: la lista prolija, un producto por renglón con su nombre y precio, y el link en el renglón siguiente. "
+  + "Si no hay nada para escribir (un horario, una dirección, una pregunta), no pongas el --- y contestá todo hablado.]";
 
 /** ¿Va nota de voz con esta respuesta? Pura. */
 export function correspondeAudio(p: { voz: VozElegida; siempre: boolean; entradaFueAudio: boolean; texto: string }): boolean {

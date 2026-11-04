@@ -40,7 +40,7 @@ export async function probarLlave(p: Proveedor, llave: string): Promise<string |
         })
       : await fetch("https://api.elevenlabs.io/v1/text-to-speech/h60rOzgfLmYsntfqgGu2?output_format=opus_48000_32", {
           method: "POST", headers: { "xi-api-key": llave, "Content-Type": "application/json" },
-          body: JSON.stringify({ text: "Hola", model_id: "eleven_multilingual_v2" }), signal: AbortSignal.timeout(15_000),
+          body: JSON.stringify({ text: "Hola", model_id: "eleven_flash_v2_5" }), signal: AbortSignal.timeout(15_000),
         });
     if (r.ok) return null;
     console.error("[llave-audio]", p, r.status, (await r.text()).slice(0, 300));

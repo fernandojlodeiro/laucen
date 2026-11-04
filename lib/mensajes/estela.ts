@@ -29,7 +29,7 @@ import {
 } from "./chats";
 import { enviarTexto } from "./meta";
 import { lineaMarcas, sitiosDeLaTienda, telefonoLindo, mismoTelefono } from "./reglas";
-import { AVISO_VA_EN_AUDIO, correspondeAudio, marcaDeAudio, partirParaVoz } from "./voz";
+import { AVISO_VA_EN_AUDIO, correspondeAudio, marcaDeAudio, partirParaVoz, sinSeparador } from "./voz";
 import { hayLlave } from "./llaves";
 import { hablarPorWhatsapp, ultimoFueAudio } from "./audios";
 
@@ -489,7 +489,7 @@ async function mandarRespuesta(org: string, chat: Chat, c: ConfigMensajes, texto
       return;
     }
   }
-  await mandar(org, chat, texto, { clase: "ia", ...extra });
+  await mandar(org, chat, sinSeparador(texto), { clase: "ia", ...extra });
 }
 
 /** Manda un mensaje al cliente (por WhatsApp o, en el probador, sólo lo

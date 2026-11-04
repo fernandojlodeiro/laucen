@@ -309,8 +309,9 @@ export default async function ConfigMensajes({ searchParams }: { searchParams: P
           </label>
           <p className="text-[11px] text-[#5C6B76]">
             Apagado: {c.nombre} contesta sólo con texto. Con una voz elegida y la caja sin tildar: a quien manda una nota de voz, {c.nombre} le contesta
-            con una nota de voz; a quien escribe, sólo texto. Con la caja tildada: todas sus respuestas van como nota de voz. Los links nunca se dicen:
-            en la nota de voz avisa que se los pasa por escrito, y llegan aparte, como texto. Nunca va en audio una respuesta de más
+            con una nota de voz; a quien escribe, sólo texto. Con la caja tildada: todas sus respuestas van como nota de voz. Los productos y los links nunca se
+            detallan hablando: en la nota de voz dice cuántas opciones hay y que le pasa la lista por escrito, y la lista (nombre y precio de cada
+            uno, con su link) llega aparte, como texto. Nunca va en audio una respuesta de más
             de {LARGO_MAXIMO_PARA_HABLAR} caracteres (unos 45 segundos): ésa, y si la voz falla, sale escrita entera. Sólo por WhatsApp (en Instagram, siempre texto). Los audios cuentan para el tope de gasto del mes.
           </p>
         </fieldset>

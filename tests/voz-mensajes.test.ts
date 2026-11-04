@@ -41,3 +41,14 @@ describe("los links no se dicen", () => {
     assert.equal(partirParaVoz("Miralo\ndaitom.com.ar/producto/696").escrito, "daitom.com.ar/producto/696");
   });
 });
+
+describe("los productos no se detallan hablando", () => {
+  it("lo de abajo del --- va escrito entero; arriba, lo que se dice", async () => {
+    const { partirParaVoz, sinSeparador } = await import("@/lib/mensajes/voz");
+    const t = "Tengo tres opciones, te paso la lista con los links para que las veas.\n---\n- Impresora A1 Mini — $ 300.000\nhttps://daitom.com.ar/producto/1\n- Impresora K1 — $ 500.000\nhttps://daitom.com.ar/producto/2";
+    const r = partirParaVoz(t);
+    assert.equal(r.hablado, "Tengo tres opciones, te paso la lista con los links para que las veas.");
+    assert.equal(r.escrito, "- Impresora A1 Mini — $ 300.000\nhttps://daitom.com.ar/producto/1\n- Impresora K1 — $ 500.000\nhttps://daitom.com.ar/producto/2");
+    assert.ok(!sinSeparador(t).includes("---"));
+  });
+});
