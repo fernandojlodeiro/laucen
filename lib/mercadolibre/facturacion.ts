@@ -132,7 +132,7 @@ export type Leer = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
 const POR_PAGINA = 150;
 
 type Opciones = { hastaMs: number; leer?: Leer; periodos?: number; cuentaId?: number; canalId?: number | null;
-  /** Sigue donde quedó (Fer, 4/11): saltea las cuentas y los períodos ya leídos en las últimas 20 horas. */
+  /** Sigue donde quedó (Fer, 4/11): saltea las cuentas y los períodos ya leídos hoy (desde las 7). */
   seguir?: boolean };
 
 /** Lee la facturación de las cuentas de ML (de la organización, o de todas
@@ -149,7 +149,7 @@ export async function traerFacturacionMl(org: string | null, opts: Opciones) {
   const informe: Record<string, unknown> = {};
   // Las que ya quedaron leídas enteras hoy no se vuelven a leer (sólo al seguir).
   const listas = opts.seguir ? new Set((await consulta<{ cuenta_id: number }>(
-    "select cuenta_id::int from ml_facturacion_lectura where not fallo and ultimo_ts > now() - interval '20 hours'")).map((x) => x.cuenta_id)) : new Set<number>();
+    `select cuenta_id::int from ml_facturacion_lectura where not fallo and ultimo_ts > ${DESDE_HOY}`)).map((x) => x.cuenta_id)) : new Set<number>();
   for (const f of cuentas) {
     if (Date.now() > opts.hastaMs - 3_000) break;
     if (listas.has(f.id)) continue;
@@ -188,8 +188,8 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
     if (sinTiempo()) { res.incompleto = true; break; }
     // Al seguir, los períodos ya pedidos hoy salen de la base (no se gasta un pedido en la lista).
     const guardados = opts.seguir ? await consulta<{ clave: string; detalle: boolean }>(`
-      select clave, coalesce(detalle_ts > now() - interval '20 hours', false) detalle from ml_factura_periodo
-       where cuenta_id = $1 and grupo = $2 and leido_ts > now() - interval '20 hours' order by clave desc limit $3`, [cuenta.id, grupo, n]) : [];
+      select clave, coalesce(detalle_ts > ${DESDE_HOY}, false) detalle from ml_factura_periodo
+       where cuenta_id = $1 and grupo = $2 and leido_ts > ${DESDE_HOY} order by clave desc limit $3`, [cuenta.id, grupo, n]) : [];
     let periodos: PeriodoMl[];
     let leidos = new Set<string>();
     if (guardados.length) {
@@ -308,6 +308,10 @@ export function enVentanaFacturacion(ahora = new Date()): boolean {
   return hora >= 8 && hora < 10;
 }
 
+/** Desde cuándo una lectura cuenta como «la de hoy» (Fer, 5/11): las 7 de la mañana, hora argentina. Antes se pedían
+ *  20 horas, y una lectura hecha a la tarde dejaba sin leer la mañana siguiente. */
+const DESDE_HOY = "((date_trunc('day', now() at time zone 'America/Argentina/Buenos_Aires') + interval '7 hours') at time zone 'America/Argentina/Buenos_Aires')";
+
 /** ¿Hay alguna cuenta que quedó a medias (se sigue enseguida, de a poco) o que ML rechazó (429: se reintenta a la
  *  hora)? Siempre fuera de la barrida. */
 export async function facturacionAReintentar(): Promise<boolean> {
@@ -327,11 +331,11 @@ export async function pedirRelectura(org: string, canalId: number | null) {
                   on conflict (cuenta_id) do update set fallo = true, ultimo_ts = now() - interval '1 hour', resultado = excluded.resultado`, [ids]);
 }
 
-/** ¿Hay alguna cuenta que no se leyó en las últimas 20 horas? (para la lectura del día, en su ventana) */
+/** ¿Hay alguna cuenta que todavía no se leyó hoy? (para la lectura del día, en su ventana de 8 a 10) */
 export async function facturacionPendiente(): Promise<boolean> {
   return !!(await una(`
     select 1 from meli_cuenta mc where mc.estado = 'activa' and mc.canal_id is not null
-       and not exists (select 1 from ml_facturacion_lectura l where l.cuenta_id = mc.id and l.ultimo_ts > now() - interval '20 hours')
+       and not exists (select 1 from ml_facturacion_lectura l where l.cuenta_id = mc.id and l.ultimo_ts > ${DESDE_HOY})
      limit 1`));
 }
 
