@@ -2,6 +2,7 @@
 // (categoría, meses, buscador), los formatos y el gráfico por mes. Los cálculos, en lib/marketpro/analisis.ts.
 
 import Link from "next/link";
+import { SUAVE } from "@/app/botones";
 import BarraPestanas from "@/app/componentes/Pestanas";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
@@ -87,6 +88,23 @@ export const linkVendedor = (v: string, sp: SP) => url("/market-pro/productos", 
 export const linkMarca = (m: string, sp: SP) => url("/market-pro/productos", { marca: m, ...filtrosDe(sp) });
 export const linkCategoria = (c: number, sp: SP) => url("/market-pro/productos", { ...filtrosDe(sp), cat: c });
 export const linkMl = (itemId: string) => `https://articulo.mercadolibre.com.ar/${itemId.replace(/^MLA/i, "MLA-")}`;
+
+/** Dónde ver un producto en Mercado Libre (Market Pro cifra el número de publicación): la página del producto de
+ *  catálogo si lo es; si no, la búsqueda por su título. */
+export function linkProductoMl(producto: string, titulo: string | null): string | null {
+  if (producto.startsWith("c:")) return `https://www.mercadolibre.com.ar/p/MLA${producto.slice(2)}`;
+  const t = (titulo ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").trim().replace(/\s+/g, "-");
+  return t ? `https://listado.mercadolibre.com.ar/${t}` : null;
+}
+
+export function VerEnMl({ producto, titulo, boton = false }: { producto: string; titulo: string | null; boton?: boolean }) {
+  const href = linkProductoMl(producto, titulo);
+  if (!href) return null;
+  const texto = producto.startsWith("c:") ? "Ver el catálogo en Mercado Libre" : "Buscar en Mercado Libre";
+  return boton
+    ? <a href={href} target="_blank" rel="noopener noreferrer" className={SUAVE}>{texto} ↗</a>
+    : <a href={href} target="_blank" rel="noopener noreferrer" className="ml-1 text-[#16577F]" title={texto}>↗</a>;
+}
 
 export function Ml({ itemId }: { itemId: string }) {
   // Market Pro cifra el número de publicación: sólo hay link cuando viene un MLA de verdad.

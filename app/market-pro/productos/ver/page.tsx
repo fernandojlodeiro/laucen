@@ -7,7 +7,7 @@ import FotosProducto from "@/app/componentes/FotosProducto";
 import TituloCorto from "@/app/componentes/TituloCorto";
 import { atributosDe, leerFiltro, ofertasDeProducto, porProducto, serieMensual, ultimoMes } from "@/lib/marketpro/analisis";
 import { gananciaEstimada } from "@/lib/marketpro/ganancia";
-import { BarraMarketPro, ENVIO, GraficoMeses, Ml, REPUTACION, entero, filtrosDe, linkVendedor, millones, pct, pesos, crec, colorCrec } from "../../piezas";
+import { BarraMarketPro, ENVIO, GraficoMeses, Ml, REPUTACION, VerEnMl, entero, filtrosDe, linkVendedor, millones, pct, pesos, crec, colorCrec } from "../../piezas";
 import { url } from "@/app/componentes/erp";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,8 @@ export default async function ProductoMarketPro({ searchParams }: { searchParams
   return (
     <Pantalla titulo={p.titulo ?? "Producto"} ancho="max-w-7xl"
       camino={[{ texto: "Productos", href: url("/market-pro/productos", filtrosDe(sp)) }, { texto: (p.titulo ?? "").slice(0, 40) }]}
-      subtitulo={`${p.marca} · ${p.ruta ?? ""} · clave ${p.producto}`}>
+      subtitulo={`${p.marca} · ${p.ruta ?? ""}`}
+      acciones={<VerEnMl producto={p.producto} titulo={p.titulo} boton />}>
       <BarraMarketPro activa="productos" sp={sp} />
       <div className="grid gap-3 md:grid-cols-[auto_1fr] mb-4">
         <div className={CAJA}><FotosProducto fotos={p.foto ? [p.foto] : []} titulo={p.titulo ?? ""} tamano={140} /></div>
@@ -62,7 +63,7 @@ export default async function ProductoMarketPro({ searchParams }: { searchParams
           <tbody>{ofertas.map((o) => (
             <tr key={o.item_id} className={TR}>
               <td className={`${TD} max-w-72`}><span className="flex items-center gap-2"><FotosProducto fotos={o.foto ? [o.foto] : []} titulo={o.titulo ?? ""} />
-                <span>{/^MLA\d+$/i.test(o.item_id) ? <>{o.item_id} <Ml itemId={o.item_id} /></> : null}{o.nuestra && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nuestra</span>}<TituloCorto titulo={o.titulo} /></span></span></td>
+                <span>{/^MLA\d+$/i.test(o.item_id) ? <>{o.item_id} <Ml itemId={o.item_id} /></> : null}{!/^MLA\d+$/i.test(o.item_id) && <VerEnMl producto={p.producto.startsWith("c:") ? p.producto : `i:${o.item_id}`} titulo={o.titulo} />}{o.nuestra && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nuestra</span>}<TituloCorto titulo={o.titulo} /></span></span></td>
               <td className={TD}>{o.vendedor ? <Link href={linkVendedor(o.vendedor, sp)} className="text-[#16577F]" title={`Apodo en Market Pro: ${o.vendedor}`}>{o.nombre ?? o.alias ?? o.vendedor}</Link> : "—"}</td>
               <td className={TDN}>{pesos(o.precio)}</td><td className={TDN}>{entero(o.unidades)}</td><td className={TDN}>{millones(o.gmv)}</td>
               <td className={TD}>{ENVIO[o.envio ?? ""] ?? o.envio ?? "—"}</td><td className={TD}>{tipo(o.tipo)}{o.catalogo ? " · catálogo" : ""}</td>

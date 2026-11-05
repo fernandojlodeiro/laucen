@@ -12,7 +12,7 @@ import { categoriasParaElegir, leerFiltro, porProducto, ultimoMes } from "@/lib/
 import { gananciaEstimada } from "@/lib/marketpro/ganancia";
 import { estadoMarketPro } from "@/lib/marketpro/llave";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
-import { BarraMarketPro, Filtros, Vacio, colorCrec, crec, entero, linkProducto, millones, pct, pesos } from "../piezas";
+import { BarraMarketPro, Filtros, VerEnMl, Vacio, colorCrec, crec, entero, linkProducto, millones, pct, pesos } from "../piezas";
 
 export const dynamic = "force-dynamic";
 type SP = Record<string, string | undefined>;
@@ -65,7 +65,7 @@ export default async function ProductosMarketPro({ searchParams }: { searchParam
                 <tr key={p.producto} className={TR}>
                   <td className={`${TD} max-w-80`}><span className="flex items-center gap-2">
                     <FotosProducto fotos={p.foto ? [p.foto] : []} titulo={p.titulo ?? ""} />
-                    <span><Link href={linkProducto(p.producto, sp)} className="text-[#16577F]"><TituloCorto titulo={p.titulo} className="!text-[#16577F]" /></Link>
+                    <span><Link href={linkProducto(p.producto, sp)} className="text-[#16577F]"><TituloCorto titulo={p.titulo} className="!text-[#16577F]" /></Link><VerEnMl producto={p.producto} titulo={p.titulo} />
                       {p.tuyo_producto && <Link href={`/catalogo/productos/${p.tuyo_producto}`} className="text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">lo tenés{p.nuestras ? ` · ${p.nuestras} pub.` : ""}</Link>}</span>
                   </span></td>
                   <td className={TDN}>{millones(p.gmv)}</td><td className={TDN}>{entero(p.unidades)}</td><td className={TDN}>{pesos(p.precio_mediana)}</td><td className={TDN}>{pesos(p.precio_min)}</td>

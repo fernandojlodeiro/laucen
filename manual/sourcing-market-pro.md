@@ -23,6 +23,7 @@ El sistema baja esos datos solo y los muestra agrupados para contestar:
 - Menú **Sourcing › Market Pro**.
 - Pestañas: **Resumen** ([/market-pro](/market-pro)), **Categorías** ([/market-pro/categorias](/market-pro/categorias)), **Productos** ([/market-pro/productos](/market-pro/productos)), **Vendedores** ([/market-pro/vendedores](/market-pro/vendedores)), **Marcas** ([/market-pro/marcas](/market-pro/marcas)) y **Descarga y llave** ([/market-pro/descarga](/market-pro/descarga)).
 - Tocando un producto se abre su ficha ([/market-pro/productos/ver](/market-pro/productos/ver)): quién lo vende, a cuánto y cómo vendió mes a mes.
+- Market Pro no da el número de publicación de Mercado Libre (viene cifrado), así que no hay link a cada publicación. Para verlo en Mercado Libre, la ↗ al lado del producto (y el botón arriba a la derecha de su ficha) abre la página del producto de catálogo; si no es de catálogo, la búsqueda por su título. El código cifrado es siempre el mismo para cada publicación, así que su historia mes a mes y día a día se sigue igual.
 
 Para ver hace falta el permiso «Ver Market Pro». Cargar la llave y elegir las categorías pide «Configurar Market Pro».
 
