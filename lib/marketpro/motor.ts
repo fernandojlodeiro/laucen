@@ -261,20 +261,20 @@ async function guardarItems(org: string, grano: "m" | "d", items: ItemApi[], atr
   const pubs = items.map((it) => ({
     item_id: it.item_id, cat: it.category_id ? Number(String(it.category_id).replace(/\D/g, "")) || null : null, categoria: nulo(it.category_name),
     titulo: nulo(it.title), marca: nulo(it.brand), modelo: nulo(it.model), ean: nulo(it.ean_gtin), catalogo: nulo(it.catalog_product_id), foto: nulo(it.thumbnail_url),
-    vendedor: nulo(it.nickname), reputacion: nulo(it.reputation), provincia: nulo(it.seller_state), ciudad: nulo(it.seller_city), dominio: nulo(it.domain),
+    vendedor: nulo(it.nickname), alias: nulo(it.alias), reputacion: nulo(it.reputation), provincia: nulo(it.seller_state), ciudad: nulo(it.seller_city), dominio: nulo(it.domain),
     sku: nulo(it.seller_sku), condicion: nulo(it.condition), producto: claveProducto(it), periodo: periodo(it),
   }));
   // Una misma publicación puede venir dos veces en la página (por día): gana la última.
   const unicas = [...new Map(pubs.map((p) => [p.item_id, p])).values()];
-  await consulta(`insert into mpro_publicacion (organizacion_id, item_id, cat, categoria, titulo, marca, modelo, ean, catalogo, foto, vendedor, reputacion,
+  await consulta(`insert into mpro_publicacion (organizacion_id, item_id, cat, categoria, titulo, marca, modelo, ean, catalogo, foto, vendedor, alias, reputacion,
                     provincia, ciudad, dominio, sku, condicion, producto, visto_periodo)
-                  select $1, x.item_id, x.cat, x.categoria, x.titulo, x.marca, x.modelo, x.ean, x.catalogo, x.foto, x.vendedor, x.reputacion,
+                  select $1, x.item_id, x.cat, x.categoria, x.titulo, x.marca, x.modelo, x.ean, x.catalogo, x.foto, x.vendedor, x.alias, x.reputacion,
                          x.provincia, x.ciudad, x.dominio, x.sku, x.condicion, x.producto, x.periodo
                     from jsonb_to_recordset($2::jsonb) x(item_id text, cat int, categoria text, titulo text, marca text, modelo text, ean text, catalogo text,
-                         foto text, vendedor text, reputacion text, provincia text, ciudad text, dominio text, sku text, condicion text, producto text, periodo date)
+                         foto text, vendedor text, alias text, reputacion text, provincia text, ciudad text, dominio text, sku text, condicion text, producto text, periodo date)
                   on conflict (organizacion_id, item_id) do update set cat = excluded.cat, categoria = excluded.categoria, titulo = excluded.titulo,
                      marca = excluded.marca, modelo = excluded.modelo, ean = excluded.ean, catalogo = excluded.catalogo, foto = excluded.foto,
-                     vendedor = excluded.vendedor, reputacion = excluded.reputacion, provincia = excluded.provincia, ciudad = excluded.ciudad,
+                     vendedor = excluded.vendedor, alias = coalesce(excluded.alias, mpro_publicacion.alias), reputacion = excluded.reputacion, provincia = excluded.provincia, ciudad = excluded.ciudad,
                      dominio = excluded.dominio, sku = excluded.sku, condicion = excluded.condicion, producto = excluded.producto,
                      visto_periodo = excluded.visto_periodo, visto_ts = now()
                    where mpro_publicacion.visto_periodo is null or excluded.visto_periodo >= mpro_publicacion.visto_periodo`,

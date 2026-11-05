@@ -90,6 +90,7 @@ create table if not exists mpro_publicacion (
   catalogo         text,
   foto             text,
   vendedor         text,
+  alias            text,                -- el alias que la organización le puso al vendedor en Market Pro
   reputacion       text,
   provincia        text,
   ciudad           text,
@@ -104,6 +105,7 @@ create table if not exists mpro_publicacion (
 create index if not exists mpro_publicacion_producto on mpro_publicacion (organizacion_id, producto);
 create index if not exists mpro_publicacion_vendedor on mpro_publicacion (organizacion_id, vendedor);
 create index if not exists mpro_publicacion_cat on mpro_publicacion (organizacion_id, cat);
+alter table mpro_publicacion add column if not exists alias text;
 alter table mpro_publicacion enable row level security;
 
 -- Lo de cada período: grano m (mes, periodo = día 1) o d (día).

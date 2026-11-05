@@ -84,7 +84,7 @@ export default async function ResumenMarketPro({ searchParams }: { searchParams:
           <thead className={THEAD}><tr><th className={TH}>Vendedor</th><th className={THN}>Facturación</th><th className={THN} title="Parte de la facturación total">Parte</th><th className={THN}>Crec.</th><th className={THN}>Full</th></tr></thead>
           <tbody>{vends.slice(0, 10).map((v) => (
             <tr key={v.vendedor} className={TR}>
-              <td className={TD}><Link href={linkVendedor(v.vendedor, sp)} className="text-[#16577F]">{v.vendedor}</Link>{v.nuestras > 0 && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nosotros</span>}</td>
+              <td className={TD}><Link href={linkVendedor(v.vendedor, sp)} className="text-[#16577F]">{v.alias ?? v.vendedor}</Link>{v.nuestras > 0 && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nosotros</span>}</td>
               <td className={TDN}>{millones(v.gmv)}</td><td className={TDN}>{pct(v.lider_pct)}</td><td className={`${TDN} ${colorCrec(v.crecimiento)}`}>{crec(v.crecimiento)}</td><td className={TDN}>{pct(v.full_pct)}</td>
             </tr>))}</tbody>
         </Bloque>

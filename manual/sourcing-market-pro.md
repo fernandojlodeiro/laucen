@@ -79,7 +79,7 @@ Las categorías que habilita la llave se encuentran solas. Si hace falta otra: *
 - **Puntaje de oportunidad (0 a 100)**: se compara dentro de la lista que se ve. Sube con la facturación por mes y con el crecimiento (hasta el doble), y baja con la cantidad de vendedores y cuando un solo vendedor se lleva casi todo. Con menos de 3 unidades vendidas da 0. Es para ordenar y mirar primero, no una recomendación de compra.
 - **«Lo tenés»**: alguna publicación del producto es de tus cuentas de Mercado Libre, o su EAN es el código de barras de una variación tuya.
 - **Tu ganancia** (sólo en lo que ya tenés, con costo cargado): precio de mercado sin IVA, menos la comisión Clásica de la categoría (sin IVA), menos el costo promedio sin IVA. Se muestra **sobre la venta** (ganancia ÷ precio sin IVA) y **sobre el costo** (ganancia ÷ costo). No descuenta envío, cargos fijos ni impuestos: sirve para comparar productos, no para fijar precios. Si no se conoce la comisión de esa categoría se supone 14,5 %.
-- **Vendedores**: Mercado Libre obliga a Market Pro a mostrar el apodo ofuscado. «nosotros» marca los vendedores con publicaciones de tus cuentas.
+- **Vendedores**: Mercado Libre obliga a Market Pro a mostrar el apodo ofuscado. «nosotros» marca los vendedores con publicaciones de tus cuentas. Si en Market Pro le pusiste un alias a un vendedor, se muestra el alias (el apodo ofuscado queda al pasar el mouse).
 - La llave **nunca se muestra**, sólo si está cargada y desde cuándo.
 
 ## Preguntas frecuentes
