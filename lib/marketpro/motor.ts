@@ -136,8 +136,8 @@ export async function vuelta(org: string, token: string): Promise<{ pedidos: num
           await consulta("update mpro_llave set ultimo_error = $2, ultimo_error_ts = now(), pausado = true where organizacion_id = $1", [org, e.message]);
           break;
         }
-        const msj = e instanceof ErrorMarketPro ? e.message : "Error al guardar lo bajado.";
-        if (!(e instanceof ErrorMarketPro)) console.error("[marketpro] paso", d, e);
+        const msj = e instanceof ErrorMarketPro ? e.message : `Error al guardar lo bajado (${String(e instanceof Error ? e.message : e).slice(0, 150)}).`;
+        if (!(e instanceof ErrorMarketPro)) console.error("[marketpro] paso", d.id, d.tipo, e instanceof Error ? e.message : e);
         // Un 422 no se arregla reintentando; lo demás, hasta 5 veces (en vueltas distintas).
         const final = (e instanceof ErrorMarketPro && e.estado === 422) || d.intentos + 1 >= 5;
         await consulta("update mpro_descarga set intentos = intentos + 1, error = $2, estado = $3 where id = $1", [d.id, msj, final ? "error" : "pendiente"]);
@@ -240,6 +240,8 @@ async function guardarCategorias(pais: string, items: CategoriaApi[]): Promise<v
 
 const MARCAS_GENERICAS = /^(gen[eé]ric[oa]s?|generic|sin marca|otras?|otros|no aplica|n\/?a|-)$/i;
 const limpio = (s: string | null | undefined) => (s ?? "").trim().replace(/\s+/g, " ");
+/** JSON para la base: Postgres no acepta el carácter nulo (\u0000) en texto ni en jsonb, y algún dato de Market Pro lo trae. */
+const aJson = (x: unknown) => JSON.stringify(x).replace(/\\u0000/g, "");
 const siNo = (v: string | boolean | null | undefined) => (v == null ? null : v === true || /^(yes|si|sí|true|1)$/i.test(String(v)));
 
 /** La clave que junta publicaciones del mismo producto. */
@@ -278,7 +280,7 @@ async function guardarItems(org: string, grano: "m" | "d", items: ItemApi[], atr
                      dominio = excluded.dominio, sku = excluded.sku, condicion = excluded.condicion, producto = excluded.producto,
                      visto_periodo = excluded.visto_periodo, visto_ts = now()
                    where mpro_publicacion.visto_periodo is null or excluded.visto_periodo >= mpro_publicacion.visto_periodo`,
-    [org, JSON.stringify(unicas)]);
+    [org, aJson(unicas)]);
 
   const ventas = items.map((it) => ({
     periodo: periodo(it), item_id: it.item_id, vendidas: it.sold_quantity, precio: it.price, gmv: it.gmv, descuento: it.avg_discount, tipo: it.listing_type,
@@ -300,13 +302,15 @@ async function guardarItems(org: string, grano: "m" | "d", items: ItemApi[], atr
                      catalogo = excluded.catalogo, dias_activa = excluded.dias_activa, visitas_dia = excluded.visitas_dia, conversion = excluded.conversion,
                      preguntas_dia = excluded.preguntas_dia, fotos = excluded.fotos, visitas_total = excluded.visitas_total, preguntas_total = excluded.preguntas_total,
                      ventas_total = excluded.ventas_total, canceladas = excluded.canceladas, reputacion = excluded.reputacion`,
-    [org, grano, JSON.stringify(ventasUnicas)]);
+    [org, grano, aJson(ventasUnicas)]);
 
   if (atributos) {
     const attrs = items.filter((it) => it.attributes != null).map((it) => ({ item_id: it.item_id, atributos: typeof it.attributes === "string" ? safeJson(it.attributes) : it.attributes }));
+    // Los atributos son un extra: si no se pueden guardar, las ventas quedan igual (y se anota en el log).
     if (attrs.length) await consulta(`insert into mpro_atributos (organizacion_id, item_id, atributos)
                                       select $1, x.item_id, x.atributos from jsonb_to_recordset($2::jsonb) x(item_id text, atributos jsonb)
-                                      on conflict (organizacion_id, item_id) do update set atributos = excluded.atributos, ts = now()`, [org, JSON.stringify(attrs)]);
+                                      on conflict (organizacion_id, item_id) do update set atributos = excluded.atributos, ts = now()`, [org, aJson(attrs)])
+      .catch((e) => console.error("[marketpro] atributos", e instanceof Error ? e.message : e));
   }
 }
 
