@@ -5,6 +5,7 @@
 import { after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { actualizarTodo, vuelta } from "@/lib/marketpro/motor";
+import { descubrirVendedores } from "@/lib/marketpro/vendedores";
 import { una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,11 @@ export async function GET(req: Request) {
     const ok = await una("select 1 from mpro_llave where organizacion_id = $1 and token = $2::uuid", [org, token]);
     if (!ok) return;
     if (u.searchParams.get("plan") === "1") await actualizarTodo(org).catch((e) => console.error("[marketpro] plan", e));
-    await vuelta(org, token).catch((e) => console.error("[marketpro] vuelta", e));
+    // En paralelo (es otra API, la de Mercado Libre): quién es cada vendedor (lib/marketpro/vendedores.ts).
+    await Promise.all([
+      vuelta(org, token).catch((e) => console.error("[marketpro] vuelta", e)),
+      descubrirVendedores(org).catch((e) => console.error("[marketpro] vendedores", e)),
+    ]);
   });
   return Response.json({ ok: true });
 }

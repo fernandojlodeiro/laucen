@@ -7,6 +7,7 @@ import { intentar } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
 import { borrarLlave, cargarLlave, pausarMotor } from "@/lib/marketpro/llave";
 import { actualizarTodo, llamarMotor, planificarCategoria } from "@/lib/marketpro/motor";
+import { descubrirVendedores } from "@/lib/marketpro/vendedores";
 
 const VOLVER = "/market-pro/descarga";
 
@@ -73,5 +74,15 @@ export async function accionQuitarCategoria(fd: FormData) {
     await consulta("delete from mpro_descarga where organizacion_id = $1 and category_id = $2 and estado in ('pendiente', 'corriendo', 'error')", [s.org.id, id]);
     await consulta("delete from mpro_seguida where organizacion_id = $1 and category_id = $2", [s.org.id, id]);
     return "Categoría sacada: no se baja más (lo ya bajado queda).";
+  });
+}
+
+/** Quién es cada vendedor, por la API de catálogo de Mercado Libre (también corre solo con cada vuelta de la descarga). */
+export async function accionVendedores(fd: FormData) {
+  void fd;
+  const s = await entrarErp("market_pro_config");
+  return deFondo(s, "marketpro-vendedores", "Market Pro: descubrir vendedores", async () => {
+    const r = await descubrirVendedores(s.org.id, 240);
+    return `Revisados ${r.hechos} vendedores; identificados ${r.ok}.`;
   });
 }

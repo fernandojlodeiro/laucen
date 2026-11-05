@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     poner<F>([["Categoría", 60, (x) => x.ruta], ["Número", 12, (x) => `MLA${x.cat}`], ...medidas<F>(), ["Comisión Clásica", 10, (x) => (x.comision != null ? x.comision / 100 : null), PCT]], await porCategoria(s.org.id, mes, f));
   } else if (mes && vista === "vendedores") {
     type F = Awaited<ReturnType<typeof porVendedor>>[number];
-    poner<F>([["Vendedor", 24, (x) => x.vendedor], ["Alias", 20, (x) => x.alias], ["Somos nosotros", 10, (x) => (x.nuestras ? "Sí" : "")], ...medidas<F>().filter((c) => !["Líder (parte)", "Oportunidad"].includes(c[0])),
+    poner<F>([["Vendedor", 24, (x) => x.vendedor], ["Alias", 20, (x) => x.alias], ["Vendedor real (Mercado Libre)", 22, (x) => x.nombre], ["Somos nosotros", 10, (x) => (x.nuestras ? "Sí" : "")], ...medidas<F>().filter((c) => !["Líder (parte)", "Oportunidad"].includes(c[0])),
       ["Parte de la facturación", 12, (x) => x.lider_pct, PCT], ["Productos", 10, (x) => x.productos, ENTERO], ["Reputación", 14, (x) => x.reputacion],
       ["Provincia", 18, (x) => x.provincia], ["Donde más vende", 50, (x) => x.categoria_top]], await porVendedor(s.org.id, mes, f));
   } else if (mes && vista === "marcas") {

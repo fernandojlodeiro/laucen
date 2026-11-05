@@ -21,7 +21,7 @@ export default async function VendedoresMarketPro({ searchParams }: { searchPara
   const [mes, categorias] = await Promise.all([ultimoMes(s.org.id), categoriasParaElegir(s.org.id)]);
   const todas = mes ? await porVendedor(s.org.id, mes, f) : [];
   const filas = ordenarEnMemoria(todas, sp, {
-    vendedor: (x) => x.alias ?? x.vendedor, gmv: (x) => x.gmv, unidades: (x) => x.unidades, ticket: (x) => x.ticket, parte: (x) => x.lider_pct, crec: (x) => x.crecimiento,
+    vendedor: (x) => x.nombre ?? x.alias ?? x.vendedor, gmv: (x) => x.gmv, unidades: (x) => x.unidades, ticket: (x) => x.ticket, parte: (x) => x.lider_pct, crec: (x) => x.crecimiento,
     productos: (x) => x.productos, publicaciones: (x) => x.publicaciones, full: (x) => x.full_pct, premium: (x) => x.premium_pct, catalogo: (x) => x.catalogo_pct,
     conv: (x) => x.conversion, reputacion: (x) => x.reputacion, provincia: (x) => x.provincia,
   });
@@ -53,7 +53,8 @@ export default async function VendedoresMarketPro({ searchParams }: { searchPara
               </tr></thead>
               <tbody>{paginarEnMemoria(filas, sp).map((v) => (
                 <tr key={v.vendedor} className={TR}>
-                  <td className={TD}><Link href={linkVendedor(v.vendedor, sp)} className="text-[#16577F]" title={`Apodo en Market Pro: ${v.vendedor}`}>{v.alias ?? v.vendedor}</Link>
+                  <td className={TD}><Link href={linkVendedor(v.vendedor, sp)} className="text-[#16577F]" title={`Apodo en Market Pro: ${v.vendedor}${v.alias ? ` · tu alias: ${v.alias}` : ""}`}>{v.nombre ?? v.alias ?? v.vendedor}</Link>
+                    {v.seller_id && <a href={`https://www.mercadolibre.com.ar/perfil/${encodeURIComponent(v.nombre ?? "")}`} target="_blank" rel="noopener noreferrer" className="ml-1 text-[#16577F]" title="Perfil en Mercado Libre">↗</a>}
                     {v.nuestras > 0 && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nosotros</span>}</td>
                   <td className={TDN}>{millones(v.gmv)}</td><td className={TDN}>{pct(v.lider_pct)}</td><td className={TDN}>{entero(v.unidades)}</td><td className={TDN}>{pesos(v.ticket)}</td>
                   <td className={`${TDN} ${colorCrec(v.crecimiento)}`}>{crec(v.crecimiento)}</td><td className={TDN}>{entero(v.productos)}</td><td className={TDN}>{entero(v.publicaciones)}</td>

@@ -11,7 +11,8 @@ import { estadoMarketPro } from "@/lib/marketpro/llave";
 import { PRIMER_DIA, PRIMER_MES } from "@/lib/marketpro/motor";
 import { tienePermiso } from "@/lib/permisos";
 import { BarraMarketPro, entero } from "../piezas";
-import { accionActualizar, accionBorrarLlave, accionGrabarLlave, accionPausar, accionQuitarCategoria, accionSumarCategoria } from "./acciones";
+import { avanceVendedores } from "@/lib/marketpro/vendedores";
+import { accionVendedores, accionActualizar, accionBorrarLlave, accionGrabarLlave, accionPausar, accionQuitarCategoria, accionSumarCategoria } from "./acciones";
 
 export const dynamic = "force-dynamic";
 type SP = Record<string, string | undefined>;
@@ -21,7 +22,7 @@ export default async function DescargaMarketPro({ searchParams }: { searchParams
   const sp = await searchParams;
   const puede = tienePermiso(s.permisos, "market_pro_config");
   const editando = puede && editandoFicha(sp, "llave");
-  const [estado, a] = await Promise.all([estadoMarketPro(s.org.id), avance(s.org.id)]);
+  const [estado, a, vend] = await Promise.all([estadoMarketPro(s.org.id), avance(s.org.id), avanceVendedores(s.org.id)]);
   const estadoMotor = !estado ? { texto: "Sin llave", tono: "gris" as const }
     : estado.pausado ? { texto: estado.error ? "Frenada por la llave" : "En pausa", tono: "rojo" as const }
     : estado.trabajando ? { texto: "Bajando…", tono: "azul" as const }
@@ -66,11 +67,18 @@ export default async function DescargaMarketPro({ searchParams }: { searchParams
         {estado && puede && !editando && (
           <div className="flex flex-wrap gap-2 mt-3">
             <BotonTarea accion={accionActualizar} tipo="marketpro-actualizar" clase={SUAVE} texto="Sumar lo nuevo ahora" />
+            <BotonTarea accion={accionVendedores} tipo="marketpro-vendedores" clase={SUAVE} texto="Descubrir vendedores ahora" />
             <form action={accionPausar}><input type="hidden" name="pausar" value={estado.pausado ? "0" : "1"} />
               <button className={SUAVE}>{estado.pausado ? "Seguir bajando" : "Pausar la descarga"}</button></form>
           </div>
         )}
       </section>
+
+      <p className="text-xs mb-4">
+        <b>Vendedores identificados:</b> {entero(vend.ok)} de {entero(vend.total)}{vend.trabajando ? " (buscando…)" : ""}.
+        {" "}{entero(vend.sin_catalogo)} no tienen publicaciones de catálogo y Mercado Libre no deja saber quiénes son por otra vía: para ésos sirve el alias que les pongas en Market Pro.
+        {vend.no_encontrado > 0 && ` ${entero(vend.no_encontrado)} todavía no aparecieron (se reintenta).`}
+      </p>
 
       <TituloSeccion titulo={`Categorías que se bajan (${a.categorias.length})`} />
       {a.cola.arbol && <p className="text-xs mb-2">Leyendo el árbol de categorías de Mercado Libre: {a.cola.arbol}.</p>}

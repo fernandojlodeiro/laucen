@@ -185,3 +185,36 @@ begin
 exception when others then
   raise notice 'pg_cron: no se pudo ajustar marketpro-diario (%)', sqlerrm;
 end $$;
+
+-- Quién es cada vendedor (Fer, 5/11): Market Pro da el apodo ofuscado; el vendedor real sale de la API de Mercado
+-- Libre por las publicaciones de catálogo (GET /products/{id}/items da el seller_id de cada publicación; la ficha de
+-- una publicación ajena da 403). lib/marketpro/vendedores.ts. estado: ok, sin_catalogo (no tiene ninguna de
+-- catálogo: no se puede por API) o no_encontrado (tiene, pero ML ya no la lista; se reintenta).
+create table if not exists mpro_vendedor (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  apodo            text not null,
+  estado           text not null check (estado in ('ok', 'sin_catalogo', 'no_encontrado')),
+  seller_id        bigint,
+  nombre           text,
+  ciudad           text,
+  provincia        text,
+  medalla          text,
+  nivel            text,
+  ventas           int,
+  item_id          text,
+  intentos         int not null default 1,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, apodo)
+);
+alter table mpro_vendedor enable row level security;
+
+-- Lo que devolvió ML de cada catálogo consultado: publicación → vendedor (una consulta sirve para muchos vendedores).
+create table if not exists mpro_item_vendedor (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  item_id          text not null,
+  seller_id        bigint not null,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, item_id)
+);
+alter table mpro_item_vendedor enable row level security;
+alter table mpro_llave add column if not exists vendedores_hasta timestamptz;

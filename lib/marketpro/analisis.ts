@@ -113,7 +113,7 @@ export type FilaProducto = Medidas & {
   producto: string; titulo: string | null; foto: string | null; marca: string; cat: number | null; ruta: string | null; precio_min: number | null; precio_mediana: number | null;
   item_top: string | null; lider: string | null; tuyo_producto: number | null; tuyo_costo: number | null; nuestras: number; comision: number | null;
 };
-export type FilaVendedor = Medidas & { vendedor: string; alias: string | null; reputacion: string | null; provincia: string | null; productos: number; nuestras: number; categoria_top: string | null };
+export type FilaVendedor = Medidas & { vendedor: string; alias: string | null; nombre: string | null; seller_id: number | null; reputacion: string | null; provincia: string | null; productos: number; nuestras: number; categoria_top: string | null };
 export type FilaMarca = Medidas & { marca: string; productos: number };
 
 async function conLider<T extends Medidas>(org: string, mes: string, f: Filtro, grupo: string, sql: string, extra: unknown[] = []): Promise<T[]> {
@@ -167,11 +167,15 @@ export async function porVendedor(org: string, mes: string, f: Filtro): Promise<
       select distinct on (vendedor) vendedor, cat from (select vendedor, cat, sum(gmv) g from base where en_ventana group by 1, 2) x
        order by vendedor, g desc nulls last
     )
-    select b.vendedor, (array_agg(b.alias) filter (where b.alias is not null))[1] alias, ${MEDIDAS}, null::float8 lider_pct,
+    select b.vendedor, (array_agg(b.alias) filter (where b.alias is not null))[1] alias, max(mv.nombre) nombre, max(mv.seller_id)::float8 seller_id,
+           ${MEDIDAS}, null::float8 lider_pct,
            (array_agg(b.reputacion order by b.periodo desc))[1] reputacion, (array_agg(b.provincia order by b.periodo desc))[1] provincia,
            count(distinct b.producto) filter (where en_ventana)::int productos,
-           count(distinct n.item_id) filter (where en_ventana)::int nuestras, max(c.ruta) categoria_top
+           greatest(count(distinct n.item_id) filter (where en_ventana), max(case when mc.meli_user_id is not null then 1 else 0 end))::int nuestras,
+           max(c.ruta) categoria_top
       from base b left join nuestras n on n.item_id = b.item_id left join cattop t on t.vendedor = b.vendedor
+      left join mpro_vendedor mv on mv.organizacion_id = $1 and mv.apodo = b.vendedor and mv.estado = 'ok'
+      left join meli_cuenta mc on mc.organizacion_id = $1 and mc.meli_user_id = mv.seller_id
       left join mpro_categoria c on c.pais = 'ar' and c.category_id = t.cat
      where b.vendedor is not null and ($8::text = '' or b.vendedor ilike '%' || $8 || '%')
      group by b.vendedor having sum(vendidas) filter (where en_ventana) > 0`, [f.q]);
@@ -192,14 +196,14 @@ export async function porMarca(org: string, mes: string, f: Filtro): Promise<Fil
 // ---- Ficha de un producto: quién lo vende y a cuánto ----
 
 export type Oferta = {
-  item_id: string; vendedor: string | null; alias: string | null; reputacion: string | null; provincia: string | null; titulo: string | null; foto: string | null;
+  item_id: string; vendedor: string | null; alias: string | null; nombre: string | null; reputacion: string | null; provincia: string | null; titulo: string | null; foto: string | null;
   unidades: number; gmv: number; precio: number | null; envio: string | null; tipo: string | null; catalogo: boolean | null; conversion: number | null;
   visitas_dia: number | null; dias_activa: number | null; nuestra: boolean;
 };
 
 export async function ofertasDeProducto(org: string, mes: string, f: Filtro): Promise<Oferta[]> {
   return consulta<Oferta>(`${BASE}
-    select b.item_id, max(b.vendedor) vendedor, max(b.alias) alias, max(b.reputacion) reputacion, max(b.provincia) provincia, max(b.titulo) titulo, max(b.foto) foto,
+    select b.item_id, max(b.vendedor) vendedor, max(b.alias) alias, (select mv.nombre from mpro_vendedor mv where mv.organizacion_id = $1 and mv.apodo = max(b.vendedor) and mv.estado = 'ok') nombre, max(b.reputacion) reputacion, max(b.provincia) provincia, max(b.titulo) titulo, max(b.foto) foto,
            sum(b.vendidas) filter (where en_ventana)::int unidades, sum(b.gmv) filter (where en_ventana)::float8 gmv,
            (array_agg(b.precio order by b.periodo desc))[1]::float8 precio, (array_agg(b.envio order by b.periodo desc))[1] envio,
            (array_agg(b.tipo order by b.periodo desc))[1] tipo, (array_agg(b.catalogo order by b.periodo desc))[1] catalogo,
