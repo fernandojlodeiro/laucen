@@ -46,6 +46,10 @@ update roles set permisos = permisos || '{"tienda_dominios": true}'::jsonb
 update roles set permisos = permisos || '{"mensajes_config": true}'::jsonb
  where protegido and not (permisos ? 'mensajes_config');
 
+-- «Configurar Market Pro» (5/11): cargar la llave y elegir categorías; una vez al Admin de fábrica.
+update roles set permisos = permisos || '{"market_pro_config": true}'::jsonb
+ where protegido and not (permisos ? 'market_pro_config');
+
 -- «Asignar cuenta corriente y límite» (7/10): no es un botón del menú; una vez al Admin de fábrica.
 update roles set permisos = permisos || '{"cc_asignar": true}'::jsonb
  where protegido and not (permisos ? 'cc_asignar');

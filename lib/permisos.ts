@@ -77,7 +77,10 @@ export type PermisoKey =
   | "asistente_consultas"
   // Mensajes de los clientes (WhatsApp) atendidos por la IA (pedido de Fer, 3/10).
   | "mensajes_ver"
-  | "mensajes_config";
+  | "mensajes_config"
+  // Market Pro (Real Trends): ver los análisis y cargar la llave (Fer, 5/11).
+  | "market_pro_ver"
+  | "market_pro_config";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -89,6 +92,8 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "radar_configurar", label: "Configurar el Radar", ayuda: "Tope de gasto, frecuencia de los procesos automáticos y demás parámetros." },
   { key: "importaciones_ver", label: "Ver Importaciones", ayuda: "Buscador y consultas sobre los despachos de importación (ARCA + Softrade)." },
   { key: "importaciones_rubros", label: "Armar rubros", ayuda: "Crear, editar y borrar los rubros guardados (grupos de NCM)." },
+  { key: "market_pro_ver", label: "Ver Market Pro", ayuda: "Ventas de Mercado Libre por categoría, producto, vendedor y marca, bajadas de Market Pro (Real Trends)." },
+  { key: "market_pro_config", label: "Configurar Market Pro", ayuda: "Cargar o borrar la llave de Market Pro y elegir qué categorías se bajan." },
   { key: "panel_ver", label: "Panel", ayuda: "La pantalla de inicio con lo pendiente." },
   { key: "tablero_ml_ver", label: "Tablero de Mercado Libre", ayuda: "El tablero con la reputación, las publicaciones y lo pendiente de cada cuenta de Mercado Libre." },
   { key: "publicidad_ver", label: "Publicidad en Mercado Libre", ayuda: "Lo que gasta y vende la publicidad de cada cuenta, el veredicto por producto y su configuración." },
@@ -172,7 +177,7 @@ export const PRESETS: Record<PresetKey, { label: string; descripcion: string; pe
  *  y usuarios, una función que el rol no tiene cargada cuenta como PRENDIDA.
  *  Sólo un `false` explícito la apaga. */
 export const FUNCIONES: PermisoKey[] = [
-  "radar_ver", "importaciones_ver",
+  "radar_ver", "importaciones_ver", "market_pro_ver",
   "panel_ver", "tablero_ml_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "control_stock", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",

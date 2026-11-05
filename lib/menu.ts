@@ -130,6 +130,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Radar", href: "/radar", permiso: "radar_ver" },
       { texto: "Importaciones ARCA", href: "/importaciones", permiso: "importaciones_ver" },
+      { texto: "Market Pro", href: "/market-pro", permiso: "market_pro_ver" },
       { texto: "Búsqueda en China" },
     ],
   },
