@@ -39,6 +39,8 @@ export const RUTAS_PUBLICAS = [
   "/api/seguimiento/cron",
   // Las vueltas del precio de mercado: se relanzan solas; las protege el token de la tanda.
   "/api/precios-mercado",
+  // El motor de Market Pro (lo llama la base cada 2 minutos y se llama a sí mismo); lo protege el token de la llave.
+  "/api/marketpro",
   "/api/vendedor-referente",
   "/api/referentes-ia",
   // La API del cimiento: se autentica con el token de cada canal, no con la sesión.
