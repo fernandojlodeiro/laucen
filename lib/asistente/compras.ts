@@ -17,7 +17,7 @@ import { formatear } from "@/lib/moneda";
 import { leerFacturaArchivo, aComprobante, type LecturaFactura } from "@/lib/compras/factura-leer";
 import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
 import { subirFacturaAlDrive } from "@/lib/compras/drive-facturas";
-import { registrarFactura } from "@/lib/administracion/compras";
+import { recalcularFactura, registrarFactura } from "@/lib/administracion/compras";
 import { guardarLote, importarLote, vistaPrevia, contarEstados } from "@/lib/administracion/arca-mc";
 import { leerArchivoArca } from "@/lib/administracion/arca-mc-archivo";
 import { adjuntosPorId, bajarAdjunto, tipoDe } from "./adjuntos";
@@ -57,12 +57,17 @@ async function leerArchivos(org: string, conversacionId: number, ids: number[]):
 
 type Situacion =
   | { que: "no_sirve"; motivo: string }
+  // A nombre de otro (Fer, 5/11: la de Aguas Cordobesas del local, a nombre del dueño): no es nuestra para IVA, pero el
+  // gasto es real; si la persona dice que es de la empresa, va como comprobante X (sin IVA, fuera del Libro de IVA).
+  | { que: "a_otro"; texto: string; receptor: string; cuit: string; proveedor: string; proveedorId: number | null; cuentaId: number | null;
+      cuentaNombre: string | null; fecha: string; tipoTexto: string; pv: number; numero: number }
   | { que: "ya_estaba"; facturaId: number; conArchivo: boolean; texto: string }
   | { que: "lista"; texto: string; cuit: string; proveedor: string; proveedorId: number | null; cuentaId: number | null; cuentaNombre: string | null;
       emisorId: number; emisor: string; fecha: string; tipoTexto: string; pv: number; numero: number };
 
-/** Qué va a pasar con una factura leída (sin tocar nada). */
-async function situacion(org: string, l: Leida): Promise<Situacion> {
+/** Qué va a pasar con una factura leída (sin tocar nada). `aOtro`: la persona dijo que está a nombre de otro (aunque
+ *  el papel no traiga el CUIT del receptor). */
+async function situacion(org: string, l: Leida, aOtro = false): Promise<Situacion> {
   if (l.error || !l.lectura) return { que: "no_sirve", motivo: l.error ?? "no se pudo leer" };
   if (l.lectura.es_comprobante === false) return { que: "no_sirve", motivo: `no es una factura${l.lectura.que_es ? ` (es ${l.lectura.que_es})` : ""}` };
   const x = aComprobante(l.lectura);
@@ -72,10 +77,17 @@ async function situacion(org: string, l: Leida): Promise<Situacion> {
   const emisor = receptor
     ? await una<{ id: number; nombre: string }>("select id::int, coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2", [org, receptor])
     : await una<{ id: number; nombre: string }>("select id::int, coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1 and es_principal", [org]);
-  if (!emisor) return { que: "no_sirve", motivo: `está a nombre del CUIT ${receptor}, que no es de ninguna de las razones sociales` };
   const prov = await una<{ id: number; nombre: string; cuenta: number | null; cuenta_nombre: string | null }>(`
     select p.id::int, p.nombre, p.cuenta_gasto_id::int cuenta, pc.codigo || ' ' || pc.nombre cuenta_nombre from proveedor p left join plan_cuenta pc on pc.id = p.cuenta_gasto_id
      where p.organizacion_id = $1 and regexp_replace(p.cuit, '\\D', '', 'g') = $2 order by (p.estado = 'activo') desc, p.id limit 1`, [org, c.cuit]);
+  if (!emisor || aOtro) {
+    const base = `${c.tipoTexto} ${String(c.puntoVenta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")} de ${prov?.nombre ?? c.denominacion} (CUIT ${c.cuit}), del ${fecha(c.fecha)}, por ${pesos(c.total, c.moneda)}`;
+    const ya = prov ? await una<{ id: number; archivo: string | null }>(`select id::int, archivo from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = 'X'
+        and punto_venta is not distinct from $3 and numero = $4 and estado <> 'anulada'`, [org, prov.id, c.puntoVenta, c.numero]) : null;
+    if (ya) return { que: "ya_estaba", facturaId: ya.id, conArchivo: !!ya.archivo, texto: base };
+    return { que: "a_otro", texto: base, receptor: receptor ? `CUIT ${receptor}` : "otra persona", cuit: c.cuit, proveedor: prov?.nombre ?? c.denominacion,
+      proveedorId: prov?.id ?? null, cuentaId: prov?.cuenta ?? null, cuentaNombre: prov?.cuenta_nombre ?? null, fecha: c.fecha, tipoTexto: c.tipoTexto, pv: c.puntoVenta, numero: c.numero };
+  }
   const texto = `${c.tipoTexto} ${String(c.puntoVenta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")} de ${prov?.nombre ?? c.denominacion} (CUIT ${c.cuit}), del ${fecha(c.fecha)}, por ${pesos(c.total, c.moneda)}, a nombre de ${emisor.nombre}`;
   if (prov) {
     const ya = await una<{ id: number; archivo: string | null }>(`select id::int, archivo from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3
@@ -96,7 +108,7 @@ async function cuentasDeGasto(org: string): Promise<string> {
 
 export const HERRAMIENTA_LEER_FACTURAS: Anthropic.Beta.BetaTool = {
   name: "leer_facturas",
-  description: "Lee facturas de gasto que te mandaron (PDF o fotos, por su número de archivo) y dice qué pasaría con cada una al cargarla: se registra sola, el proveedor no tiene cuenta de gasto, ya estaba cargada, o no es una factura. No carga nada. Usalo antes de proponer_cargar_facturas.",
+  description: "Lee facturas de gasto que te mandaron (PDF o fotos, por su número de archivo) y dice qué pasaría con cada una al cargarla: se registra sola, el proveedor no tiene cuenta de gasto, ya estaba cargada, o no es una factura. No carga nada. Usalo antes de proponer_cargar_facturas. Si vos ves en el papel que está a nombre de otra persona o empresa (aunque esta herramienta no lo marque, porque el papel no trae el CUIT de a quién va), tratala como a nombre de otro.",
   input_schema: { type: "object", properties: { archivos: { type: "array", items: { type: "integer" }, description: "Los números de archivo (#12)." } }, required: ["archivos"] },
 };
 
@@ -105,16 +117,19 @@ export async function leerFacturas(org: string, conversacionId: number, e: Recor
   if (!ids.length) throw new ErrorErp("Faltan los números de los archivos.");
   const leidas = await leerArchivos(org, conversacionId, ids);
   const renglones: string[] = [];
-  let sinCuenta = false;
+  let sinCuenta = false, aOtro = false;
   for (const l of leidas) {
     const s = await situacion(org, l);
     if (s.que === "no_sirve") renglones.push(`#${l.id} «${l.nombre}»: NO SE CARGA — ${s.motivo}.`);
+    else if (s.que === "a_otro") { aOtro = true; renglones.push(`#${l.id} «${l.nombre}»: ${s.texto}. ESTÁ A NOMBRE DE OTRO (${s.receptor}), no de una razón social de la empresa.`); }
     else if (s.que === "ya_estaba") renglones.push(`#${l.id} «${l.nombre}»: ${s.texto}. YA ESTABA CARGADA (factura de compra #${s.facturaId})${s.conArchivo ? "" : "; al cargarla se le suma el archivo"}.`);
     else if (s.cuentaId) renglones.push(`#${l.id} «${l.nombre}»: ${s.texto}. Se registra sola con la cuenta del proveedor: ${s.cuentaNombre}.`);
     else { sinCuenta = true; renglones.push(`#${l.id} «${l.nombre}»: ${s.texto}. ${s.proveedorId ? "EL PROVEEDOR NO TIENE CUENTA DE GASTO" : "PROVEEDOR NUEVO (sin cuenta de gasto)"}.`); }
   }
+  const emisores = await consulta<{ id: number; nombre: string }>("select id::int, coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1 order by es_principal desc, id", [org]);
   return [
     ...renglones,
+    aOtro ? `\nLas que están a nombre de otro no son nuestras para IVA. Preguntale si igual es un gasto de la empresa (por ejemplo, un servicio del local que viene a nombre del dueño) y de qué razón social. Si dice que sí, se cargan como comprobante X: el gasto entero a la cuenta que elija, sin IVA y fuera del Libro de IVA (no da crédito fiscal); para Ganancias, conviene guardar el contrato que pone ese gasto a cargo de la empresa y el comprobante del pago. En proponer_cargar_facturas pasá a_nombre_de_otro: true, razon_social_id y la cuenta. Si no es de la empresa, no se carga.\nRazones sociales (id — nombre):\n${emisores.map((x) => `${x.id} — ${x.nombre}`).join("\n")}${sinCuenta ? "" : `\n${await cuentasDeGasto(org)}`}` : "",
     sinCuenta
       ? `\nPara los proveedores sin cuenta de gasto: preguntale a la persona qué cuenta usar, sugiriéndole una de la lista (la que mejor corresponda por el proveedor y lo que factura), y avisale que queda guardada en el proveedor para la próxima. Si no sabe, la factura se carga igual y queda en borrador. Después usá proponer_cargar_facturas.\n${await cuentasDeGasto(org)}`
       : "\nContale en pocas líneas qué encontraste y, si hay algo para cargar, usá proponer_cargar_facturas.",
@@ -122,7 +137,7 @@ export async function leerFacturas(org: string, conversacionId: number, e: Recor
 }
 
 // ── Cargar ───────────────────────────────────────────────────────────
-type Eleccion = { archivo: number; cuenta: number | null | undefined };
+type Eleccion = { archivo: number; cuenta: number | null | undefined; otro?: boolean; razonSocial?: number | null };
 
 /** Deja el archivo en el Drive (si se puede) y devuelve con qué queda en la factura. */
 async function guardarArchivo(org: string, l: Leida, s: Extract<Situacion, { que: "lista" | "ya_estaba" }>): Promise<{ archivo: string; donde: string | null }> {
@@ -134,7 +149,7 @@ async function guardarArchivo(org: string, l: Leida, s: Extract<Situacion, { que
 
 export const HERRAMIENTA_CARGAR_FACTURAS: Anthropic.Beta.BetaTool = {
   name: "proponer_cargar_facturas",
-  description: "Prepara la carga de facturas de gasto ya leídas con leer_facturas (por su número de archivo). Al confirmar, cada una queda en la carpeta del Drive de su razón social y su mes (o en Laucen), cargada como factura de compra con el archivo a un clic, y registrada si su proveedor tiene cuenta de gasto. Para un proveedor sin cuenta: cuenta_gasto_id = la que eligió la persona (queda guardada en el proveedor), o null si no sabe (queda en borrador).",
+  description: "Prepara la carga de facturas de gasto ya leídas con leer_facturas (por su número de archivo). Una a nombre de otro (persona o empresa que no es nuestra), sólo si la persona confirmó que es un gasto de la empresa: a_nombre_de_otro, razon_social_id y cuenta. Al confirmar, cada una queda en la carpeta del Drive de su razón social y su mes (o en Laucen), cargada como factura de compra con el archivo a un clic, y registrada si su proveedor tiene cuenta de gasto. Para un proveedor sin cuenta: cuenta_gasto_id = la que eligió la persona (queda guardada en el proveedor), o null si no sabe (queda en borrador).",
   input_schema: {
     type: "object",
     properties: {
@@ -145,6 +160,8 @@ export const HERRAMIENTA_CARGAR_FACTURAS: Anthropic.Beta.BetaTool = {
           properties: {
             archivo: { type: "integer" },
             cuenta_gasto_id: { type: ["integer", "null"], description: "Sólo si el proveedor no tiene cuenta: la elegida, o null para dejarla en borrador." },
+            a_nombre_de_otro: { type: "boolean", description: "true si la factura está a nombre de otra persona o empresa y la persona confirmó que es un gasto de la empresa: va como comprobante X (sin IVA, fuera del Libro de IVA)." },
+            razon_social_id: { type: "integer", description: "Con a_nombre_de_otro: la razón social de la empresa que paga ese gasto." },
           },
           required: ["archivo"],
         },
@@ -155,9 +172,11 @@ export const HERRAMIENTA_CARGAR_FACTURAS: Anthropic.Beta.BetaTool = {
 };
 
 export async function prepararCargarFacturas(org: string, conversacionId: number, e: Record<string, unknown>) {
-  const elegidas: Eleccion[] = (Array.isArray(e.facturas) ? e.facturas : []).slice(0, 20).map((f: { archivo?: unknown; cuenta_gasto_id?: unknown }) => ({
+  const elegidas: Eleccion[] = (Array.isArray(e.facturas) ? e.facturas : []).slice(0, 20).map((f: { archivo?: unknown; cuenta_gasto_id?: unknown; a_nombre_de_otro?: unknown; razon_social_id?: unknown }) => ({
     archivo: Number(f.archivo), cuenta: f.cuenta_gasto_id === null ? null : Number(f.cuenta_gasto_id) > 0 ? Number(f.cuenta_gasto_id) : undefined,
+    otro: f.a_nombre_de_otro === true, razonSocial: Number(f.razon_social_id) > 0 ? Number(f.razon_social_id) : null,
   })).filter((f) => f.archivo > 0);
+  const emisores = new Map((await consulta<{ id: number; nombre: string }>("select id::int, coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1", [org])).map((x) => [x.id, x.nombre]));
   if (!elegidas.length) throw new ErrorErp("Faltan las facturas.");
   const leidas = await leerArchivos(org, conversacionId, elegidas.map((x) => x.archivo));
   const cuentas = new Map((await consulta<{ id: number; nombre: string }>(
@@ -167,8 +186,17 @@ export async function prepararCargarFacturas(org: string, conversacionId: number
   for (const el of elegidas) {
     const l = leidas.find((x) => x.id === el.archivo);
     if (!l) { detalle.push(`#${el.archivo}: no está en esta conversación`); continue; }
-    const s = await situacion(org, l);
+    const s = await situacion(org, l, !!el.otro);
     if (s.que === "no_sirve") { detalle.push(`«${l.nombre}»: no se carga (${s.motivo})`); continue; }
+    if (s.que === "a_otro") {
+      if (!el.otro) throw new ErrorErp(`«${l.nombre}» está a nombre de otro: preguntale si es un gasto de la empresa y, si lo es, pasá a_nombre_de_otro y razon_social_id.`);
+      if (!el.razonSocial || !emisores.has(el.razonSocial)) throw new ErrorErp(`Para «${l.nombre}» falta de qué razón social es el gasto.`);
+      if (el.cuenta && !cuentas.has(el.cuenta)) throw new ErrorErp(`La cuenta ${el.cuenta} no es una cuenta de gasto: elegí otra.`);
+      const cuenta = el.cuenta ? cuentas.get(el.cuenta) : s.cuentaNombre;
+      van++;
+      detalle.push(`${s.texto}, a nombre de ${s.receptor} → comprobante X (sin IVA, fuera del Libro de IVA) de ${emisores.get(el.razonSocial)}, ${cuenta ? `registrada con ${cuenta}` : "en borrador (sin cuenta de gasto)"}`);
+      continue;
+    }
     van++;
     if (s.que === "ya_estaba") { detalle.push(`«${l.nombre}»: ya estaba cargada${s.conArchivo ? "" : " — se le suma el archivo"}`); continue; }
     if (el.cuenta && !cuentas.has(el.cuenta)) throw new ErrorErp(`La cuenta ${el.cuenta} no es una cuenta de gasto: elegí otra.`);
@@ -187,8 +215,14 @@ export async function hacerCargarFacturas(org: string, usuarioId: string, d: Rec
     const l = leidas.find((x) => x.id === el.archivo);
     if (!l?.lectura) continue;
     try {
-      const s = await situacion(org, l);
+      const s = await situacion(org, l, !!el.otro);
       if (s.que === "no_sirve") continue;
+      if (s.que === "a_otro") {
+        if (!el.otro || !el.razonSocial) continue;
+        const f = await cargarComoX(org, usuarioId, l, s, el.razonSocial, el.cuenta ?? null);
+        out.push(`«${l.nombre}»: [factura de compra #${f.id}](/compras/facturas/${f.id}), comprobante X a nombre de otro, ${f.estado === "registrada" ? "registrada" : "en borrador (sin cuenta de gasto)"}${f.donde ? `; archivo en el Drive: ${f.donde}` : ""}.`);
+        continue;
+      }
       // La cuenta elegida, en el proveedor que ya existe: así se registra sola.
       if (s.que === "lista" && !s.cuentaId && el.cuenta && s.proveedorId) {
         await consulta("update proveedor set cuenta_gasto_id = $3 where id = $1 and organizacion_id = $2 and cuenta_gasto_id is null", [s.proveedorId, org, el.cuenta]);
@@ -213,6 +247,39 @@ export async function hacerCargarFacturas(org: string, usuarioId: string, d: Rec
     }
   }
   return out.join("\n") || "No se cargó nada.";
+}
+
+/** Una factura a nombre de otro que es gasto de la empresa (Fer, 5/11): comprobante X, el total entero al gasto, sin
+ *  IVA y fuera del Libro de IVA (Laucen deja afuera de los libros lo que no es un comprobante fiscal nuestro). */
+async function cargarComoX(org: string, usuarioId: string, l: Leida, s: Extract<Situacion, { que: "a_otro" }>, emisorId: number, cuenta: number | null) {
+  const x = aComprobante(l.lectura!);
+  if ("error" in x) throw new ErrorErp(x.error);
+  const c = x.c;
+  let prov = s.proveedorId ? { id: s.proveedorId, cuenta: s.cuentaId } : null;
+  if (!prov) {
+    const r = await una<{ id: number }>(`insert into proveedor (organizacion_id, nombre, razon_social, cuit, notas, cuenta_gasto_id)
+      values ($1, $2, $2, $3, 'Creado al cargar una factura a nombre de otro por el asistente', $4) returning id::int`, [org, s.proveedor.slice(0, 200), s.cuit, cuenta]);
+    prov = { id: r!.id, cuenta };
+  } else if (cuenta && !prov.cuenta) {
+    await consulta("update proveedor set cuenta_gasto_id = $3 where id = $1 and organizacion_id = $2 and cuenta_gasto_id is null", [prov.id, org, cuenta]);
+  }
+  const cuentaFinal = cuenta ?? prov.cuenta ?? null;
+  const emisor = (await una<{ nombre: string }>("select coalesce(nombre, razon_social) nombre from emisor where id = $1 and organizacion_id = $2", [emisorId, org]))?.nombre ?? "";
+  const drive = await subirFacturaAlDrive(org, Buffer.from(await bajarAdjunto(l.ruta)), l.tipo,
+    { emisor, cuitProveedor: s.cuit, proveedor: s.proveedor, fecha: s.fecha, tipoTexto: `${s.tipoTexto} (a nombre de otro)`, pv: s.pv, numero: s.numero }).catch(() => null);
+  const id = (await una<{ id: number }>(`
+    insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
+                                percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, emisor_id, archivo)
+    values ($1, $2, 'X', $3, $4, $5, $6, $7, $7, $8, $9, 0, 0, 0, 0, $10, $11, $12, 'pdf', $13, $14) returning id::int`,
+  [org, prov.id, c.nc, c.nd, c.puntoVenta, c.numero, c.fecha, c.moneda, c.moneda === "USD" ? c.cotizacion || null : 1, cuentaFinal,
+    `${c.tipoTexto} a nombre de ${s.receptor}: gasto de la empresa, sin crédito fiscal de IVA (cargada por el asistente desde «${l.nombre}»).`, usuarioId, emisorId,
+    drive ? `drive:${drive.id}` : l.ruta]))!.id;
+  await consulta(`insert into factura_compra_linea (organizacion_id, factura_id, descripcion, cantidad, costo_unit, iva_pct, neto, iva, orden)
+                  values ($1, $2, $3, 1, $4, 0, $4, 0, 1)`, [org, id, `${c.tipoTexto} de ${s.proveedor} a nombre de ${s.receptor}`.slice(0, 300), c.total]);
+  await recalcularFactura(org, id);
+  let estado: "registrada" | "borrador" = "borrador";
+  if (cuentaFinal) { await registrarFactura(org, id, usuarioId); estado = "registrada"; }
+  return { id, estado, donde: drive?.donde ?? null };
 }
 
 // ── El reporte de ARCA ───────────────────────────────────────────────

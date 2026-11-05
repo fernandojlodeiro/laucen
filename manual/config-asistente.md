@@ -45,9 +45,10 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 Con el permiso de **Facturas de compra** (no hace falta otro):
 1. Mandale las facturas (PDF o fotos, varias a la vez) con el **📎** y escribí, por ejemplo, «cargá estas facturas».
 2. Las lee y te cuenta cada una: proveedor, CUIT, tipo y número, fecha, total y a nombre de qué razón social está. Te avisa si alguna **ya estaba cargada** (entonces sólo se le suma el archivo) o si **no es una factura** (un comprobante de pago, una boleta de impuestos), que no se carga.
-3. Si un proveedor **no tiene cuenta de gasto**, te pregunta cuál usar y te sugiere una; la que elijas queda guardada en el proveedor para la próxima. Si no sabés, decíselo: esa factura se carga igual y queda **en borrador**.
-4. Te muestra la tarjeta **"Para confirmar"** con lo que va a pasar; apretá **"Confirmar"**.
-5. Cada factura queda:
+3. Si una factura **está a nombre de otra persona o empresa** (por ejemplo, un servicio del local que viene a nombre del dueño), te pregunta si igual es un gasto de la empresa y de qué razón social. Si decís que sí, se carga como comprobante **X**: el gasto entero va a la cuenta que elijas, **sin IVA y fuera del Libro de IVA** (no da crédito fiscal, porque no está a nombre de la empresa), con su PDF y una nota de a nombre de quién está. Para Ganancias, conviene guardar el contrato que pone ese gasto a cargo de la empresa y el comprobante del pago. Si no es de la empresa, no se carga.
+4. Si un proveedor **no tiene cuenta de gasto**, te pregunta cuál usar y te sugiere una; la que elijas queda guardada en el proveedor para la próxima. Si no sabés, decíselo: esa factura se carga igual y queda **en borrador**.
+5. Te muestra la tarjeta **"Para confirmar"** con lo que va a pasar; apretá **"Confirmar"**.
+6. Cada factura queda:
    - **en el Drive**, si está conectado y su carpeta de facturas cargada ([Google Drive](/config/google-drive)): en la carpeta de gastos de su razón social y su mes (la del mes se crea si falta), con un nombre prolijo («2026-11-03 Edenor Factura A 00004-00012345.pdf»); las de Mercado Libre, en su carpeta. Si no, el archivo queda guardado en Laucen;
    - **cargada** en [Facturas de compra](/compras/facturas), registrada si su proveedor tiene cuenta de gasto, con el comprobante a un clic desde la factura. La búsqueda de facturas en el Drive no la vuelve a cargar.
 
