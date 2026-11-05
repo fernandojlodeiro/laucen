@@ -9,7 +9,7 @@
 //      cada una con datos queda «seguida»;
 //   3. por cada seguida: cuántas publicaciones hubo cada mes (con y sin ventas), las filas de cada mes desde octubre de
 //      2023 (sólo las que vendieron; los atributos, sólo del último mes cerrado), del más nuevo al más viejo, y las
-//      filas por día de los últimos 30 días; después, los 60 anteriores (por día se guardan 90 días).
+//      filas por día de los últimos 30 días; después, el resto de los días hasta octubre de 2025.
 
 import { consulta, una } from "@/lib/erp/base";
 import { urlPanel } from "@/lib/tienda/dominios";
@@ -19,8 +19,8 @@ export const PRIMER_MES = "202310"; // desde cuándo hay datos mensuales
 export const PRIMER_DIA = "2025-10-01"; // desde cuándo hay datos diarios
 const SEGUNDOS_POR_VUELTA = 180; // + el último pedido (hasta ~1 minuto): entra en los 5 minutos de la ruta
 const DIAS_POR_TANDA = 30;
-/** Por día se bajan los últimos 90 días (no todo desde octubre de 2025): pesa mucho y para lo viejo alcanza el mes. */
-const DIAS_HACIA_ATRAS = 90;
+/** Los atributos (pesan) se piden de los últimos 3 meses cerrados (Fer, 5/11: plan de la prueba, opción 1). */
+const MESES_CON_ATRIBUTOS = 3;
 
 type Descarga = {
   id: number; tipo: "categorias" | "probar" | "conteo" | "mes" | "dia"; category_id: number | null; mes: string | null;
@@ -82,21 +82,29 @@ export async function planificarCategoria(org: string, cat: number): Promise<voi
       [org, `mes:${cat}:${mes}:%`, `conteo:${cat}:${mes}:%`]);
     await encolar(org, { clave: `conteo:${cat}:${mes}${corre ? `:${hoy}` : ""}`, tipo: "conteo", category_id: cat, mes, prioridad: 5 });
     await encolar(org, { clave: `mes:${cat}:${mes}${corre ? `:${hoy}` : ""}`, tipo: "mes", category_id: cat, mes, filtros: { min_sold_quantity: 1 },
-      atributos: i === 1, prioridad: 10 + i });
+      atributos: i >= 1 && i <= MESES_CON_ATRIBUTOS, prioridad: 10 + i });
   }
-  // Por día, de a 30 (la API admite menos de 100): la primera vez, de ayer para atrás hasta octubre de 2025 (lo más nuevo
-  // primero); después, sólo los días que faltan desde lo último pedido.
+  // Una tanda ya encolada sin atributos de esos meses los suma desde la página en que esté.
+  await consulta(`update mpro_descarga set atributos = true where organizacion_id = $1 and category_id = $2 and tipo = 'mes' and not atributos
+                    and estado in ('pendiente', 'corriendo') and mes = any($3::text[])`, [org, cat, meses.slice(1, 1 + MESES_CON_ATRIBUTOS)]);
+  // Por día, de a 30 (la API admite menos de 100), todo desde octubre de 2025 (Fer, 5/11: plan de la prueba, opción 1):
+  // primero lo que falta de lo más nuevo (de ayer hacia atrás, hasta lo ya pedido) y después lo que falta de lo más viejo
+  // (de lo pedido más viejo hacia atrás, hasta octubre de 2025).
   const ayer = hoyAr(); ayer.setDate(ayer.getDate() - 1);
-  const ultimo = await una<{ hasta: string | null }>("select to_char(max(hasta), 'YYYY-MM-DD') hasta from mpro_descarga where organizacion_id = $1 and tipo = 'dia' and category_id = $2", [org, cat]);
-  const atras = new Date(ayer); atras.setDate(atras.getDate() - (DIAS_HACIA_ATRAS - 1));
-  const piso = iso(atras) > PRIMER_DIA ? iso(atras) : PRIMER_DIA;
-  const tope = ultimo?.hasta ? (() => { const x = new Date(`${ultimo.hasta}T12:00:00`); x.setDate(x.getDate() + 1); return iso(x); })() : piso;
-  for (let hasta = new Date(ayer), n = 0; iso(hasta) >= tope; n++) {
-    const desde = new Date(hasta); desde.setDate(desde.getDate() - (DIAS_POR_TANDA - 1));
-    const d = iso(desde) < tope ? tope : iso(desde);
-    await encolar(org, { clave: `dia:${cat}:${d}:${iso(hasta)}`, tipo: "dia", category_id: cat, desde: d, hasta: iso(hasta),
-      filtros: { min_sold_quantity: 1 }, prioridad: n === 0 ? 13 : 60 + n });
-    hasta = new Date(desde); hasta.setDate(hasta.getDate() - 1);
+  const ya = await una<{ min: string | null; max: string | null }>(
+    "select to_char(min(desde), 'YYYY-MM-DD') min, to_char(max(hasta), 'YYYY-MM-DD') max from mpro_descarga where organizacion_id = $1 and tipo = 'dia' and category_id = $2", [org, cat]);
+  const correr = (fecha: string, dias: number) => { const x = new Date(`${fecha}T12:00:00`); x.setDate(x.getDate() + dias); return iso(x); };
+  const tramos: { hasta: string; piso: string; primero: number }[] = ya?.max
+    ? [{ hasta: iso(ayer), piso: correr(ya.max, 1), primero: 13 }, { hasta: correr(ya.min!, -1), piso: PRIMER_DIA, primero: 60 }]
+    : [{ hasta: iso(ayer), piso: PRIMER_DIA, primero: 13 }];
+  for (const t of tramos) {
+    for (let hasta = t.hasta, n = 0; hasta >= t.piso; n++) {
+      const d0 = correr(hasta, -(DIAS_POR_TANDA - 1));
+      const d = d0 < t.piso ? t.piso : d0;
+      await encolar(org, { clave: `dia:${cat}:${d}:${hasta}`, tipo: "dia", category_id: cat, desde: d, hasta,
+        filtros: { min_sold_quantity: 1 }, prioridad: t.primero === 13 && n === 0 ? 13 : 60 + n });
+      hasta = correr(d, -1);
+    }
   }
 }
 

@@ -67,7 +67,7 @@ Las categorías que habilita la llave se encuentran solas. Si hace falta otra: *
 
 ## Criterios y reglas
 
-- **Qué se baja**: de cada categoría habilitada, cada mes desde octubre de 2023 (sólo las publicaciones que vendieron algo ese mes; los atributos, sólo del último mes cerrado), cuántas publicaciones hubo cada mes con y sin ventas, y las ventas por día de los últimos 90 días. Primero lo más nuevo. El mes en curso y los días nuevos se vuelven a bajar cada mañana.
+- **Qué se baja**: de cada categoría habilitada, cada mes desde octubre de 2023 (sólo las publicaciones que vendieron algo ese mes; los atributos, sólo de los últimos 3 meses cerrados), cuántas publicaciones hubo cada mes con y sin ventas, y las ventas por día desde octubre de 2025. Primero lo más nuevo. El mes en curso y los días nuevos se vuelven a bajar cada mañana.
 - **Cómo se encuentran las categorías habilitadas**: se lee el árbol de categorías y se prueba cada categoría principal; de las que devuelven datos se prueban sus subcategorías, y cada subcategoría con datos queda para bajar.
 - **Market Pro atiende una consulta por vez y devuelve de a 100 filas**: una categoría grande tarda horas. El sistema trabaja de a vueltas de unos 4 minutos, sigue solo y, si se corta, vuelve a arrancar a los 2 minutos.
 - **Un producto** junta las publicaciones del mismo producto de catálogo de Mercado Libre; si no tiene, las del mismo EAN; si no, las de la misma marca y modelo (salvo marcas genéricas); si no, la publicación sola.
