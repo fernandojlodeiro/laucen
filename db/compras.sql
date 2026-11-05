@@ -342,3 +342,84 @@ create table if not exists cotizacion_armada (
 );
 alter table cotizacion_armada enable row level security;
 select erp_politica_org('cotizacion_armada');
+
+-- ── Órdenes de compra al exterior (pedido de Fer, 5/11; lib/compras/ordenes.ts) ──
+-- Una orden por cada llegada (un aéreo, un marítimo o un courier). Se crea subiendo el Excel del
+-- proveedor: el Excel queda como invoice (compra_invoice, para la estadística) y los renglones de la
+-- orden SON los del invoice (compra_invoice_linea): no se cargan dos veces.
+--   · Código: letra de la vía (A aéreo, M marítimo, C courier) + correlativo del año (2 dígitos) +
+--     año (2 dígitos): M0226 = segundo marítimo de 2026. Las cajas: M0226-34.
+--   · Estados: borrador (a revisar) → en_camino (confirmada: cuenta como mercadería entrante y
+--     actualizó el FOB) → recibida (se cerró su recepción).
+--   · Fechas de arribo: la de la web (llegada) y la de Mercado Libre (llegada_ml, con más margen).
+--     «Publicar en la web» / «Publicar en Mercado Libre» habilitan la preventa en cada canal.
+create table if not exists orden_compra (
+  id                 bigint generated always as identity primary key,
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  via                text not null check (via in ('aereo', 'maritimo', 'courier')),
+  anio               int not null check (anio between 2000 and 2100),
+  numero             int not null check (numero > 0),
+  codigo             text not null,
+  proveedor_id       bigint references proveedor(id) on delete set null,
+  invoice_id         bigint references compra_invoice(id) on delete set null,
+  compra_courier_id  bigint references compra_courier(id) on delete set null,
+  packing_list_id    bigint references packing_list(id) on delete set null,
+  estado             text not null default 'borrador' check (estado in ('borrador', 'en_camino', 'recibida')),
+  fecha              date,
+  llegada            date,
+  llegada_ml         date,
+  publicar_web       boolean not null default false,
+  publicar_ml        boolean not null default false,
+  publicada_web_ts   timestamptz,
+  publicada_ml_ts    timestamptz,
+  margen_unidades    int check (margen_unidades >= 0),
+  margen_pct         numeric(6, 2) check (margen_pct between 0 and 100),
+  margen_modo        text check (margen_modo in ('menor', 'mayor')),
+  descuento_pct      numeric(6, 2) check (descuento_pct between 0 and 90),
+  archivo            text,
+  notas              text,
+  confirmada_ts      timestamptz,
+  recibida_ts        timestamptz,
+  usuario_id         text,
+  creado_ts          timestamptz not null default now(),
+  unique (organizacion_id, via, anio, numero),
+  unique (organizacion_id, codigo)
+);
+create unique index if not exists orden_compra_invoice on orden_compra (invoice_id) where invoice_id is not null;
+create index if not exists orden_compra_estado on orden_compra (organizacion_id, estado);
+alter table orden_compra enable row level security;
+select erp_politica_org('orden_compra');
+
+-- Las cajas del packing list de la orden: número que le puso el proveedor (el 34 de M0226-34), peso y
+-- volumen de la caja, y lo que trae adentro. Al recibirla queda como ubicación del depósito con su código.
+create table if not exists orden_compra_caja (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  orden_id         bigint not null references orden_compra(id) on delete cascade,
+  numero           int not null check (numero >= 0),
+  peso_kg          numeric(12, 3),
+  cbm              numeric(12, 6),
+  largo_cm         numeric(8, 1),
+  ancho_cm         numeric(8, 1),
+  alto_cm          numeric(8, 1),
+  ubicacion_id     bigint,
+  recibida_ts      timestamptz,
+  unique (orden_id, numero)
+);
+alter table orden_compra_caja enable row level security;
+select erp_politica_org('orden_compra_caja');
+
+create table if not exists orden_compra_caja_item (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  caja_id          bigint not null references orden_compra_caja(id) on delete cascade,
+  fila             int,
+  sku              text not null,
+  descripcion      text,
+  variacion_id     bigint references variacion(id) on delete set null,
+  cantidad         int not null check (cantidad > 0)
+);
+create index if not exists orden_compra_caja_item_c on orden_compra_caja_item (caja_id);
+create index if not exists orden_compra_caja_item_v on orden_compra_caja_item (organizacion_id, variacion_id) where variacion_id is not null;
+alter table orden_compra_caja_item enable row level security;
+select erp_politica_org('orden_compra_caja_item');

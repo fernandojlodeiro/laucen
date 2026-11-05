@@ -238,6 +238,10 @@ export type PedidoEntrada = {
   metodo_envio_id?: number | null;
   /** La lista de precios elegida a mano (Fer, 7/10); sin esto, la del cliente o la del canal. Queda en el pedido. */
   lista_precios_id?: number | null;
+  /** Preventa (lib/preventa): el pedido sale de la mercadería entrante de una orden de compra. Se valida que todo
+   *  venga de la misma orden y que haya cupo (si no, falla con el motivo); el precio de cada línea sin precio dado lleva
+   *  el descuento de preventa. `ordenId`: la orden que vio el cliente (si ya no es ésa, falla). */
+  preventa?: { ordenId?: number | null; senaArs?: number | null } | null;
 };
 
 export type PedidoCreado = {
@@ -277,7 +281,25 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const moneda: Moneda = esMoneda(entrada.moneda) ? entrada.moneda : (canal.moneda_base ?? "ARS");
     const fecha = entrada.fecha ? entrada.fecha.slice(0, 10) : undefined;
 
-    const lineas = await resolverLineas(c, org, entrada.lineas, { listaId, moneda, fecha, permitirSinVincular: !!entrada.permitir_sin_vincular });
+    // Preventa: se decide (y se valida que no mezcle) antes de poner los precios, porque llevan su descuento.
+    let preventa: Awaited<ReturnType<typeof import("@/lib/preventa").decidirPreventa>> = null;
+    if (entrada.preventa) {
+      const { decidirPreventa } = await import("@/lib/preventa");
+      const conVariacion: { variacion_id: number; cantidad: number }[] = [];
+      for (const l of entrada.lineas) {
+        if (l.concepto) continue;
+        const v = l.variacion_id ?? (l.sku ? (await c.query<{ id: number }>("select id::int from variacion where organizacion_id = $1 and sku = $2", [org, l.sku])).rows[0]?.id : null);
+        if (v) conVariacion.push({ variacion_id: v, cantidad: l.cantidad });
+      }
+      preventa = await decidirPreventa(c, org, Number(canal.id), conVariacion, { ordenPedida: entrada.preventa.ordenId ?? null });
+      if (!preventa) throw new ErrorErp("Esos productos están en stock: el pedido va como un pedido común, no en preventa.");
+    }
+    const lineasEntrada = preventa ? entrada.lineas.map((l) => {
+      const d = l.variacion_id ? preventa!.descuentos.get(l.variacion_id) : undefined;
+      // El descuento de preventa se suma al que ya traiga la línea (sólo si el precio sale de la lista).
+      return d && l.precio_unitario == null ? { ...l, descuento_pct: Math.round((1 - (1 - (l.descuento_pct ?? 0) / 100) * (1 - d / 100)) * 10000) / 100 } : l;
+    }) : entrada.lineas;
+    const lineas = await resolverLineas(c, org, lineasEntrada, { listaId, moneda, fecha, permitirSinVincular: !!entrada.permitir_sin_vincular });
     let envioArs = 0, envioUsd = 0;
     if (entrada.costo_envio) {
       if (!(entrada.costo_envio >= 0)) throw new ErrorErp("El costo de envío no es válido.");
@@ -310,6 +332,10 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
         entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null && !l.datos.concepto),
         JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null, envioArs, entrada.metodo_envio_id ?? null, listaId])).rows[0];
     const pedidoId = Number(p.id);
+    if (preventa) {
+      await c.query("update pedido set preventa_orden_id = $2, preventa_llegada = $3, preventa_sena_ars = $4 where id = $1",
+        [pedidoId, preventa.ordenId, preventa.llegada, entrada.preventa?.senaArs ?? null]);
+    }
     await insertarLineas(c, org, pedidoId, lineas, 0);
     await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
                    values ($1, $2, null, $3, $4, 'pedido creado')`, [org, pedidoId, estado, quien]);
@@ -419,8 +445,10 @@ const CON_RESERVA = ["pagado", "en_preparacion", "preparado", "despachado", "ent
 export async function agregarLineas(org: string, pedidoId: number, entrada: LineaEntrada[], quien: string, c: PoolClient,
   o: { permitir_sin_vincular?: boolean; nota?: string } = {}): Promise<void> {
   if (!entrada.length) return;
-  const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string; reservado_ts: Date | null }>(`
+  const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string; reservado_ts: Date | null;
+    preventa_orden_id: string | null; preventa_cubierto_ts: Date | null }>(`
     select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(p.lista_precios_id, cl.lista_precios_id, ca.lista_precios_id, lista_por_defecto(p.organizacion_id)) lista, p.reservado_ts,
+           p.preventa_orden_id, p.preventa_cubierto_ts,
            to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2 for update of p`, [pedidoId, org])).rows[0];
@@ -434,7 +462,17 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   await c.query(`update pedido set total_ars = total_ars + $2, total_usd = total_usd + $3,
                         sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null and not datos_externos ? 'concepto') where id = $1`,
     [pedidoId, r2(lineas.reduce((s, l) => s + l.unit_ars * l.cantidad, 0)), r2(lineas.reduce((s, l) => s + l.unit_usd * l.cantidad, 0))]);
-  if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
+  // Preventa sin cubrir: las líneas nuevas reservan la mercadería entrante de su orden, nunca físico (Fer, 5/11).
+  const preventaPendiente = !!p.preventa_orden_id && !p.preventa_cubierto_ts;
+  if (p.afecta_stock && preventaPendiente && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
+    for (const l of lineas) {
+      if (!l.variacion_id) continue;
+      await c.query(`insert into preventa_reserva (organizacion_id, orden_id, pedido_id, variacion_id, cantidad)
+                     select $1, $2, $3, coalesce(k.variacion_componente_id, v.id), $5 * coalesce(k.cantidad, 1)
+                       from variacion v left join kit_componente k on k.variacion_kit_id = v.id and not k.sobrante where v.id = $4`,
+        [org, p.preventa_orden_id, pedidoId, l.variacion_id, l.cantidad]);
+    }
+  } else if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
     const dep = p.deposito_id ?? (await c.query<{ id: string }>(`
       select coalesce(
         (select cd.deposito_id from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo'
@@ -463,8 +501,8 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
  *  total. No toca un pedido que ya salió. Corre en la transacción `c`. */
 export async function quitarLineas(org: string, pedidoId: number, lineaIds: number[], quien: string, c: PoolClient, nota?: string): Promise<void> {
   if (!lineaIds.length) return;
-  const p = (await c.query<{ estado: EstadoPedido; afecta_stock: boolean; reservado_ts: Date | null }>(
-    "select estado, afecta_stock, reservado_ts from pedido where id = $1 and organizacion_id = $2 for update", [pedidoId, org])).rows[0];
+  const p = (await c.query<{ estado: EstadoPedido; afecta_stock: boolean; reservado_ts: Date | null; preventa_orden_id: string | null; preventa_cubierto_ts: Date | null }>(
+    "select estado, afecta_stock, reservado_ts, preventa_orden_id, preventa_cubierto_ts from pedido where id = $1 and organizacion_id = $2 for update", [pedidoId, org])).rows[0];
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.estado === "despachado" || p.estado === "entregado") throw new ErrorErp("El pedido ya salió: no se le sacan líneas.");
   const lineas = (await c.query<{ id: string; variacion_id: string | null; cantidad: number; unit_ars: string; unit_usd: string }>(`
@@ -472,7 +510,30 @@ export async function quitarLineas(org: string, pedidoId: number, lineaIds: numb
      where pedido_id = $1 and id = any($2::bigint[])`, [pedidoId, lineaIds])).rows;
   if (!lineas.length) return;
   const ref = String(pedidoId);
-  if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
+  if (p.preventa_orden_id && !p.preventa_cubierto_ts) {
+    // Preventa sin cubrir: se libera la reserva de entrante de esas líneas (un kit, por sus componentes).
+    for (const l of lineas) {
+      if (!l.variacion_id) continue;
+      const partes = (await c.query<{ variacion_id: string; cantidad: number }>(`
+        select coalesce(k.variacion_componente_id, v.id) variacion_id, $2 * coalesce(k.cantidad, 1) cantidad
+          from variacion v left join kit_componente k on k.variacion_kit_id = v.id and not k.sobrante where v.id = $1`, [l.variacion_id, l.cantidad])).rows;
+      for (const parte of partes) {
+        let resta = Number(parte.cantidad);
+        const filas = (await c.query<{ id: string; cantidad: number }>(`select id, cantidad from preventa_reserva
+                        where pedido_id = $1 and variacion_id = $2 and estado = 'activa' order by id desc`, [pedidoId, parte.variacion_id])).rows;
+        for (const f of filas) {
+          if (resta <= 0) break;
+          if (f.cantidad <= resta) {
+            await c.query("update preventa_reserva set estado = 'liberada', cerrado_ts = now(), nota = 'línea sacada del pedido' where id = $1", [f.id]);
+            resta -= f.cantidad;
+          } else {
+            await c.query("update preventa_reserva set cantidad = cantidad - $2 where id = $1", [f.id, resta]);
+            resta = 0;
+          }
+        }
+      }
+    }
+  } else if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
     for (const l of lineas) {
       if (!l.variacion_id) continue;
       // Lo que hay que liberar: la variación, o los componentes si es un kit.

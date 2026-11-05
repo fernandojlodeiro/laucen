@@ -121,7 +121,7 @@ end $$;
 -- van por la misma cola, por mail y por WhatsApp (éstos, aunque el cliente no haya tildado WhatsApp).
 alter table correo_cola drop constraint if exists correo_cola_tipo_check;
 alter table correo_cola add constraint correo_cola_tipo_check check (tipo in ('pagado', 'despachado', 'listo_retirar',
-  'recibido', 'pago_incompleto', 'recordatorio', 'ultimo_dia', 'reserva_anulada'));
+  'recibido', 'pago_incompleto', 'recordatorio', 'ultimo_dia', 'reserva_anulada', 'preventa_llego'));
 
 -- ¿El pedido está en seguimiento? Nuevo, sin pagar, con reserva, de un canal donde se carga a mano o de la
 -- tienda (no Mercado Libre), de un cliente que no compra a cuenta corriente, y con avisos_reserva (los

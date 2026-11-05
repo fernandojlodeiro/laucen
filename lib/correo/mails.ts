@@ -74,7 +74,7 @@ function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string; a
 
 /** Los avisos del pedido: recibido, pagado, despachado o listo para retirar, y los del seguimiento de un pedido
  *  sin pagar (lib/pedidos/seguimiento.ts): pago sin completar, recordatorio, último día y reserva anulada. */
-export async function mailPedido(org: string, pedidoId: number, tipo: "pagado" | "despachado" | "listo_retirar" | TipoSeguimiento, nota?: string | null): Promise<Resultado> {
+export async function mailPedido(org: string, pedidoId: number, tipo: "pagado" | "despachado" | "listo_retirar" | "preventa_llego" | TipoSeguimiento, nota?: string | null): Promise<Resultado> {
   const d = await datosPedido(org, pedidoId);
   if (!d?.p.email) return { ok: false, motivo: "sin_mail" };
   const t = await tiendaParaPedido(org, pedidoId);
@@ -88,7 +88,19 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "pagado" |
     "select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
     [org, t.canalId, p.medio]) : null;
   const tarjeta = p.medio === "payway" || p.medio === "mercadopago";
-  if (tipo === "recibido") {
+  if (tipo === "preventa_llego") {
+    // Llegó la mercadería de la preventa (lib/preventa/avisos.ts): si debe el saldo, cuánto y hasta cuándo.
+    const x = await una<{ pagado: number; hasta: string | null }>(`
+      select coalesce((select sum(importe_ars) from pago where pedido_id = p.id and estado = 'aprobado'), 0)::float8 pagado,
+             to_char(p.preventa_saldo_hasta, 'DD/MM') hasta from pedido p where p.id = $1`, [p.id]);
+    const saldo = Math.max(0, Math.round((Number(p.total) - (x?.pagado ?? 0)) * 100) / 100);
+    asunto = saldo > 0 ? `Llegó tu pedido #${p.id}: ya podés pagar el saldo` : `Llegó tu pedido #${p.id}`;
+    titulo = "¡Llegó tu pedido en preventa!";
+    cuerpo = `<p>${saludo(p.nombre)} llegó la mercadería de tu pedido en preventa <b>#${p.id}</b> y ya está reservada para vos.</p>${tablaLineas(lineas, p)}
+      ${saldo > 0 ? `<p>Te queda por pagar <b>${escapar(formatear(saldo, p.moneda))}</b>${x?.hasta ? ` hasta el <b>${escapar(x.hasta)}</b>` : ""}. Con el botón de abajo elegís cómo pagarlo y cómo recibirlo.</p>`
+        : `<p>Ya está pago: lo estamos preparando y te avisamos cuando salga.</p>`}`;
+    if (boton && saldo > 0) boton = { ...boton, texto: "Pagar el saldo" };
+  } else if (tipo === "recibido") {
     const medio = await medioDe();
     const reserva = tarjeta ? null : await reservaLegible(p.id);
     asunto = `Recibimos tu pedido #${p.id}`;
@@ -260,7 +272,7 @@ export async function alAutorizarMail(org: string, comprobanteId: number): Promi
  *  si el cliente eligió WhatsApp, también por WhatsApp (lib/mensajes/avisos-pedido.ts); cada canal con sus
  *  reintentos: el mail hasta 5, el WhatsApp cada 10 minutos durante 3 días (plantilla en aprobación). */
 export async function procesarCola(org: string | null, hastaMs: number): Promise<{ enviados: number; fallidos: number }> {
-  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar" | TipoSeguimiento; nota: string | null;
+  const filas = await consulta<{ id: number; organizacion_id: string; pedido_id: number; tipo: "pagado" | "despachado" | "listo_retirar" | "preventa_llego" | TipoSeguimiento; nota: string | null;
     falta_mail: boolean; falta_wa: boolean; ml: boolean }>(`
     select id::int, organizacion_id, pedido_id::int, tipo, nota, ${SQL_FALTA_MAIL} falta_mail, ${SQL_FALTA_WA} falta_wa,
            exists (select 1 from pedido p join canal c on c.id = p.canal_id where p.id = correo_cola.pedido_id and c.tipo = 'mercadolibre') ml from correo_cola
@@ -294,7 +306,7 @@ export async function procesarCola(org: string | null, hastaMs: number): Promise
       await consulta(`update correo_cola set intentos = intentos + 1, hecho_ts = case when $2 then now() end where id = $1`, [f.id, terminado]);
       if (r.ok) enviados++; else if (!terminado) fallidos++;
     }
-    if (f.falta_wa) {
+    if (f.falta_wa && f.tipo !== "preventa_llego") {
       const w = await avisarPorWhatsapp(f.organizacion_id, f.pedido_id, f.tipo, f.nota)
         .catch((e) => ({ estado: "pendiente" as const, detalle: e instanceof Error ? e.message : String(e) }));
       await consulta(`update correo_cola set wa_intentos = wa_intentos + 1, wa_intento_ts = now(), wa_estado = $2, wa_detalle = $3,

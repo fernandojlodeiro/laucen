@@ -37,7 +37,7 @@ export async function guardarConfigInvoices(org: string, c: ConfigInvoices): Pro
 }
 
 /** Las filas de una hoja como matriz (las fechas de Excel quedan «2025-10-05»). */
-function matriz(hoja: ExcelJS.Worksheet): Celda[][] {
+export function matriz(hoja: ExcelJS.Worksheet): Celda[][] {
   const filas: Celda[][] = [];
   const ancho = Math.min(hoja.actualColumnCount || hoja.columnCount, 60);
   for (let i = 1; i <= Math.min(hoja.rowCount, 3000); i++) {
@@ -71,7 +71,9 @@ async function emparejar(c: { query: (s: string, v: unknown[]) => Promise<unknow
      where l.invoice_id = $2 and l.organizacion_id = $1`, [org, invoiceId]);
 }
 
-export async function crearInvoice(org: string, a: { archivo: string; ruta: string; proveedorId: number | null; usuarioId: string; hoja: string | null; leido: InvoiceLeido; pdf?: boolean }): Promise<number> {
+export async function crearInvoice(org: string, a: { archivo: string; ruta: string; proveedorId: number | null; usuarioId: string; hoja: string | null; leido: InvoiceLeido; pdf?: boolean;
+  /** Si ya estaba cargado (y no es de otra orden de compra), devuelve ése en vez de fallar (lo usan las órdenes de compra). */
+  reusar?: boolean }): Promise<number> {
   const leido = { ...a.leido, numero: a.leido.numero ?? a.archivo.match(/[a-z]{2,}\d{6,}/i)?.[0]?.toUpperCase() ?? null };
   if (!leido.renglones.length && !a.pdf) throw new ErrorErp(`«${a.archivo}»: ${leido.avisos[0] ?? "no tiene renglones con SKU y cantidad."}`);
   // El mismo invoice dos veces: mismo número del mismo proveedor, o misma fecha con los mismos renglones.
@@ -83,7 +85,8 @@ export async function crearInvoice(org: string, a: { archivo: string; ruta: stri
             or (i.fecha is not distinct from $4::date and (select string_agg(upper(l.sku) || ':' || (l.cantidad::float8)::text, '|' order by upper(l.sku) || ':' || (l.cantidad::float8)::text)
                                                               from compra_invoice_linea l where l.invoice_id = i.id) = $5))
      limit 1`, [org, a.proveedorId, leido.numero, leido.fecha, huella]);
-  if (ya && !a.pdf) throw new ErrorErp(`«${a.archivo}» ya está cargado (invoice «${ya.archivo}»).`);
+  if (ya && !a.pdf && a.reusar && !(await una("select 1 from orden_compra where invoice_id = $1", [ya.id]))) return ya.id;
+  if (ya && !a.pdf) throw new ErrorErp(`«${a.archivo}» ya está cargado (invoice «${ya.archivo}»${a.reusar ? ", de otra orden de compra" : ""}).`);
   if (a.pdf && (await una("select 1 from compra_invoice where organizacion_id = $1 and archivo = $2", [org, a.archivo.slice(0, 200)]))) throw new ErrorErp(`«${a.archivo}» ya está cargado.`);
   return enTransaccion(async (c) => {
     const r = await c.query<{ id: number }>(`

@@ -392,6 +392,18 @@ begin
   if dep is null then
     raise exception 'no hay ningún depósito donde reservar el stock' using errcode = 'P0001', hint = 'sin_deposito';
   end if;
+  -- Preventa (Fer, 5/11; db/preventa.sql): un pedido en preventa que todavía no se cubrió no reserva físico,
+  -- reserva la mercadería entrante de su orden (preventa_reserva; un kit, por sus componentes).
+  if p.preventa_orden_id is not null and p.preventa_cubierto_ts is null then
+    insert into preventa_reserva (organizacion_id, orden_id, pedido_id, variacion_id, cantidad)
+    select p_org, p.preventa_orden_id, p.id, x.variacion_id, sum(x.cantidad)::int
+      from (select coalesce(k.variacion_componente_id, pl.variacion_id) variacion_id, pl.cantidad * coalesce(k.cantidad, 1) cantidad
+              from pedido_linea pl left join kit_componente k on k.variacion_kit_id = pl.variacion_id and not k.sobrante
+             where pl.pedido_id = p.id and pl.variacion_id is not null) x
+     group by x.variacion_id;
+    update pedido set deposito_id = dep, reservado_ts = now() where id = p.id;
+    return true;
+  end if;
   for l in select variacion_id, cantidad from pedido_linea where pedido_id = p.id and variacion_id is not null loop
     perform reservar_en_deposito(p_org, l.variacion_id, dep, l.cantidad, 'pedido', p.id::text, p_quien);
   end loop;
@@ -436,6 +448,10 @@ begin
     raise exception 'un pedido % no puede volver a %', p.estado, p_nuevo using errcode = 'P0001', hint = 'transicion_invalida';
   end if;
 
+  -- Preventa sin cubrir (todavía no llegó su orden): no se prepara ni se despacha (Fer, 5/11).
+  if p.preventa_orden_id is not null and p.preventa_cubierto_ts is null and o_nuevo is not null and o_nuevo >= 3 then
+    raise exception 'el pedido es de preventa: se prepara cuando llegue la mercadería de su orden de compra' using errcode = 'P0001', hint = 'preventa';
+  end if;
   if p.afecta_stock then
     -- Reservar al pasar por pagado (salvo que ya haya reservado: «A cobrar»).
     if o_actual < 2 and o_nuevo is not null and o_nuevo >= 2 then
@@ -447,8 +463,10 @@ begin
         perform mover_stock(p_org, r.variacion_id, 'venta', r.cantidad, r.ubicacion_id, null, 'pedido', ref, p_quien, null, r.kit_variacion_id);
       end loop;
     end if;
-    -- Liberar al cancelar o devolver.
+    -- Liberar al cancelar o devolver (también la reserva de entrante de una preventa).
     if p_nuevo in ('cancelado', 'devuelto') then
+      update preventa_reserva set estado = 'liberada', cerrado_ts = now(), nota = coalesce(nota, 'pedido ' || p_nuevo)
+       where pedido_id = p.id and estado = 'activa';
       for r in select * from reservado_de(p_org, 'pedido', ref) loop
         perform mover_stock(p_org, r.variacion_id, 'liberacion', r.cantidad, r.ubicacion_id, null, 'pedido', ref, p_quien, null, r.kit_variacion_id);
       end loop;
@@ -490,6 +508,8 @@ begin
   for r in select * from reservado_de(p_org, 'pedido', ref) loop
     perform mover_stock(p_org, r.variacion_id, 'liberacion', r.cantidad, r.ubicacion_id, null, 'pedido', ref, p_quien, null, r.kit_variacion_id);
   end loop;
+  update preventa_reserva set estado = 'liberada', cerrado_ts = now(), nota = coalesce(nota, 'pasado a presupuesto')
+   where pedido_id = p.id and estado = 'activa';
   update pedido set estado = 'presupuesto', reservado_ts = null,
          estado_pago = case when estado_pago = 'reembolsado' then estado_pago else 'pendiente' end,
          vigencia = coalesce(p_vigencia, vigencia, (now() at time zone 'America/Argentina/Buenos_Aires')::date + 7)
