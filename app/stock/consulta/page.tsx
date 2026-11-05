@@ -18,6 +18,8 @@ import Pestanas from "@/app/componentes/Pestanas";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import TituloCorto from "@/app/componentes/TituloCorto";
 import { formatearNumero } from "@/lib/numeros";
+import Entrante, { CeldasEntrante, TITULOS_ENTRANTE } from "@/app/componentes/Entrante";
+import { entrantePorVariacion } from "@/lib/compras/ordenes";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -196,6 +198,8 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const historial = lista.map((m) => { const e = efecto(m); const fila = { ...m, efecto: e, saldo }; saldo -= e; return fila; });
   const saldoAnterior = saldo;
 
+  // La mercadería entrante (órdenes de compra en camino) de lo que se ve.
+  const entrante = await entrantePorVariacion(s.org.id, [...variaciones.map((v) => v.id), ...(elegida ? [elegida.id] : [])]);
   const totDet = detalle.reduce((a, d) => ({ cantidad: a.cantidad + d.cantidad, reservado: a.reservado + d.reservado }), { cantidad: 0, reservado: 0 });
   const totDisp = porDeposito.reduce((a, d) => a + d.disponible, 0);
 
@@ -226,6 +230,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
                 {elegida.stock_minimo != null ? `Stock mínimo ${elegida.stock_minimo}` : "Sin stock mínimo cargado"}
                 {" · "}<Link href={`/catalogo/productos/${elegida.producto_id}`} className="text-[#16577F] underline">ver producto</Link>
               </p>
+              <Entrante e={entrante.get(elegida.id)} />
             </div>
             <span className="flex gap-2">
               {!elegida.kit && <Link href={url("/stock/ajustes", { sku: elegida.sku })} className={SUAVE}>Ajustar</Link>}
@@ -344,11 +349,12 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             <tr>
               <th className={TH} /><th className={`${TH} w-px`}>SKU</th><th className={TH}>Variación</th><th className={THN} title="Cantidad">Cant.</th><th className={THN} title="Reservado (tocalo para ver los pedidos)">Res.</th>
               <th className={THN} title="Disponible (tocalo para ver las ubicaciones)">Dispo.</th><th className={`${TH} w-px`} title="Ubicación principal: donde más unidades hay">Ubic.</th>
+              {TITULOS_ENTRANTE.map((t) => <th key={t.corto} className={THN} title={t.largo}>{t.corto}</th>)}
               <th className={THN} title="Precio de la lista Clásicas">Clásica</th>
             </tr>
           </thead>
           <tbody>
-            {variaciones.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
+            {variaciones.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
             {variaciones.map((v) => (
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
                 <td className={`${TD} w-px`}><FotosProducto fotos={v.fotos} titulo={v.titulo} /></td>
@@ -363,6 +369,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
                   const u = (v.ubicaciones ?? []).reduce<NonNullable<Variacion["ubicaciones"]>[number] | null>((a, x) => (!a || x.cantidad > a.cantidad ? x : a), null);
                   return u ? <span title={`${u.deposito} · ${u.ubicacion} (${u.cantidad})`}>{u.ubicacion}</span> : "—";
                 })()}</td>
+                <CeldasEntrante e={entrante.get(v.id)} td={TDN} />
                 <td className={`${TDN} whitespace-nowrap`}>{v.clasica != null ? `$ ${formatearNumero(v.clasica, "entero")}` : "—"}</td>
               </tr>
             ))}

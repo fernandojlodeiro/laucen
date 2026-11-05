@@ -11,6 +11,11 @@ import { entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN,
 import { fechaHoraAR, GRANDE, TIPO_RECEPCION } from "../../formato";
 import { accionCerrarRecepcion } from "../acciones";
 import Recibir from "./Recibir";
+import RecibirCajas from "./RecibirCajas";
+import { cajasOrden, lineasOrden } from "@/lib/compras/ordenes";
+import { accionSacarDeCaja } from "../acciones";
+import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
+import { PRIMARIO } from "@/app/botones";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +29,10 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
   const rec = await una<{
     id: number; tipo: string; estado: string; deposito_id: number; deposito: string; proveedor: string | null; pedido_id: number | null;
     pedido_externo: string | null; venta_externa: string | null; pedido_estado: string | null; documento: string | null; nota: string | null; creado_ts: Date; cerrada_ts: Date | null;
+    orden_compra_id: number | null; orden: string | null;
   }>(`
-    select r.id::int, r.tipo, r.estado, r.deposito_id::int, d.nombre deposito, pr.nombre proveedor, r.pedido_id::int,
+    select r.id::int, r.tipo, r.estado, r.deposito_id::int, d.nombre deposito, pr.nombre proveedor, r.pedido_id::int, r.orden_compra_id::int,
+           (select codigo from orden_compra where id = r.orden_compra_id) orden,
            p.id_externo pedido_externo, r.venta_externa, p.estado pedido_estado, r.documento, r.nota, r.creado_ts, r.cerrada_ts
       from recepcion r join deposito d on d.id = r.deposito_id left join proveedor pr on pr.id = r.proveedor_id
       left join pedido p on p.id = r.pedido_id
@@ -48,6 +55,10 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
         from pedido_linea pl where pl.pedido_id = $1 and pl.organizacion_id = $2 order by pl.orden, pl.id`, [rec.pedido_id, s.org.id, recId]) : [],
   ]);
   const unidades = lineas.reduce((a, l) => a + l.cantidad, 0);
+  // Recepción de una orden de compra al exterior: sus cajas y lo que falta de cada renglón.
+  const [cajas, renglones] = rec.orden_compra_id
+    ? await Promise.all([cajasOrden(s.org.id, rec.orden_compra_id), lineasOrden(s.org.id, rec.orden_compra_id)]) : [[], []];
+  const faltan = renglones.filter((l) => l.variacion_id && l.recibido < l.cantidad);
   const abierta = rec.estado === "abierta";
   const devolucion = rec.tipo === "devolucion";
 
@@ -82,8 +93,48 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
         </section>
       )}
 
+      {rec.orden_compra_id && (
+        <section className="mb-5">
+          <h2 className="text-sm font-bold mb-2">
+            Orden <Link href={`/compras/ordenes/${rec.orden_compra_id}`} className="text-[#16577F]">{rec.orden}</Link>: cajas recibidas {cajas.filter((k) => k.recibida_ts).length} de {cajas.length}
+          </h2>
+          {abierta && cajas.length > 0 && (
+            <RecibirCajas recepcion={rec.id} cajas={cajas.map((k) => ({ id: k.id, codigo: k.codigo, recibida: !!k.recibida_ts, items: k.items.map((i) => ({ id: i.id, sku: i.sku, cantidad: i.cantidad, enSistema: !!i.variacion_id })) }))} />
+          )}
+          {cajas.length === 0 && <p className="text-xs text-[#5C6B76]">La orden no tiene packing list: se recibe producto por producto, abajo.</p>}
+          {cajas.some((k) => k.recibida_ts && k.en_ubicacion > 0) && (
+            <details className="mt-3 bg-white border border-[#E3E9F0] rounded-xl p-3">
+              <summary className="text-sm font-bold cursor-pointer">Sacar productos de una caja</summary>
+              <form action={accionSacarDeCaja} className="grid gap-2 mt-2">
+                <input type="hidden" name="recepcion_id" value={rec.id} />
+                <label><span className={ETIQUETA}>Caja</span>
+                  <select name="caja_id" className={`${CAMPO} w-full text-base py-2.5`}>
+                    {cajas.filter((k) => k.recibida_ts && k.en_ubicacion > 0).map((k) => <option key={k.id} value={k.id}>{k.codigo} ({k.en_ubicacion} u.)</option>)}
+                  </select></label>
+                <label><span className={ETIQUETA}>Producto</span>
+                  <select name="variacion_id" className={`${CAMPO} w-full text-base py-2.5`}>
+                    {[...new Map(cajas.filter((k) => k.recibida_ts).flatMap((k) => k.items).filter((i) => i.variacion_id).map((i) => [i.variacion_id, i])).values()]
+                      .map((i) => <option key={i.variacion_id!} value={i.variacion_id!}>{i.sku}</option>)}
+                  </select></label>
+                <label><span className={ETIQUETA}>Cuántas</span><input name="cantidad" inputMode="numeric" className={`${CAMPO} w-full text-base py-2.5 text-right`} /></label>
+                <label><span className={ETIQUETA}>A qué ubicación (código)</span>
+                  <input name="destino" list="ubicaciones-destino" className={`${CAMPO} w-full text-base py-2.5`} placeholder="Ej. A1-01" />
+                  <datalist id="ubicaciones-destino">{ubicaciones.map((u) => <option key={u.codigo} value={u.codigo}>{u.descripcion ?? ""}</option>)}</datalist></label>
+                <button className={`${PRIMARIO} ${GRANDE}`}>Pasar</button>
+              </form>
+            </details>
+          )}
+          {faltan.length > 0 && (
+            <p className="text-[11px] text-[#5C6B76] mt-2">Falta recibir: {faltan.map((l) => `${l.cantidad - l.recibido} × ${l.sku_sistema}`).join(", ")}.</p>
+          )}
+        </section>
+      )}
+
       {abierta ? (
-        <div className="mb-5"><Recibir recepcion={rec.id} devolucion={devolucion} ubicaciones={ubicaciones} /></div>
+        <div className="mb-5">
+          {rec.orden_compra_id && <h2 className="text-sm font-bold mb-2">Producto por producto (sueltos o sin packing list)</h2>}
+          <Recibir recepcion={rec.id} devolucion={devolucion} ubicaciones={ubicaciones} />
+        </div>
       ) : (
         <p className="mb-4"><Estado texto="Cerrada" tono="gris" /></p>
       )}
@@ -113,7 +164,8 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
       {abierta && (
         <div>
           <BotonConfirmar accion={accionCerrarRecepcion} campos={{ id: String(rec.id) }} clase={`${VERDE} ${GRANDE} w-full`} texto="Cerrar recepción"
-            pregunta={devolucion && rec.pedido_id ? `El pedido #${rec.pedido_id} queda "devuelto". ¿Cerrar?` : "¿Cerrar la recepción?"} corriendo="Cerrando…" />
+            pregunta={devolucion && rec.pedido_id ? `El pedido #${rec.pedido_id} queda "devuelto". ¿Cerrar?`
+              : rec.orden_compra_id ? `La orden ${rec.orden} queda recibida${faltan.length ? ` (faltan ${faltan.reduce((t, l) => t + l.cantidad - l.recibido, 0)} u.)` : ""}. ¿Cerrar?` : "¿Cerrar la recepción?"} corriendo="Cerrando…" />
           {devolucion && rec.pedido_id && <p className="text-[11px] text-[#5C6B76] mt-1">Al cerrar, el pedido #{rec.pedido_id} pasa a "devuelto".</p>}
         </div>
       )}

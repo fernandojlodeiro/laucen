@@ -41,6 +41,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Pedidos y presupuestos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
       { texto: "Historial de ventas", href: "/ventas/historial", permiso: "pedidos_ver", icono: "📈" },
+      { texto: "Preventas", href: "/ventas/preventas", permiso: "pedidos_ver", icono: "⏳" },
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
       { texto: "Mensajes", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "💬" },
@@ -84,6 +85,7 @@ export const MENU: SeccionMenu[] = [
   {
     texto: "Compras",
     items: [
+      { texto: "Órdenes de compra al exterior", href: "/compras/ordenes", permiso: "compras_ver", icono: "🚢" },
       { texto: "Proveedores", href: "/compras/proveedores", permiso: "proveedores_ver" },
       { texto: "Facturas de compra", href: "/compras/facturas", permiso: "compras_ver" },
       { texto: "Despachos de importación", href: "/compras/despachos", permiso: "despachos_ver" },

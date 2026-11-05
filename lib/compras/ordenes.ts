@@ -26,6 +26,7 @@ export const esViaOrden = (v: unknown): v is ViaOrden => typeof v === "string" &
 
 export const ESTADOS_ORDEN = { borrador: "A revisar", en_camino: "En camino", recibida: "Recibida" } as const;
 export type EstadoOrden = keyof typeof ESTADOS_ORDEN;
+export const TONO_ESTADO: Record<EstadoOrden, "ambar" | "azul" | "verde"> = { borrador: "ambar", en_camino: "azul", recibida: "verde" };
 
 const dos = (n: number) => String(n).padStart(2, "0");
 

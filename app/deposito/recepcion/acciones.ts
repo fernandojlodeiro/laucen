@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
-import { crearRecepcion, recibir, cerrarRecepcion, variacionPorCodigo, type TipoRecepcion } from "@/lib/deposito/recepcion";
+import { crearRecepcion, recibir, cerrarRecepcion, variacionPorCodigo, recibirCaja, sacarDeCaja, type TipoRecepcion } from "@/lib/deposito/recepcion";
 
 const LISTA = "/deposito/recepcion";
 
@@ -80,5 +80,28 @@ export async function accionCerrarRecepcion(fd: FormData) {
     await cerrarRecepcion(s.org.id, r, s.usuario.id);
     revalidatePath(LISTA);
     return "Recepción cerrada.";
+  });
+}
+
+/** Recibe una caja entera de la orden de compra (lo que se contó de cada producto). */
+export async function accionRecibirCaja(recepcionId: number, cajaId: number, cantidades: Record<number, number>): Promise<ResultadoRecibir> {
+  const s = await entrarErp("recepcion_ver");
+  try {
+    const r = await recibirCaja(s.org.id, Number(recepcionId), Number(cajaId), cantidades, s.usuario.id);
+    revalidatePath(`${LISTA}/${recepcionId}`);
+    return { ok: true, mensaje: `Caja ${r.codigo} recibida: ${r.unidades} unidades de ${r.productos} producto${r.productos === 1 ? "" : "s"}, en la ubicación ${r.codigo}.` };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
+
+/** «Sacar productos de la caja»: pasa unidades de la caja a un estante. */
+export async function accionSacarDeCaja(fd: FormData) {
+  const s = await entrarErp("recepcion_ver");
+  const r = id(fd, "recepcion_id");
+  await intentar(`${LISTA}/${r}`, async () => {
+    const x = await sacarDeCaja(s.org.id, id(fd, "caja_id"), { variacionId: id(fd, "variacion_id"), cantidad: Math.trunc(Number(fd.get("cantidad"))), destino: texto(fd, "destino") ?? "" }, s.usuario.id);
+    revalidatePath(`${LISTA}/${r}`);
+    return `Pasado a ${x.destino}.`;
   });
 }

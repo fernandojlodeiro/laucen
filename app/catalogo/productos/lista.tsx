@@ -27,6 +27,9 @@ const DISPONIBLE = `(select coalesce(sum(stock_disponible_deposito(p.organizacio
             from variacion v cross join deposito d
            where v.producto_id = p.id and d.organizacion_id = p.organizacion_id and d.estado = 'activo')`;
 const VARIACIONES = "(select count(*) from variacion v where v.producto_id = p.id)";
+// Lo que traen las órdenes de compra en camino (db/preventa.sql, entrante_variacion), de todas sus variaciones.
+const ENTRANTE = (col: "llegando" | "prevendido" | "saldo") =>
+  `(select coalesce(sum(ev.${col}), 0) from entrante_variacion ev join variacion v on v.id = ev.variacion_id where v.producto_id = p.id)`;
 // En cuántas cuentas de Mercado Libre (canales distintos, activos) tiene publicado el producto (Fer, 5/10): una
 // publicación activa o pausada de cualquiera de sus variaciones; no cuenta las cerradas, ni cuántas publicaciones
 // tiene en una misma cuenta (cuotas, variaciones), ni la web.
@@ -134,6 +137,13 @@ const CAMPOS: Campo[] = [
     clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE}::int`, orden: DISPONIBLE, formato: "entero", usa: ["sku"],
     celda: (f) => <Link href={url("/stock/consulta", { q: f.sku })} className={`hover:underline ${f.disponible < 0 ? "text-[#C03420]" : ""}`}>{Number(f.disponible).toLocaleString("es-AR")}</Link>,
   },
+  // La mercadería entrante (Fer, 5/11: en todas las pantallas de stock, con sus tres datos), sumando sus variaciones.
+  {
+    clave: "llegando", titulo: "Llegando", sql: `${ENTRANTE("llegando")}::int`, orden: ENTRANTE("llegando"), formato: "entero", usa: ["prevendido", "saldo_entrante"],
+    celda: (f) => (f.llegando > 0 ? <span title="Llegando · prevendido · saldo" className="whitespace-nowrap text-[#16577F]">{f.llegando} · {f.prevendido} · {f.saldo_entrante}</span> : ""),
+  },
+  { clave: "prevendido", titulo: "Prevendido", sql: `${ENTRANTE("prevendido")}::int`, orden: ENTRANTE("prevendido"), formato: "entero" },
+  { clave: "saldo_entrante", titulo: "Saldo entrante", sql: `${ENTRANTE("saldo")}::int`, orden: ENTRANTE("saldo"), formato: "entero" },
   { clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PRODUCTO), celda: (f) => <EstadoProducto estado={f.estado} /> },
   { clave: "costo_fob", titulo: "Costo FOB", sql: `${deVdef("costo_fob")}::float`, formato: "decimal" },
   { clave: "costo_moneda", titulo: "Moneda del costo", sql: deVdef("costo_moneda") },
@@ -176,7 +186,7 @@ export const LISTA_PRODUCTOS: Lista = {
   permiso: "productos_ver",
   vistas: true,
   porDefecto: "titulo",
-  enPantalla: ["sku", "titulo", "mercado", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
+  enPantalla: ["sku", "titulo", "mercado", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "llegando", "estado"],
   siempre: `p.id::int id, p.familia_id::int familia_id, p.marca_id::int marca_id, p.proveedor_id::int proveedor_id, p.kit_vs, p.no_publicable, p.estado _estado,
             ${PUBLICADO_ML}::int ml_n, ${CUENTAS_ML}::int ml_total,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,

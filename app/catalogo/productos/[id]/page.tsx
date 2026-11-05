@@ -7,6 +7,7 @@
 // (manda el formulario "ficha" de la sección). En las grillas, el lápiz es de
 // cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
+import PreventaProducto from "./Preventa";
 import MarcaMercado from "@/app/componentes/MarcaMercado";
 import { esEstadoMercado, sqlEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import SeccionSeguimiento from "./Seguimiento";
@@ -112,6 +113,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     ["precios", "Precios", n.precios ?? 0],
     ["cambios-precio", "Cambios de precio", n.cambios_precio ?? 0],
     ["stock", "Stock", n.stock ?? 0],
+    ["preventa", "Preventa", null],
     ["compras", "Compras", n.compras ?? 0],
     ["publicaciones", "Publicaciones", n.publicaciones ?? 0],
     ["ventas", "Ventas", n.ventas ?? 0],
@@ -121,7 +123,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
   const base = `/catalogo/productos/${p.id}`;
   const aqui = (extra: Record<string, string | number> = {}) => url(base, { seccion: seccion === "datos" ? undefined : seccion, ...extra });
   // Secciones que son un formulario entero: se ven, y se editan con el lápiz.
-  const conFicha = seccion === "datos" || seccion === "costo" || (seccion === "cucardas" && (n.cucardas_activas ?? 0) + (n.cucardas ?? 0) > 0);
+  const conFicha = seccion === "datos" || seccion === "costo" || seccion === "preventa" || (seccion === "cucardas" && (n.cucardas_activas ?? 0) + (n.cucardas ?? 0) > 0);
   const editando = conFicha && editandoFicha(sp);
   const props = { s, p, sp, seccion, editando };
 
@@ -175,6 +177,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       {seccion === "precios" && <SeccionPrecios {...props} />}
       {seccion === "cambios-precio" && <CambiosPrecio org={s.org.id} productoId={p.id} skuBase={p.sku_base} sp={sp} />}
       {seccion === "stock" && <SeccionStock {...props} />}
+      {seccion === "preventa" && <PreventaProducto org={s.org.id} productoId={p.id} editando={editando} noPublicable={p.no_publicable} nuncaMl={p.nunca_ml} />}
       {seccion === "compras" && <SeccionCompras org={s.org.id} productoId={p.id} />}
       {seccion === "publicaciones" && <SeccionPublicaciones {...props} />}
       {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} sp={sp} />}

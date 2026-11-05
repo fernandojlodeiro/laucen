@@ -24,6 +24,7 @@ type Canal = { id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string }
 /** Hoy + 7, en hora argentina (la vigencia de entrada de un presupuesto). */
 const enUnaSemana = () => { const d = new Date(Date.now() + 7 * 86_400_000); return d.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }); };
 type Linea = { clave: number; variacion: number; sku: string; titulo: string; sugerido: number | null; disponible: number; version: number;
+  preventa?: ProductoHallado["preventa"]; entrante?: ProductoHallado["entrante"];
   /** «Otro concepto» (Fer, 25/10): sin producto; el texto y el precio los escribe quien carga. */
   concepto?: boolean;
   /** Al editar: lo que ya tenía la línea (hasta que se reprecie). */
@@ -308,7 +309,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
 
   const agregar = (p: ProductoHallado) => {
     const clave = proxima.current++;
-    setLineas((ls) => [...ls, { clave, variacion: p.id, sku: p.sku, titulo: p.titulo, sugerido: p.precio, disponible: p.disponible, version: 0 }]);
+    setLineas((ls) => [...ls, { clave, variacion: p.id, sku: p.sku, titulo: p.titulo, sugerido: p.precio, disponible: p.disponible, version: 0, preventa: p.preventa, entrante: p.entrante }]);
     bProducto.limpiar();
     setMarcado(0);
     // El cursor va a la cantidad del producto recién sumado.
@@ -499,7 +500,13 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                         ? <label><span className="sr-only">Qué es el concepto</span>
                             <input name={`l_${l.clave}_titulo`} defaultValue={l.titulo} required maxLength={200} placeholder="Ej.: Envío a domicilio, Servicio técnico" className={`${CAMPO} w-full min-w-48`} /></label>
                         : l.titulo}
-                      {!l.concepto && l.disponible <= 0 && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
+                      {!l.concepto && l.disponible <= 0 && !l.preventa && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
+                      {!l.concepto && l.preventa && (
+                        <span className="block text-[10px] text-[#16577F]">Sin stock: en preventa, llega aprox. el {l.preventa.llegada.split("-").reverse().join("/")} ({l.preventa.orden}), quedan {l.preventa.cupo}. Tildá «Pedido de preventa» (va en un pedido aparte).</span>
+                      )}
+                      {!l.concepto && !l.preventa && l.disponible > 0 && l.entrante && l.entrante.llegando > 0 && (
+                        <span className="block text-[10px] text-[#16577F]">Llegando {l.entrante.llegando}{l.entrante.llegada ? ` el ${l.entrante.llegada.split("-").reverse().join("/")}` : ""} ({l.entrante.orden}). Lo que pase de {l.disponible} no se mezcla: va en otro pedido de preventa cuando se agote.</span>
+                      )}
                       {(() => {
                         // Sin precio (vacío o cero): aviso en rojo, nada más (Fer, 7/10).
                         const escrito = Object.hasOwn(preciosEscritos, l.clave) ? preciosEscritos[l.clave] : (l.precio !== undefined ? l.precio : l.sugerido);
@@ -545,6 +552,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                     <span className="flex-1 truncate">{p.titulo}</span>
                     <span className="tabular-nums text-right w-28">{p.precio == null ? <span className="text-[#C03420]">sin precio</span> : `${moneda === "USD" ? "US$" : "$"} ${formatearNumero(p.precio, tipoPrecio)}`}</span>
                     <span className={`tabular-nums text-right w-24 ${p.disponible > 0 ? "text-[#5C6B76]" : "text-[#C03420]"}`}>{p.disponible} disp.</span>
+                    <span className="text-right w-32 text-[11px] text-[#16577F] whitespace-nowrap">{p.preventa ? `preventa: ${p.preventa.cupo} (${p.preventa.llegada.slice(8, 10)}/${p.preventa.llegada.slice(5, 7)})` : p.entrante && p.entrante.llegando > 0 ? `llegando ${p.entrante.llegando}` : ""}</span>
                   </button>
                 </li>
               ))}
@@ -605,6 +613,18 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
           )}
         </fieldset>
       </div>
+
+      {!edicion && tipo === "pedido" && lineas.some((l) => l.preventa) && (
+        <fieldset className="grid gap-1 rounded-lg border border-[#C9D3DD] bg-[#EEF3F8] px-3 py-2">
+          <label className="inline-flex items-center gap-1.5 font-medium">
+            <input type="checkbox" name="preventa" value="1" className="h-4 w-4 accent-[#16577F]" />
+            Pedido de preventa
+          </label>
+          <p className="text-[11px] text-[#5C6B76]">
+            Sale entero de la mercadería que llega en una orden de compra: con el precio de preventa y la fecha de llegada. No se mezcla con productos en stock ni con otra orden: si hay, cargalos en otro pedido.
+          </p>
+        </fieldset>
+      )}
 
       {!edicion && tipo === "pedido" && (
         <fieldset className="grid gap-1">

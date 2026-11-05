@@ -1,6 +1,8 @@
 // Las secciones de la ficha de producto. Todas de servidor; la edición en
 // fila va con ?editar=<id> (el lápiz convierte la fila en sus campos).
 
+import { CeldasEntrante, TITULOS_ENTRANTE } from "@/app/componentes/Entrante";
+import { entrantePorVariacion } from "@/lib/compras/ordenes";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
@@ -998,6 +1000,7 @@ export async function SeccionStock({ s, p }: Props) {
       from variacion v cross join deposito d
      where v.producto_id = $2 and v.organizacion_id = $1 and d.organizacion_id = $1 and d.estado = 'activo'`, [s.org.id, p.id]);
   const valor = (v: number, d: number) => celdas.find((c) => c.v === v && c.d === d)?.n ?? 0;
+  const entrante = await entrantePorVariacion(s.org.id, variaciones.map((v) => v.id));
   if (!depositos.length) return <p className="text-xs text-[#5C6B76]">No hay depósitos activos.</p>;
   return (
     <>
@@ -1008,7 +1011,8 @@ export async function SeccionStock({ s, p }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Variación</th>{depositos.map((d) => <th key={d.id} className={THN}>{d.nombre}</th>)}<th className={THN}>Total</th><th /></tr>
+            <tr><th className={TH}>Variación</th>{depositos.map((d) => <th key={d.id} className={THN}>{d.nombre}</th>)}<th className={THN}>Total</th>
+              {TITULOS_ENTRANTE.map((t) => <th key={t.corto} className={THN} title={t.largo}>{t.corto}</th>)}<th /></tr>
           </thead>
           <tbody>
             {variaciones.map((v) => {
@@ -1021,6 +1025,7 @@ export async function SeccionStock({ s, p }: Props) {
                     return <td key={d.id} className={`${TDN} ${n < 0 ? "text-[#C03420]" : ""}`}>{n.toLocaleString("es-AR")}</td>;
                   })}
                   <td className={`${TDN} font-semibold ${p.stock_minimo != null && total < p.stock_minimo ? "text-[#C03420]" : ""}`}>{total.toLocaleString("es-AR")}</td>
+                  <CeldasEntrante e={entrante.get(v.id)} td={TDN} />
                   <td className={`${TD} text-right whitespace-nowrap`}><Link href={`/stock/consulta?v=${v.id}`} className={SUAVE}>Ver detalle</Link></td>
                 </tr>
               );

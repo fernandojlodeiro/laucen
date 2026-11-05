@@ -5,6 +5,8 @@
 // función única que usa POST /api/pedidos (crearPedido), así la reserva de
 // stock, el estado y la facturación andan igual que en cualquier canal.
 
+import { canalPreventa, ofertasPreventa } from "@/lib/preventa";
+import { entrantePorVariacion } from "@/lib/compras/ordenes";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
@@ -140,7 +142,11 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
   return clientesHallados(s.org.id, null, { prefiltro, busqueda: sqlBusqueda("$2", camposCliente("cl")), valores });
 }
 
-export type ProductoHallado = { id: number; sku: string; titulo: string; precio: number | null; disponible: number };
+export type ProductoHallado = { id: number; sku: string; titulo: string; precio: number | null; disponible: number;
+  /** La preventa que se ofrece hoy en este canal (sin stock y con orden publicada), o null. */
+  preventa: { orden: string; llegada: string; cupo: number; descuentoPct: number } | null;
+  /** Mercadería entrante (Fer, 5/11): para avisar que hay llegando aunque no se mezcle con lo que hay. */
+  entrante: { llegando: number; prevendido: number; saldo: number; orden: string | null; llegada: string | null } | null };
 
 /** La lista de precios que usa el pedido: la del cliente si tiene, si no la
  *  del canal y si tampoco, la lista por defecto (lo mismo que hace crearPedido). */
@@ -177,7 +183,17 @@ export async function buscarProductosPedido(q: string, comienza: boolean, canalI
        and (v.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
      order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, parametroBusqueda(t, comienza), t.replace(/^\?+\s*/, ""), canalId]);
   const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId, elegido);
-  return Promise.all(filas.map(async (f) => ({ ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda) })));
+  const ids = filas.map((f) => f.id);
+  const [canal, entrante] = await Promise.all([canalPreventa(s.org.id, canalId), entrantePorVariacion(s.org.id, ids)]);
+  const ofertas = canal ? await ofertasPreventa(s.org.id, ids, canal) : new Map();
+  return Promise.all(filas.map(async (f) => {
+    const o = ofertas.get(f.id), e = entrante.get(f.id);
+    return {
+      ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda),
+      preventa: o ? { orden: o.codigo, llegada: o.llegada, cupo: o.cupo, descuentoPct: o.descuentoPct } : null,
+      entrante: e ? { llegando: e.llegando, prevendido: e.prevendido, saldo: e.saldo, orden: e.proxima_orden, llegada: e.proxima_llegada } : null,
+    };
+  }));
 }
 
 /** El precio de lista de varias variaciones (cuando cambia el canal o el cliente). */
@@ -234,6 +250,7 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       moneda: fd.get("moneda") === "USD" ? "USD" : fd.get("moneda") === "ARS" ? "ARS" : null,
       listaId: Number(fd.get("lista_id")) || null,
       clientePresente: fd.get("cliente_presente") === "1",
+      preventa: !esPresupuesto && fd.get("preventa") === "1",
     });
     pedidoId = creado.pedidoId;
   } catch (e) {

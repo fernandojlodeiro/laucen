@@ -75,8 +75,8 @@ async function excelInvoice(filas: [string, number, number][], numero = `INV${Ma
   h.addRow([]);
   h.addRow(["SKU", "Description", "QTY", "Unit Price", "Amount"]);
   for (const [sku, qty, precio] of filas) h.addRow([sku, `Producto ${sku}`, qty, precio, qty * precio]);
-  const b = await libro.xlsx.writeBuffer();
-  return (b as Buffer).buffer.slice((b as Buffer).byteOffset, (b as Buffer).byteOffset + (b as Buffer).byteLength) as ArrayBuffer;
+  const b = new Uint8Array(await libro.xlsx.writeBuffer() as unknown as ArrayBuffer);
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 }
 
 async function ordenConfirmada(e: Awaited<ReturnType<typeof escenario>>, filas: [string, number, number][], via: "aereo" | "maritimo" = "maritimo") {

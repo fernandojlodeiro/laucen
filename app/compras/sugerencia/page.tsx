@@ -149,7 +149,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="segun_compras" n desc title={`Lo que se vendería en ${f.dias} días al ritmo con que se vendieron las últimas compras registradas (invoices y courier)`}>Según compras</ThOrden>
               <ThOrden col="dias_venta" n desc title="Días con venta en el período">Días venta</ThOrden>
               <ThOrden col="stock" n desc title="Disponible hoy">Stock</ThOrden>
-              <ThOrden col="al_llegar" n desc title={`Lo que va a quedar cuando llegue la compra: el stock de hoy menos lo que se vende en ${f.demora} días al ritmo típico`}>Al llegar</ThOrden>
+              <ThOrden col="llegando" n desc title="Mercadería entrante: llegando · prevendido · saldo (órdenes de compra en camino). El saldo cuenta como stock al llegar">Entrante</ThOrden>
+              <ThOrden col="al_llegar" n desc title={`Lo que va a quedar cuando llegue la compra: el stock de hoy más el saldo entrante, menos lo que se vende en ${f.demora} días al ritmo típico`}>Al llegar</ThOrden>
               <ThOrden col="comprar" n desc title={`Típico menos lo que quede al llegar (en ${f.demora} días)`}>A comprar</ThOrden>
               <ThOrden col="costo" n desc title="Costo puesto acá por unidad, de la vía que le corresponde: avión (courier) si por avión deja el margen mínimo; si no, barco (con la NCM si está cargada). Sin peso o FOB, el de la ficha">Costo US$</ThOrden>
               <ThOrden col="inversion" n desc title="A comprar × costo puesto acá">Inversión US$</ThOrden>
@@ -201,6 +202,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 </td>
                 <td className={TDN}>{entero(x.dias_con_venta)}</td>
                 <td className={TDN}>{entero(x.stock)}</td>
+                <td className={`${TDN} text-[#16577F]`} title="Llegando · prevendido · saldo">{x.llegando > 0 ? `${entero(x.llegando)} · ${entero(x.prevendido)} · ${entero(x.saldo_entrante)}` : "—"}</td>
                 <td className={TDN}>{entero(x.al_llegar)}</td>
                 <td className={`${TDN} font-semibold`} title={`La cuenta da ${entero(x.comprar_exacto)}; redondeado a decenas (hasta 3 baja, desde 4 sube). Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>
                 <td className={TDN} title={x.costo_de === "avion" ? "Por avión (courier)" : x.costo_de === "barco" ? `Por barco${x.con_ncm ? ", con la NCM" : ", sin NCM cargada"}` : x.costo_de === "ficha" ? "El de la ficha (falta peso o FOB para calcular por vía)" : undefined}>

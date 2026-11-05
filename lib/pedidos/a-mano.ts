@@ -46,6 +46,9 @@ export type PedidoAMano = {
    *  ni pagado, ni listo para retirar o despachado, ni recordatorios). Sin tildar: el «recibido» sale recién a la
    *  hora si sigue sin pagar (pg_cron pedido_seguimiento_encolar) y los demás avisos, como un pedido de la web. */
   clientePresente?: boolean;
+  /** Pedido de preventa (Fer, 5/11): sale entero de la mercadería que llega en UNA orden de compra (lib/preventa). Lo
+   *  que no viene en esa orden, o lo que hay en stock, va en otro pedido. */
+  preventa?: boolean;
 };
 
 /** Valida lo que no depende de la base (para mostrarlo antes de confirmar). */
@@ -119,6 +122,7 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
     costo_envio: p.entrega === "envio" ? p.costoEnvio || null : null,
     notas: p.notas ?? null,
     datos_externos: { a_mano: { usuario: usuarioId, pago: p.pago, origen, presente: !!p.clientePresente } },
+    preventa: p.preventa ? {} : null,
   }, usuarioId);
   // Con el cliente presente no sale ningún aviso de la reserva (recibido, recordatorios, anulada); sin él, el pedido
   // necesita su link para los avisos (el «recibido» lo encola pg_cron a la hora: db/correo.sql).
