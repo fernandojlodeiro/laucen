@@ -14,7 +14,9 @@ test("el listado sólo deja lo que tiene precio y stock", async () => {
   assert.equal(vendibleEnLaWeb({ venta: 1000, stock: 0 }), false);
   assert.equal(vendibleEnLaWeb({ venta: 0, stock: 3 }), false);
   const c = leer("app/tienda/[slug]/catalogo.ts");
-  assert.match(c, /todos\.filter\(vendibleEnLaWeb\)/);
+  // La única excepción es la preventa (Fer, 5/11): el «stock» de un producto sin físico es el cupo de su orden.
+  assert.match(c, /conPreventa\.filter\(vendibleEnLaWeb\)/);
+  assert.match(c, /if \(!x \|\| p\.stock > 0\) return p;/);
   assert.match(c, /p\.estado = 'activo'/);
 });
 
@@ -23,7 +25,8 @@ test("la ficha por link directo exige activo, precio y stock", () => {
   assert.match(f, /p\.estado = 'activo'/);
   assert.match(f, /v\.estado = 'activa'/);
   assert.match(f, /else pr\.venta_ars end, 0\) > 0/);
-  assert.match(f, /stock_disponible_canal\(\$2, v\.id, \$3\) > 0/);
+  // Sin stock no se muestra, salvo la preventa (lo que llega en una orden publicada en la web).
+  assert.match(f, /filas\.filter\(\(f\) => f\.disponible > 0 \|\| ofertas\.has\(f\.id\)\)/);
 });
 
 test("el catálogo de publicidad nunca manda sin stock, sin precio ni inactivos", () => {

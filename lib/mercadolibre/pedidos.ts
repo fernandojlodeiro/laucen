@@ -214,6 +214,13 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
     lineasDe.set(o.id, lineas);
   }
   const porId = (ords: OrdenMl[]) => Object.fromEntries(ords.map((o) => [String(o.id), o]));
+  // Preventa (Fer, 5/11): si alguna publicación vendida estaba en preventa (Laucen la pasó a entrega diferida para una
+  // orden de compra), el pedido nace como preventa de esa orden. ML ya la vendió: se registra aunque el cupo no cierre.
+  const itemsVendidos = [...new Set(ordenes.flatMap((o) => o.order_items.map((it) => it.item.id)))];
+  const enPreventa = itemsVendidos.length ? await consulta<{ orden: number }>(
+    "select preventa_orden_id::int orden from publicacion where canal_id = $1 and id_externo = any($2::text[]) and preventa_orden_id is not null order by id limit 1",
+    [canalId, itemsVendidos]) : [];
+  const preventaMl = enPreventa[0] ? { ordenId: enPreventa[0].orden, forzar: true } : null;
 
   const { pedidoId, todas } = await enTransaccion(async (c) => {
     // Dos notificaciones del mismo carrito no se pisan: una espera a la otra.
@@ -247,6 +254,7 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
         permitir_sin_vincular: true,
         datos_externos: { ml: { orden: primera, ordenes: porId(todasAhora), pack_id: packId, facturacion: facturacion.billing_info ?? null } },
         comision_ars: comisionDe(vivas) || null,
+        preventa: preventaMl,
       }, "sistema", c);
       // Un carrito nuevo arranca su espera de 10 minutos desde la orden más
       // reciente (si se importa tarde, por el barrido, ya no espera).

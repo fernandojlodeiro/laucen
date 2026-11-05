@@ -88,6 +88,24 @@ export async function accionSincronizarStock(fd: FormData) {
   });
 }
 
+/** Preventa automática (Fer, 5/11; lib/mercadolibre/stock.ts): con stock 0 y una orden de compra con «Publicar en
+ *  Mercado Libre» prendido, Laucen pasa la publicación a entrega diferida con su parte del cupo, y la vuelve a normal
+ *  cuando llega la mercadería. Prenderlo es el clic de Fer. Necesita «Stock a ML» prendido (es la misma revisión). */
+export async function accionPreventaAutomatica(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  await intentar(volver(canal), async () => {
+    await canalMl(s.org.id, fd);
+    const prender = fd.get("valor") === "1";
+    await consulta(`update canal set config = config || jsonb_build_object('preventa_automatica', $3::boolean) where id = $2 and organizacion_id = $1`,
+      [s.org.id, canal, prender]);
+    revalidatePath("/config/canales");
+    if (!prender) return "Laucen ya no pone ni saca la preventa sola en esta cuenta (lo que ya está en preventa queda como está).";
+    const r = await sincronizarStockMl(s.org.id, undefined, undefined, { canal });
+    return `Prendido. Revisadas ${r.revisadas} publicaciones; quedaron en la cola ${r.cantidades + r.reactivadas + r.pausadas} cambios (incluye las que pasan a preventa). Salen solas en los próximos minutos.`;
+  });
+}
+
 /** Prende o apaga que Laucen suba sola a la venta de ML cada factura (y
  *  nota de crédito) que ARCA autoriza. Prenderlo es el clic de Fer. */
 export async function accionSubirFacturas(fd: FormData) {

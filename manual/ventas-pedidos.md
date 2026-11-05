@@ -479,6 +479,13 @@ Si una venta de Mercado Libre trae un artículo que no está vinculado a un prod
 - El mensaje depende del estado (recibido, pago confirmado, preparando, listo, salió con su seguimiento, entregado, cancelado, devolución). En los pedidos de la tienda web suma el link de seguimiento del pedido.
 - Laucen no manda nada solo: abre WhatsApp con el texto y lo mandás vos.
 
+### Pedidos de preventa
+
+- Un pedido de preventa sale de lo que llega en una [orden de compra al exterior](/compras/ordenes): no se prepara ni se despacha hasta que llega la mercadería (al recibirla, se le reserva el stock y sigue como cualquier pedido).
+- Al cargar un pedido a mano, el buscador de productos muestra si un producto está en preventa (cupo y fecha) o si tiene mercadería llegando. Con algún producto en preventa aparece **Pedido de preventa**: tildada, el pedido sale entero de esa orden, con el precio de preventa. No se mezcla con productos en stock ni con otra orden: esos van en otro pedido.
+- **Confirmar pago** de un pedido con seña cobra lo que falta (la seña o el saldo). Con la seña, la reserva ya no vence sola.
+- Los casos para resolver (sin cubrir, saldos vencidos, en espera) están en [Preventas](/ventas/preventas).
+
 ## Preguntas frecuentes
 
 **¿Por qué no veo un pedido viejo?**

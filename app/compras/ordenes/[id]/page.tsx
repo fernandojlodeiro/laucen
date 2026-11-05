@@ -23,6 +23,7 @@ import { configPreventa, pedidosEnPreventa } from "@/lib/preventa";
 import SubirPacking from "./SubirPacking";
 import {
   accionAgregarLineaOrden, accionBorrarLineaOrden, accionConfirmarOrden, accionGuardarLineaOrden, accionGuardarOrden, accionPublicarOrden, accionRecibirOrden, accionVolverABorrador,
+  accionPrepararPreventaMl,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -143,6 +144,12 @@ export default async function FichaOrden({ params, searchParams }: { params: Pro
             <Interruptor accion={accionPublicarOrden} prendido={o.publicar_ml} campos={{ id: String(oid), canal: "ml" }} compacto deshabilitado={!enCamino}
               etiqueta="Publicar en Mercado Libre" ayuda={`Las publicaciones sin stock pasan a «disponible N días después de la compra» hasta el ${diaAr(o.llegada_ml ?? o.llegada)} (tope ${cfg.mlMaxDias} días). Sólo en los canales con «Preventa automática» prendida; si no, queda preparado en la cola.`} />
           </div>
+          {o.publicar_ml && enCamino && (
+            <form action={accionPrepararPreventaMl} className="mt-2">
+              <input type="hidden" name="id" value={oid} />
+              <button className={SUAVE} title="Para las cuentas de Mercado Libre sin la preventa automática: arma el lote y lo mandás vos desde la cola">Preparar el lote para Mercado Libre</button>
+            </form>
+          )}
           <p className="text-[11px] text-[#5C6B76] mt-2">
             Vendido en preventa: <b>{o.prevendido}</b> u. — <Link href={`/ventas/preventas?orden=${oid}`} className="text-[#16577F] hover:underline">ver en Preventas</Link>
           </p>

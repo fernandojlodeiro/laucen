@@ -463,3 +463,15 @@ export async function preventaDeProductos(org: string, canalId: number): Promise
   }
   return salida;
 }
+
+/** El descuento de preventa de cada variación en su orden (el del producto; si no, el de la orden; si no, el general). */
+export async function descuentosPreventa(org: string, items: { variacionId: number; ordenId: number }[]): Promise<Map<number, number>> {
+  if (!items.length) return new Map();
+  const cfg = await configPreventa(org);
+  const r = await consulta<{ v: number; d: number | null }>(`
+    select x.v::int, coalesce(p.preventa_descuento_pct, o.descuento_pct)::float8 d
+      from unnest($2::bigint[], $3::bigint[]) x(v, o)
+      join variacion va on va.id = x.v join producto p on p.id = va.producto_id
+      left join orden_compra o on o.id = x.o and o.organizacion_id = $1`, [org, items.map((i) => i.variacionId), items.map((i) => i.ordenId)]);
+  return new Map(r.map((x) => [x.v, x.d ?? cfg.descuentoPct]).filter(([, d]) => (d as number) > 0) as [number, number][]);
+}

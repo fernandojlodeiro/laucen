@@ -117,6 +117,15 @@ Para cualquier entrada que no sea compra ni devolución (por ejemplo, mercaderí
 - **Mercado Libre**: cada línea recibida avisa enseguida a Mercado Libre y a la tienda web el nuevo disponible (si el canal tiene prendida la sincronización de stock); si una publicación estaba pausada por falta de stock y ahora hay más que el umbral, se reactiva. El detalle está en [Consulta de stock](/stock/consulta).
 - No se puede borrar una línea ya recibida. Para corregir un error, hacé un [ajuste](/stock/ajustes) con el motivo.
 
+### Recepción de una orden de compra al exterior (por cajas)
+
+- La recepción de una orden se abre desde la orden (botón **Recibir**, en [Órdenes de compra al exterior](/compras/ordenes)). Arriba muestra cuántas cajas se recibieron.
+- Se escanea (o se toca) la **etiqueta de la caja** (por ejemplo, M0226-34): aparece lo que debería traer según el packing list. Se corrige lo que se contó de más o de menos y **Recibir la caja** la deja **entera en una ubicación con su mismo código**: el stock queda «en la caja».
+- **Sacar productos de una caja**: elegís la caja, el producto, cuántas y la ubicación de destino (un estante), y **Pasar**. Queda como un traslado. Cuando una caja queda vacía, su ubicación se archiva sola.
+- Lo que vino suelto (o sin packing list) se recibe abajo, producto por producto, como cualquier recepción.
+- **Lo que entra es primero de quienes lo compraron en preventa**: al recibir cada caja o producto, se les reserva en el orden en que compraron. Por eso un producto vendido en preventa puede seguir sin disponible aunque haya entrado.
+- **Cerrar recepción** deja la orden *recibida* (dice cuántas unidades faltaron). Lo que no alcanzó a cubrirse queda en [Preventas › Sin cubrir](/ventas/preventas?ver=sin_cubrir).
+
 ## Preguntas frecuentes
 
 **Me devolvieron un producto que se vendió antes de Laucen (con Virtual Seller), ¿qué hago?**

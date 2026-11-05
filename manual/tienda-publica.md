@@ -231,6 +231,12 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 - **Página no encontrada**: cualquier dirección que no existe muestra la página de la tienda («No encontramos esta página», con «Ir a la tienda» y «Ver todos los productos»), con la marca del dominio. Nunca la del sistema.
 - **Datos para Google**: la portada dice quién es la tienda (nombre, dirección, logo) y cómo se busca en ella; cada ficha, el producto con su precio (ver [Publicidad](/config/tienda/medicion)).
 
+### Preventa
+
+- Un producto sin stock que viene en una [orden de compra](/compras/ordenes) publicada en la web se muestra igual, con la marca **Preventa · llega aprox. el dd/mm**, el precio de preventa y el cupo como disponible. Es la única excepción a «sin stock no se muestra».
+- En el checkout, si toda la compra es de preventa, el cliente elige **pagar todo** o **una seña** (el % de [Preventas › Configuración](/ventas/preventas?ver=config)); el resto se paga cuando llega. Con productos en stock y en preventa, la compra se parte en dos pedidos que se pagan juntos. Productos que llegan en fechas distintas van en compras separadas.
+- La página del pedido muestra la preventa, la seña cobrada y el saldo. Cuando llega, le llega un mail con el enlace para pagar el saldo.
+
 ## Preguntas frecuentes
 
 **¿El cliente necesita cuenta para comprar?**

@@ -449,6 +449,13 @@ Tacho de arriba a la derecha → "¿Borrar el producto entero?" → **Sí**. Se 
 
 **Cucardas del producto**: sin fechas rigen siempre; con "Desde"/"Hasta", sólo esos días. Además, el producto hereda las cucardas de su familia y de las familias de más arriba. Se muestran en la tienda web (sólo las cucardas activas y vigentes hoy).
 
+### Pestaña Preventa de la ficha
+
+- **Preventa en la web** y **Preventa en Mercado Libre**: sí, no o «Lo general» (lo que diga [Preventas › Configuración](/ventas/preventas?ver=config)). «No publicable» y «Jamás publicar en Mercado Libre» siempre ganan: con cualquiera de ellos no hay preventa en ese canal.
+- **Descuento de preventa %** y **Margen de seguridad** (unidades, % y si toma el menor o el mayor): vacíos, los de la orden; si la orden no los tiene, los generales.
+- Abajo, por variación y canal, si hoy se ofrece en preventa, de qué orden, cuándo llega, cuánto cupo queda y con qué descuento.
+- La pestaña **Stock** muestra además la mercadería entrante (llegando · prevendido · saldo) de cada variación, y la lista de productos tiene la columna **Llegando** con los tres datos.
+
 ## Preguntas frecuentes
 
 **¿Por qué mi producto dice "Variaciones (0)" si en la lista figura con 1?**

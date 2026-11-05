@@ -243,7 +243,9 @@ export type PedidoEntrada = {
   /** Preventa (lib/preventa): el pedido sale de la mercadería entrante de una orden de compra. Se valida que todo
    *  venga de la misma orden y que haya cupo (si no, falla con el motivo); el precio de cada línea sin precio dado lleva
    *  el descuento de preventa. `ordenId`: la orden que vio el cliente (si ya no es ésa, falla). */
-  preventa?: { ordenId?: number | null; senaArs?: number | null } | null;
+  preventa?: { ordenId?: number | null; senaArs?: number | null;
+    /** Una venta que ya se hizo afuera (Mercado Libre): se registra como preventa de esa orden sin validar el cupo. */
+    forzar?: boolean } | null;
 };
 
 export type PedidoCreado = {
@@ -285,7 +287,11 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
 
     // Preventa: se decide (y se valida que no mezcle) antes de poner los precios, porque llevan su descuento.
     let preventa: Awaited<ReturnType<typeof import("@/lib/preventa").decidirPreventa>> = null;
-    if (entrada.preventa) {
+    if (entrada.preventa?.forzar && entrada.preventa.ordenId) {
+      const o = (await c.query<{ llegada: string | null; llegada_ml: string | null }>("select llegada::text, llegada_ml::text from orden_compra where id = $1 and organizacion_id = $2",
+        [entrada.preventa.ordenId, org])).rows[0];
+      if (o) preventa = { ordenId: entrada.preventa.ordenId, codigo: "", llegada: o.llegada_ml ?? o.llegada ?? "", descuentos: new Map() };
+    } else if (entrada.preventa) {
       const { decidirPreventa } = await import("@/lib/preventa");
       const conVariacion: { variacion_id: number; cantidad: number }[] = [];
       for (const l of entrada.lineas) {
@@ -336,7 +342,7 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const pedidoId = Number(p.id);
     if (preventa) {
       await c.query("update pedido set preventa_orden_id = $2, preventa_llegada = $3, preventa_sena_ars = $4 where id = $1",
-        [pedidoId, preventa.ordenId, preventa.llegada, entrada.preventa?.senaArs ?? null]);
+        [pedidoId, preventa.ordenId, preventa.llegada || null, entrada.preventa?.senaArs ?? null]);
     }
     await insertarLineas(c, org, pedidoId, lineas, 0);
     await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)

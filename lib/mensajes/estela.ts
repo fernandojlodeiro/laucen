@@ -12,6 +12,8 @@
 // teléfono). Nunca cambia nada del sistema. Una característica técnica que no
 // está en la ficha la busca en internet (Fer, 25/10; lib/datos-internet.ts).
 
+import { ofertasPreventa } from "@/lib/preventa";
+import { entrantePorVariacion } from "@/lib/compras/ordenes";
 import { reglasIaEmpresa } from "@/lib/canales/textos";
 import Anthropic from "@anthropic-ai/sdk";
 import { clienteClaude, hayClaude } from "@/lib/claude";
@@ -278,7 +280,7 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       if (!lista.length) return "No encontré productos con esas palabras. Probá con otras (más generales o sinónimos).";
       const packs = await packsDe(org, lista.map((p) => p.id));
       const filas = await Promise.all(lista.map(async (p) =>
-        `#${p.id} ${p.titulo}${p.marca ? ` (${p.marca})` : ""}${textoPack(packs.get(p.id))} — ${formatear(p.venta, t.moneda)}${p.ventaMax > p.venta ? ` a ${formatear(p.ventaMax, t.moneda)}` : ""}${p.descuentoPct > 0 ? ` (con ${p.descuentoPct}% off, antes ${formatear(p.lista, t.moneda)})` : ""} — ${p.stock > 0 ? `hay ${p.stock}` : "SIN STOCK"}${p.variaciones > 1 ? ` — ${p.variaciones} variantes` : ""} — ${await urlTienda(t, `/producto/${p.id}`)}`));
+        `#${p.id} ${p.titulo}${p.marca ? ` (${p.marca})` : ""}${textoPack(packs.get(p.id))} — ${formatear(p.venta, t.moneda)}${p.ventaMax > p.venta ? ` a ${formatear(p.ventaMax, t.moneda)}` : ""}${p.descuentoPct > 0 ? ` (con ${p.descuentoPct}% off, antes ${formatear(p.lista, t.moneda)})` : ""} — ${p.preventa ? `PREVENTA: sin stock, llega aprox. el ${p.preventa.llegada.split("-").reverse().join("/")} (quedan ${p.stock} en preventa; se puede pagar todo o una seña)` : p.stock > 0 ? `hay ${p.stock}` : "SIN STOCK"}${p.variaciones > 1 ? ` — ${p.variaciones} variantes` : ""} — ${await urlTienda(t, `/producto/${p.id}`)}`));
       return filas.join("\n");
     }
     case "ver_producto": {
@@ -293,10 +295,26 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
                greatest(stock_disponible_canal($1, v.id, $2), 0)::int disp
           from variacion v cross join lateral (select * from precio_de($1, v.id, $3)) pr
          where v.producto_id = $5 and v.estado = 'activa' order by v.orden, v.id`, [org, t.canalId, t.listaId, t.moneda, id]).catch(() => []);
+      // Lo que viene en camino (órdenes de compra al exterior): la preventa que se ofrece y la mercadería que llega.
+      const ids = (await consulta<{ id: number; sku: string }>("select id::int, sku from variacion where producto_id = $1 and estado = 'activa'", [id])).map((x) => x);
+      const porSku = new Map(ids.map((x) => [x.sku, x.id]));
+      const [ofertas, entrante] = await Promise.all([
+        ofertasPreventa(org, ids.map((x) => x.id), { id: t.canalId, tipo: "web" }),
+        entrantePorVariacion(org, ids.map((x) => x.id)),
+      ]);
+      const dia = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
+      const viene = (sku: string, disp: number, venta: number) => {
+        const v = porSku.get(sku);
+        const o = v ? ofertas.get(v) : undefined;
+        if (o) return `SIN STOCK — EN PREVENTA: llega aprox. el ${dia(o.llegada)}, quedan ${o.cupo}, precio de preventa ${formatear(Math.round(venta * (1 - o.descuentoPct / 100)), t.moneda)} (se puede pagar todo o una seña y el resto cuando llega)`;
+        const e = v ? entrante.get(v) : undefined;
+        const llega = e && e.saldo > 0 ? ` (viene mercadería: llega aprox. el ${dia(e.proxima_llegada)}; todavía no se puede comprar)` : "";
+        return disp > 0 ? `hay ${disp}${llega}` : `SIN STOCK${llega}`;
+      };
       return [
         `#${p.id} ${p.titulo}${p.marca ? ` (${p.marca})` : ""}${textoPack((await packsDe(org, [p.id])).get(p.id))}`,
         `Link: ${await urlTienda(t, `/producto/${p.id}`)}`,
-        ...vars.map((v) => `- ${v.nombre} (SKU ${v.sku}): ${formatear(Number(v.venta), t.moneda)} — ${v.disp > 0 ? `hay ${v.disp}` : "SIN STOCK"}`),
+        ...vars.map((v) => `- ${v.nombre} (SKU ${v.sku}): ${formatear(Number(v.venta), t.moneda)} — ${viene(v.sku, v.disp, Number(v.venta))}`),
         det?.notas_ia ? `Datos técnicos (de la tienda; para preguntas técnicas mandan sobre la descripción): ${det.notas_ia.slice(0, 2000)}` : "",
         det?.descripcion ? `Descripción: ${det.descripcion.slice(0, 2500)}` : "",
       ].filter(Boolean).join("\n");

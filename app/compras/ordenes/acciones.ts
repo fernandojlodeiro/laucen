@@ -158,3 +158,18 @@ export async function accionRecibirOrden(fd: FormData) {
     return { ir: `/deposito/recepcion/${r}` };
   });
 }
+
+/** «Preparar el lote para Mercado Libre»: en las cuentas sin la preventa automática, arma el lote con el pase a preventa
+ *  de las publicaciones sin stock de esta orden, para mandarlo con el botón de la cola. */
+export async function accionPrepararPreventaMl(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const oid = id(fd);
+  await intentar(ficha(oid), async () => {
+    const o = await una<{ publicar_ml: boolean }>("select publicar_ml from orden_compra where id = $1 and organizacion_id = $2", [oid, s.org.id]);
+    if (!o?.publicar_ml) throw new ErrorErp("Primero prendé «Publicar en Mercado Libre».");
+    const { prepararPreventaMl } = await import("@/lib/mercadolibre/stock");
+    const lotes = await prepararPreventaMl(s.org.id, oid, s.usuario.id);
+    if (!lotes.length) return "No hay publicaciones para pasar a preventa en las cuentas sin la preventa automática (o ya están).";
+    return `Lotes preparados: ${lotes.map((l) => `${l.canal} (lote ${l.loteId}, ${l.cambios} publicaciones)`).join("; ")}. Mandalos desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`;
+  });
+}

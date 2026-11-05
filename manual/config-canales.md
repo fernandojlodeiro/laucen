@@ -370,6 +370,12 @@ El interruptor de que los precios sigan a la publicación Clásica ("sincronizar
 
 Todas las noches, de 2 a 5 (hora argentina), para cada cuenta con "Laucen manda el stock" prendido (de a una cuenta por vez): lee de ML todas sus publicaciones, refresca lo que Laucen sabe de cada una, lo compara con lo que debería ser (stock disponible del canal, umbral, estado) y encola las diferencias con origen "Barrida nocturna" (las pausas primero). Sólo lee de ML; lo que haya que cambiar sale por la cola. Si una noche no termina en una corrida, sigue en la siguiente dentro de la ventana.
 
+### Preventa automática (cuentas de Mercado Libre)
+
+- Debajo de **Stock a ML**, el interruptor **Preventa**. Prendido, cuando una publicación se queda sin stock y hay una [orden de compra](/compras/ordenes) con «Publicar en Mercado Libre» prendido, Laucen la pasa a entrega diferida («disponible N días después de la compra», hasta la fecha de arribo para Mercado Libre) con su parte del cupo, actualiza los días cada día y, cuando llega la mercadería, le saca la demora. Necesita **Stock a ML** prendido.
+- Apagado, no la pone sola: desde la orden se prepara el lote («Preparar el lote para Mercado Libre») y se manda con su botón en la cola. Lo que ya está en preventa queda como está.
+- Ver los criterios en [Preventas](/ventas/preventas).
+
 ## Preguntas frecuentes
 
 **¿Por qué un producto tiene stock pero en Mercado Libre aparece pausado?**

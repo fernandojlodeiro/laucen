@@ -252,3 +252,86 @@ test("llega menos de lo vendido: el último en comprar queda sin cubrir; en espe
   const ent = (await m.ordenes.entrantePorVariacion(e.org, [v])).get(v)!;
   assert.deepEqual([ent.llegando, ent.prevendido, ent.saldo], [30, 8, 22]);
 });
+
+test("seña en la web: la seña no deja el pedido pago (le saca el vencimiento); al llegar corre el plazo del saldo; el saldo lo deja pago", async () => {
+  const e = await escenario();
+  const v = await e.producto("SKU00060", 10000);
+  const o = await ordenConfirmada(e, [["SKU00060", 20, 1]]);
+  await m.ordenes.publicarOrden(e.org, o.id, "web", true);
+  const p = await m.pedidos.crearPedido(e.org, { canalId: e.canal, lineas: [{ variacion_id: v, cantidad: 2 }], preventa: { ordenId: o.id, senaArs: 6000 } }, "test");
+  const { confirmarPago, importeAPagar } = await import("@/lib/tienda/pagos/confirmar");
+  assert.deepEqual(await importeAPagar(e.org, p.pedidoId), { importe: 6000, sena: true, saldo: false });
+  await q("update pedido set reserva_hasta = current_date + 7 where id = $1", [p.pedidoId]);
+  await confirmarPago(e.org, p.pedidoId, { medio: "transferencia", importe: 6000 }, "test");
+  let ped = (await q<{ estado: string; estado_pago: string; reserva_hasta: string | null }>("select estado, estado_pago, reserva_hasta from pedido where id = $1", [p.pedidoId]))[0];
+  assert.deepEqual([ped.estado, ped.estado_pago, ped.reserva_hasta], ["nuevo", "pendiente", null]);
+  assert.deepEqual(await importeAPagar(e.org, p.pedidoId), { importe: 14000, sena: false, saldo: true });
+  // Llega: queda reservado, con plazo para el saldo y el aviso en la cola.
+  const rec = await m.recepcion.crearRecepcion(e.org, { tipo: "compra", depositoId: e.deposito, ordenCompraId: o.id }, "test");
+  await m.recepcion.recibir(e.org, rec, { codigo: "SKU00060", cantidad: 20 }, "test");
+  const x = (await q<{ hasta: string | null; cola: number }>(`select preventa_saldo_hasta::text hasta,
+     (select count(*)::int from correo_cola where pedido_id = $1 and tipo = 'preventa_llego') cola from pedido where id = $1`, [p.pedidoId]))[0];
+  assert.ok(x.hasta, "plazo del saldo");
+  assert.equal(x.cola, 1);
+  await confirmarPago(e.org, p.pedidoId, { medio: "transferencia", importe: 14000 }, "test");
+  ped = (await q<{ estado: string; estado_pago: string; reserva_hasta: string | null }>("select estado, estado_pago, reserva_hasta from pedido where id = $1", [p.pedidoId]))[0];
+  assert.deepEqual([ped.estado, ped.estado_pago], ["pagado", "pagado"]);
+  // Ya se prepara.
+  await m.pedidos.cambiarEstado(e.org, p.pedidoId, "en_preparacion", "test");
+});
+
+test("carrito partido en dos: el pago del primero salda también el de preventa, cada pedido con lo suyo", async () => {
+  const e = await escenario();
+  const fis = await e.producto("SKU00070", 5000);
+  const pre = await e.producto("SKU00071", 8000);
+  await m.stock.moverStock(e.org, { variacionId: fis, tipo: "ingreso", cantidad: 10, destinoId: e.general });
+  const o = await ordenConfirmada(e, [["SKU00071", 20, 1]]);
+  await m.ordenes.publicarOrden(e.org, o.id, "web", true);
+  const a = await m.pedidos.crearPedido(e.org, { canalId: e.canal, lineas: [{ variacion_id: fis, cantidad: 1 }] }, "test");
+  const b = await m.pedidos.crearPedido(e.org, { canalId: e.canal, lineas: [{ variacion_id: pre, cantidad: 1 }], preventa: { ordenId: o.id } }, "test");
+  await q(`update pedido set datos_externos = jsonb_set(datos_externos, '{tienda}', jsonb_build_object('junto', jsonb_build_array($2::bigint))) where id = $1`, [a.pedidoId, b.pedidoId]);
+  const { confirmarPago, importeAPagar } = await import("@/lib/tienda/pagos/confirmar");
+  assert.equal((await importeAPagar(e.org, a.pedidoId)).importe, 13000);
+  await confirmarPago(e.org, a.pedidoId, { medio: "mercadopago", idExterno: `MP-${randomUUID()}`, importe: 13000 }, "test");
+  const r = await q<{ id: number; estado_pago: string; cobrado: number }>(`select id::int, estado_pago,
+      (select coalesce(sum(importe_ars), 0)::float8 from pago where pedido_id = p.id and estado = 'aprobado') cobrado from pedido p where id = any($1::bigint[]) order by id`, [[a.pedidoId, b.pedidoId]]);
+  assert.deepEqual(r.map((x) => [x.estado_pago, x.cobrado]), [["pagado", 5000], ["pagado", 8000]]);
+  // El de preventa pagado igual espera su orden (no se prepara).
+  await assert.rejects(m.pedidos.cambiarEstado(e.org, b.pedidoId, "en_preparacion", "test"), /preventa/);
+});
+
+test("Mercado Libre: el cupo se reparte entre las cuentas; la fecha de ML tiene que caber en el tope de días", async () => {
+  const e = await escenario();
+  const v = await e.producto("SKU00080");
+  await q("update producto set preventa_ml = true where id = (select producto_id from variacion where id = $1)", [v]);
+  const canales: number[] = [];
+  for (const n of ["ML1", "ML2"]) {
+    const c = await id("insert into canal (organizacion_id, nombre, tipo, lista_precios_id, config) values ($1, $2, 'mercadolibre', $3, '{\"sincronizar_stock\": true, \"preventa_automatica\": true}') returning id", [e.org, n, e.lista]);
+    await q("insert into canal_deposito (organizacion_id, canal_id, deposito_id) values ($1, $2, $3)", [e.org, c, e.deposito]);
+    canales.push(c);
+  }
+  const o = await ordenConfirmada(e, [["SKU00080", 11, 1]]);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const en = (d: number) => new Date(Date.parse(`${hoy}T12:00:00Z`) + d * 86400000).toISOString().slice(0, 10);
+  await q("update orden_compra set llegada = $2, llegada_ml = $3 where id = $1", [o.id, en(10), en(60)]);
+  await m.ordenes.publicarOrden(e.org, o.id, "ml", true);
+  const pubs = canales.map((c, i) => ({ id: 1000 + i, canal_id: c, variacion_id: v, id_externo: `MLA${i}`, variacion_externa: null, estado: "pausada", pausada_por_stock: true,
+    pausada_manual: false, cantidad_publicada: 0, disponible: 0, umbral: 0, asignado: null, preventa_orden_id: null, preventa_dias: null } as Parameters<typeof import("@/lib/mercadolibre/stock").cambioDeStock>[0]));
+  const { marcarPreventa } = await import("@/lib/mercadolibre/stock");
+  // 60 días: más que el tope (45): no se ofrece en ML.
+  await marcarPreventa(e.org, pubs);
+  assert.equal(pubs[0].preventa ?? null, null);
+  await q("update orden_compra set llegada_ml = $2 where id = $1", [o.id, en(30)]);
+  await marcarPreventa(e.org, pubs);
+  // 11 − margen 2 (10 % de 11 = 1,1 → 2) = 9: 5 y 4.
+  assert.deepEqual(pubs.map((p) => p.preventa?.cupo), [5, 4]);
+  assert.equal(pubs[0].preventa?.dias, 30);
+  // Una venta de ML en preventa entra forzada como pedido de esa orden.
+  const pv = await m.pedidos.crearPedido(e.org, { canalId: canales[0], id_externo: "ORD-1", lineas: [{ variacion_id: v, cantidad: 1, precio_unitario: 9000 }], datos_externos: { ml: {} },
+    preventa: { ordenId: o.id, forzar: true } }, "sistema");
+  await m.pedidos.cambiarEstado(e.org, pv.pedidoId, "pagado", "sistema", null, undefined, { desdeMl: true });
+  const ent = (await m.ordenes.entrantePorVariacion(e.org, [v])).get(v)!;
+  assert.equal(ent.prevendido, 1);
+  const ll = (await q<{ l: string }>("select preventa_llegada::text l from pedido where id = $1", [pv.pedidoId]))[0].l;
+  assert.equal(ll, en(30), "la fecha prometida es la de ML");
+});

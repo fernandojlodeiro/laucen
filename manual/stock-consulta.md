@@ -120,6 +120,10 @@ Abrí el producto y apretá **"Ajustar"**: te lleva a [Ajustes de stock](/stock/
 - **Full**: las publicaciones con logística Full no se tocan nunca (el stock lo maneja Mercado Libre).
 - Nada se manda directo: todo entra a la [Cola de Mercado Libre](/config/canales/cola), que manda respetando los límites de Mercado Libre, reintenta si falla y registra qué se mandó y con qué resultado. Si hay un cambio de cantidad esperando y llega otro para la misma publicación, el nuevo reemplaza al viejo. Lo que queda grabado en Laucen (pausada, cantidad informada) se graba recién cuando Mercado Libre lo acepta.
 
+### Mercadería entrante
+
+- Las columnas **Lleg.**, **Prev.** y **Saldo** muestran lo que viene en camino en las [órdenes de compra al exterior](/compras/ordenes): *llegando* (lo que todavía tienen que traer), *prevendido* (lo vendido en preventa de esas órdenes) y *saldo* (llegando − prevendido). Tocando «Llegando» se abre la próxima orden que llega. En el detalle de un producto, la misma línea con la orden y su fecha.
+
 ## Preguntas frecuentes
 
 **¿Por qué el disponible es menor que lo que hay en el estante?**

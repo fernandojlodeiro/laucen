@@ -111,7 +111,7 @@ type FilaPub = {
   item: string; var: string | null; estado: string; tipo: string | null; categoria: string | null;
   precio_canal: number | null; precio_mi: number | null; original: number | null; tags: unknown; cat_prod: string | null;
   user_product: string | null; catalogo: boolean; relacion: string | null; clasica: number | null; stock: number | null;
-  ptw: number | null; ptw_estado: string | null; ptw_ts: Date | null;
+  ptw: number | null; ptw_estado: string | null; ptw_ts: Date | null; pv_orden: number | null;
 };
 
 /** Lo que se muestra de cada variación además de la propuesta. */
@@ -135,7 +135,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
            coalesce((p.datos_externos ->> 'catalogo')::boolean, (mi.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) catalogo,
            mi.datos_externos -> 'ml' -> 'item_relations' -> 0 ->> 'id' relacion,
            pd.lista_ars::float8 clasica, stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id) stock,
-           w.precio::float8 ptw, w.estado ptw_estado, w.leido_ts ptw_ts
+           w.precio::float8 ptw, w.estado ptw_estado, w.leido_ts ptw_ts, p.preventa_orden_id::int pv_orden
       from publicacion p
       join variacion v on v.id = p.variacion_id
       join producto pr on pr.id = v.producto_id
@@ -177,6 +177,11 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     if (f.estado !== "activa") pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
   }
   const propuestas: Calculo["propuestas"] = [];
+  // Preventa (Fer, 5/11): mientras la publicación está en preventa (entrega diferida), su Clásica lleva el descuento de
+  // preventa (el del producto; si no, el de la orden; si no, el general) y todo el esquema sale de ahí. Al terminar la
+  // preventa vuelve al precio de siempre.
+  const enPreventa = filas.filter((f) => f.pv_orden).map((f) => ({ variacionId: f.variacion_id, ordenId: f.pv_orden! }));
+  const descPreventa = enPreventa.length ? await (await import("@/lib/preventa")).descuentosPreventa(org, enPreventa) : new Map<number, number>();
   for (const [variacionId, fs] of porVariacion) {
     const f0 = fs[0];
     const cadena = cadenaFamilias(f0.familia_id, familias.padres);
@@ -197,7 +202,8 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     }));
     const entrada: EntradaVariacion = {
       variacionId, productoId: f0.producto_id, lugar: { productoId: f0.producto_id, familias: cadena },
-      clasica: f0.clasica, stock: f0.stock, comisiones: c.valores, comisionEstimada: c.estimada, pubs,
+      clasica: f0.clasica != null && descPreventa.get(variacionId) ? Math.round(f0.clasica * (1 - descPreventa.get(variacionId)! / 100)) : f0.clasica,
+      stock: f0.stock, comisiones: c.valores, comisionEstimada: c.estimada, pubs,
       planesPausados: [...(pausados.get(variacionId) ?? [])].filter(Boolean) as PlanOClasica[],
     };
     const propuesta = proponer(entrada, reglas);

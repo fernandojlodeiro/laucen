@@ -27,7 +27,9 @@ export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo
 
 /** Lo que se graba en Laucen cuando ML acepta el cambio. */
 export type Efecto = {
-  publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; pausada_manual?: boolean; cantidad_publicada?: number; precio_canal?: number };
+  publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; pausada_manual?: boolean; cantidad_publicada?: number; precio_canal?: number;
+    /** Preventa (lib/mercadolibre/stock.ts): de qué orden y con cuántos días quedó la demora (nulls: se le sacó). */
+    preventa?: { ordenId: number | null; dias: number | null } };
   /** Una acción sobre un reclamo (lib/mercadolibre/reclamos.ts): queda en su historia. */
   reclamo?: { id: number; descripcion: string };
   /** Un alta: la publicación creada (y las de catálogo que salgan con ella) se vincula a esta variación en el momento,
@@ -236,6 +238,13 @@ export function pedidosDe(f: { item_id: string; variation_id: string; tipo: Tipo
   const salida: PedidoMl[] = [];
   switch (f.tipo) {
     case "stock": {
+      // Preventa (Fer, 5/11): la demora «disponible N días después de la compra» (término de venta MANUFACTURING_TIME),
+      // antes que la cantidad y el estado; null se la saca. ML junta los términos por id (no borra la garantía).
+      if (p.preventa && typeof p.preventa === "object") {
+        const dias = (p.preventa as { dias: number | null }).dias;
+        salida.push({ metodo: "PUT", ruta, cuerpo: { sale_terms: [dias ? { id: "MANUFACTURING_TIME", value_name: `${Math.max(1, Math.trunc(dias))} días` }
+          : { id: "MANUFACTURING_TIME", value_id: null, value_name: null }] } });
+      }
       const cantidad = (seguir: boolean): PedidoMl => {
         const n = Math.max(0, Math.trunc(Number(p.cantidad)));
         return { metodo: "PUT", ruta, cuerpo: variacion ? { variations: [{ id: variacion, available_quantity: n }] } : { available_quantity: n }, ...(seguir ? { seguirSiFalla: true } : {}) };
@@ -298,9 +307,11 @@ async function aplicarEfecto(org: string, e: Efecto | null) {
   if (!p?.id) return;
   await consulta(`
     update publicacion set estado = coalesce($3, estado), pausada_por_stock = coalesce($4, pausada_por_stock), pausada_manual = coalesce($7, pausada_manual),
-           cantidad_publicada = coalesce($5, cantidad_publicada), precio_canal = coalesce($6, precio_canal), ultima_sincronizacion_ts = now()
+           cantidad_publicada = coalesce($5, cantidad_publicada), precio_canal = coalesce($6, precio_canal), ultima_sincronizacion_ts = now(),
+           preventa_orden_id = case when $8 then $9::bigint else preventa_orden_id end, preventa_dias = case when $8 then $10::int else preventa_dias end
      where id = $2 and organizacion_id = $1`,
-    [org, p.id, p.estado ?? null, p.pausada_por_stock ?? null, p.cantidad_publicada ?? null, p.precio_canal ?? null, p.pausada_manual ?? null]);
+    [org, p.id, p.estado ?? null, p.pausada_por_stock ?? null, p.cantidad_publicada ?? null, p.precio_canal ?? null, p.pausada_manual ?? null,
+      !!p.preventa, p.preventa?.ordenId ?? null, p.preventa?.dias ?? null]);
 }
 
 /** Lo que pasó con una acción sobre un reclamo, en su historia. Si salió,

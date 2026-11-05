@@ -20,7 +20,7 @@ import {
 } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
 import InterruptorConfirmar from "./InterruptorConfirmar";
-import { accionSincronizarStock, accionSubirFacturas, accionSincronizarPrecios, accionRepartoActivo, accionGuardarReparto } from "./acciones-ml";
+import { accionSincronizarStock, accionSubirFacturas, accionSincronizarPrecios, accionRepartoActivo, accionGuardarReparto, accionPreventaAutomatica } from "./acciones-ml";
 import { leerReparto } from "@/lib/mercadolibre/reparto";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
@@ -62,7 +62,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
     umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null; apodo: string | null; emisor_id: number | null; emisor: string | null;
-    sincroniza: boolean; sube_facturas: boolean; precios: boolean; color: string | null; orden_copia: number | null;
+    sincroniza: boolean; sube_facturas: boolean; precios: boolean; color: string | null; orden_copia: number | null; preventa: boolean;
   }>(`
     select c.id::int, c.nombre, c.color, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
            c.config ? 'token' tiene_llave,
@@ -72,7 +72,8 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
            (select mc.nickname from meli_cuenta mc where mc.canal_id = c.id) apodo,
            c.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id) emisor,
            coalesce((c.config ->> 'sincronizar_stock')::boolean, false) sincroniza, coalesce((c.config ->> 'subir_facturas')::boolean, false) sube_facturas,
-           coalesce((c.config ->> 'sincronizar_precios')::boolean, false) precios, (c.config ->> 'orden_copia')::int orden_copia
+           coalesce((c.config ->> 'sincronizar_precios')::boolean, false) precios, (c.config ->> 'orden_copia')::int orden_copia,
+           coalesce((c.config ->> 'preventa_automatica')::boolean, false) preventa
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
@@ -120,7 +121,10 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
     </select>
   );
   // Los interruptores de Mercado Libre de la fila (stock y facturas).
-  const interruptoresMl = (c: { id: number; sincroniza: boolean; sube_facturas: boolean; precios: boolean }) => ({
+  const interruptoresMl = (c: { id: number; sincroniza: boolean; sube_facturas: boolean; precios: boolean; preventa: boolean }) => ({
+    preventa: <InterruptorConfirmar accion={accionPreventaAutomatica} prendido={c.preventa} campos={{ canal: String(c.id) }}
+      etiqueta="Preventa automática: con stock 0 y una orden de compra publicada en ML, Laucen pasa la publicación a entrega diferida y la vuelve a normal al llegar"
+      preguntaPrender="¿Prender? Laucen pone y saca la preventa en ML solo" preguntaApagar="¿Apagar la preventa automática?" />,
     stock: <InterruptorConfirmar accion={accionSincronizarStock} prendido={c.sincroniza} campos={{ canal: String(c.id) }} etiqueta="Laucen manda el stock a ML y pausa al llegar al umbral"
       preguntaPrender="¿Prender? Laucen manda el stock y pausa en ML" preguntaApagar="¿Apagar el stock a ML?" />,
     facturas: <InterruptorConfirmar accion={accionSubirFacturas} prendido={c.sube_facturas} campos={{ canal: String(c.id) }} etiqueta="Subir facturas a Mercado Libre"
@@ -220,6 +224,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                     // Fuera del formulario: cada interruptor se guarda solo (con su Sí / No).
                     <div className="flex flex-wrap items-center gap-4 mt-2 text-xs">
                       <span className="inline-flex items-center gap-2">Stock a ML {interruptoresMl(c).stock}</span>
+                      <span className="inline-flex items-center gap-2">Preventa automática {interruptoresMl(c).preventa}</span>
                       <span className="inline-flex items-center gap-2">Precios a ML {interruptoresMl(c).precios}</span>
                       <span className="inline-flex items-center gap-2">Facturas a ML {interruptoresMl(c).facturas}</span>
                     </div>
@@ -240,7 +245,8 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                   : <span className="text-[#5C6B76]">—</span>}</td>
                 {multi && <td className={TD}>{c.emisor ?? <span className="text-[#C03420]">sin razón social</span>}</td>}
                 <td className={TDN}>{c.umbral ?? <span className="text-[#5C6B76]">hereda</span>}</td>
-                <td className={TD}>{c.tipo === "mercadolibre" ? interruptoresMl(c).stock : <span className="text-[#5C6B76]">—</span>}</td>
+                <td className={TD}>{c.tipo === "mercadolibre" ? <span className="inline-flex flex-col gap-1">{interruptoresMl(c).stock}
+                  <span className="inline-flex items-center gap-1 text-[10px] text-[#5C6B76] whitespace-nowrap">Preventa {interruptoresMl(c).preventa}</span></span> : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={TD}>{c.tipo === "mercadolibre" ? interruptoresMl(c).precios : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={TD}>{c.tipo === "mercadolibre" ? interruptoresMl(c).facturas : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="hover:underline">{c.tiene_llave ? "Tiene" : <span className="text-[#5C6B76]">sin llave</span>}</Link></td>

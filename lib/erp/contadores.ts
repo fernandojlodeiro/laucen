@@ -63,6 +63,20 @@ const CONTADORES: { clave: ClaveBarra; texto: string; href: string; permiso: Per
                    where m.organizacion_id = $1 and (m.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden')::int n,
                  (select floor(extract(epoch from max(x.detectada_ts)) * 1000) from meli_prohibicion x where x.organizacion_id = $1)::float8 marca`,
   },
+  {
+    // Preventas para resolver a mano (Fer, 5/11; lib/preventa): pedidos sin cubrir (llegó menos), saldos vencidos y
+    // pedidos de órdenes atrasadas (pasó la fecha y no llegó). La marca: el pedido más nuevo de esos.
+    clave: "preventas", texto: "Preventas", href: "/ventas/preventas?ver=sin_cubrir", permiso: "pedidos_ver",
+    sql: `with x as (
+            select p.id from pedido p join preventa_reserva r on r.pedido_id = p.id join orden_compra o on o.id = r.orden_id
+             where p.organizacion_id = $1 and r.estado = 'activa' and o.estado = 'recibida' and p.estado not in ('cancelado', 'devuelto')
+            union select p.id from pedido p where p.organizacion_id = $1 and p.estado = 'nuevo' and p.estado_pago = 'pendiente'
+               and p.preventa_saldo_hasta < (now() at time zone 'America/Argentina/Buenos_Aires')::date
+            union select p.id from pedido p join orden_compra o on o.id = p.preventa_orden_id
+             where p.organizacion_id = $1 and p.preventa_cubierto_ts is null and p.estado not in ('cancelado', 'devuelto') and o.estado = 'en_camino'
+               and coalesce(p.preventa_llegada, o.llegada) < (now() at time zone 'America/Argentina/Buenos_Aires')::date)
+          select count(*)::int n, max(id)::float8 marca from x`,
+  },
 ];
 
 /** Los contadores, con `nuevo` según hasta dónde vio cada uno el usuario (`visto`: {clave: marca}). */

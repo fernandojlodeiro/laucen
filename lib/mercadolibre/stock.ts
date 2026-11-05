@@ -36,6 +36,12 @@ type Pub = {
   pausada_por_stock: boolean; pausada_manual: boolean; cantidad_publicada: number | null; disponible: number; umbral: number;
   /** Lo que le toca a esta publicación en el reparto entre cuentas (null o sin dato: el disponible entero). */
   asignado?: number | null;
+  /** Preventa (Fer, 5/11; lib/preventa): cómo está hoy en ML (de qué orden y con cuántos días de demora) y, si le toca
+   *  estar en preventa, la orden, los días y lo que le toca del cupo. `preventaManual`: el canal no tiene la preventa
+   *  automática prendida (Laucen no la pone ni la cambia sola). */
+  preventa_orden_id?: number | null; preventa_dias?: number | null;
+  preventa?: { ordenId: number; dias: number; cupo: number } | null;
+  preventaManual?: boolean;
 };
 
 /** Cuántos cambios se calcularon (cantidades, pausas, reactivaciones) y cuántos
@@ -50,6 +56,51 @@ export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: 
 export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
   // Pausada a mano por el usuario: no se toca (ni se reactiva) hasta que él le saque la marca.
   if (p.pausada_manual) return null;
+  const c = cambioNormalOPreventa(p);
+  return c;
+}
+
+/** Preventa en Mercado Libre (Fer, 5/11): sin stock físico y con una orden publicada en ML, la publicación queda activa
+ *  con «disponible N días después de la compra» (el término de venta MANUFACTURING_TIME) y su parte del cupo. Cuando
+ *  vuelve a haber stock (o se termina la preventa), se le saca la demora y sigue como siempre. Pura. */
+function cambioNormalOPreventa(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
+  const base = { canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock" as const };
+  const antes = { estado: p.estado, cantidad: p.cantidad_publicada, preventa_dias: p.preventa_dias ?? null };
+  const enPreventa = p.preventa_orden_id != null;
+  // Un canal sin la preventa automática: la preventa la pone el lote que se manda con el botón (prepararPreventaMl). Ya
+  // puesta, acá no se toca mientras siga valiendo; si todavía no se puso, la publicación sigue la regla de siempre.
+  if (p.preventa && p.preventa.cupo > 0 && p.preventaManual && enPreventa) return null;
+  if (p.preventa && p.preventa.cupo > 0 && !p.preventaManual) {
+    const pv = p.preventa;
+    if (p.estado === "activa" && p.cantidad_publicada === pv.cupo && p.preventa_orden_id === pv.ordenId && p.preventa_dias === pv.dias) return null;
+    const reactiva = p.estado !== "activa";
+    return {
+      ...base, que: reactiva ? "reactivar" : "cantidad", prioridad: reactiva ? PRIORIDAD.reactivar : PRIORIDAD.normal, antes,
+      payload: { cantidad: pv.cupo, estado: "active", preventa: { dias: pv.dias } },
+      efecto: { publicacion: { id: p.id, estado: "activa", pausada_por_stock: false, cantidad_publicada: pv.cupo, preventa: { ordenId: pv.ordenId, dias: pv.dias } } },
+    };
+  }
+  if (p.preventa && p.preventa.cupo <= 0 && enPreventa) {
+    // Se agotó el cupo de la preventa: se pausa (con la demora puesta, por si se reparte de nuevo).
+    if (p.estado !== "activa") return null;
+    return {
+      ...base, que: "pausa", prioridad: PRIORIDAD.pausa, antes,
+      payload: { cantidad: 0, estado: "paused" },
+      efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: true, cantidad_publicada: 0 } },
+    };
+  }
+  const normal = cambioSinPreventa(p);
+  if (!enPreventa) return normal;
+  // Estaba en preventa y ya no corresponde: además de lo de siempre, se le saca la demora.
+  const sacar = { preventa: { dias: null } };
+  const efectoSacar = { preventa: { ordenId: null, dias: null } };
+  if (normal) {
+    return { ...normal, payload: { ...normal.payload, ...sacar }, efecto: { ...normal.efecto, publicacion: { ...normal.efecto!.publicacion!, ...efectoSacar } } };
+  }
+  return { ...base, que: "cantidad", prioridad: PRIORIDAD.normal, antes, payload: { ...sacar }, efecto: { publicacion: { id: p.id, ...efectoSacar } } };
+}
+
+function cambioSinPreventa(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
   const disp = Math.max(0, p.disponible);
   const cant = p.asignado == null ? disp : Math.min(disp, Math.max(0, p.asignado));
   const base = { canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock" as const };
@@ -104,7 +155,8 @@ export async function sincronizarStockMl(org: string, variaciones?: number[], _h
   const pubs = await consulta<Pub>(`
     select p.id::int, p.canal_id::int, p.variacion_id::int, p.id_externo, p.variacion_externa, p.estado, p.pausada_por_stock, p.pausada_manual,
            p.cantidad_publicada, stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id) disponible,
-           umbral_pausa_de(p.organizacion_id, p.variacion_id, p.canal_id) umbral
+           umbral_pausa_de(p.organizacion_id, p.variacion_id, p.canal_id) umbral, p.preventa_orden_id::int, p.preventa_dias,
+           not coalesce((c.config ->> 'preventa_automatica')::boolean, false) "preventaManual"
       from publicacion p join canal c on c.id = p.canal_id
      where p.organizacion_id = $1 and c.tipo = 'mercadolibre' and c.estado = 'activo'
        and coalesce((c.config ->> 'sincronizar_stock')::boolean, false)
@@ -120,6 +172,7 @@ export async function sincronizarStockMl(org: string, variaciones?: number[], _h
   for (const p of pubs) p.disponible -= enCamino.get(p.variacion_id) ?? 0;
   const reparto = await repartoDe(org, variacionesPubs, enCamino);
   for (const p of pubs) p.asignado = reparto.get(p.id) ?? null;
+  await marcarPreventa(org, pubs);
   const cuentas = new Map<number, CuentaMl | null>();
   const cambios: CambioMl[] = [];
   for (const p of pubs) {
@@ -252,4 +305,69 @@ export async function enCaminoDe(org: string, variaciones: number[]): Promise<Ma
                 and coalesce(l.datos_externos -> 'ml' ->> 'variation_id', '') = ev.variation_id), 0)))::int n
       from ev group by 1`, [org, variaciones]);
   return new Map(filas.filter((f) => f.n > 0).map((f) => [f.variacion_id, f.n]));
+}
+
+// ── Preventa en Mercado Libre (Fer, 5/11) ──────────────────
+
+/** A cada publicación que le toca estar en preventa le pone la orden, los días de demora y su parte del cupo: el cupo
+ *  de la orden se reparte en partes iguales entre las publicaciones de esa variación en todas las cuentas (lo que
+ *  sobra, a las primeras). Sólo publicaciones sin variaciones en ML (la demora es de la publicación entera). */
+export async function marcarPreventa(org: string, pubs: Pub[]): Promise<void> {
+  const candidatas = pubs.filter((p) => !p.variacion_externa && !p.pausada_manual);
+  if (!candidatas.length) return;
+  const { ofertasPreventa, diasHasta } = await import("@/lib/preventa");
+  // La oferta es por variación (la misma orden en todas las cuentas: ML decide sólo por si hay físico, que es común).
+  const porCanal = new Map<number, Pub[]>();
+  for (const p of candidatas) porCanal.set(p.canal_id, [...(porCanal.get(p.canal_id) ?? []), p]);
+  const ofertas = new Map<number, Awaited<ReturnType<typeof ofertasPreventa>> extends Map<number, infer O> ? O : never>();
+  for (const [canal, ps] of porCanal) {
+    const of = await ofertasPreventa(org, [...new Set(ps.map((p) => p.variacion_id))], { id: canal, tipo: "ml" });
+    for (const [v, o] of of) if (!ofertas.has(v)) ofertas.set(v, o);
+  }
+  const porVariacion = new Map<number, Pub[]>();
+  for (const p of candidatas) if (ofertas.has(p.variacion_id)) porVariacion.set(p.variacion_id, [...(porVariacion.get(p.variacion_id) ?? []), p]);
+  for (const [v, ps] of porVariacion) {
+    const o = ofertas.get(v)!;
+    const dias = diasHasta(o.llegada);
+    const base = Math.floor(o.cupo / ps.length), resto = o.cupo - base * ps.length;
+    ps.sort((a, b) => a.id - b.id).forEach((p, i) => { p.preventa = { ordenId: o.ordenId, dias, cupo: base + (i < resto ? 1 : 0) }; });
+  }
+}
+
+/** «Preparar para Mercado Libre» de una orden (canales sin la preventa automática): arma un lote con el pase a preventa
+ *  de las publicaciones sin stock de los productos de la orden, para que Fer lo mande con el botón de la cola
+ *  (Configuración › Cola de Mercado Libre). Devuelve los lotes armados por cuenta. */
+export async function prepararPreventaMl(org: string, ordenId: number, usuario: string): Promise<{ canal: string; loteId: number; cambios: number }[]> {
+  const vars = await consulta<{ v: number }>(`
+    select distinct coalesce(k.variacion_kit_id, l.variacion_id)::int v from orden_compra o join compra_invoice_linea l on l.invoice_id = o.invoice_id
+      left join kit_componente k on k.variacion_componente_id = l.variacion_id where o.id = $1 and o.organizacion_id = $2 and l.variacion_id is not null
+    union select l.variacion_id::int from orden_compra o join compra_invoice_linea l on l.invoice_id = o.invoice_id where o.id = $1 and l.variacion_id is not null`, [ordenId, org]);
+  if (!vars.length) return [];
+  const pubs = await consulta<Pub & { canal: string }>(`
+    select p.id::int, p.canal_id::int, c.nombre canal, p.variacion_id::int, p.id_externo, p.variacion_externa, p.estado, p.pausada_por_stock, p.pausada_manual,
+           p.cantidad_publicada, stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id) disponible,
+           umbral_pausa_de(p.organizacion_id, p.variacion_id, p.canal_id) umbral, p.preventa_orden_id::int, p.preventa_dias
+      from publicacion p join canal c on c.id = p.canal_id
+     where p.organizacion_id = $1 and c.tipo = 'mercadolibre' and c.estado = 'activo' and not coalesce((c.config ->> 'preventa_automatica')::boolean, false)
+       and p.id_externo is not null and p.estado <> 'cerrada' and coalesce(p.datos_externos ->> 'logistica', '') <> 'fulfillment'
+       and p.variacion_id = any($2::bigint[])`, [org, vars.map((x) => x.v)]);
+  await marcarPreventa(org, pubs);
+  const salida: { canal: string; loteId: number; cambios: number }[] = [];
+  const porCanal = new Map<number, CambioMl[]>();
+  const nombres = new Map<number, string>();
+  for (const p of pubs) {
+    if (!p.preventa || p.preventa.ordenId !== ordenId) continue;
+    const c = cambioDeStock({ ...p, preventaManual: false });
+    if (!c) continue;
+    const { que: _q, ...cambio } = c;
+    porCanal.set(p.canal_id, [...(porCanal.get(p.canal_id) ?? []), cambio]);
+    nombres.set(p.canal_id, p.canal);
+  }
+  const { encolarLoteConBoton } = await import("@/lib/mercadolibre/cola");
+  for (const [canal, cambios] of porCanal) {
+    const o = await una<{ codigo: string }>("select codigo from orden_compra where id = $1", [ordenId]);
+    const loteId = await encolarLoteConBoton(org, canal, cambios, `Preventa de la orden ${o?.codigo ?? ordenId}: ${cambios.length} publicaciones sin stock pasan a entrega diferida`, usuario);
+    salida.push({ canal: nombres.get(canal) ?? String(canal), loteId, cambios: cambios.length });
+  }
+  return salida;
 }

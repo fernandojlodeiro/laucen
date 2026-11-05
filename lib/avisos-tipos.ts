@@ -6,8 +6,8 @@ export type ClaveContador = "reclamos" | "mensajes" | "preguntas" | "whatsapp" |
 
 /** Los contadores de la barra de estado (Fer, 27/10): los mensajes de todos los canales van juntos en «Para atender». */
 /** «Prohibidas» (Fer, 29/10): publicaciones que Mercado Libre prohibió o dio de baja y siguen sin eliminar. */
-export type ClaveBarra = "atender" | "pedidos" | "facturas" | "prohibidas";
-export const CLAVES_BARRA: ClaveBarra[] = ["atender", "pedidos", "facturas", "prohibidas"];
+export type ClaveBarra = "atender" | "pedidos" | "facturas" | "prohibidas" | "preventas";
+export const CLAVES_BARRA: ClaveBarra[] = ["atender", "pedidos", "facturas", "prohibidas", "preventas"];
 
 /** Un contador de la barra de estado. `marca` crece cuando entra algo nuevo;
  *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto); `persona`: cuántas esperan a una persona
@@ -58,5 +58,7 @@ export function esPantallaDe(clave: ClaveBarra, ruta: string, ver: string | null
     case "facturas": return ruta === "/ventas/pedidos" && ver === "facturas";
     // Publicaciones prohibidas por Mercado Libre: se ven en Catálogo › Publicaciones (filtro «Prohibidas por ML»).
     case "prohibidas": return ruta === "/catalogo/publicaciones";
+    // Preventas para resolver (sin cubrir, saldos vencidos, órdenes atrasadas).
+    case "preventas": return ruta === "/ventas/preventas";
   }
 }
