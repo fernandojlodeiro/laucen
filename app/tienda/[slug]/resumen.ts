@@ -6,6 +6,7 @@ import { consulta } from "@/lib/erp/base";
 import { cotizar } from "@/lib/tienda/cotizar";
 import type { LineaCarrito } from "@/lib/tienda/cotizar";
 import type { Tienda } from "@/lib/tienda/tienda";
+import { configPreventa } from "@/lib/preventa";
 
 export type MetodoEnvio = { id: number; tipo: string; nombre: string; plazo: string | null; instrucciones: string | null; disponible: boolean };
 
@@ -32,6 +33,8 @@ export type Resumen = {
   moneda: "ARS" | "USD";
   /** Planes de cuotas de la compra con tarjeta de crédito (esquema de cuotas prendido), o null. */
   cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; descuentoPorCuotas: Record<number, number>; elegidas: number } | null;
+  /** Preventa: cuándo llega, si se mezcla con productos en stock (dos pedidos, se paga todo) y la seña posible. */
+  preventa: { llegada: string; mezcla: boolean; variasOrdenes: boolean; senaPct: number; sena: number } | null;
 };
 
 export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, metodos?: MetodoEnvio[]): Promise<Resumen> {
@@ -55,5 +58,10 @@ export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, m
     subtotal: cot.subtotal, descuentos: cot.descuentos,
     envio: cot.envio ? { nombre: cot.envio.nombre, costo: cot.envio.costo, bonificado: cot.envio.bonificado, aConvenir: cot.envio.aConvenir, sinCp: cot.envio.sinCp } : null,
     total: cot.total, sinStock: cot.sinStock, costos, moneda: t.moneda, cuotas: cot.cuotas,
+    preventa: cot.preventa ? await (async () => {
+      const pct = (await configPreventa(t.organizacionId)).senaPct;
+      const productos = cot.lineas.filter((l) => l.preventa).reduce((x, l) => x + l.finalUnit * l.cantidad, 0);
+      return { llegada: cot.preventa!.llegada, mezcla: cot.preventa!.mezcla, variasOrdenes: cot.preventa!.variasOrdenes, senaPct: pct, sena: Math.round(productos * pct) / 100 };
+    })() : null,
   };
 }

@@ -17,7 +17,9 @@ import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, sqlS
 
 /** SQL: el pedido (alias `p`) se prepara: pagado o en preparación, o «A cobrar» / a convenir estando nuevo.
  *  Uno a cuenta corriente, sólo si el límite del cliente lo cubre (sqlCcLibre). */
-const SQL_PARA_PREPARAR = `((p.estado = 'en_preparacion' or ((p.estado = 'pagado' or (p.estado = 'nuevo' and ${sqlSinEsperarPago("p")})) and ${sqlCcLibre("p")})))`;
+// Una preventa que todavía no llegó (sin cubrir) no se prepara (Fer, 5/11; db/preventa.sql).
+const SQL_PARA_PREPARAR = `((p.estado = 'en_preparacion' or ((p.estado = 'pagado' or (p.estado = 'nuevo' and ${sqlSinEsperarPago("p")})) and ${sqlCcLibre("p")}))
+  and (p.preventa_orden_id is null or p.preventa_cubierto_ts is not null))`;
 /** Por qué no se prepara un pedido que no es preparable. */
 export const motivoNoPreparable = (p: { id: number | string; estado: string; freno: string | null }) =>
   p.freno ? `El pedido ${p.id} está frenado por la cuenta corriente: ${p.freno}.`

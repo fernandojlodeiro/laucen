@@ -11,12 +11,16 @@ import { cotizarOca } from "@/lib/oca/envios";
 import { tcDelDia } from "@/lib/moneda";
 import { financiacionTienda, planesDisponibles } from "@/lib/tienda/financiacion";
 import { mediosActivos } from "@/lib/tienda/medios";
+import { ofertasPreventa, type OfertaPreventa } from "@/lib/preventa";
 
 export type LineaCarrito = { variacionId: number; cantidad: number };
 
 export type LineaCotizada = {
   variacionId: number; productoId: number; sku: string; titulo: string; foto: string | null; cantidad: number;
   disponible: number; listaUnit: number; ventaUnit: number; finalUnit: number; subtotal: number; descuentoPct: number;
+  /** Preventa (lib/preventa): sin stock, sale de la mercadería que llega en una orden de compra, con su fecha y su
+   *  precio de preventa (ventaUnit ya lo tiene). `disponible` es el cupo de preventa. */
+  preventa?: { ordenId: number; codigo: string; llegada: string; descuentoPct: number } | null;
 };
 
 export type Cotizacion = {
@@ -33,6 +37,9 @@ export type Cotizacion = {
    *  tocan a la compra, lo que suman los productos antes del interés (y del descuento por pagar en N cuotas),
    *  ese descuento para cada cantidad de cuotas que lo tiene y las cuotas elegidas. */
   cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; descuentoPorCuotas: Record<number, number>; elegidas: number } | null;
+  /** Preventa: la orden de los productos en preventa (si todos llegan en la misma), si se mezcla con productos en
+   *  stock (van en dos pedidos) y si hay productos de dos órdenes distintas (no se puede: compras separadas). */
+  preventa: { ordenId: number; codigo: string; llegada: string; mezcla: boolean; variasOrdenes: boolean } | null;
 };
 
 type Regla = { id: number; nombre: string; condicion: Record<string, unknown>; accion: Record<string, unknown>; acumulable: boolean };
@@ -63,6 +70,9 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
            coalesce((select array_agg(fam.id::int) from fam where fam.vid = b.id), '{}') familias
       from base b`, [org, t.canalId, ids]) : [];
   const porId = new Map(datos.map((d) => [d.id, d]));
+  // Preventa: lo que no tiene stock y viene en una orden publicada en la web (lib/preventa).
+  const sinFisico = datos.filter((d) => d.disponible <= 0).map((d) => d.id);
+  const ofertas = sinFisico.length ? await ofertasPreventa(org, sinFisico, { id: t.canalId, tipo: "web" }) : new Map<number, OfertaPreventa>();
 
   const lineas: (LineaCotizada & { familias: number[]; montoFinal: number })[] = [];
   const sinStock: string[] = [];
@@ -71,13 +81,18 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (!d || l.cantidad <= 0) continue;
     const p = await precioDe(org, d.id, t.listaId);
     if (!p) continue; // sin precio en la lista: no se vende
-    const venta = t.moneda === "USD" ? p.venta.usd : p.venta.ars;
+    const normal = t.moneda === "USD" ? p.venta.usd : p.venta.ars;
     const lista = t.moneda === "USD" ? p.lista.usd : p.lista.ars;
-    if (!(venta > 0)) continue; // precio cero: tampoco (nunca un pedido a $ 0)
-    if (d.disponible < l.cantidad) sinStock.push(`${d.titulo}: hay ${d.disponible}`);
+    if (!(normal > 0)) continue; // precio cero: tampoco (nunca un pedido a $ 0)
+    const of = ofertas.get(d.id);
+    // En preventa, el precio de preventa (el normal − su descuento) y el cupo como disponible.
+    const venta = of ? (t.moneda === "USD" ? r2(normal * (1 - of.descuentoPct / 100)) : Math.round(normal * (1 - of.descuentoPct / 100))) : normal;
+    const disponible = of ? of.cupo : d.disponible;
+    if (disponible < l.cantidad) sinStock.push(of ? `${d.titulo}: quedan ${disponible} en preventa` : `${d.titulo}: hay ${d.disponible}`);
     lineas.push({
-      variacionId: d.id, productoId: d.producto_id, sku: d.sku, titulo: d.titulo, foto: d.foto, cantidad: l.cantidad, disponible: d.disponible,
+      variacionId: d.id, productoId: d.producto_id, sku: d.sku, titulo: d.titulo, foto: d.foto, cantidad: l.cantidad, disponible,
       listaUnit: lista, ventaUnit: venta, finalUnit: venta, subtotal: r2(venta * l.cantidad), descuentoPct: p.descuentoPct,
+      preventa: of ? { ordenId: of.ordenId, codigo: of.codigo, llegada: of.llegada, descuentoPct: of.descuentoPct } : null,
       familias: d.familias, montoFinal: r2(venta * l.cantidad),
     });
   }
@@ -216,8 +231,14 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (gratis) costo = 0;
     envio = { metodoId: m.id, nombre: m.nombre, costo: r2(costo), bonificado: gratis && m.tipo !== "retiro", aConvenir: m.tipo === "a_convenir", sinCp, plazoDias };
   }
+  const enPreventa = lineas.filter((l) => l.preventa);
+  const ordenesPv = new Set(enPreventa.map((l) => l.preventa!.ordenId));
+  const preventa = enPreventa.length ? {
+    ordenId: enPreventa[0].preventa!.ordenId, codigo: enPreventa[0].preventa!.codigo, llegada: enPreventa[0].preventa!.llegada,
+    mezcla: enPreventa.length < lineas.length, variasOrdenes: ordenesPv.size > 1,
+  } : null;
   return {
     lineas: lineas.map(({ familias: _f, montoFinal: _m, ...l }) => ({ ...l, subtotal: r2(l.finalUnit * l.cantidad) })),
-    subtotal, descuentos, envio, total: r2(productos + (envio?.costo ?? 0)), sinStock, cuotas,
+    subtotal, descuentos, envio, total: r2(productos + (envio?.costo ?? 0)), sinStock, cuotas, preventa,
   };
 }

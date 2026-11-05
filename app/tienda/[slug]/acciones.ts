@@ -183,6 +183,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
       medio,
       cuotas: Math.min(24, Math.max(1, Math.trunc(Number(fd.get("cuotas"))) || 1)),
       notas: texto(fd, "notas"),
+      sena: fd.get("sena") === "1",
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);

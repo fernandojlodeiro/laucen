@@ -434,3 +434,32 @@ export async function pendientesPreventa(org: string): Promise<{ sinCubrir: numb
              and exists (select 1 from preventa_reserva r where r.orden_id = o.id and r.estado = 'activa'))::int atrasadas`, [org]);
   return { sinCubrir: r?.sin_cubrir ?? 0, saldosVencidos: r?.saldos ?? 0, atrasadas: r?.atrasadas ?? 0, agotadas: 0 };
 }
+
+/** Las variaciones que podrían estar en preventa en un canal: las que traen las órdenes en camino publicadas ahí, y los
+ *  kits que llevan alguna de ellas (para no calcular todo el catálogo). */
+export async function candidatasPreventa(org: string, canal: CanalPreventa): Promise<number[]> {
+  const r = await consulta<{ v: number }>(`
+    with pe as (select pe.variacion_id from orden_compra_pendiente pe join orden_compra o on o.id = pe.orden_id
+                 where o.organizacion_id = $1 and o.estado = 'en_camino' and ${canal === "web" ? "o.publicar_web" : "o.publicar_ml"} and pe.pendiente > 0)
+    select variacion_id::int v from pe
+    union select k.variacion_kit_id::int from kit_componente k where k.variacion_componente_id in (select variacion_id from pe)`, [org]);
+  return r.map((x) => x.v);
+}
+
+/** La preventa de cada producto de la tienda (para el listado): la de su variación más barata en preventa, con el
+ *  cupo de todas. Sólo los productos sin stock físico. */
+export async function preventaDeProductos(org: string, canalId: number): Promise<Map<number, { variacionId: number; llegada: string; codigo: string; cupo: number; descuentoPct: number }>> {
+  const salida = new Map<number, { variacionId: number; llegada: string; codigo: string; cupo: number; descuentoPct: number }>();
+  const cand = await candidatasPreventa(org, "web");
+  if (!cand.length) return salida;
+  const of = await ofertasPreventa(org, cand, { id: canalId, tipo: "web" });
+  if (!of.size) return salida;
+  const prod = await consulta<{ v: number; p: number }>("select id::int v, producto_id::int p from variacion where id = any($1::bigint[])", [[...of.keys()]]);
+  for (const { v, p } of prod) {
+    const o = of.get(v)!;
+    const ya = salida.get(p);
+    if (!ya) salida.set(p, { variacionId: v, llegada: o.llegada, codigo: o.codigo, cupo: o.cupo, descuentoPct: o.descuentoPct });
+    else ya.cupo += o.cupo;
+  }
+  return salida;
+}

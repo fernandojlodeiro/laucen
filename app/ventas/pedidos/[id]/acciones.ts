@@ -12,7 +12,7 @@ import { ErrorErp, una, consulta, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
 import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO, sqlEstadoPago } from "@/lib/pedidos";
-import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
+import { importeAPagar, confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { refacturar, liberarFactura, LARGO_LEYENDA, sqlFacturaVigente } from "@/lib/facturacion/revision";
 import { cambiarClientePedido } from "@/lib/pedidos/cliente";
@@ -85,9 +85,12 @@ export async function accionConfirmarPago(fd: FormData) {
     if (["cancelado", "devuelto"].includes(p.estado)) throw new ErrorErp("El pedido está cancelado.");
     const medio = texto(fd, "medio");
     if (!medio) throw new ErrorErp("Elegí con qué pagó.");
-    await confirmarPago(s.org.id, pid, { medio, importe: p.total_ars }, s.usuario.id);
+    // Lo que falta cobrar: una preventa con seña puede estar pagando la seña o el saldo (lib/tienda/pagos/confirmar.ts).
+    const pendiente = await importeAPagar(s.org.id, pid);
+    const importe = pendiente.importe > 0 ? pendiente.importe : p.total_ars;
+    await confirmarPago(s.org.id, pid, { medio, importe }, s.usuario.id);
     revalidatePath(`/ventas/pedidos/${pid}`);
-    return "Pago confirmado: el pedido quedó pagado.";
+    return pendiente.sena ? `Seña confirmada ($ ${Math.round(importe).toLocaleString("es-AR")}): la preventa queda reservada hasta que llegue.` : "Pago confirmado: el pedido quedó pagado.";
   });
 }
 

@@ -14,6 +14,7 @@ import { planesDeLaCompra } from "@/lib/tienda/checkout";
 import { financiacionTienda, marcasPermitidas } from "@/lib/tienda/financiacion";
 import { cuentasDe } from "@/lib/tienda/medios";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
+import { importeAPagar } from "@/lib/tienda/pagos/confirmar";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { cargarTienda, estadoCriollo, linkWhatsapp } from "../../catalogo";
 import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAMPO, ETIQUETA, IconoWhatsapp } from "../../piezas";
@@ -105,6 +106,14 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   const permitida = marcasPermitidas(financiacionTienda(t), !!p.debito, p.cuotas);
   const marcas = MARCAS_PAYWAY.filter((x) => permitida(x.id));
   const cambio = pendiente ? await opcionesDePago(t, codigo) : null;
+  // Preventa (Fer, 5/11): la seña o el saldo; y, en una compra que se partió en dos, lo que se paga junto.
+  const pv = await una<{ orden: number | null; llegada: string | null; cubierto: boolean; saldo_hasta: string | null; sena: number | null; cobrado: number }>(`
+    select preventa_orden_id::int orden, to_char(preventa_llegada, 'DD/MM/YYYY') llegada, preventa_cubierto_ts is not null cubierto,
+           to_char(preventa_saldo_hasta, 'DD/MM') saldo_hasta, preventa_sena_ars::float8 sena,
+           coalesce((select sum(importe_ars) from pago where pedido_id = $1 and estado = 'aprobado'), 0)::float8 cobrado
+      from pedido where id = $1`, [p.id]);
+  const aPagar = pendiente ? await importeAPagar(t.organizacionId, p.id) : null;
+  const monto = aPagar?.importe || Number(p.total);
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;
   // Los precios de las líneas ya tienen aplicados los descuentos: se muestran como ahorro.
@@ -161,6 +170,15 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
         )}
       </div>
 
+      {pv?.orden && (
+        <section className="space-y-1 rounded-md border border-[#6D28D9]/30 bg-[#F5F3FF] p-4 text-sm sm:p-5">
+          <p className="text-base font-bold">{pv.cubierto ? "¡Llegó tu pedido en preventa!" : `Preventa: llega aprox. el ${pv.llegada ?? "—"}`}</p>
+          {pv.cobrado > 0 && !pagado && <p>Ya recibimos tu seña de <b>{formatear(pv.cobrado, m)}</b>. Te queda por pagar <b>{formatear(monto, m)}</b>{pv.cubierto && pv.saldo_hasta ? ` hasta el ${pv.saldo_hasta}` : " cuando llegue (o antes, si querés)"}.</p>}
+          {pv.cobrado <= 0 && !pagado && aPagar?.sena && <p>Para reservarlo pagá la seña de <b>{formatear(monto, m)}</b>; el resto, cuando llegue.</p>}
+          {!pv.cubierto && <p className="text-gray-600">Te avisamos por mail apenas llegue.</p>}
+        </section>
+      )}
+
       {fallo && (
         <section className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-center sm:p-5">
           <p className="text-red-800">Tu pedido quedó guardado, pero el pago no se acreditó. Podés intentarlo de nuevo.</p>
@@ -186,8 +204,8 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
         <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 sm:p-5">
           <h2 className="text-lg font-bold">{p.medio === "transferencia" ? "Cómo transferir" : "Cómo pagar"}</h2>
           <div className="rounded-md bg-white p-3 text-center">
-            <p className="text-sm text-gray-600">Total a {p.medio === "transferencia" ? "transferir" : "pagar"}</p>
-            <p className="text-3xl font-bold tracking-tight">{formatear(p.total, m)}</p>
+            <p className="text-sm text-gray-600">{aPagar?.sena ? "Seña" : aPagar?.saldo ? "Saldo" : "Total"} a {p.medio === "transferencia" ? "transferir" : "pagar"}</p>
+            <p className="text-3xl font-bold tracking-tight">{formatear(monto, m)}</p>
           </div>
           {p.medio === "transferencia" && cuentasDe(medio?.cuentas).length > 0 && (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -211,7 +229,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       )}
 
       {pagarConTarjeta && (pw
-        ? <PagoPayway slug={t.slug} codigo={codigo} publicKey={pw.publicKey} url={pw.url} total={Number(p.total)} moneda={m} marcas={marcas} planes={planes}
+        ? <PagoPayway slug={t.slug} codigo={codigo} publicKey={pw.publicKey} url={pw.url} total={monto} moneda={m} marcas={marcas} planes={planes}
             fijas={p.debito ? 1 : p.cuotas} />
         : <Aviso tipo="error">El pago con tarjeta no está disponible ahora. Escribinos y lo resolvemos.</Aviso>)}
 

@@ -10,7 +10,7 @@ import { leerCarrito } from "@/lib/tienda/carrito";
 import { cotizar, type Cotizacion } from "@/lib/tienda/cotizar";
 import { rutaTienda } from "@/lib/tienda/tienda";
 import { abierta, cargarTienda, envioDe } from "../catalogo";
-import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, IconoCarrito, IconoTacho, Monto } from "../piezas";
+import { Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, IconoCarrito, IconoTacho, Monto, EtiquetaPreventa } from "../piezas";
 import AlInicio from "./AlInicio";
 import { cambiarCantidad } from "../acciones";
 
@@ -71,6 +71,10 @@ export default async function Carrito({ params, searchParams }: Props) {
               </Aviso>
             )}
             {cot.lineas.length < carrito.length && <Aviso>Algún producto ya no está disponible y no se cuenta.</Aviso>}
+            {cot.preventa?.variasOrdenes && <Aviso tipo="error">Hay productos en preventa que llegan en fechas distintas: para comprarlos, hacé una compra por cada fecha.</Aviso>}
+            {cot.preventa?.mezcla && !cot.preventa.variasOrdenes && (
+              <Aviso>Tu carrito tiene productos en stock y productos en preventa (llegan aprox. el {cot.preventa.llegada.split("-").reverse().join("/")}). Van en dos pedidos: lo que está en stock te lo mandamos ya y lo de preventa cuando llegue. Se pagan juntos.</Aviso>
+            )}
             <section className={CAJA}>
               <h1 className="border-b border-[var(--linea)] px-4 py-4 text-base font-semibold text-[var(--texto)] sm:px-6">Productos</h1>
               <ul>
@@ -84,6 +88,7 @@ export default async function Carrito({ params, searchParams }: Props) {
                       <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start">
                         <div className="min-w-0 flex-1">
                           <Link href={href} className="line-clamp-2 text-sm font-semibold text-[var(--texto)] hover:text-[var(--boton)] sm:text-base">{l.titulo}</Link>
+                          {l.preventa && <div className="mt-1"><EtiquetaPreventa llegada={l.preventa.llegada} /></div>}
                           <div className="mt-2">
                             {boton(l.variacionId, 0, <><IconoTacho /> Eliminar</>, "Eliminar del carrito",
                               "inline-flex items-center gap-1 text-sm text-[var(--boton)] hover:text-[var(--boton-hover)]")}
@@ -97,7 +102,7 @@ export default async function Carrito({ params, searchParams }: Props) {
                               ? boton(l.variacionId, l.cantidad + 1, "+", "Una más", "grid h-9 w-9 place-items-center text-lg text-[var(--boton)]")
                               : <span className="grid h-9 w-9 place-items-center text-lg text-black/25" title="No hay más stock">+</span>}
                           </div>
-                          <span className="mt-1 text-xs text-[var(--texto-2)]">{l.disponible === 1 ? "1 disponible" : `${formatearNumero(l.disponible, "entero")} disponibles`}</span>
+                          <span className="mt-1 text-xs text-[var(--texto-2)]">{l.preventa ? `quedan ${formatearNumero(l.disponible, "entero")} en preventa` : l.disponible === 1 ? "1 disponible" : `${formatearNumero(l.disponible, "entero")} disponibles`}</span>
                         </div>
                         <div className="text-left sm:w-[130px] sm:text-right">
                           {l.listaUnit > l.ventaUnit && (
@@ -144,7 +149,7 @@ export default async function Carrito({ params, searchParams }: Props) {
               </div>
               <div className="flex items-baseline justify-between gap-2 pt-2 text-lg font-semibold"><span>Total</span><Monto n={cot.total} moneda={m} /></div>
               {abierta(t)
-                ? (cot.sinStock.length
+                ? (cot.sinStock.length || cot.preventa?.variasOrdenes
                   ? <span className={`${BOTON} mt-2 w-full cursor-not-allowed opacity-50`}>Finalizar compra</span>
                   : <Link href={rutaTienda(t, "/checkout")} className={`${BOTON} mt-2 w-full`}>Finalizar compra</Link>)
                 : <Aviso>La tienda no está tomando pedidos en este momento.</Aviso>}

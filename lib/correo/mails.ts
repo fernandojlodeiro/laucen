@@ -103,12 +103,17 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "pagado" |
   } else if (tipo === "recibido") {
     const medio = await medioDe();
     const reserva = tarjeta ? null : await reservaLegible(p.id);
-    asunto = `Recibimos tu pedido #${p.id}`;
+    // Preventa (Fer, 5/11): la fecha aproximada y, si eligió seña, lo que tiene que pagar ahora.
+    const pv = await una<{ llegada: string | null }>("select to_char(preventa_llegada, 'DD/MM') llegada from pedido where id = $1 and preventa_orden_id is not null", [p.id]);
+    const { importeAPagar } = await import("@/lib/tienda/pagos/confirmar");
+    const aPagar = await importeAPagar(org, p.id);
+    asunto = `Recibimos tu pedido #${p.id}${pv ? " (preventa)" : ""}`;
     titulo = "¡Recibimos tu pedido!";
     cuerpo = `<p>${saludo(p.nombre)} gracias por tu compra en ${escapar(marca.nombre)}. Este es tu pedido <b>#${p.id}</b>:</p>${tablaLineas(lineas, p)}
+      ${pv ? `<p style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:10px"><b>PREVENTA — llega aprox. el ${escapar(pv.llegada ?? "—")}.</b> Te avisamos apenas llegue${aPagar.sena ? " para que pagues el saldo" : ""}.</p>` : ""}
       ${medio ? `<p>Medio de pago: <b>${escapar(medio.nombre)}</b>.</p>` : ""}
       ${reserva ? `<p>Te guardamos los productos hasta <b>${escapar(reserva)}</b>.</p>` : ""}
-      ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
+      ${p.medio === "transferencia" ? bloqueTransferencia(aPagar.importe || Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
       ${p.metodo ? `<p>Entrega: <b>${escapar(p.metodo)}</b>.</p>` : ""}
       <p>Con el botón de abajo ves lo que compraste, cómo pagarlo y cómo recibirlo. Te vamos a avisar por acá cada novedad.</p>`;
   } else if (tipo === "pago_incompleto") {

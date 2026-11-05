@@ -17,7 +17,7 @@ import { convertir, type Moneda } from "@/lib/moneda";
 
 type PedidoTienda = {
   id: number; estado: string; estado_pago: string; metodo_envio_id: number | null; metodo_tipo: string | null; medio: string | null;
-  debito: boolean | null; cuotas: number | null; provincia: string | null; cp: string | null; total: number; facturado: boolean; pagos: number;
+  debito: boolean | null; cuotas: number | null; provincia: string | null; cp: string | null; total: number; facturado: boolean; pagos: number; preventa: boolean;
 };
 
 async function pedidoDe(t: Tienda, codigo: string): Promise<PedidoTienda | null> {
@@ -27,7 +27,8 @@ async function pedidoDe(t: Tienda, codigo: string): Promise<PedidoTienda | null>
            p.envio #>> '{direccion,provincia}' provincia, p.envio #>> '{direccion,codigo_postal}' cp,
            (case when p.moneda = 'USD' then p.total_usd else p.total_ars end)::float total,
            exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.estado in ('autorizado', 'pendiente')) facturado,
-           (select count(*)::int from pago where pedido_id = p.id and estado = 'aprobado') pagos
+           (select count(*)::int from pago where pedido_id = p.id and estado = 'aprobado') pagos,
+           p.preventa_orden_id is not null or p.datos_externos #> '{tienda,junto}' is not null or p.datos_externos #> '{tienda,junto_con}' is not null preventa
       from pedido p left join metodo_envio me on me.id = p.metodo_envio_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [t.organizacionId, t.canalId, codigo]);
 }
@@ -35,6 +36,8 @@ async function pedidoDe(t: Tienda, codigo: string): Promise<PedidoTienda | null>
 /** ¿Se le puede cambiar la forma de pago? null = sí; si no, el motivo. */
 function motivoNoCambia(p: PedidoTienda): string | null {
   if (p.estado === "cancelado") return "El pedido está cancelado.";
+  // Una preventa (o la compra que se partió en dos) guarda su precio y su seña: el cambio lo hacemos nosotros.
+  if (p.preventa) return "Es una compra con productos en preventa: para cambiar la forma de pago, escribinos y lo vemos.";
   if (p.estado_pago === "pagado" || p.pagos > 0) return "El pedido ya está pagado.";
   if (p.estado !== "nuevo" || !["pendiente", "a_cobrar"].includes(p.estado_pago)) return "El pedido ya se está preparando: escribinos y lo vemos.";
   if (p.facturado) return "El pedido ya tiene factura: escribinos y lo vemos.";

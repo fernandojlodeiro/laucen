@@ -23,6 +23,7 @@ import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cu
 import { cuotasMpDe, financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
 import { precioWebListo } from "@/lib/tienda/precio-web";
+import { preventaDeProductos } from "@/lib/preventa";
 
 export const POR_PAGINA = 24;
 export const COLOR_POR_DEFECTO = "#3483FA";
@@ -40,9 +41,8 @@ export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
 export const abierta = (t: Tienda) => t.estado === "activo";
 /** Las reglas de la web, que no se rompen nunca (Fer, 25/10): un producto se muestra sólo si está activo
  *  (eso ya lo filtra la consulta), tiene precio y tiene stock. Sin opción que las apague.
- *  Lo que viene (Fer, 25/10, todavía no existe): una preventa, donde el "stock" de un producto no es el
- *  disponible sino la mercadería en viaje, entregada a los X días (como ML deja publicar con demora).
- *  Cuando se haga, entra acá como otra fuente de stock — la ficha, el feed y precio_web cuentan igual. */
+ *  La única excepción es la preventa (Fer, 5/11; lib/preventa): sin stock físico, el "stock" es el cupo de la
+ *  mercadería que llega en una orden de compra publicada en la web (catalogoDe lo suma). */
 export const vendibleEnLaWeb = (p: { venta: number; stock: number }) => p.venta > 0 && p.stock > 0;
 export const whatsappDe = (t: Tienda) => (t.config.whatsapp ?? "").replace(/\D/g, "") || null;
 export const linkWhatsapp = (t: Tienda, texto: string) => {
@@ -69,6 +69,9 @@ export type ProductoBase = {
   foto: string | null; vendidos: number;
   /** título, marca y SKUs normalizados (sin acentos, en minúsculas), para buscar. */
   texto: string;
+  /** Preventa (lib/preventa): sin stock, viene en una orden de compra publicada en la web. `stock` es el cupo y
+   *  `venta`, el precio de preventa. */
+  preventa?: { llegada: string; codigo: string } | null;
 };
 
 /** `tabla`: los precios salen de precio_web (ya calculados, lib/tienda/precio-web.ts); si no, la cuenta en vivo.
@@ -179,7 +182,17 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
     ["tienda-catalogo", "v7", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 30, tags: [`tienda-${t.canalId}`] },
   )();
-  return todos.filter(vendibleEnLaWeb);
+  // Preventa: los productos sin stock que vienen en una orden publicada en la web (se calcula en cada visita: cambia con
+  // cada venta y no entra en la copia guardada).
+  const pv = await preventaDeProductos(t.organizacionId, t.canalId).catch((e) => { console.error("[tienda] preventa", e); return new Map(); });
+  const conPreventa = pv.size ? todos.map((p) => {
+    const x = pv.get(p.id);
+    if (!x || p.stock > 0) return p;
+    const factor = 1 - x.descuentoPct / 100;
+    const r = (n: number) => (t.moneda === "USD" ? Math.round(n * factor * 100) / 100 : Math.round(n * factor));
+    return { ...p, stock: x.cupo, venta: r(p.venta), ventaMax: r(p.ventaMax), variacionId: x.variacionId, preventa: { llegada: x.llegada, codigo: x.codigo } };
+  }) : todos;
+  return conPreventa.filter(vendibleEnLaWeb);
 });
 
 // ── Categorías ───────────────────────────────────────────

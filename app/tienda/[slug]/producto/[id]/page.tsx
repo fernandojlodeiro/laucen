@@ -6,6 +6,7 @@
 // descripción. El precio sale de precio_de (la función única), en vivo.
 
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
+import { configPreventa, ofertasPreventa } from "@/lib/preventa";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -23,7 +24,7 @@ import { EventoPublicidad } from "../../Publicidad";
 import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
-  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, HastaCuotas, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
+  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, EtiquetaPreventa, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, HastaCuotas, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
 } from "../../piezas";
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
@@ -35,7 +36,9 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string; id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; sku: string | null; codigoBarras: string | null; atributos: Record<string, string> };
+type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; sku: string | null; codigoBarras: string | null; atributos: Record<string, string>;
+  /** Preventa (lib/preventa): sin stock, llega en una orden publicada en la web; `disponible` es el cupo y `venta`, el precio de preventa. */
+  preventa: { llegada: string; codigo: string } | null };
 
 async function ficha(t: Tienda, productoId: number) {
   const org = t.organizacionId;
@@ -53,11 +56,19 @@ async function ficha(t: Tienda, productoId: number) {
       from variacion v cross join lateral (select * from precio_de($2, v.id, $5)) pr
      where v.producto_id = $1 and v.organizacion_id = $2 and v.estado = 'activa'
        and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
-       -- Reglas de la web, sin excepción (Fer, 25/10): sin stock no se muestra, tampoco por link directo.
-       and stock_disponible_canal($2, v.id, $3) > 0
      order by v.orden, v.id`, [productoId, org, t.canalId, t.moneda, t.listaId]) : [];
-  if (!filas.length) return null; // ninguna variación activa con precio y stock: no está en la web
-  const ids = filas.map((f) => f.id);
+  // Reglas de la web (Fer, 25/10): sin stock no se muestra, tampoco por link directo. La única excepción, la preventa
+  // (Fer, 5/11): lo que llega en una orden de compra publicada en la web, con su cupo y su precio de preventa.
+  const ofertas = await ofertasPreventa(org, filas.filter((f) => f.disponible <= 0).map((f) => f.id), { id: t.canalId, tipo: "web" });
+  const vendibles = filas.filter((f) => f.disponible > 0 || ofertas.has(f.id)).map((f) => {
+    const o = ofertas.get(f.id);
+    if (!o) return { ...f, preventa: null };
+    const factor = 1 - o.descuentoPct / 100;
+    const venta = t.moneda === "USD" ? Math.round(Number(f.venta) * factor * 100) / 100 : Math.round(Number(f.venta) * factor);
+    return { ...f, venta: String(venta), disponible: o.cupo, preventa: { llegada: o.llegada, codigo: o.codigo } };
+  });
+  if (!vendibles.length) return null; // ninguna variación activa con precio y stock (o preventa): no está en la web
+  const ids = vendibles.map((f) => f.id);
   const [atributos, fotosProducto, fotosVariacion, caracteristicas, cucardas] = await Promise.all([
     consulta<{ variacion_id: number; nombre: string; valor: string }>(
       "select variacion_id::int, nombre, valor from variacion_atributo where organizacion_id = $1 and variacion_id = any($2::bigint[]) order by orden, nombre", [org, ids]),
@@ -67,8 +78,8 @@ async function ficha(t: Tienda, productoId: number) {
     consulta<{ nombre: string; valor: string }>("select nombre, valor from producto_atributo where organizacion_id = $1 and producto_id = $2 order by orden, id", [org, productoId]),
     cucardasDe(org, [productoId]),
   ]);
-  const variaciones: Variacion[] = filas.map((f) => ({
-    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible, sku: f.sku, codigoBarras: f.codigo_barras,
+  const variaciones: Variacion[] = vendibles.map((f) => ({
+    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible, sku: f.sku, codigoBarras: f.codigo_barras, preventa: f.preventa,
     atributos: Object.fromEntries(atributos.filter((a) => a.variacion_id === f.id).map((a) => [a.nombre, a.valor])),
   }));
   // Nombres de atributo en orden de aparición, con sus valores en orden.
@@ -116,6 +127,7 @@ export default async function Producto({ params, searchParams }: Props) {
   // Con el esquema de cuotas y descuentos, todos sus planes; si no, los de su familia o producto.
   const fin = financiacionTienda(t);
   const tasasMp = await tasasMpDe(t);
+  const senaPct = v?.preventa ? (await configPreventa(t.organizacionId)).senaPct : null;
   const [planes, envio, medios, catalogo, arbol, h, contado] = await Promise.all([
     !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesDisponibles(fin, { tasasMp })) : planesDe(t.organizacionId, v.id),
     envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(), contadoDe(t),
@@ -175,7 +187,7 @@ export default async function Producto({ params, searchParams }: Props) {
     ...(p.marca?.trim() ? { brand: { "@type": "Brand", name: p.marca.trim() } } : {}),
     ...(gtin ? { gtin } : {}),
     offers: { "@type": "Offer", url: urlFicha, priceCurrency: t.moneda, price: v.venta.toFixed(2),
-      availability: v.disponible > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      availability: v.preventa ? "https://schema.org/PreOrder" : v.disponible > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       itemCondition: { new: "https://schema.org/NewCondition", used: "https://schema.org/UsedCondition", refurbished: "https://schema.org/RefurbishedCondition" }[condicionCatalogo(p.condicion)] },
   } : null;
 
@@ -202,6 +214,7 @@ export default async function Producto({ params, searchParams }: Props) {
               {!v ? <Aviso>Este producto no está disponible por ahora.</Aviso> : (
                 <>
                   <div className="space-y-1">
+                    {v.preventa && <EtiquetaPreventa llegada={v.preventa.llegada} grande />}
                     <Precio lista={v.lista} venta={v.venta} moneda={t.moneda} grande />
                     <LineaCuotas plan={plan} venta={v.venta} moneda={t.moneda} className="text-base" />
                     <LineaContado contado={contado ? { precio: Math.round(v.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null} moneda={t.moneda} className="mt-1 inline-block text-base" />
@@ -290,11 +303,16 @@ export default async function Producto({ params, searchParams }: Props) {
                 </div>
               )}
 
-              {v && (
+              {v && (v.preventa ? (
+                <div className="rounded-md border border-[#6D28D9]/30 bg-[#F5F3FF] p-3 text-sm text-[var(--texto)]">
+                  <p className="font-semibold">Preventa: llega aprox. el {v.preventa.llegada.split("-").reverse().join("/")}</p>
+                  <p className="text-[var(--texto-2)]">Lo comprás ahora a precio de preventa y te lo reservamos de lo que viene en camino. Podés pagar todo o una seña{senaPct ? ` del ${senaPct} %` : ""} y el resto cuando llegue. Te avisamos apenas esté.</p>
+                </div>
+              ) : (
                 <p className="text-base font-semibold text-[var(--texto)]">
                   {v.disponible <= 0 ? "Sin stock" : v.disponible === 1 ? "¡Última disponible!" : "Stock disponible"}
                 </p>
-              )}
+              ))}
 
               {v && (!abierta(t) ? <Aviso>La tienda no está tomando pedidos en este momento.</Aviso>
                 : v.disponible > 0 && (
@@ -305,7 +323,7 @@ export default async function Producto({ params, searchParams }: Props) {
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <label htmlFor="cantidad" className="text-[var(--texto)]">Cantidad:</label>
                       <Cantidad key={v.id} disponible={v.disponible} />
-                      <span className="text-[var(--texto-2)]">({v.disponible === 1 ? "1 disponible" : `${formatearNumero(v.disponible, "entero")} disponibles`})</span>
+                      <span className="text-[var(--texto-2)]">({v.preventa ? `quedan ${formatearNumero(v.disponible, "entero")} en preventa` : v.disponible === 1 ? "1 disponible" : `${formatearNumero(v.disponible, "entero")} disponibles`})</span>
                     </div>
                     <div className="space-y-2">
                       <button type="submit" formAction={comprarAhora} className={`${BOTON} w-full`}>Comprar ahora</button>

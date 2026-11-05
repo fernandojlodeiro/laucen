@@ -392,6 +392,22 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           </div>
           <div className="flex justify-between pt-3 text-lg font-semibold"><span>Total</span><span className="tabular-nums">{precio(resumen.total, m)}</span></div>
         </div>
+        {resumen.preventa && (
+          <div className="space-y-2 rounded-md border border-[#6D28D9]/30 bg-[#F5F3FF] p-3 text-sm">
+            <p className="font-semibold">Preventa: llega aprox. el {resumen.preventa.llegada.split("-").reverse().join("/")}</p>
+            {resumen.preventa.variasOrdenes ? <p>Hay productos que llegan en fechas distintas: hacé una compra por cada fecha.</p>
+              : resumen.preventa.mezcla ? <p>Lo que está en stock te lo mandamos ya y lo de preventa cuando llegue (dos pedidos). Se paga todo junto ahora.</p>
+              : (
+                <fieldset className="space-y-1">
+                  <label className="flex items-start gap-2"><input type="radio" name="sena" value="0" defaultChecked className="mt-0.5 h-4 w-4 accent-[var(--boton)]" />
+                    <span>Pagar todo ahora ({precio(resumen.total, m)})</span></label>
+                  <label className="flex items-start gap-2"><input type="radio" name="sena" value="1" className="mt-0.5 h-4 w-4 accent-[var(--boton)]" />
+                    <span>Pagar una seña del {resumen.preventa.senaPct} % ({precio(resumen.preventa.sena, m)}) y el resto cuando llegue</span></label>
+                  <p className="text-xs text-[var(--texto-2)]">El precio queda fijo. Cuando llegue te avisamos para pagar el saldo{resumen.envio && !resumen.envio.aConvenir && resumen.envio.costo > 0 ? " y el envío" : ""}.</p>
+                </fieldset>
+              )}
+          </div>
+        )}
         {errorCot && <p className="text-sm text-amber-800">{errorCot} El total final se calcula al confirmar.</p>}
         {resumen.sinStock.length > 0 && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">No alcanza el stock: {resumen.sinStock.join("; ")}. Ajustá las cantidades en el carrito.</div>

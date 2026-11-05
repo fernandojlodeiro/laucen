@@ -209,7 +209,10 @@ export async function conciliarComprobante(org: string, comprobanteId: number, q
     delDia = todos.filter((m) => !ya.has(m.id));
   }
   const usadoPorOtro = porNumero ? (await usados(org, [porNumero.id])).has(porNumero.id) : false;
-  const v = decidir({ leido, total: c.total, porNumero, usadoPorOtro, delDia, cliente: c.cliente });
+  // Lo que falta cobrar (una preventa: la seña o el saldo; un carrito partido en dos: los dos pedidos), no el total suelto.
+  const { importeAPagar } = await import("@/lib/tienda/pagos/confirmar");
+  const aPagar = (await importeAPagar(org, c.pedido_id)).importe || c.total;
+  const v = decidir({ leido, total: aPagar, porNumero, usadoPorOtro, delDia, cliente: c.cliente });
   if (motivoNumero && v.estado !== "conciliado") v.detalle = `${motivoNumero} ${v.detalle}`;
   if (v.estado === "conciliado" && v.elegido) await registrar(org, c.pedido_id, v.elegido, quien);
   return anotar(v, leido);

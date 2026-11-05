@@ -198,6 +198,7 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4 pt-3">
         <Etiquetas lista={p.cucardas} masVendido={p.masVendido} />
+        {p.preventa && <EtiquetaPreventa llegada={p.preventa.llegada} />}
         <h3 className="line-clamp-3 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
@@ -223,6 +224,7 @@ export function FilaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Etiquetas lista={p.cucardas} masVendido={p.masVendido} />
+        {p.preventa && <EtiquetaPreventa llegada={p.preventa.llegada} />}
         <h2 className="text-base font-normal leading-snug text-[var(--texto)] sm:text-lg">
           <Link href={enlaceProducto(t, p)} className="line-clamp-2 hover:text-[var(--boton)]">{p.titulo}</Link>
         </h2>
@@ -234,7 +236,7 @@ export function FilaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
           <div className="mt-1 flex flex-wrap items-center gap-2">{p.envioGratis && <LlegaGratis />}<HastaCuotas cuotas={p.cuotasMp} /></div>
         )}
         {sinStock ? <p className="text-sm text-[var(--texto-2)]">Sin stock</p>
-          : p.stock > 1 && p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{`Últimas ${p.stock} disponibles`}</p>}
+          : !p.preventa && p.stock > 1 && p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{`Últimas ${p.stock} disponibles`}</p>}
       </div>
     </li>
   );
@@ -508,3 +510,13 @@ export const IconoWhatsapp = ({ clase = "h-7 w-7" }: { clase?: string }) => (
     <path d="M17.5 14.4c-.3-.1-1.7-.8-2-.9-.3-.1-.5-.1-.7.1-.2.3-.8.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6l.4-.5c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.7.6.7.2 1.3.2 1.8.1.6-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3zM12 21.8c-1.8 0-3.5-.5-5-1.4l-.4-.2-3.7 1 1-3.6-.2-.4A9.8 9.8 0 1 1 12 21.8zm8.4-18.2A11.8 11.8 0 0 0 1.7 17.8L0 24l6.3-1.7a11.8 11.8 0 0 0 5.7 1.4c6.5 0 11.8-5.3 11.8-11.8 0-3.2-1.2-6.1-3.4-8.3z" />
   </svg>
 );
+
+/** La marca de la preventa (Fer, 5/11): bien a la vista, con la fecha aproximada de llegada. */
+export function EtiquetaPreventa({ llegada, grande = false }: { llegada: string; grande?: boolean }) {
+  const f = `${llegada.slice(8, 10)}/${llegada.slice(5, 7)}`;
+  return (
+    <span className={`self-start rounded font-bold uppercase tracking-wide text-white bg-[#6D28D9] ${grande ? "px-2.5 py-1 text-sm" : "px-1.5 py-0.5 text-[10px]"}`}>
+      Preventa · llega aprox. el {f}
+    </span>
+  );
+}

@@ -17,7 +17,8 @@ import { planesDelCarrito } from "@/lib/tienda/cuotas";
 import { codigoPayway, financiacionTienda, marcasPermitidas, planesDisponibles, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
-import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
+import { confirmarPago, pagoFallido, avisarStockMl, importeAPagar } from "@/lib/tienda/pagos/confirmar";
+import { configPreventa } from "@/lib/preventa";
 import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
 import { urlPanel } from "@/lib/tienda/dominios";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
@@ -35,6 +36,9 @@ export type DatosCompra = {
   /** Con tarjeta de crédito y el esquema de cuotas prendido: las cuotas elegidas (el interés va al total). */
   cuotas?: number | null;
   notas?: string | null;
+  /** Preventa (Fer, 5/11): pagar sólo la seña ahora (el % de Configuración) y el saldo cuando llegue. Sólo si todo el
+   *  carrito es de preventa; con productos en stock se paga todo junto. */
+  sena?: boolean;
 };
 
 export { mediosActivos, type Medio } from "@/lib/tienda/medios";
@@ -78,8 +82,19 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     sucursalOca = { id: s.id, nombre: s.nombre, direccion: [s.direccion, s.localidad, s.provincia].filter(Boolean).join(", ") };
   }
 
+  // Preventa: nunca dos órdenes en una compra; mezclado con productos en stock, dos pedidos que se pagan juntos.
+  if (cot.preventa?.variasOrdenes) throw new ErrorErp("Hay productos en preventa que llegan en fechas distintas: compralos por separado.");
+  const pv = cot.preventa;
+  const lineasPv = cot.lineas.filter((l) => l.preventa);
+  const lineasFisicas = cot.lineas.filter((l) => !l.preventa);
+  if (d.sena && (!pv || pv.mezcla)) throw new ErrorErp("La seña es sólo para una compra que es toda de preventa.");
+  const cfgPv = pv ? await configPreventa(org) : null;
+  const productosPv = lineasPv.reduce((t, l) => t + l.finalUnit * l.cantidad, 0);
+  const sena = d.sena && pv && cfgPv ? Math.round(productosPv * cfgPv.senaPct) / 100 : null;
+
   const codigo = randomBytes(6).toString("base64url");
   const doc = d.cliente.documento?.replace(/\D/g, "") || null;
+  const preventaSola = !!pv && !pv.mezcla;
   const pedido = await crearPedido(org, {
     canalId: t.canalId,
     clienteId: op.clienteId ?? null,
@@ -95,9 +110,12 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
         localidad: d.entrega.localidad ?? undefined, provincia: d.entrega.provincia ?? undefined, codigo_postal: d.entrega.codigo_postal ?? undefined } : null,
     },
     moneda: t.moneda,
-    lineas: cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo,
+    // Una compra toda de preventa es un pedido de preventa; mezclada, este pedido lleva lo que hay en stock y la preventa
+    // va en otro (abajo) que se paga junto con éste.
+    lineas: (preventaSola ? cot.lineas : lineasFisicas).map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo,
       // El precio antes de los descuentos del carrito: el pedido y la factura muestran el % de descuento (Fer, 27/10).
       datos_externos: { tienda: { precio_venta: l.ventaUnit } } })),
+    preventa: preventaSola ? { ordenId: pv!.ordenId, senaArs: sena } : null,
     medio_pago: medio.nombre,
     estado_pago: d.medio === "cuenta_corriente" ? "a_convenir" : d.medio === "efectivo" ? "a_cobrar" : "pendiente",
     costo_envio: cot.envio.costo,
@@ -116,6 +134,29 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
       ...(d.medio === "payway_debito" ? { debito: true } : {}), ...(cot.cuotas ? { cuotas: cot.cuotas.elegidas } : {}) } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
   await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [pedido.pedidoId, org, codigo]);
+  // Carrito mezclado: la preventa va en otro pedido del mismo cliente, sin envío propio (se coordina cuando llega), y se
+  // paga junto con éste (el pago de éste lo salda: lib/tienda/pagos/confirmar.ts).
+  let pedidoPv: number | null = null;
+  if (pv?.mezcla) {
+    const otro = await crearPedido(org, {
+      canalId: t.canalId, clienteId: pedido.clienteId, moneda: t.moneda,
+      lineas: lineasPv.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo, datos_externos: { tienda: { precio_venta: l.ventaUnit } } })),
+      preventa: { ordenId: pv.ordenId },
+      medio_pago: medio.nombre,
+      estado_pago: d.medio === "cuenta_corriente" ? "a_convenir" : d.medio === "efectivo" ? "a_cobrar" : "pendiente",
+      envio: { metodo: "A coordinar cuando llegue", a_convenir: true, direccion: null },
+      notas: `Preventa de la compra del pedido #${pedido.pedidoId} (se paga junto con ése).`,
+      datos_externos: { tienda: { medio: tipoBase(d.medio), dominio: t.dominio, junto_con: pedido.pedidoId,
+        contacto: { nombre: d.cliente.nombre.trim(), email: d.cliente.email.trim().toLowerCase(), telefono: d.cliente.telefono?.trim() || null,
+          factura_mail: d.cliente.facturaPorMail ?? true, factura_whatsapp: d.cliente.facturaPorWhatsapp ?? false } } },
+    }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
+    pedidoPv = otro.pedidoId;
+    await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [otro.pedidoId, org, randomBytes(6).toString("base64url")]);
+    await consulta(`update pedido set datos_externos = jsonb_set(datos_externos, '{tienda,junto}', $3::jsonb) where id = $1 and organizacion_id = $2`,
+      [pedido.pedidoId, org, JSON.stringify([otro.pedidoId])]);
+  }
+  // Lo que se cobra ahora: el total (los dos pedidos, si se partió) o la seña.
+  const aCobrar = sena != null ? sena : Math.round((cot.total) * 100) / 100;
   // Cómo quiere la factura y, con factura A, sus datos fiscales (también si ya era cliente).
   if (pedido.clienteId) {
     await consulta(`update cliente set factura_por_mail = $3, factura_por_whatsapp = $4,
@@ -136,7 +177,8 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
   // esperan el pago (lib/pedidos/seguimiento.ts). Si paga antes con tarjeta, no sale: le llega el de pago confirmado.
   await consulta(`insert into correo_cola (organizacion_id, pedido_id, tipo) values ($1, $2, 'recibido') on conflict (pedido_id, tipo) do nothing`, [org, pedido.pedidoId]);
   await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars) values ($1, $2, $3, 'pendiente', $4)`,
-    [org, pedido.pedidoId, tipoBase(d.medio), cot.total]);
+    [org, pedido.pedidoId, tipoBase(d.medio), aCobrar]);
+  if (pedidoPv) await consulta(`insert into correo_cola (organizacion_id, pedido_id, tipo) values ($1, $2, 'recibido') on conflict (pedido_id, tipo) do nothing`, [org, pedidoPv]);
 
   // La vuelta del comprador, a la dirección pública de la tienda; el aviso
   // de Mercado Pago (de servidor a servidor), al panel, que siempre anda.
@@ -145,21 +187,21 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     const cred = await credencial(t, "mercadopago");
     const planes = await planesDeLaCompra(t, cot.lineas.map((l) => l.variacionId));
     const pref = await crearPreferencia(cred.datos.access_token, {
-      pedidoId: pedido.pedidoId, titulo: `${nombreTienda(t)} — pedido ${pedido.pedidoId}`, total: cot.total, email: d.cliente.email, nombre: d.cliente.nombre,
+      pedidoId: pedido.pedidoId, titulo: `${nombreTienda(t)} — pedido ${pedido.pedidoId}${pedidoPv ? ` y ${pedidoPv}` : ""}${sena != null ? " (seña)" : ""}`, total: aCobrar, email: d.cliente.email, nombre: d.cliente.nombre,
       maxCuotas: planes.length ? planes[planes.length - 1].cuotas : null,
       exito: seguir, fallo: `${seguir}?pago=fallo`, pendiente: seguir, aviso: `${urlPanel()}/api/tienda/mercadopago?medio=${cred.medioId}`,
     });
-    return { pedidoId: pedido.pedidoId, codigo, total: cot.total, ir: pref.url };
+    return { pedidoId: pedido.pedidoId, codigo, total: aCobrar, ir: pref.url };
   }
-  return { pedidoId: pedido.pedidoId, codigo, total: cot.total, ir: tipoBase(d.medio) === "payway" ? `${seguir}?pagar=1` : seguir };
+  return { pedidoId: pedido.pedidoId, codigo, total: aCobrar, ir: tipoBase(d.medio) === "payway" ? `${seguir}?pagar=1` : seguir };
 }
 
 /** Cobra con Payway un pedido de la tienda (con el token de la tarjeta que armó el navegador). */
 export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { token: string; bin: string; marca: number; cuotas: number }) {
   const org = t.organizacionId;
   const p = await una<{ id: number; total_ars: string; estado: string; estado_pago: string; email: string | null; cliente_id: number | null;
-    tienda: { subtotal?: number; cuotas?: number; debito?: boolean } | null }>(`
-    select p.id::int, p.total_ars, p.estado, p.estado_pago, cl.email, p.cliente_id::int, p.datos_externos -> 'tienda' tienda
+    tienda: { subtotal?: number; cuotas?: number; debito?: boolean } | null; preventa: boolean }>(`
+    select p.id::int, p.total_ars, p.estado, p.estado_pago, cl.email, p.cliente_id::int, p.datos_externos -> 'tienda' tienda, p.preventa_orden_id is not null preventa
       from pedido p left join cliente cl on cl.id = p.cliente_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
   if (!p) throw new ErrorErp("El pedido no existe.");
@@ -181,11 +223,13 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
     if (tarjeta.cuotas > 1 && !planes.some((pl) => pl.cuotas === tarjeta.cuotas)) throw new ErrorErp("Esa cantidad de cuotas no está disponible para estos productos.");
   }
   const cred = await credencial(t, "payway");
+  // Lo que falta cobrar: el total, la seña o el saldo de una preventa, y los pedidos que se pagan junto con éste.
+  const importe = (await importeAPagar(org, p.id)).importe || Number(p.total_ars);
   const r = await cobrar({ private_key: cred.datos.private_key, ambiente: cred.datos.ambiente }, {
     // A Payway va el código del plan (ej. 13 = 3 cuotas MiPyME), no siempre la cantidad de cuotas.
-    pedidoId: p.id, token: tarjeta.token, bin: tarjeta.bin, marca: tarjeta.marca, total: Number(p.total_ars), cuotas: codigoPayway(financiacionTienda(t), tarjeta.cuotas), email: p.email, clienteId: p.cliente_id,
+    pedidoId: p.id, token: tarjeta.token, bin: tarjeta.bin, marca: tarjeta.marca, total: importe, cuotas: codigoPayway(financiacionTienda(t), tarjeta.cuotas), email: p.email, clienteId: p.cliente_id,
   });
-  if (r.aprobado) await confirmarPago(org, p.id, { medio: "payway", idExterno: r.id, importe: Number(p.total_ars), cuotas: tarjeta.cuotas, detalle: r.detalle, crudo: r.crudo }, "tienda");
+  if (r.aprobado) await confirmarPago(org, p.id, { medio: "payway", idExterno: r.id, importe, cuotas: tarjeta.cuotas, detalle: r.detalle, crudo: r.crudo }, "tienda");
   else await pagoFallido(org, p.id, "payway", r.id, "rechazado", r.detalle, r.crudo);
   return { aprobado: r.aprobado, detalle: r.detalle };
 }

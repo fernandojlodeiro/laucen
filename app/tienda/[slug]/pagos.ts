@@ -34,13 +34,16 @@ export async function preferenciaNueva(t: Tienda, codigo: string): Promise<strin
   if (!p) throw new ErrorErp("No encontramos el pedido.");
   if (p.estado_pago === "pagado") throw new ErrorErp("El pedido ya está pagado.");
   if (p.estado === "cancelado") throw new ErrorErp("El pedido está cancelado.");
+  // Lo que falta cobrar: el total, la seña o el saldo de una preventa, con los pedidos que se pagan junto con éste.
+  const { importeAPagar } = await import("@/lib/tienda/pagos/confirmar");
+  const aPagar = await importeAPagar(org, p.id);
   const cred = await credencial(t, "mercadopago");
   if (!cred?.datos?.access_token) throw new ErrorErp("Mercado Pago no está disponible ahora. Escribinos y lo resolvemos.");
   const vars = await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id]);
   const planes = await planesDeLaCompra(t, vars.map((x) => x.v));
   const seguir = await urlTienda(t, `/pedido/${codigo}`);
   const pref = await crearPreferencia(cred.datos.access_token, {
-    pedidoId: p.id, titulo: `${nombreTienda(t)} — pedido ${p.id}`, total: Number(p.total_ars), email: p.email, nombre: p.nombre,
+    pedidoId: p.id, titulo: `${nombreTienda(t)} — pedido ${p.id}${aPagar.sena ? " (seña)" : aPagar.saldo ? " (saldo)" : ""}`, total: aPagar.importe || Number(p.total_ars), email: p.email, nombre: p.nombre,
     maxCuotas: planes.length ? planes[planes.length - 1].cuotas : null,
     exito: seguir, fallo: `${seguir}?pago=fallo`, pendiente: seguir, aviso: `${urlPanel()}/api/tienda/mercadopago?medio=${cred.id}`,
   });

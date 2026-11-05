@@ -46,7 +46,20 @@ async function confirmarPagoEn(c: PoolClient, org: string, pedidoId: number, d: 
     if (!r.rowCount) await c.query(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars, detalle, usuario_id) values ($1, $2, $3, 'aprobado', $4, $5, $6)`,
       [org, pedidoId, d.medio, d.importe, d.detalle ?? null, quien]);
   }
-  await c.query("update pedido set estado_pago = 'pagado' where id = $1", [pedidoId]);
+  // Preventa con seña (Fer, 5/11): mientras lo cobrado no llega al total, el pedido no queda pago. La seña le saca el
+  // vencimiento de la reserva (ya no se cancela solo) y queda esperando su orden; el saldo se paga cuando llega.
+  const cuentas = (await c.query<{ preventa: boolean; total: number; cobrado: number }>(`
+    select p.preventa_orden_id is not null preventa, p.total_ars::float8 total,
+           coalesce((select sum(importe_ars) from pago where pedido_id = p.id and estado = 'aprobado'), 0)::float8 cobrado
+      from pedido p where p.id = $1`, [pedidoId])).rows[0];
+  if (cuentas.preventa && cuentas.cobrado < cuentas.total - 0.5) {
+    await c.query("update pedido set reserva_hasta = null, reserva_vence_ts = null where id = $1", [pedidoId]);
+    await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
+                   values ($1, $2, $3, $3, $4, $5)`, [org, pedidoId, p.estado, quien,
+      `seña de preventa cobrada (${d.medio}): $ ${Math.round(d.importe).toLocaleString("es-AR")}; queda el saldo de $ ${Math.round(cuentas.total - cuentas.cobrado).toLocaleString("es-AR")}`]);
+    return;
+  }
+  await c.query("update pedido set estado_pago = 'pagado', preventa_saldo_hasta = null where id = $1", [pedidoId]);
   if (p.estado === "nuevo") await cambiarEstado(org, pedidoId, "pagado", quien, `pago ${d.medio}`, c);
   else if (!["cancelado", "devuelto"].includes(p.estado)) {
     // Ya venía andando («A cobrar»): el estado no cambia; la facturación se entera por este evento.
@@ -72,9 +85,40 @@ export async function confirmarPago(org: string, pedidoId: number, d: DatosPago,
   const p = await una<{ estado_pago: string }>("select estado_pago from pedido where id = $1 and organizacion_id = $2", [pedidoId, org]);
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.estado_pago === "pagado" && !d.idExterno) return;
-  await enTransaccion((c) => confirmarPagoEn(c, org, pedidoId, d, quien));
+  // Un carrito de la tienda que mezclaba productos en stock y en preventa se partió en dos pedidos que se pagan juntos
+  // (Fer, 5/11): el pago del primero salda también los que van «junto» con él.
+  const juntos = (await consulta<{ id: number; resto: number }>(`
+    select x.id::int, (x.total_ars - coalesce((select sum(importe_ars) from pago where pedido_id = x.id and estado = 'aprobado'), 0))::float8 resto
+      from pedido p cross join lateral jsonb_array_elements_text(coalesce(p.datos_externos #> '{tienda,junto}', '[]'::jsonb)) j(id)
+      join pedido x on x.id = j.id::bigint and x.organizacion_id = p.organizacion_id
+     where p.id = $1 and p.organizacion_id = $2 and x.estado_pago <> 'pagado' and x.estado <> 'cancelado'`, [pedidoId, org]));
+  // Lo que se cobró de más que lo de este pedido es lo de los que van junto: cada pago queda con lo suyo.
+  const deJuntos = juntos.reduce((t, j) => t + Math.max(0, j.resto), 0);
+  const propio = juntos.length ? { ...d, importe: Math.max(0, Math.round((d.importe - deJuntos) * 100) / 100) } : d;
+  await enTransaccion(async (c) => {
+    await confirmarPagoEn(c, org, pedidoId, propio, quien);
+    for (const j of juntos) {
+      await confirmarPagoEn(c, org, j.id, { medio: d.medio, importe: Math.max(0, j.resto), detalle: `pagado junto con el pedido #${pedidoId}` }, quien);
+    }
+  });
   await avisarStockMl(org, pedidoId);
   await altaOcaAlPagar(org, pedidoId);
+  for (const j of juntos) { await avisarStockMl(org, j.id); await altaOcaAlPagar(org, j.id); }
+}
+
+/** Lo que falta cobrar de un pedido (Fer, 5/11): una preventa con seña sin nada cobrado, la seña; si no, el total menos
+ *  lo cobrado. Con los pedidos que se pagan junto con éste (un carrito partido en dos). */
+export async function importeAPagar(org: string, pedidoId: number): Promise<{ importe: number; sena: boolean; saldo: boolean }> {
+  const r = await una<{ total: number; cobrado: number; sena: number | null; juntos: number }>(`
+    select p.total_ars::float8 total, coalesce((select sum(importe_ars) from pago where pedido_id = p.id and estado = 'aprobado'), 0)::float8 cobrado,
+           p.preventa_sena_ars::float8 sena,
+           coalesce((select sum(x.total_ars - coalesce((select sum(importe_ars) from pago where pedido_id = x.id and estado = 'aprobado'), 0))
+                       from jsonb_array_elements_text(coalesce(p.datos_externos #> '{tienda,junto}', '[]'::jsonb)) j(id)
+                       join pedido x on x.id = j.id::bigint and x.organizacion_id = p.organizacion_id and x.estado_pago <> 'pagado' and x.estado <> 'cancelado'), 0)::float8 juntos
+      from pedido p where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
+  if (!r) return { importe: 0, sena: false, saldo: false };
+  if (r.sena && r.cobrado <= 0) return { importe: Math.round(r.sena * 100) / 100, sena: true, saldo: false };
+  return { importe: Math.round((r.total - r.cobrado + r.juntos) * 100) / 100, sena: false, saldo: r.cobrado > 0 };
 }
 
 /** Si va por OCA, el envío se da de alta solo (lib/oca/envios.ts, altaOcaAutomatica): después de contestar, porque
