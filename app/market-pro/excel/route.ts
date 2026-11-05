@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const g = (x: F) => (x.tuyo_producto ? gananciaEstimada(x.precio_mediana, x.tuyo_costo, x.comision) : null);
     poner<F>([["Producto", 60, (x) => x.titulo], ["Marca", 16, (x) => x.marca], ["Categoría", 40, (x) => x.ruta], ["Clave", 20, (x) => x.producto],
       ["Precio mediana 3m", 12, (x) => x.precio_mediana, PESOS], ["Precio mínimo 3m", 12, (x) => x.precio_min, PESOS], ...medidas<F>(),
-      ["El que más vende", 20, (x) => x.lider], ["Publicación más vendida", 18, (x) => x.item_top], ["Lo tenés (producto N.º)", 12, (x) => x.tuyo_producto],
+      ["El que más vende", 20, (x) => x.lider], ["Lo tenés (producto N.º)", 12, (x) => x.tuyo_producto],
       ["Tu costo", 12, (x) => x.tuyo_costo, PESOS], ["Ganancia s/venta", 10, (x) => g(x)?.sobreVenta, PCT], ["Ganancia s/costo", 10, (x) => g(x)?.sobreCosto, PCT]],
       await porProducto(s.org.id, mes, f));
   }

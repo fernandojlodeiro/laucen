@@ -186,10 +186,11 @@ exception when others then
   raise notice 'pg_cron: no se pudo ajustar marketpro-diario (%)', sqlerrm;
 end $$;
 
--- Quién es cada vendedor (Fer, 5/11): Market Pro da el apodo ofuscado; el vendedor real sale de la API de Mercado
--- Libre por las publicaciones de catálogo (GET /products/{id}/items da el seller_id de cada publicación; la ficha de
--- una publicación ajena da 403). lib/marketpro/vendedores.ts. estado: ok, sin_catalogo (no tiene ninguna de
--- catálogo: no se puede por API) o no_encontrado (tiene, pero ML ya no la lista; se reintenta).
+-- Quién es cada vendedor (Fer, 5/11). Market Pro cifra el número de publicación y ofusca el vendedor («PALABRA.PALABRA.PALABRA»),
+-- pero da el producto de catálogo. De Mercado Libre se leen las ofertas de cada catálogo (GET /products/{id}/items: el
+-- seller_id de cada una; la ficha de una publicación ajena da 403) y a cada apodo se le asigna el vendedor que está en los
+-- mismos catálogos (lib/marketpro/vendedores.ts). estado: ok, sin_catalogo (no vende nada de catálogo: no hay forma por
+-- API) o no_encontrado (todavía no alcanza para asegurarlo).
 create table if not exists mpro_vendedor (
   organizacion_id  text not null references organizaciones(id) on delete cascade,
   apodo            text not null,
@@ -206,15 +207,27 @@ create table if not exists mpro_vendedor (
   ts               timestamptz not null default now(),
   primary key (organizacion_id, apodo)
 );
+alter table mpro_vendedor add column if not exists coincidencias int;   -- catálogos en común con el vendedor elegido
+alter table mpro_vendedor add column if not exists de int;              -- catálogos del apodo ya leídos
 alter table mpro_vendedor enable row level security;
 
--- Lo que devolvió ML de cada catálogo consultado: publicación → vendedor (una consulta sirve para muchos vendedores).
-create table if not exists mpro_item_vendedor (
+-- Las ofertas de cada catálogo leídas de Mercado Libre (quién vende en él).
+create table if not exists mpro_catalogo_oferta (
   organizacion_id  text not null references organizaciones(id) on delete cascade,
-  item_id          text not null,
+  catalogo         text not null,          -- sin «MLA», como lo da Market Pro
   seller_id        bigint not null,
   ts               timestamptz not null default now(),
-  primary key (organizacion_id, item_id)
+  primary key (organizacion_id, catalogo, seller_id)
 );
-alter table mpro_item_vendedor enable row level security;
+create index if not exists mpro_catalogo_oferta_seller on mpro_catalogo_oferta (organizacion_id, seller_id);
+alter table mpro_catalogo_oferta enable row level security;
+create table if not exists mpro_catalogo_leido (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  catalogo         text not null,
+  ofertas          int,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, catalogo)
+);
+alter table mpro_catalogo_leido enable row level security;
+drop table if exists mpro_item_vendedor;
 alter table mpro_llave add column if not exists vendedores_hasta timestamptz;

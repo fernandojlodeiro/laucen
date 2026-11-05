@@ -83,6 +83,6 @@ export async function accionVendedores(fd: FormData) {
   const s = await entrarErp("market_pro_config");
   return deFondo(s, "marketpro-vendedores", "Market Pro: descubrir vendedores", async () => {
     const r = await descubrirVendedores(s.org.id, 240);
-    return `Revisados ${r.hechos} vendedores; identificados ${r.ok}.`;
+    return `Leídos ${r.catalogos} catálogos de Mercado Libre; vendedores identificados: ${r.ok}.`;
   });
 }

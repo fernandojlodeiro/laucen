@@ -89,6 +89,8 @@ export const linkCategoria = (c: number, sp: SP) => url("/market-pro/productos",
 export const linkMl = (itemId: string) => `https://articulo.mercadolibre.com.ar/${itemId.replace(/^MLA/i, "MLA-")}`;
 
 export function Ml({ itemId }: { itemId: string }) {
+  // Market Pro cifra el número de publicación: sólo hay link cuando viene un MLA de verdad.
+  if (!/^MLA\d+$/i.test(itemId)) return null;
   return <a href={linkMl(itemId)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]" title="Ver en Mercado Libre">↗</a>;
 }
 

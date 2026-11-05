@@ -75,9 +75,9 @@ export default async function DescargaMarketPro({ searchParams }: { searchParams
       </section>
 
       <p className="text-xs mb-4">
-        <b>Vendedores identificados:</b> {entero(vend.ok)} de {entero(vend.total)}{vend.trabajando ? " (buscando…)" : ""}.
+        <b>Vendedores identificados:</b> {entero(vend.ok)} de {entero(vend.total)}{vend.trabajando ? " (buscando…)" : ""}, cruzando {entero(vend.catalogos_leidos)} catálogos leídos de Mercado Libre.
         {" "}{entero(vend.sin_catalogo)} no tienen publicaciones de catálogo y Mercado Libre no deja saber quiénes son por otra vía: para ésos sirve el alias que les pongas en Market Pro.
-        {vend.no_encontrado > 0 && ` ${entero(vend.no_encontrado)} todavía no aparecieron (se reintenta).`}
+        {vend.no_encontrado > 0 && ` ${entero(vend.no_encontrado)} venden en catálogo pero todavía no alcanza para asegurar quiénes son (mejora a medida que se leen más catálogos).`}
       </p>
 
       <TituloSeccion titulo={`Categorías que se bajan (${a.categorias.length})`} />

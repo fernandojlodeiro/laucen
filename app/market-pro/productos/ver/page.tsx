@@ -62,7 +62,7 @@ export default async function ProductoMarketPro({ searchParams }: { searchParams
           <tbody>{ofertas.map((o) => (
             <tr key={o.item_id} className={TR}>
               <td className={`${TD} max-w-72`}><span className="flex items-center gap-2"><FotosProducto fotos={o.foto ? [o.foto] : []} titulo={o.titulo ?? ""} />
-                <span>{o.item_id} <Ml itemId={o.item_id} />{o.nuestra && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nuestra</span>}<TituloCorto titulo={o.titulo} /></span></span></td>
+                <span>{/^MLA\d+$/i.test(o.item_id) ? <>{o.item_id} <Ml itemId={o.item_id} /></> : null}{o.nuestra && <span className="ml-1 text-[10px] rounded bg-[#EEF7F1] px-1 text-[#1F6E4A]">nuestra</span>}<TituloCorto titulo={o.titulo} /></span></span></td>
               <td className={TD}>{o.vendedor ? <Link href={linkVendedor(o.vendedor, sp)} className="text-[#16577F]" title={`Apodo en Market Pro: ${o.vendedor}`}>{o.nombre ?? o.alias ?? o.vendedor}</Link> : "—"}</td>
               <td className={TDN}>{pesos(o.precio)}</td><td className={TDN}>{entero(o.unidades)}</td><td className={TDN}>{millones(o.gmv)}</td>
               <td className={TD}>{ENVIO[o.envio ?? ""] ?? o.envio ?? "—"}</td><td className={TD}>{tipo(o.tipo)}{o.catalogo ? " · catálogo" : ""}</td>
