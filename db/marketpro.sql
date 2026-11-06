@@ -248,3 +248,7 @@ create table if not exists mpro_vendedor_ml (
   primary key (organizacion_id, seller_id)
 );
 alter table mpro_vendedor_ml enable row level security;
+
+-- Una vez (6/11): la pausa que dejó la prueba de países (sin error de la llave) se levanta al publicar este cambio;
+-- pasada la fecha, esta línea ya no hace nada (no pisa una pausa manual futura).
+update mpro_llave set pausado = false where pausado and ultimo_error is null and now() < '2026-11-07 12:00+00';
