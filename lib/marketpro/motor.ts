@@ -294,21 +294,21 @@ async function guardarItems(org: string, grano: "m" | "d", items: ItemApi[], atr
 
   const ventas = items.map((it) => ({
     periodo: periodo(it), item_id: it.item_id, vendidas: it.sold_quantity, precio: it.price, gmv: it.gmv, descuento: it.avg_discount, tipo: it.listing_type,
-    cuotas: it.installments == null ? null : String(it.installments), envio: it.shipping_mode, envio_gratis: siNo(it.has_free_shipping), catalogo: siNo(it.is_catalog_product),
+    cuotas: it.installments == null ? null : String(it.installments), envio: it.shipping_mode, envio_tipo: it.shipping_mode_type, envio_gratis: siNo(it.has_free_shipping), catalogo: siNo(it.is_catalog_product),
     dias_activa: it.days_active, visitas_dia: it.avg_daily_visits, conversion: it.conversion_ratio, preguntas_dia: it.avg_daily_questions, fotos: it.pictures_qty,
     visitas_total: it.total_visits, preguntas_total: it.total_questions, ventas_total: it.total_orders, canceladas: it.cancelled_orders, reputacion: it.reputation,
   }));
   const ventasUnicas = [...new Map(ventas.map((v) => [`${v.periodo}|${v.item_id}`, v])).values()];
-  await consulta(`insert into mpro_venta (organizacion_id, grano, periodo, item_id, vendidas, precio, gmv, descuento, tipo, cuotas, envio, envio_gratis, catalogo,
+  await consulta(`insert into mpro_venta (organizacion_id, grano, periodo, item_id, vendidas, precio, gmv, descuento, tipo, cuotas, envio, envio_tipo, envio_gratis, catalogo,
                     dias_activa, visitas_dia, conversion, preguntas_dia, fotos, visitas_total, preguntas_total, ventas_total, canceladas, reputacion)
-                  select $1, $2, x.periodo, x.item_id, round(x.vendidas)::int, x.precio, x.gmv, x.descuento, x.tipo, x.cuotas, x.envio, x.envio_gratis, x.catalogo,
+                  select $1, $2, x.periodo, x.item_id, round(x.vendidas)::int, x.precio, x.gmv, x.descuento, x.tipo, x.cuotas, x.envio, x.envio_tipo, x.envio_gratis, x.catalogo,
                          round(x.dias_activa)::int, x.visitas_dia, x.conversion, x.preguntas_dia, round(x.fotos)::smallint, round(x.visitas_total)::int,
                          round(x.preguntas_total)::int, round(x.ventas_total)::int, round(x.canceladas)::int, x.reputacion
                     from jsonb_to_recordset($3::jsonb) x(periodo date, item_id text, vendidas numeric, precio numeric, gmv numeric, descuento numeric, tipo text,
-                         cuotas text, envio text, envio_gratis boolean, catalogo boolean, dias_activa numeric, visitas_dia numeric, conversion numeric,
+                         cuotas text, envio text, envio_tipo text, envio_gratis boolean, catalogo boolean, dias_activa numeric, visitas_dia numeric, conversion numeric,
                          preguntas_dia numeric, fotos numeric, visitas_total numeric, preguntas_total numeric, ventas_total numeric, canceladas numeric, reputacion text)
                   on conflict (organizacion_id, grano, periodo, item_id) do update set vendidas = excluded.vendidas, precio = excluded.precio, gmv = excluded.gmv,
-                     descuento = excluded.descuento, tipo = excluded.tipo, cuotas = excluded.cuotas, envio = excluded.envio, envio_gratis = excluded.envio_gratis,
+                     descuento = excluded.descuento, tipo = excluded.tipo, cuotas = excluded.cuotas, envio = excluded.envio, envio_tipo = excluded.envio_tipo, envio_gratis = excluded.envio_gratis,
                      catalogo = excluded.catalogo, dias_activa = excluded.dias_activa, visitas_dia = excluded.visitas_dia, conversion = excluded.conversion,
                      preguntas_dia = excluded.preguntas_dia, fotos = excluded.fotos, visitas_total = excluded.visitas_total, preguntas_total = excluded.preguntas_total,
                      ventas_total = excluded.ventas_total, canceladas = excluded.canceladas, reputacion = excluded.reputacion`,

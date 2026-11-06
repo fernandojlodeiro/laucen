@@ -136,6 +136,7 @@ create table if not exists mpro_venta (
   primary key (organizacion_id, grano, periodo, item_id)
 );
 create index if not exists mpro_venta_item on mpro_venta (organizacion_id, item_id);
+alter table mpro_venta add column if not exists envio_tipo text;   -- shipping_mode_type (se guarda desde el 6/11)
 alter table mpro_venta enable row level security;
 
 -- Atributos de la publicación (sólo se piden en el último mes cerrado: pesan).
