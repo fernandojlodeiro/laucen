@@ -231,3 +231,19 @@ create table if not exists mpro_catalogo_leido (
 alter table mpro_catalogo_leido enable row level security;
 drop table if exists mpro_item_vendedor;
 alter table mpro_llave add column if not exists vendedores_hasta timestamptz;
+-- Cómo se identificó (catalogos: sólo por catálogos en común; provincia: desempate por provincia y medalla) y la ficha
+-- pública de cada vendedor de ML leída (para desempatar sin volver a pedirla).
+alter table mpro_vendedor add column if not exists metodo text;
+create table if not exists mpro_vendedor_ml (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  seller_id        bigint not null,
+  nombre           text,
+  ciudad           text,
+  provincia        text,
+  medalla          text,
+  nivel            text,
+  ventas           int,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, seller_id)
+);
+alter table mpro_vendedor_ml enable row level security;

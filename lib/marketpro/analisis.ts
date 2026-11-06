@@ -76,8 +76,8 @@ const MEDIDAS = `
     sum(b.vendidas) filter (where b.en_ventana)::int unidades,
     sum(b.gmv) filter (where b.en_ventana)::float8 gmv,
     (sum(b.gmv) filter (where b.en_ventana) / nullif(sum(b.vendidas) filter (where b.en_ventana), 0))::float8 ticket,
-    count(distinct b.item_id) filter (where b.en_ventana)::int publicaciones,
-    count(distinct b.vendedor) filter (where b.en_ventana)::int vendedores,
+    count(distinct b.item_id) filter (where b.en_ventana and b.vendidas > 0)::int publicaciones,
+    count(distinct b.vendedor) filter (where b.en_ventana and b.vendidas > 0)::int vendedores,
     (sum(b.vendidas) filter (where b.ult3)::float8 / nullif(sum(b.vendidas) filter (where b.ant3), 0) - 1) crecimiento,
     (sum(b.vendidas) filter (where b.en_ventana and b.envio = 'full')::float8 / nullif(sum(b.vendidas) filter (where b.en_ventana), 0)) full_pct,
     (sum(b.vendidas) filter (where b.en_ventana and b.tipo in ('premium', 'gold_pro'))::float8 / nullif(sum(b.vendidas) filter (where b.en_ventana), 0)) premium_pct,
@@ -106,8 +106,8 @@ export type Mes = { mes: string; unidades: number; gmv: number; publicaciones: n
 
 export async function serieMensual(org: string, f: Pick<Filtro, "cat" | "vendedor" | "marca" | "producto">): Promise<Mes[]> {
   return consulta<Mes>(`
-    select to_char(v.periodo, 'YYYY-MM') mes, sum(v.vendidas)::int unidades, sum(v.gmv)::float8 gmv, count(distinct v.item_id)::int publicaciones,
-           count(distinct p.vendedor)::int vendedores, (sum(v.gmv) / nullif(sum(v.vendidas), 0))::float8 ticket,
+    select to_char(v.periodo, 'YYYY-MM') mes, sum(v.vendidas)::int unidades, sum(v.gmv)::float8 gmv, count(distinct v.item_id) filter (where v.vendidas > 0)::int publicaciones,
+           count(distinct p.vendedor) filter (where v.vendidas > 0)::int vendedores, (sum(v.gmv) / nullif(sum(v.vendidas), 0))::float8 ticket,
            (select c.publicaciones from mpro_conteo c where c.organizacion_id = $1 and c.category_id = $2 and c.mes = v.periodo) total_pubs
       from mpro_venta v join mpro_publicacion p on p.organizacion_id = v.organizacion_id and p.item_id = v.item_id
      where v.organizacion_id = $1 and v.grano = 'm'
@@ -152,8 +152,8 @@ export async function porProducto(org: string, mes: string, f: Filtro): Promise<
              (array_agg(b.titulo order by b.vendidas desc))[1] titulo, (array_agg(b.foto order by b.vendidas desc) filter (where b.foto is not null))[1] foto,
              (array_agg(b.marca order by b.vendidas desc))[1] marca, (array_agg(b.cat order by b.vendidas desc))[1] cat,
              (array_agg(b.item_id order by b.vendidas desc))[1] item_top,
-             min(b.precio) filter (where en_ventana and b.periodo > $2::date - interval '3 months')::float8 precio_min,
-             percentile_cont(0.5) within group (order by b.precio) filter (where en_ventana and b.periodo > $2::date - interval '3 months')::float8 precio_mediana,
+             min(b.precio) filter (where en_ventana and b.vendidas > 0 and b.periodo > $2::date - interval '3 months')::float8 precio_min,
+             percentile_cont(0.5) within group (order by b.precio) filter (where en_ventana and b.vendidas > 0 and b.periodo > $2::date - interval '3 months')::float8 precio_mediana,
              (array_agg(distinct b.ean) filter (where b.ean is not null)) eans,
              count(distinct b.item_id) filter (where b.es_nuestra)::int nuestras
         from base b
@@ -180,7 +180,7 @@ export async function porVendedor(org: string, mes: string, f: Filtro): Promise<
     select b.vendedor, (array_agg(b.alias) filter (where b.alias is not null))[1] alias, max(mv.nombre) nombre, max(mv.seller_id)::float8 seller_id,
            ${MEDIDAS}, null::float8 lider_pct,
            (array_agg(b.reputacion order by b.periodo desc))[1] reputacion, (array_agg(b.provincia order by b.periodo desc))[1] provincia,
-           count(distinct b.producto) filter (where en_ventana)::int productos,
+           count(distinct b.producto) filter (where en_ventana and b.vendidas > 0)::int productos,
            count(distinct b.item_id) filter (where en_ventana and b.es_nuestra)::int nuestras,
            max(c.ruta) categoria_top
       from base b left join cattop t on t.vendedor = b.vendedor
@@ -195,7 +195,7 @@ export async function porVendedor(org: string, mes: string, f: Filtro): Promise<
 
 export async function porMarca(org: string, mes: string, f: Filtro): Promise<FilaMarca[]> {
   const filas = await conLider<FilaMarca>(org, mes, f, "marca", `
-    select b.marca, ${MEDIDAS}, max(l.lider_pct) lider_pct, count(distinct b.producto) filter (where en_ventana)::int productos
+    select b.marca, ${MEDIDAS}, max(l.lider_pct) lider_pct, count(distinct b.producto) filter (where en_ventana and b.vendidas > 0)::int productos
       from base b left join lider l on l.g = b.marca
      where $8::text = '' or b.marca ilike $8 || '%'
      group by b.marca having sum(vendidas) filter (where en_ventana) > 0`, [f.q]);

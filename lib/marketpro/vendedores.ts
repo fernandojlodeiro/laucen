@@ -8,7 +8,9 @@
 //   2. a cada apodo se le asigna el vendedor que está en los mismos catálogos que él: el que más catálogos comparte,
 //      con al menos 2 en común, al menos la mitad de los catálogos del apodo y el doble que el segundo; o, si el apodo
 //      vende en un solo catálogo, cuando ese catálogo tiene un solo vendedor;
-//   3. de cada vendedor asignado se lee su nombre, ciudad y medalla.
+//      si dos o tres comparten casi los mismos catálogos (revendedores del mismo producto), desempatan la provincia y la
+//      medalla que da Market Pro (Fer, 6/11);
+//   3. de cada vendedor asignado se lee su nombre, ciudad y medalla (mpro_vendedor_ml, una vez).
 // Los que no venden nada de catálogo quedan «sin_catalogo» (para ellos sirve el alias que se pone a mano en Market Pro).
 // Sólo lee de Mercado Libre.
 
@@ -32,8 +34,8 @@ export async function avanceVendedores(org: string): Promise<AvanceVendedores> {
 }
 
 /** Una vuelta: lee catálogos hasta `segundos` y después asigna. */
-export async function descubrirVendedores(org: string, segundos = 150): Promise<{ catalogos: number; ok: number }> {
-  const turno = await una(`update mpro_llave set vendedores_hasta = now() + make_interval(secs => $2 + 90)
+export async function descubrirVendedores(org: string, segundos = 110): Promise<{ catalogos: number; ok: number }> {
+  const turno = await una(`update mpro_llave set vendedores_hasta = now() + make_interval(secs => $2 + 150)
                             where organizacion_id = $1 and (vendedores_hasta is null or vendedores_hasta < now()) returning 1`, [org, segundos]);
   if (!turno) return { catalogos: 0, ok: 0 };
   const t0 = Date.now();
@@ -54,7 +56,7 @@ export async function descubrirVendedores(org: string, segundos = 150): Promise<
       await Promise.all(tanda.map((c) => leerCatalogo(org, cuenta, c)));
       catalogos += tanda.length;
     }
-    const ok = await asignar(org, cuenta);
+    const ok = await asignar(org, cuenta, t0 + (segundos + 80) * 1000);
     return { catalogos, ok };
   } finally {
     await consulta("update mpro_llave set vendedores_hasta = null where organizacion_id = $1", [org]);
@@ -78,9 +80,32 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, catalogo: string): Pr
                   on conflict (organizacion_id, catalogo) do update set ofertas = excluded.ofertas, ts = now()`, [org, cat, vendedores.size]);
 }
 
-/** Asigna a cada apodo su vendedor por los catálogos en común y lee la ficha de los nuevos. Devuelve cuántos quedaron identificados. */
-async function asignar(org: string, cuenta: CuentaMl): Promise<number> {
-  const elegidos = await consulta<{ apodo: string; seller_id: string; k: number; n: number }>(`
+/** Las provincias como las da Mercado Libre (ISO 3166-2:AR, «AR-B») y como las da Market Pro («Buenos Aires»). */
+const PROVINCIAS: Record<string, string> = {
+  A: "salta", B: "buenos aires", C: "capital federal", D: "san luis", E: "entre rios", F: "la rioja", G: "santiago del estero",
+  H: "chaco", J: "san juan", K: "catamarca", L: "la pampa", M: "mendoza", N: "misiones", P: "formosa", Q: "neuquen",
+  R: "rio negro", S: "santa fe", T: "tucuman", U: "chubut", V: "tierra del fuego", W: "corrientes", X: "cordoba", Y: "jujuy", Z: "santa cruz",
+};
+const sinAcento = (t: string | null | undefined) => (t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const mismaProvincia = (ml: string | null, mp: string | null) => {
+  if (!ml || !mp) return false;
+  const a = PROVINCIAS[ml.replace(/^AR-/, "").toUpperCase()] ?? sinAcento(ml);
+  const b = sinAcento(mp);
+  return a === b || (a === "capital federal" && /ciudad|caba|capital/.test(b));
+};
+/** La medalla de Market Pro contra la de ML (official_store no se puede comparar: vale). */
+const mismaMedalla = (ml: string | null, mp: string | null) =>
+  !mp || mp === "official_store" ? true : mp === "no_medal" ? !ml : (ml ?? "") === mp;
+
+type Ficha = { nombre: string | null; ciudad: string | null; provincia: string | null; medalla: string | null; nivel: string | null; ventas: number | null };
+type U = { nickname?: string; address?: { city?: string; state?: string }; seller_reputation?: { level_id?: string; power_seller_status?: string; transactions?: { total?: number } } };
+
+/** Asigna a cada apodo su vendedor por los catálogos en común y lee la ficha de los nuevos. Si dos o tres vendedores
+ *  comparten casi los mismos catálogos (revendedores del mismo producto), desempata la provincia y la medalla que da
+ *  Market Pro: gana el único que coincide en las dos, o el que coincide y comparte al menos 1,5 veces más catálogos que
+ *  el siguiente que también coincide. Devuelve cuántos quedaron identificados. */
+async function asignar(org: string, cuenta: CuentaMl, hasta: number): Promise<number> {
+  const filas = await consulta<{ apodo: string; seller_id: string; k: number; n: number; rk: number; provincia: string | null; reputacion: string | null }>(`
     with ap as (
       select distinct p.vendedor apodo, p.catalogo from mpro_publicacion p
         join mpro_venta v on v.organizacion_id = p.organizacion_id and v.item_id = p.item_id and v.grano = 'm'
@@ -90,30 +115,66 @@ async function asignar(org: string, cuenta: CuentaMl): Promise<number> {
     ),
     n as (select apodo, count(*)::int n from ap group by 1),
     c as (select ap.apodo, o.seller_id, count(*)::int k from ap join mpro_catalogo_oferta o on o.organizacion_id = $1 and o.catalogo = ap.catalogo group by 1, 2),
-    r as (select c.*, n.n, row_number() over (partition by c.apodo order by c.k desc, c.seller_id) rk,
-                 lead(c.k) over (partition by c.apodo order by c.k desc, c.seller_id) k2 from c join n using (apodo)),
-    buenos as (select apodo, seller_id, k, n from r
-                where rk = 1 and ((k >= 2 and k * 2 >= n and (k2 is null or k >= 2 * k2)) or (n = 1 and k = 1 and k2 is null)))
-    -- Un vendedor, un apodo: si dos apodos caen en el mismo, gana el que más coincide.
-    select distinct on (seller_id) apodo, seller_id::text, k, n from buenos order by seller_id, k desc, n`, [org]);
+    r as (select c.*, n.n, row_number() over (partition by c.apodo order by c.k desc, c.seller_id)::int rk from c join n using (apodo)),
+    datos as (select vendedor apodo, mode() within group (order by provincia) provincia, mode() within group (order by reputacion) reputacion
+                from mpro_publicacion where organizacion_id = $1 and vendedor is not null group by 1)
+    select r.apodo, r.seller_id::text, r.k, r.n, r.rk, d.provincia, d.reputacion from r join datos d using (apodo) where r.rk <= 3
+     order by r.apodo, r.rk`, [org]);
+  const porApodo = new Map<string, typeof filas>();
+  for (const f of filas) porApodo.set(f.apodo, [...(porApodo.get(f.apodo) ?? []), f]);
 
-  const conocidos = new Map((await consulta<{ seller_id: string; nombre: string | null }>(
-    "select seller_id::text, nombre from mpro_vendedor where organizacion_id = $1 and estado = 'ok' and nombre is not null", [org])).map((x) => [x.seller_id, x.nombre]));
+  const fichas = new Map((await consulta<Ficha & { seller_id: string }>(
+    "select seller_id::text, nombre, ciudad, provincia, medalla, nivel, ventas from mpro_vendedor_ml where organizacion_id = $1", [org])).map((x) => [x.seller_id, x as Ficha]));
+  const ficha = async (id: string): Promise<Ficha> => {
+    const ya = fichas.get(id);
+    if (ya) return ya;
+    const u = await ml<U>(cuenta, "GET", `/users/${id}`);
+    const d: U = u.status === 200 ? u.datos : {};
+    const f: Ficha = { nombre: d.nickname ?? null, ciudad: d.address?.city ?? null, provincia: d.address?.state ?? null,
+      medalla: d.seller_reputation?.power_seller_status ?? null, nivel: d.seller_reputation?.level_id ?? null, ventas: d.seller_reputation?.transactions?.total ?? null };
+    if (u.status === 200) await consulta(`insert into mpro_vendedor_ml (organizacion_id, seller_id, nombre, ciudad, provincia, medalla, nivel, ventas)
+                                          values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (organizacion_id, seller_id) do update set nombre = excluded.nombre,
+                                          ciudad = excluded.ciudad, provincia = excluded.provincia, medalla = excluded.medalla, nivel = excluded.nivel,
+                                          ventas = excluded.ventas, ts = now()`, [org, id, f.nombre, f.ciudad, f.provincia, f.medalla, f.nivel, f.ventas]);
+    fichas.set(id, f);
+    return f;
+  };
+
+  // Primero por catálogos solos; los dudosos, con la ficha de sus candidatos.
+  const elegidos: { apodo: string; seller_id: string; k: number; n: number; metodo: string }[] = [];
+  const dudosos: (typeof filas)[] = [];
+  for (const cands of porApodo.values()) {
+    const [a, b] = cands;
+    if ((a.k >= 2 && a.k * 2 >= a.n && (!b || a.k >= 2 * b.k)) || (a.n === 1 && a.k === 1 && !b)) elegidos.push({ ...a, metodo: "catalogos" });
+    else if (a.k >= 2 && a.k * 2 >= a.n) dudosos.push(cands.filter((c) => c.k * 2 >= a.k));
+  }
+  // Los dudosos piden fichas de ML: hasta el tope de tiempo (las fichas quedan guardadas y la próxima vuelta sigue).
+  for (let i = 0; i < dudosos.length && Date.now() < hasta; i += A_LA_VEZ) {
+    await Promise.all(dudosos.slice(i, i + A_LA_VEZ).map(async (cands) => {
+      const ok: (typeof filas)[number][] = [];
+      for (const c of cands) {
+        const f = await ficha(c.seller_id);
+        if (mismaProvincia(f.provincia, c.provincia) && mismaMedalla(f.medalla, c.reputacion)) ok.push(c);
+      }
+      if (ok.length === 1 || (ok.length > 1 && ok[0].k >= 1.5 * ok[1].k)) elegidos.push({ ...ok[0], metodo: "provincia" });
+    }));
+  }
+  // Un vendedor, un apodo: si dos apodos caen en el mismo, gana el que más coincide.
+  const porVendedor = new Map<string, (typeof elegidos)[number]>();
+  for (const e of elegidos) { const ya = porVendedor.get(e.seller_id); if (!ya || e.k > ya.k) porVendedor.set(e.seller_id, e); }
+
   const asignados = new Set<string>();
-  for (let i = 0; i < elegidos.length; i += A_LA_VEZ) {
-    await Promise.all(elegidos.slice(i, i + A_LA_VEZ).map(async (e) => {
+  const lista = [...porVendedor.values()];
+  for (let i = 0; i < lista.length; i += A_LA_VEZ) {
+    await Promise.all(lista.slice(i, i + A_LA_VEZ).map(async (e) => {
       asignados.add(e.apodo);
-      type U = { nickname?: string; address?: { city?: string; state?: string }; seller_reputation?: { level_id?: string; power_seller_status?: string; transactions?: { total?: number } } };
-      const d: U = conocidos.has(e.seller_id) ? {} : await ml<U>(cuenta, "GET", `/users/${e.seller_id}`).then((u) => (u.status === 200 ? u.datos : {}));
-      await consulta(`insert into mpro_vendedor (organizacion_id, apodo, estado, seller_id, nombre, ciudad, provincia, medalla, nivel, ventas, coincidencias, de)
-                      values ($1, $2, 'ok', $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                      on conflict (organizacion_id, apodo) do update set estado = 'ok', seller_id = excluded.seller_id,
-                         nombre = coalesce(excluded.nombre, case when mpro_vendedor.seller_id = excluded.seller_id then mpro_vendedor.nombre end),
-                         ciudad = coalesce(excluded.ciudad, mpro_vendedor.ciudad), provincia = coalesce(excluded.provincia, mpro_vendedor.provincia),
-                         medalla = coalesce(excluded.medalla, mpro_vendedor.medalla), nivel = coalesce(excluded.nivel, mpro_vendedor.nivel),
-                         ventas = coalesce(excluded.ventas, mpro_vendedor.ventas), coincidencias = excluded.coincidencias, de = excluded.de, ts = now()`,
-        [org, e.apodo, e.seller_id, d.nickname ?? null, d.address?.city ?? null, d.address?.state?.replace(/^AR-/, "") ?? null,
-          d.seller_reputation?.power_seller_status ?? null, d.seller_reputation?.level_id ?? null, d.seller_reputation?.transactions?.total ?? null, e.k, e.n]);
+      const f = await ficha(e.seller_id);
+      await consulta(`insert into mpro_vendedor (organizacion_id, apodo, estado, seller_id, nombre, ciudad, provincia, medalla, nivel, ventas, coincidencias, de, metodo)
+                      values ($1, $2, 'ok', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                      on conflict (organizacion_id, apodo) do update set estado = 'ok', seller_id = excluded.seller_id, nombre = excluded.nombre,
+                         ciudad = excluded.ciudad, provincia = excluded.provincia, medalla = excluded.medalla, nivel = excluded.nivel,
+                         ventas = excluded.ventas, coincidencias = excluded.coincidencias, de = excluded.de, metodo = excluded.metodo, ts = now()`,
+        [org, e.apodo, e.seller_id, f.nombre, f.ciudad, f.provincia?.replace(/^AR-/, "") ?? null, f.medalla, f.nivel, f.ventas, e.k, e.n, e.metodo]);
     }));
   }
   // Los demás: sin catálogo (nunca vendieron algo de catálogo) o todavía sin asegurar. Uno que antes estaba asignado y ya no
