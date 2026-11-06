@@ -18,7 +18,9 @@ import { ErrorMarketPro, FILAS_POR_PEDIDO, pedirMarketPro, type CategoriaApi, ty
 export const PRIMER_MES = "202310"; // desde cuándo hay datos mensuales
 export const PRIMER_DIA = "2025-10-01"; // desde cuándo hay datos diarios
 const SEGUNDOS_POR_VUELTA = 180; // + el último pedido (hasta ~1 minuto): entra en los 5 minutos de la ruta
-const DIAS_POR_TANDA = 30;
+// Tandas cortas: Market Pro tarda más cuanto más adentro de una consulta se pagina (medido 5/11: 3,5 s por página al
+// principio, 11 s pasadas las 130.000 filas). Jardín vende ~10.000 publicaciones por día: 3 días son ~30.000 filas.
+const DIAS_POR_TANDA = 3;
 /** Los atributos (pesan) se piden de los últimos 3 meses cerrados (Fer, 5/11: plan de la prueba, opción 1). */
 const MESES_CON_ATRIBUTOS = 3;
 
@@ -87,7 +89,7 @@ export async function planificarCategoria(org: string, cat: number): Promise<voi
   // Una tanda ya encolada sin atributos de esos meses los suma desde la página en que esté.
   await consulta(`update mpro_descarga set atributos = true where organizacion_id = $1 and category_id = $2 and tipo = 'mes' and not atributos
                     and estado in ('pendiente', 'corriendo') and mes = any($3::text[])`, [org, cat, meses.slice(1, 1 + MESES_CON_ATRIBUTOS)]);
-  // Por día, de a 30 (la API admite menos de 100), todo desde octubre de 2025 (Fer, 5/11: plan de la prueba, opción 1):
+  // Por día, de a 3 días (la API admite menos de 100), todo desde octubre de 2025 (Fer, 5/11: plan de la prueba, opción 1):
   // primero lo que falta de lo más nuevo (de ayer hacia atrás, hasta lo ya pedido) y después lo que falta de lo más viejo
   // (de lo pedido más viejo hacia atrás, hasta octubre de 2025).
   const ayer = hoyAr(); ayer.setDate(ayer.getDate() - 1);
