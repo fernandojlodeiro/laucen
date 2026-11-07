@@ -88,6 +88,8 @@ export type Analisis = {
     canales: CanalPublicidad[]; campanas: CampanaAds[]; mlAds: ProductoMlAds[]; fuentes: Fuente[];
   };
   visitas: { dias: DiaVisitas[]; total: Omit<DiaVisitas, "fecha">; antes: Omit<DiaVisitas, "fecha">; origenes: OrigenVisitas[] };
+  /** Cuánto tardó cada parte (ms) y las que no se pudieron hacer. */
+  tiempos?: Record<string, number>; errores?: string[];
   urgentes: string[];
 };
 
@@ -364,15 +366,33 @@ export function urgentesDe(a: Omit<Analisis, "urgentes">): string[] {
   return salida;
 }
 
+/** Una parte del análisis con su tope de tiempo: si falla o se pasa, queda `vacio` y el motivo (las otras partes siguen). */
+async function parte<T>(nombre: string, vacio: T, fn: () => Promise<T>, tiempos: Record<string, number>, errores: string[], topeMs = 100_000): Promise<T> {
+  const t0 = Date.now();
+  try {
+    return await Promise.race([fn(), new Promise<never>((_, no) => setTimeout(() => no(new Error(`tardó más de ${Math.round(topeMs / 1000)} s`)), topeMs))]);
+  } catch (e) {
+    console.error(`[analisis diario] ${nombre}`, e);
+    errores.push(`${nombre}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300));
+    return vacio;
+  } finally {
+    tiempos[nombre] = Date.now() - t0;
+  }
+}
+
 export async function calcularAnalisis(org: string, hoy: string = hoyAr()): Promise<Analisis> {
   const cfg = await configAnalisis(org);
+  const tiempos: Record<string, number> = {}, errores: string[] = [];
   const [familias, campanas, ofertas, publicidad, visitas] = await Promise.all([
-    nombresFamilias(org, cfg.familias),
-    analizarCampanas(org, cfg),
-    analizarOfertas(org, cfg),
-    analizarPublicidad(org, hoy),
-    analizarVisitas(org, hoy),
+    nombresFamilias(org, cfg.familias).catch(() => []),
+    parte("Campañas de ML", { publicaciones: 0, enCampana: 0, sinNecesidad: 0, filas: [] }, () => analizarCampanas(org, cfg), tiempos, errores),
+    parte("Relámpago y compartidas", [] as FilaOferta[], () => analizarOfertas(org, cfg), tiempos, errores),
+    parte("Publicidad", { desde: sumarDias(hoy, -7), hasta: sumarDias(hoy, -1), desdeAntes: sumarDias(hoy, -14), hastaAntes: sumarDias(hoy, -8), canales: [], campanas: [], mlAds: [], fuentes: [] },
+      () => analizarPublicidad(org, hoy), tiempos, errores),
+    parte("Visitas", { dias: [], total: { ...VACIO }, antes: { ...VACIO }, origenes: [] }, () => analizarVisitas(org, hoy), tiempos, errores),
   ]);
-  const base = { fecha: hoy, generado: new Date().toISOString(), config: { familias, maxBajaPct: cfg.maxBajaPct }, campanas, ofertas, publicidad, visitas };
-  return { ...base, urgentes: urgentesDe(base) };
+  const base = { fecha: hoy, generado: new Date().toISOString(), config: { familias, maxBajaPct: cfg.maxBajaPct }, campanas, ofertas, publicidad, visitas, tiempos, errores };
+  const urgentes = urgentesDe(base);
+  for (const e of errores) urgentes.push(`No se pudo analizar ${e}`);
+  return { ...base, urgentes };
 }

@@ -46,12 +46,18 @@ export type ResultadoAnalisis = { fecha: string; urgentes: number; avisados: num
 export async function correrAnalisis(org: string, opts: { avisar?: boolean } = {}): Promise<ResultadoAnalisis> {
   const hoy = hoyAr();
   const a = await calcularAnalisis(org, hoy);
-  const ia = await resumenIa(a);
+  // Los datos se guardan antes del resumen: si la IA tarda o falla, la pantalla ya los muestra.
   await consulta(`
-    insert into analisis_diario (organizacion_id, fecha, datos, resumen, resumen_error, urgentes) values ($1, $2::date, $3::jsonb, $4, $5, $6)
-    on conflict (organizacion_id, fecha) do update set datos = excluded.datos, resumen = excluded.resumen, resumen_error = excluded.resumen_error,
+    insert into analisis_diario (organizacion_id, fecha, datos, resumen, resumen_error, urgentes) values ($1, $2::date, $3::jsonb, null, 'escribiendo', $4)
+    on conflict (organizacion_id, fecha) do update set datos = excluded.datos, resumen = null, resumen_error = 'escribiendo',
       urgentes = excluded.urgentes, creado_ts = now()`,
-    [org, hoy, JSON.stringify(a), ia.resumen, ia.error, a.urgentes.length]);
+    [org, hoy, JSON.stringify(a), a.urgentes.length]);
+  // La IA, con tope de 90 segundos (el resto de la corrida no la espera más).
+  const ia = await Promise.race([
+    resumenIa(a),
+    new Promise<{ resumen: null; error: string }>((r) => setTimeout(() => r({ resumen: null, error: "La IA tardó demasiado." }), 90_000)),
+  ]);
+  await consulta("update analisis_diario set resumen = $3, resumen_error = $4 where organizacion_id = $1 and fecha = $2::date", [org, hoy, ia.resumen, ia.error]);
   let avisados = 0;
   const cfg = await configAnalisis(org);
   if (opts.avisar !== false && cfg.avisar && a.urgentes.length) {

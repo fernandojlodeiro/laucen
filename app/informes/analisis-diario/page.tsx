@@ -147,6 +147,7 @@ function Resumen({ a, resumen, error }: { a: Analisis; resumen: string | null; e
       <div className={CAJA}>
         <TituloSeccion titulo="Lo que dice el análisis" />
         {resumen ? <div className="text-xs leading-relaxed whitespace-pre-wrap">{resumen}</div>
+          : error === "escribiendo" ? <p className="text-xs text-[#5C6B76]">La IA está escribiendo el resumen; los datos ya están en las otras pestañas.</p>
           : <p className="text-xs text-[#5C6B76]">No se pudo escribir el resumen{error ? ` (${error.startsWith("Falta") ? error : "la IA no contestó"})` : ""}. Los datos están en las otras pestañas.</p>}
       </div>
       <div className="space-y-4">
