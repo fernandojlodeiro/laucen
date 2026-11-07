@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bajaPct, evaluarOferta, pagaHoy, recibeEnCampana, mejorCandidata, nombreOrigen, revisarPublicacion, sumarDias, urgentesDe, type Analisis } from "@/lib/analisis-diario/calcular";
+import { bajaPct, evaluarOferta, pagaHoy, recibeEnCampana, resumenOfertas, mejorCandidata, nombreOrigen, revisarPublicacion, sumarDias, urgentesDe, type Analisis } from "@/lib/analisis-diario/calcular";
 import type { Campana, PropuestaPub, PubMl } from "@/lib/precios-ml/motor";
 
 const pub = (campanas: Campana[], extra: Partial<PubMl> = {}): PubMl => ({
@@ -134,4 +134,14 @@ test("compartida («Potencia tus ventas»): se mide lo que paga el comprador má
   assert.equal(v.campana?.bajaPct, 7.5);
   // Una oferta del vendedor (DEAL) no lleva aporte de ML.
   assert.equal(recibeEnCampana({ ...c, tipo: "DEAL" })!.aporteMl, 0);
+});
+
+test("resumenOfertas: relámpago y compartidas por separado, una línea por producto", () => {
+  const o = (x: Partial<Analisis["ofertas"][number]>) => ({ productoId: 1, sku: "ET5", titulo: "", tipo: "LIGHTNING", estado: "candidate", entra: false, bajaPct: 5.5, precio: 472_499, base: 499_999, ...x }) as Analisis["ofertas"][number];
+  const ofertas = [o({}), o({ bajaPct: 7 }), o({ estado: "pending" }), o({ productoId: 2, sku: "A8", tipo: "SMART", entra: true, bajaPct: 2 })];
+  const rel = resumenOfertas(ofertas, true);
+  assert.equal(rel.length, 1);
+  assert.deepEqual([rel[0].propuestas, rel[0].entran, rel[0].mejorBaja, rel[0].aceptadas], [2, 0, 5.5, 1]);
+  const comp = resumenOfertas(ofertas, false);
+  assert.deepEqual([comp[0].sku, comp[0].entran], ["A8", 1]);
 });

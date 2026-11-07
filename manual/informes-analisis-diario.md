@@ -22,9 +22,10 @@ Menú **Informes › Análisis diario** ([Análisis diario](/informes/analisis-d
 - Arriba a la derecha: **«Entrar a las ofertas que cumplen»** (si hay alguna), **«Preparar lote de campañas»** (si hay publicaciones sin campaña que pueden entrar a una) y **«Volver a analizar»**. Los tres corren de fondo: la pantalla queda libre y al terminar aparece el cartel abajo a la derecha.
 - Debajo, de qué día es el análisis y a qué hora se hizo, con **«◀ Día anterior»** y **«Día siguiente ▶»** para ver los de otros días; las familias que se miran y el tope de baja de una oferta.
 - Pestañas:
-  - **Resumen**: lo que escribió la IA con los datos del día (lo urgente, campañas, publicidad, visitas y qué haría hoy), la lista **Para hacer** y algunos números.
+  - **Resumen**: lo que escribió la IA con los datos del día (lo urgente, ofertas relámpago, campañas y compartidas, publicidad, visitas y qué haría hoy), la lista **Para hacer**, un recuadro **Ofertas relámpago** y otro **Ofertas compartidas** con una línea por producto (cuántas propone Mercado Libre, cuánto baja la mejor y si entra) y algunos números.
   - **Campañas de ML (N)**: sólo las publicaciones que piden algo, con su estado, cuenta, publicación, plan, lo que paga hoy el comprador, lo que tendría que pagar según el esquema y qué pasa. Cada fila lleva el color de su cuenta.
-  - **Relámpago y compartidas (N)**: las ofertas relámpago y compartidas que Mercado Libre propone a esos productos y las que ya están programadas o en curso, con si **entran** o por qué no, el precio, cuánto baja, lo que se recibe hoy y en la oferta, el stock y cuándo corre.
+  - **Relámpago (N)**: las ofertas relámpago (unas horas, con stock reservado) que Mercado Libre propone a esos productos y las que ya están programadas o en curso, con si **entran** o por qué no, el precio, cuánto baja, lo que se recibe hoy y en la oferta, el stock y cuándo corre.
+  - **Compartidas (N)**: lo mismo con las ofertas compartidas («Potencia tus ventas» y otras, donde Mercado Libre pone el precio y paga una parte del descuento).
   - **Publicidad**: los últimos 7 días contra los 7 anteriores, por canal (cada cuenta de Mercado Libre, Meta, Google, la tienda sin anuncio) con invertido, clics, consultas, ventas, vendido, costo por venta y retorno; las campañas de Google y Meta con lo invertido y el costo por clic; los productos cuya publicidad de Mercado Libre conviene **cortar, bajar o subir**; y cuándo se leyó por última vez cada fuente.
   - **Visitas de la tienda**: visitantes, productos vistos, carrito, llegaron a pagar, compras y clics en WhatsApp, por día y por origen (anuncio de Google, de Meta, buscador, directo…), con el cambio contra la semana anterior.
   - **Configuración**: qué familias se miran, lo más que puede bajar una oferta y si se avisa.
@@ -32,7 +33,7 @@ Menú **Informes › Análisis diario** ([Análisis diario](/informes/analisis-d
 ## Cómo se hace
 
 ### Entrar a las ofertas relámpago que cumplen
-1. Mirá la pestaña **Relámpago y compartidas**: las que dicen **Entra** cumplen todo.
+1. Mirá las pestañas **Relámpago** y **Compartidas**: las que dicen **Entra** cumplen todo.
 2. Apretá **«Entrar a las ofertas que cumplen»** (arriba a la derecha) y confirmá con **Sí**.
 3. Se recalcula en ese momento (no con lo de la mañana) y las que siguen cumpliendo van a Mercado Libre por la cola, con todas las unidades disponibles (hasta lo máximo que acepta la oferta). De las relámpago, entra una sola publicación por producto.
 
