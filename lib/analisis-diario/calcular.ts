@@ -18,7 +18,7 @@
 import { consulta, una } from "@/lib/erp/base";
 import { calcularCanal, canalesMl, familiasDe } from "@/lib/precios-ml/datos";
 import { mandadosSinLeer } from "@/lib/precios-ml/preparar";
-import { CON_PRECIO, PLAN_INFO, cadenaFamilias, campanasBajoPiso, pedidosPrecio, queCambia, rigeHoy,
+import { CON_PRECIO, PLAN_INFO, cadenaFamilias, pedidosPrecio, queCambia, rigeHoy,
   type Campana, type PropuestaPub } from "@/lib/precios-ml/motor";
 import { relampagos, enviosRelampago, claveCola, type Relampago } from "@/lib/precios-ml/relampago";
 import { embudo } from "@/lib/publicidad/embudo";
@@ -124,6 +124,21 @@ export function mejorCandidata(campanas: Campana[], venta: number): { campana: C
   return mejor;
 }
 
+/** Lo que paga el comprador en una campaña en curso, lo que pone ML de su bolsillo (en las que arma ML: «Potencia tus
+ *  ventas» y otras compartidas, `original` × % de ML) y lo que queda por venta antes de comisión y envío (la suma).
+ *  null si ML no informa el precio. Pura. */
+export function recibeEnCampana(c: Campana): { paga: number; aporteMl: number; queda: number } | null {
+  if (c.precio == null || !(c.precio > 0)) return null;
+  const aporteMl = !CON_PRECIO.includes(c.tipo) && c.original && c.pctMeli ? Math.round((c.original * c.pctMeli) / 100) : 0;
+  return { paga: Number(c.precio), aporteMl, queda: Number(c.precio) + aporteMl };
+}
+
+/** Lo que paga hoy el comprador: el menor precio de las campañas en curso (también las compartidas que arma ML). Pura. */
+export function pagaHoy(pub: { precioVentaMl: number | null; campanas: Campana[] }, ahora: Date = new Date()): number | null {
+  const v = Math.min(pub.precioVentaMl ?? Infinity, ...pub.campanas.filter((c) => enCurso(c, ahora) && c.precio != null && c.precio > 0).map((c) => Number(c.precio)));
+  return Number.isFinite(v) ? v : null;
+}
+
 /** Cómo está una publicación activa con sus campañas, contra lo que dice el esquema (la propuesta del motor). null si
  *  está bien (en campaña al precio del esquema, o a su precio sin tachado y sin necesitar campaña). Pura.
  *  `sinLeer`: ya se le mandó algo que ML todavía no confirmó (se espera). `error`: lo último que contestó ML, si falló. */
@@ -133,12 +148,18 @@ export function revisarPublicacion(pa: PropuestaPub, maxBajaPct: number, o: { si
   const pub = pa.pub;
   if (pub.estado !== "activa" || pa.venta == null || pa.lista == null) return null;
   const pesos = (x: number) => `$ ${Math.round(x).toLocaleString("es-AR")}`;
-  // En una campaña que la deja más abajo de lo que se acepta (el % de la configuración) contra el esquema.
-  for (const { campana: c, precio } of campanasBajoPiso(pa)) {
-    if (pa.piso == null || precio >= pa.piso * (1 - maxBajaPct / 100) - 1) continue;
-    const b = bajaPct(precio, pa.piso);
-    return { estado: "bajo_piso", detalle: `En «${c.nombre ?? c.tipo}» a ${pesos(precio)}: ${b.toLocaleString("es-AR")} % debajo del esquema (${pesos(pa.piso)}), más que el ${maxBajaPct.toLocaleString("es-AR")} % aceptado.`,
-      campana: { id: c.id, tipo: c.tipo, nombre: c.nombre ?? null, precio, bajaPct: b } };
+  // En una campaña que la deja más abajo de lo que se acepta (el % de la configuración) contra el esquema: se mide lo que
+  // queda por venta (lo que paga el comprador más lo que pone ML en una compartida), no lo que dice ML que pone cada uno.
+  if (pa.piso != null) {
+    for (const c of pub.campanas) {
+      if (!enCurso(c, ahora)) continue;
+      const r = recibeEnCampana(c);
+      if (r == null || r.queda >= pa.piso * (1 - maxBajaPct / 100) - 1) continue;
+      const b = bajaPct(r.queda, pa.piso);
+      const como = r.aporteMl > 0 ? `el comprador paga ${pesos(r.paga)} y ML pone ${pesos(r.aporteMl)}: queda ${pesos(r.queda)} por venta` : `a ${pesos(r.queda)}`;
+      return { estado: "bajo_piso", detalle: `En «${c.nombre ?? c.tipo}» ${como}, ${b.toLocaleString("es-AR")} % debajo del esquema (${pesos(pa.piso)}), más que el ${maxBajaPct.toLocaleString("es-AR")} % aceptado.`,
+        campana: { id: c.id, tipo: c.tipo, nombre: c.nombre ?? null, precio: Math.round(r.queda), bajaPct: b } };
+    }
   }
   const necesita = pa.lista > pa.venta + 1;
   const adentro = pub.campanas.filter((c) => enCurso(c, ahora));
@@ -206,7 +227,7 @@ export async function analizarCampanas(org: string, cfg: ConfigAnalisis): Promis
         if (!r) continue;
         res.filas.push({
           ...r, canalId: canal.id, cuenta: canal.nombre, itemId: pa.pub.itemId, productoId: info.productoId, sku: info.sku, titulo: info.titulo,
-          plan: pa.pub.plan ? PLAN_INFO[pa.pub.plan].corto : null, venta: pa.venta, lista: pa.lista, pagaHoy: pa.pub.precioVentaMl,
+          plan: pa.pub.plan ? PLAN_INFO[pa.pub.plan].corto : null, venta: pa.venta, lista: pa.lista, pagaHoy: pagaHoy(pa.pub, ahora),
           error: errores.get(pa.pub.itemId) ?? null,
         });
       }

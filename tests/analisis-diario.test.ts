@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bajaPct, evaluarOferta, mejorCandidata, nombreOrigen, revisarPublicacion, sumarDias, urgentesDe, type Analisis } from "@/lib/analisis-diario/calcular";
+import { bajaPct, evaluarOferta, pagaHoy, recibeEnCampana, mejorCandidata, nombreOrigen, revisarPublicacion, sumarDias, urgentesDe, type Analisis } from "@/lib/analisis-diario/calcular";
 import type { Campana, PropuestaPub, PubMl } from "@/lib/precios-ml/motor";
 
 const pub = (campanas: Campana[], extra: Partial<PubMl> = {}): PubMl => ({
@@ -118,4 +118,20 @@ test("urgentesDe: cuenta cada cosa y las fuentes viejas", () => {
   assert.match(u[2], /^1 publicación está al tachado/);
   assert.match(u[3], /1 producto para CORTAR/);
   assert.match(u[4], /Meta.*volver a conectar/);
+});
+
+test("compartida («Potencia tus ventas»): se mide lo que paga el comprador más lo que pone ML", () => {
+  // Como MLA1706473885 el 7/11: el comprador paga 920.762,80, ML pone 2,9 % de 1.725.891 (50.051): quedan 970.814.
+  const c: Campana = { id: "P-MLA18167004", tipo: "SMART", estado: "started", nombre: "Potencia tus ventas", precio: 920_762.8, min: null, max: null,
+    original: 1_725_891, pctVendedor: 43.7, pctMeli: 2.9 };
+  const r = recibeEnCampana(c)!;
+  assert.equal(r.aporteMl, 50_051);
+  assert.equal(Math.round(r.queda), 970_814);
+  const p = pub([c], { precioListaMl: 1_049_000, precioVentaMl: 1_049_000 });
+  assert.equal(pagaHoy(p), 920_762.8);
+  const v = revisarPublicacion(propuesta(p, { lista: 1_049_000, venta: 1_049_000, piso: 1_049_000 }), 3, { sinLeer: false, error: null })!;
+  assert.equal(v.estado, "bajo_piso");
+  assert.equal(v.campana?.bajaPct, 7.5);
+  // Una oferta del vendedor (DEAL) no lleva aporte de ML.
+  assert.equal(recibeEnCampana({ ...c, tipo: "DEAL" })!.aporteMl, 0);
 });

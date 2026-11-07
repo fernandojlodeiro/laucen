@@ -152,8 +152,8 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   const fijadas = new Set((await consulta<{ item_id: string }>("select item_id from ml_precio_ganar where canal_id = $1", [canal.id])).map((x) => x.item_id));
   const [promos, volumen] = items.length ? await Promise.all([
     consulta<{ item_id: string; promocion_id: string; tipo: string; estado: string | null; nombre: string | null; precio: number | null; min_precio: number | null; max_precio: number | null;
-               precio_original: number | null; pct_vendedor: number | null; desde: string | null }>(`
-      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8, precio_original::float8, pct_vendedor::float8,
+               precio_original: number | null; pct_vendedor: number | null; pct_meli: number | null; desde: string | null }>(`
+      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8, precio_original::float8, pct_vendedor::float8, pct_meli::float8,
              desde::text
         from ml_promo_item where canal_id = $1 and item_id = any($2::text[]) and (hasta is null or hasta > now())`, [canal.id, items]),
     consulta<{ item_id: string; variation_id: string; payload: { escalones?: { cantidad: number; precio: number }[] } }>(`
@@ -164,7 +164,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   const campanas = new Map<string, Campana[]>();
   for (const p of promos) {
     campanas.set(p.item_id, [...(campanas.get(p.item_id) ?? []), { id: p.promocion_id, tipo: p.tipo, estado: p.estado, nombre: p.nombre, precio: p.precio, min: p.min_precio, max: p.max_precio,
-      original: p.precio_original, pctVendedor: p.pct_vendedor, desde: p.desde }]);
+      original: p.precio_original, pctVendedor: p.pct_vendedor, pctMeli: p.pct_meli, desde: p.desde }]);
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 

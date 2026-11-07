@@ -262,6 +262,8 @@ export type ReglaTachado = FilaNivel & { tachado_pct: number | null;
 export type Campana = { id: string; tipo: string; estado: string | null; nombre?: string | null; precio: number | null; min: number | null; max: number | null;
   /** Las que arma ML («Potencia tus ventas»): el precio sin descuento y qué % pone el vendedor. */
   original?: number | null; pctVendedor?: number | null;
+  /** En las que arma ML: qué % (sobre `original`) pone ML de su bolsillo. */
+  pctMeli?: number | null;
   /** Cuándo arranca la campaña: una que todavía no arrancó no da descuento hoy. */
   desde?: string | null };
 
