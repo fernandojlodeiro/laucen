@@ -15,13 +15,14 @@ import { familiasDe } from "@/lib/precios-ml/datos";
 import { analizarCampanas, evaluarOferta } from "@/lib/analisis-diario/calcular";
 import { configAnalisis, guardarConfigAnalisis } from "@/lib/analisis-diario/config";
 import { correrAnalisis, PANTALLA } from "@/lib/analisis-diario/correr";
+import { borrarExtraAnalisis } from "@/lib/analisis-diario/extras";
 
 const pesos = (x: number) => `$ ${Math.round(x).toLocaleString("es-AR")}`;
 
 /** «Volver a analizar»: el análisis de hoy, de nuevo (pisa el de hoy; sin aviso al celular). */
 export async function accionAnalizar() {
   const s = await entrarErp("analisis_diario_ver");
-  return deFondo(s, "analisis-diario", "Análisis diario", async () => {
+  return deFondo(s, "analisis-diario", "Análisis semanal", async () => {
     const r = await correrAnalisis(s.org.id, { avisar: false });
     revalidatePath(PANTALLA);
     return r.urgentes ? `Listo: ${r.urgentes === 1 ? "1 cosa" : `${r.urgentes} cosas`} para mirar.` : "Listo: nada urgente.";
@@ -72,7 +73,7 @@ export async function accionPrepararCampanas() {
     const lotes: number[] = [];
     for (const [canal, g] of porCanal) {
       lotes.push(await encolarLoteConBoton(s.org.id, canal, g.cambios,
-        `Análisis diario: campañas para las que estaban sin campaña · ${g.cuenta} · ${g.cambios.length} publicaci${g.cambios.length === 1 ? "ón" : "ones"}`, s.usuario.id));
+        `Análisis semanal: campañas para las que estaban sin campaña · ${g.cuenta} · ${g.cambios.length} publicaci${g.cambios.length === 1 ? "ón" : "ones"}`, s.usuario.id));
     }
     revalidatePath(PANTALLA);
     return `Listo: ${lotes.length === 1 ? `lote ${lotes[0]} preparado` : `lotes ${lotes.join(", ")} preparados`}. Se mandan desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`;
@@ -92,4 +93,11 @@ export async function accionGuardarConfig(fd: FormData) {
     revalidatePath(PANTALLA);
     return { ir: `${PANTALLA}?ver=config&ok=${encodeURIComponent("Configuración grabada. Vale desde el próximo análisis (o apretá «Volver a analizar»).")}` };
   });
+}
+
+/** El tacho de una sección agregada desde el asistente. */
+export async function accionBorrarExtra(id: number) {
+  const s = await entrarErp("analisis_diario_ver");
+  await borrarExtraAnalisis(s.org.id, id);
+  revalidatePath(PANTALLA);
 }

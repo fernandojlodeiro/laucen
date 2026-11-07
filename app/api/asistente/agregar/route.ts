@@ -6,6 +6,7 @@ import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { una } from "@/lib/erp/base";
 import { agregarExtra } from "@/lib/marketpro/informe";
+import { agregarExtraAnalisis } from "@/lib/analisis-diario/extras";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,12 @@ export async function POST(req: NextRequest) {
     if (!s.superadmin && !tienePermiso(s.permisos, "market_pro_ver")) return Response.json({ error: "Sin permiso." }, { status: 403 });
     await agregarExtra(s.org.id, Number(mpro[1]), m.pregunta, m.texto, s.usuario.id);
     return Response.json({ ok: true });
+  }
+  const analisis = /^analisis:(\d{4}-\d{2}-\d{2}|ultimo)$/.exec(destino ?? "");
+  if (analisis) {
+    if (!s.superadmin && !tienePermiso(s.permisos, "analisis_diario_ver")) return Response.json({ error: "Sin permiso." }, { status: 403 });
+    const ok = await agregarExtraAnalisis(s.org.id, analisis[1] === "ultimo" ? null : analisis[1], m.pregunta, m.texto, s.usuario.id);
+    return ok ? Response.json({ ok: true }) : Response.json({ error: "Todavía no hay ningún análisis para agregarle." }, { status: 404 });
   }
   return Response.json({ error: "Esta pantalla no tiene informe." }, { status: 400 });
 }

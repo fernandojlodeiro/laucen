@@ -1,4 +1,4 @@
-// Disparador diario del análisis de campañas, publicidad y visitas (Vercel Cron, ver vercel.json: 12 UTC = 9 hora
+// Disparador semanal (lunes; Fer, 7/11) del análisis de campañas, publicidad y visitas (Vercel Cron, ver vercel.json: lunes 12 UTC = 9 hora
 // argentina). Lo que hace: lib/analisis-diario/correr.ts. Sólo lee y avisa; nada sale a Mercado Libre.
 //
 // Si CRON_SECRET está cargada en Vercel, Vercel la manda y se exige (como el cron del Radar). Sin ella la ruta queda

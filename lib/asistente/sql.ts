@@ -142,6 +142,10 @@ const TABLAS_PERMISO: [RegExp, Permiso[]][] = [
   [/^(asistente_conversacion|asistente_mensaje|asistente_accion|asistente_pendiente)$/, ["asistente_historial_ver"]],
   [/^(chat|chat_mensaje|chat_caso)$/, ["mensajes_ver"]],
   [/^mpro_\w+$/, ["market_pro_ver"]],
+  [/^(pub_\w+|anuncio_dia)$/, ["publicidad_ver", "analisis_diario_ver"]],
+  [/^(visitante|visitante_evento|whatsapp_clic)$/, ["publicidad_ver", "analisis_diario_ver"]],
+  [/^(analisis_diario|analisis_extra)$/, ["analisis_diario_ver"]],
+  [/^(ml_promo_campana|ml_promo_historia|ml_precio_comprador)$/, ["precios_ml_ver", "analisis_diario_ver"]],
   [/^(tipo_cambio|ref_\w+)$/, ["todos"]],
 ];
 const SECRETAS = /(_llave|_credencial|^arca_ticket|^erp_llave|^arca_credencial|^medio_pago_credencial)$/;

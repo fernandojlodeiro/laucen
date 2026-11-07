@@ -1,4 +1,4 @@
-// El análisis diario: la corrida. La dispara el cron de las 9 (hora argentina; vercel.json → /api/analisis-diario/cron)
+// El análisis semanal: la corrida. La dispara el cron de los lunes a las 9 (Fer, 7/11: semanal; antes diario) (hora argentina; vercel.json → /api/analisis-diario/cron)
 // y el botón «Volver a analizar» de la pantalla. Calcula (calcular.ts), le pide a la IA un resumen en criollo con lo que
 // conviene hacer, lo guarda (una fila por día: la de hoy se pisa) y, si hay algo para hacer y la configuración lo pide,
 // manda un aviso al celular a quien tenga el permiso. Nada sale a Mercado Libre desde acá.
@@ -12,8 +12,8 @@ import { configAnalisis } from "@/lib/analisis-diario/config";
 export const PANTALLA = "/informes/analisis-diario";
 
 const SISTEMA = `Sos el analista comercial de una empresa argentina que vende notebooks, impresoras 3D y otros productos en Mercado Libre (varias cuentas) y en su tienda web, con publicidad en Mercado Libre, Google Ads y Meta.
-Te paso, en JSON, el análisis automático de hoy. Escribile al dueño un resumen corto, en castellano rioplatense con voseo, directo y sin vueltas. Sabe de números y de su negocio; no le expliques lo obvio.
-Formato: texto plano con estos títulos en una línea propia, en este orden, y debajo viñetas con «- »: «Lo urgente», «Ofertas relámpago», «Campañas y ofertas compartidas de Mercado Libre», «Publicidad», «Visitas de la tienda», «Qué haría hoy». Si una sección no tiene nada que decir, una sola viñeta «Nada para hacer.».
+Te paso, en JSON, el análisis automático (semanal). Escribile al dueño un resumen corto, en castellano rioplatense con voseo, directo y sin vueltas. Sabe de números y de su negocio; no le expliques lo obvio.
+Formato: texto plano con estos títulos en una línea propia, en este orden, y debajo viñetas con «- »: «Lo urgente», «Ofertas relámpago», «Campañas y ofertas compartidas de Mercado Libre», «Publicidad», «Visitas de la tienda», «Qué haría esta semana». Si una sección no tiene nada que decir, una sola viñeta «Nada para hacer.».
 En «Ofertas relámpago» (la lista relampagoPorProducto) va una viñeta por producto: cuántas propone ML, cuánto baja la mejor sobre el precio del esquema y si entra o por qué no; si ML no propone ninguna, decilo. Las compartidas («Potencia tus ventas» y otras donde ML pone parte) NO son relámpago: van en la sección siguiente (compartidasPorProducto).
 Reglas:
 - Usá sólo los datos que te paso. No inventes cifras ni causas; si algo no se puede saber con estos datos, decilo.
@@ -69,7 +69,7 @@ export async function correrAnalisis(org: string, opts: { avisar?: boolean } = {
     const ya = await una<{ avisado_ts: Date | null }>("select avisado_ts from analisis_diario where organizacion_id = $1 and fecha = $2::date", [org, hoy]);
     if (!ya?.avisado_ts) {
       avisados = await avisarOrg(org, "analisis_diario_ver", {
-        titulo: `Análisis diario: ${a.urgentes.length === 1 ? "1 cosa para mirar" : `${a.urgentes.length} cosas para mirar`}`,
+        titulo: `Análisis semanal: ${a.urgentes.length === 1 ? "1 cosa para mirar" : `${a.urgentes.length} cosas para mirar`}`,
         texto: a.urgentes.slice(0, 4).map((u) => `• ${u}`).join("\n").slice(0, 300),
         url: PANTALLA,
       }).catch(() => 0);
@@ -98,10 +98,11 @@ export async function diasConAnalisis(org: string): Promise<string[]> {
   return (await consulta<{ fecha: string }>("select fecha::text from analisis_diario where organizacion_id = $1 order by fecha desc limit 400", [org])).map((x) => x.fecha);
 }
 
-/** Lo urgente del análisis de hoy (para el cartel de Para hacer), si la configuración pide avisar. */
+/** Lo urgente del último análisis, si es de los últimos 7 días (para el cartel de Para hacer) y la configuración pide avisar. */
 export async function urgentesHoy(org: string): Promise<string[]> {
   const cfg = await configAnalisis(org).catch(() => null);
   if (!cfg?.avisar) return [];
-  const f = await una<{ datos: Analisis }>("select datos from analisis_diario where organizacion_id = $1 and fecha = $2::date", [org, hoyAr()]).catch(() => null);
+  const f = await una<{ datos: Analisis }>(`select datos from analisis_diario where organizacion_id = $1 and fecha > $2::date - 7
+                                             order by fecha desc limit 1`, [org, hoyAr()]).catch(() => null);
   return f?.datos?.urgentes ?? [];
 }

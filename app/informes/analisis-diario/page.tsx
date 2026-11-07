@@ -18,6 +18,8 @@ import { formatearNumero } from "@/lib/numeros";
 import { analisisDe, diasConAnalisis } from "@/lib/analisis-diario/correr";
 import { configAnalisis, nombresFamilias } from "@/lib/analisis-diario/config";
 import { resumenOfertas, type Analisis, type EstadoCampana, type FilaCampanaPub, type FilaOferta, type ResumenOfertas } from "@/lib/analisis-diario/calcular";
+import { extrasAnalisis, type ExtraAnalisis } from "@/lib/analisis-diario/extras";
+import { Refrescar, TachoExtra } from "./Piezas";
 import { accionAnalizar, accionEntrarOfertas, accionGuardarConfig, accionPrepararCampanas } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +69,7 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
     return t ? `${PANTALLA}?${t}` : PANTALLA;
   };
   const fotos = a ? await fotosDe([...new Set([...a.campanas.filas.map((f) => f.productoId), ...a.ofertas.map((f) => f.productoId)])]) : new Map<number, string[]>();
+  const extras = fila ? await extrasAnalisis(s.org.id, fila.fecha) : [];
   const editando = ver === "config" && editandoFicha(sp);
   const oportunidades = a?.campanas.filas.filter((f) => f.estado === "oportunidad").length ?? 0;
   const entran = a?.ofertas.filter((f) => f.entra).length ?? 0;
@@ -74,8 +77,8 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
   const relampago = a?.ofertas.filter(esRel) ?? [], compartidas = a?.ofertas.filter((f) => !esRel(f)) ?? [];
 
   return (
-    <Pantalla titulo="Análisis diario" ancho="max-w-[1600px]"
-      subtitulo="Cada mañana a las 9: campañas de Mercado Libre, ofertas relámpago, publicidad y visitas de la tienda"
+    <Pantalla titulo="Análisis semanal" ancho="max-w-[1600px]"
+      subtitulo="Todos los lunes a las 9 (y cuando lo pidas con «Volver a analizar»): campañas de Mercado Libre, ofertas relámpago, publicidad y visitas de la tienda"
       acciones={ver === "config" ? (
         <BotonesFicha editando={editando} ver={`${PANTALLA}?ver=config`} editar={`${PANTALLA}?ver=config&editar=ficha`} />
       ) : (
@@ -106,13 +109,14 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
       ]} />
       {ver === "config" ? <Configuracion org={s.org.id} editando={editando} />
         : !a || !fila ? (
-          <p className={`${CAJA} text-xs text-[#5C6B76]`}>Todavía no hay ningún análisis. Se hace solo todos los días a las 9; para tener el de hoy ya, apretá «Volver a analizar».</p>
+          <p className={`${CAJA} text-xs text-[#5C6B76]`}>Todavía no hay ningún análisis. Se hace solo los lunes a las 9; para tener uno ya, apretá «Volver a analizar».</p>
         ) : ver === "campanas" ? <Campanas a={a} fotos={fotos} />
         : ver === "relampago" ? <Ofertas a={a} ofertas={relampago} relampago fotos={fotos} />
         : ver === "compartidas" ? <Ofertas a={a} ofertas={compartidas} relampago={false} fotos={fotos} />
         : ver === "publicidad" ? <Publicidad a={a} />
         : ver === "visitas" ? <Visitas a={a} />
-        : <Resumen a={a} resumen={fila.resumen} error={fila.resumen_error} />}
+        : <Resumen a={a} resumen={fila.resumen} error={fila.resumen_error} extras={extras} />}
+      <Refrescar />
     </Pantalla>
   );
 }
@@ -145,14 +149,33 @@ function Publicacion({ item }: { item: string }) {
   );
 }
 
-function Resumen({ a, resumen, error }: { a: Analisis; resumen: string | null; error: string | null }) {
+function Resumen({ a, resumen, error, extras }: { a: Analisis; resumen: string | null; error: string | null; extras: ExtraAnalisis[] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      <div className="space-y-4">
       <div className={CAJA}>
         <TituloSeccion titulo="Lo que dice el análisis" />
         {resumen ? <div className="text-xs leading-relaxed whitespace-pre-wrap">{resumen}</div>
           : error === "escribiendo" ? <p className="text-xs text-[#5C6B76]">La IA está escribiendo el resumen; los datos ya están en las otras pestañas.</p>
           : <p className="text-xs text-[#5C6B76]">No se pudo escribir el resumen{error ? ` (${error.startsWith("Falta") ? error : "la IA no contestó"})` : ""}. Los datos están en las otras pestañas.</p>}
+        <p className="text-[11px] text-[#5C6B76] mt-3">Para preguntarle más o pedirle que investigue algo («investigalo vos»), abrí el asistente (abajo a la derecha): ve este análisis y consulta los datos. Cada respuesta suya tiene «Agregar al informe», que la suma acá abajo.</p>
+      </div>
+      {extras.length > 0 && (
+        <div className={CAJA}>
+          <TituloSeccion titulo={`Agregado desde el asistente (${extras.length})`} />
+          <div className="space-y-4">
+            {extras.map((e) => (
+              <div key={e.id} className="border-t border-[#E3E9F0] pt-3 first:border-0 first:pt-0">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-xs font-semibold">{e.pregunta ?? "Agregado"}</p>
+                  <span className="flex items-center gap-2 text-[11px] text-[#5C6B76] whitespace-nowrap">{e.creado_ts}{e.usuario ? ` · ${e.usuario}` : ""}<TachoExtra id={e.id} /></span>
+                </div>
+                <div className="text-xs leading-relaxed whitespace-pre-wrap">{e.texto}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       </div>
       <div className="space-y-4">
         <div className={CAJA}>

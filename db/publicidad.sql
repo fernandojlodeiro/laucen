@@ -313,3 +313,27 @@ create table if not exists analisis_diario (
   primary key (organizacion_id, fecha)
 );
 alter table analisis_diario enable row level security;
+
+-- Lo que se agregó al análisis desde el asistente («Agregar al informe»; Fer, 7/11, bitácora #1136).
+create table if not exists analisis_extra (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null,
+  fecha            date not null,
+  pregunta         text,
+  texto            text not null,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists analisis_extra_fecha on analisis_extra (organizacion_id, fecha, id);
+alter table analisis_extra enable row level security;
+
+-- Políticas de fila: el asistente (consultas libres) consulta como el usuario y sin política no vería nada.
+do $$
+declare t text;
+begin
+  foreach t in array array['analisis_diario', 'analisis_extra', 'anuncio_dia', 'visitante', 'visitante_evento', 'whatsapp_clic'] loop
+    if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = t and policyname = t || '_org') then
+      perform erp_politica_org(t);
+    end if;
+  end loop;
+end $$;
