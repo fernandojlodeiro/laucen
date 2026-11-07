@@ -5,6 +5,9 @@
 import { tienePermiso, type Permisos } from "@/lib/permisos";
 import { DICCIONARIO_MPRO } from "@/lib/marketpro/diccionario";
 import { extrasDe, informeGuardado } from "@/lib/marketpro/informe";
+import { DICCIONARIO_ANALISIS, extrasAnalisis } from "@/lib/analisis-diario/extras";
+import { analisisDe } from "@/lib/analisis-diario/correr";
+import { resumenOfertas } from "@/lib/analisis-diario/calcular";
 
 export async function contextoDePantalla(ruta: string, org: string, permisos: Permisos, superadmin: boolean): Promise<string> {
   try {
@@ -18,6 +21,26 @@ export async function contextoDePantalla(ruta: string, org: string, permisos: Pe
         if (extras.length) texto += `\n\nLo que ya se agregó al informe desde el asistente:\n${extras.map((e) => `### ${e.pregunta ?? "Agregado"}\n${e.texto}`).join("\n\n")}`.slice(0, 30_000);
         texto += "\n\nDebajo de cada respuesta tuya hay un botón «Agregar al informe»: si la persona quiere guardar lo que encontraste, que lo toque. Escribí las respuestas de análisis como para que queden bien en el informe (títulos cortos, números con su período).";
       }
+      return texto;
+    }
+    if (u.pathname === "/informes/analisis-diario" && (superadmin || tienePermiso(permisos, "analisis_diario_ver"))) {
+      const fecha = /^\d{4}-\d{2}-\d{2}$/.test(u.searchParams.get("fecha") ?? "") ? u.searchParams.get("fecha") : null;
+      const a = await analisisDe(org, fecha);
+      let texto = `\n\nEstá en Informes › Análisis semanal (campañas de Mercado Libre, ofertas relámpago y compartidas, publicidad en ML, Google y Meta, y visitas de la tienda). Si te pide analizar, investigar, reanalizar o «investigalo vos» algo, hacelo vos mismo con consultar_sql (varias consultas si hace falta: por cuenta, por producto, por día, la semana contra la anterior) y contestá con los números y la causa que encontraste; no le devuelvas la tarea. Si no podés llegar a la causa con los datos, decí qué miraste y qué falta.\n${DICCIONARIO_ANALISIS}`;
+      if (a) {
+        const d = a.datos;
+        const corto = {
+          fecha: a.fecha, familias: d.config.familias, topeBajaPct: d.config.maxBajaPct, urgentes: d.urgentes,
+          publicidad: { periodo: [d.publicidad.desde, d.publicidad.hasta], anterior: [d.publicidad.desdeAntes, d.publicidad.hastaAntes], canales: d.publicidad.canales, campanasGoogleMeta: d.publicidad.campanas, mlAds: d.publicidad.mlAds.slice(0, 15) },
+          visitas: { total: d.visitas.total, antes: d.visitas.antes, origenes: d.visitas.origenes },
+          relampagoPorProducto: resumenOfertas(d.ofertas, true), compartidasPorProducto: resumenOfertas(d.ofertas, false),
+          campanas: { publicaciones: d.campanas.publicaciones, enCampana: d.campanas.enCampana, filas: d.campanas.filas.slice(0, 40).map((f) => ({ estado: f.estado, sku: f.sku, cuenta: f.cuenta, item: f.itemId, plan: f.plan, pagaHoy: f.pagaHoy, esquema: f.venta, detalle: f.detalle })) },
+        };
+        texto += `\n\nEstá mirando el análisis del ${a.fecha}. Lo que escribió la IA:\n${a.resumen ?? "(sin resumen)"}\n\nLos datos del análisis (JSON):\n${JSON.stringify(corto)}`.slice(0, 40_000);
+        const extras = await extrasAnalisis(org, a.fecha);
+        if (extras.length) texto += `\n\nLo que ya se agregó al análisis desde el asistente:\n${extras.map((e) => `### ${e.pregunta ?? "Agregado"}\n${e.texto}`).join("\n\n")}`.slice(0, 20_000);
+        texto += "\n\nDebajo de cada respuesta tuya hay un botón «Agregar al informe»: si la persona quiere guardar lo que encontraste en este análisis, que lo toque. Escribí las respuestas de análisis como para que queden bien ahí (títulos cortos, números con su período).";
+      } else texto += "\n\nTodavía no hay ningún análisis guardado: se hace con «Volver a analizar».";
       return texto;
     }
   } catch (e) {

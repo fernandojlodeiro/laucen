@@ -1,28 +1,28 @@
 ---
-titulo: Análisis diario
-menu: Informes › Análisis diario
+titulo: Análisis semanal
+menu: Informes › Análisis semanal
 ruta: /informes/analisis-diario
 rutas: /informes/analisis-diario
 permiso: analisis_diario_ver
-resumen: Todas las mañanas a las 9, el sistema revisa las publicaciones de Mercado Libre de las familias elegidas (si están en la campaña que corresponde, si pueden entrar a una oferta relámpago), la publicidad (lo invertido contra lo vendido en Mercado Libre, Google y Meta) y las visitas de la tienda, y deja un resumen con lo que conviene hacer.
+resumen: Todos los lunes a las 9 (y cuando se pida), el sistema revisa las publicaciones de Mercado Libre de las familias elegidas (si están en la campaña que corresponde, si pueden entrar a una oferta relámpago), la publicidad (lo invertido contra lo vendido en Mercado Libre, Google y Meta) y las visitas de la tienda, y deja un resumen con lo que conviene hacer. Con el asistente se le puede pedir que investigue lo que encontró.
 ---
 
 ## Para qué sirve
 
-Para no tener que revisar a mano, todos los días, si cada publicación está en la campaña que corresponde, qué ofertas relámpago propone Mercado Libre, cómo le va a la publicidad y cuánta gente entra a la tienda. El sistema lo hace solo a las 9 de la mañana y deja todo en una pantalla, con un resumen escrito en criollo y la lista de lo que pide atención.
+Para no tener que revisar a mano si cada publicación está en la campaña que corresponde, qué ofertas relámpago propone Mercado Libre, cómo le va a la publicidad y cuánta gente entra a la tienda. El sistema lo hace solo los lunes a las 9 (y cada vez que se aprieta «Volver a analizar») y deja todo en una pantalla, con un resumen escrito en criollo y la lista de lo que pide atención.
 
 El análisis **sólo mira**: nada cambia en Mercado Libre por su cuenta. Lo que propone se hace con un botón de esta pantalla.
 
 ## Cómo se llega
 
-Menú **Informes › Análisis diario** ([Análisis diario](/informes/analisis-diario)). Si el análisis de hoy encontró algo para hacer, también aparece un cartel amarillo arriba de [Para hacer](/panel) y llega un aviso al celular (a quien tenga los avisos activados en ese equipo).
+Menú **Informes › Análisis semanal** ([Análisis semanal](/informes/analisis-diario)). Si el último análisis (de los últimos 7 días) encontró algo para hacer, también aparece un cartel amarillo arriba de [Para hacer](/panel) y llega un aviso al celular (a quien tenga los avisos activados en ese equipo).
 
 ## Qué hay en la pantalla
 
 - Arriba a la derecha: **«Entrar a las ofertas que cumplen»** (si hay alguna), **«Preparar lote de campañas»** (si hay publicaciones sin campaña que pueden entrar a una) y **«Volver a analizar»**. Los tres corren de fondo: la pantalla queda libre y al terminar aparece el cartel abajo a la derecha.
-- Debajo, de qué día es el análisis y a qué hora se hizo, con **«◀ Día anterior»** y **«Día siguiente ▶»** para ver los de otros días; las familias que se miran y el tope de baja de una oferta.
+- Debajo, de qué día es el análisis y a qué hora se hizo, con **«◀ Día anterior»** y **«Día siguiente ▶»** para ver los análisis anteriores; las familias que se miran y el tope de baja de una oferta.
 - Pestañas:
-  - **Resumen**: lo que escribió la IA con los datos del día (lo urgente, ofertas relámpago, campañas y compartidas, publicidad, visitas y qué haría hoy), la lista **Para hacer**, un recuadro **Ofertas relámpago** y otro **Ofertas compartidas** con una línea por producto (cuántas propone Mercado Libre, cuánto baja la mejor y si entra) y algunos números.
+  - **Resumen**: lo que escribió la IA con los datos del día (lo urgente, ofertas relámpago, campañas y compartidas, publicidad, visitas y qué haría esta semana), la lista **Para hacer**, un recuadro **Ofertas relámpago** y otro **Ofertas compartidas** con una línea por producto (cuántas propone Mercado Libre, cuánto baja la mejor y si entra) algunos números y, debajo del resumen, lo **Agregado desde el asistente** (cada sección con su tacho para borrarla, que pregunta ahí mismo).
   - **Campañas de ML (N)**: sólo las publicaciones que piden algo, con su estado, cuenta, publicación, plan, lo que paga hoy el comprador, lo que tendría que pagar según el esquema y qué pasa. Cada fila lleva el color de su cuenta.
   - **Relámpago (N)**: las ofertas relámpago (unas horas, con stock reservado) que Mercado Libre propone a esos productos y las que ya están programadas o en curso, con si **entran** o por qué no, el precio, cuánto baja, lo que se recibe hoy y en la oferta, el stock y cuándo corre.
   - **Compartidas (N)**: lo mismo con las ofertas compartidas («Potencia tus ventas» y otras, donde Mercado Libre pone el precio y paga una parte del descuento).
@@ -40,10 +40,15 @@ Menú **Informes › Análisis diario** ([Análisis diario](/informes/analisis-d
 ### Meter en una campaña las publicaciones que están sin ninguna
 1. En la pestaña **Campañas de ML**, las que dicen **Puede entrar** tienen una campaña de Mercado Libre que las acepta bajando, como mucho, el tope de la configuración.
 2. Apretá **«Preparar lote de campañas»**. Se arma un lote por cuenta, recalculado en ese momento.
-3. Andá a Configuración › Cola de Mercado Libre, pestaña **Lotes preparados** ([abrir](/config/canales/cola?ver=lotes)), revisá el lote «Análisis diario: campañas…» y apretá **«Mandar a Mercado Libre»**. Hasta ese clic no sale nada.
+3. Andá a Configuración › Cola de Mercado Libre, pestaña **Lotes preparados** ([abrir](/config/canales/cola?ver=lotes)), revisá el lote «Análisis semanal: campañas…» y apretá **«Mandar a Mercado Libre»**. Hasta ese clic no sale nada.
 
-### Tener el análisis de hoy sin esperar a las 9
-Apretá **«Volver a analizar»**. Rehace el de hoy con los datos de ese momento (sin mandar el aviso al celular).
+### Tener el análisis sin esperar al lunes
+Apretá **«Volver a analizar»**. Hace el análisis con los datos de ese momento (sin mandar el aviso al celular); si ya había uno de hoy, lo rehace.
+
+### Pedirle al asistente que investigue algo del análisis
+1. Abrí el asistente (la carita de abajo a la derecha) estando en esta pantalla: ve el análisis que tenés abierto y puede consultar los datos de ventas, publicidad, campañas y visitas.
+2. Pedile lo que quieras, como a una persona: «investigalo vos: ¿por qué en DAITOM gastamos más en publicidad y vendimos menos notebooks que la semana pasada?». Busca en los datos y contesta con los números.
+3. Si la respuesta te sirve, tocá **«Agregar al informe»** debajo de ella: queda guardada en el Resumen de ese análisis, con tu pregunta como título.
 
 ### Cambiar qué se mira
 1. Pestaña **Configuración**, lápiz arriba a la derecha.
@@ -52,7 +57,7 @@ Apretá **«Volver a analizar»**. Rehace el de hoy con los datos de ese momento
 
 ## Criterios y reglas
 
-- **Cuándo corre**: todos los días a las 9 (hora argentina). Usa lo último que el sistema leyó de Mercado Libre (las campañas se leen cada hora), de Google Ads y de Meta (cada 3 horas). Queda guardado uno por día; «Volver a analizar» pisa el de hoy.
+- **Cuándo corre**: todos los lunes a las 9 (hora argentina) y cada vez que se aprieta «Volver a analizar». Usa lo último que el sistema leyó de Mercado Libre (las campañas se leen cada hora), de Google Ads y de Meta (cada 3 horas). Queda guardado uno por día en que se hizo; «Volver a analizar» el mismo día pisa el de ese día.
 - **Qué publicaciones**: las activas en Mercado Libre de los productos de las familias elegidas (con sus subfamilias), en todas las cuentas conectadas.
 - **Precio del esquema**: lo que tiene que pagar el comprador según el esquema de [Precios en ML](/catalogo/precios-ml): la Clásica de la lista del canal, o el precio de cada plan de cuotas que sale de ella. Todas las bajas se miden **sobre ese precio**.
 - **Estados de una publicación** (pestaña Campañas de ML):
@@ -67,13 +72,13 @@ Apretá **«Volver a analizar»**. Rehace el de hoy con los datos de ese momento
 - **Publicidad**: los 7 días cerrados (hasta ayer) contra los 7 anteriores. En Mercado Libre, las ventas son las unidades que Mercado Libre le atribuye a la publicidad; en Google y Meta, los pedidos de la tienda que llegaron desde un anuncio (el último anuncio de los 30 días anteriores a la compra). **Costo/venta** = invertido ÷ ventas; **Retorno** = vendido ÷ invertido (cuántas veces volvió lo invertido). El veredicto de cada producto en Mercado Libre es el de [Publicidad en Mercado Libre](/ventas/campanas-ml).
 - **Fuentes viejas**: una fuente que no se leyó en las últimas 12 horas se marca «Vieja» y va a la lista Para hacer. Si Google o Meta no gastaron nada en los últimos 3 días, se avisa: o las campañas están apagadas o sin entrega, o la lectura no anda.
 - **Visitas**: las de la tienda web (sin robots). Un visitante es una persona (un navegador), aunque entre varias veces en el día. **Compras sobre visitantes** = compras ÷ visitantes de los 7 días.
-- **Aviso**: si la configuración lo pide y hay algo para hacer, una vez por día llega un aviso al celular y aparece el cartel en Para hacer.
+- **Aviso**: si la configuración lo pide y hay algo para hacer, en el análisis de los lunes llega un aviso al celular, y el cartel de Para hacer se ve mientras el último análisis sea de los últimos 7 días.
 
 ## Preguntas frecuentes
 
 - **¿Mete solo las publicaciones en las campañas?** No. Prepara el lote o la lista; el envío a Mercado Libre es siempre con un botón.
 - **¿Por qué una oferta dice «No» si me conviene?** Mirá la columna «Por qué»: baja más que el tope, no llega al piso, falta stock o ya se pidió. El tope se cambia en Configuración; el piso, en Precios en ML › Relámpago.
-- **¿Por qué no está el análisis de hoy?** Se hace a las 9. Si lo necesitás antes, «Volver a analizar».
+- **¿Por qué no hay análisis de hoy?** Solo se hace los lunes a las 9. Si lo querés otro día, «Volver a analizar».
 
 ## Relacionado
 

@@ -21,7 +21,7 @@ export default async function Panel() {
   if (!tienePermiso(sesion.permisos, "panel_ver")) redirect("/radar");
   // Publicidad (orden 596): lo que pasó a CORTAR, que no se pase por alto.
   const cortar = tienePermiso(sesion.permisos, "publicidad_ver") ? await enCortar(sesion.org.id).catch(() => []) : [];
-  // El análisis diario (Informes › Análisis diario): lo que pide atención hoy.
+  // El análisis semanal (Informes › Análisis semanal): lo que pide atención (el último análisis, si es de los últimos 7 días).
   const analisis = tienePermiso(sesion.permisos, "analisis_diario_ver") ? await urgentesHoy(sesion.org.id).catch(() => []) : [];
   return (
     <Pantalla titulo="Para hacer" ancho="max-w-[2200px]" subtitulo="Lo que espera tu atención hoy, por cuenta, la web y el resto">
@@ -33,8 +33,8 @@ export default async function Panel() {
       )}
       {analisis.length > 0 && (
         <Link href="/informes/analisis-diario" className="block mb-4 rounded-xl border-2 border-[#E0B44C] bg-[#FFF8E5] px-4 py-3 text-sm text-[#8a6100] hover:bg-[#FFF1CC]">
-          <b>Análisis diario: {analisis.length === 1 ? "1 cosa para mirar" : `${analisis.length} cosas para mirar`}</b>
-          <span className="block text-xs mt-1">{analisis.slice(0, 3).join(" · ")}{analisis.length > 3 ? " · …" : ""} — ver en Informes › Análisis diario</span>
+          <b>Análisis semanal: {analisis.length === 1 ? "1 cosa para mirar" : `${analisis.length} cosas para mirar`}</b>
+          <span className="block text-xs mt-1">{analisis.slice(0, 3).join(" · ")}{analisis.length > 3 ? " · …" : ""} — ver en Informes › Análisis semanal</span>
         </Link>
       )}
       <Tablero org={sesion.org.id} modo="hacer" moneda={await monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as const)} />

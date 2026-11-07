@@ -10,5 +10,9 @@ export function destinoDe(pathname: string, params: URLSearchParams): Destino | 
     const cat = Number(params.get("cat"));
     return { clave: `mpro:${Number.isInteger(cat) && cat > 0 ? cat : 0}`, etiqueta: "Agregar al informe" };
   }
+  if (pathname === "/informes/analisis-diario") {
+    const fecha = params.get("fecha");
+    return { clave: `analisis:${fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : "ultimo"}`, etiqueta: "Agregar al informe" };
+  }
   return null;
 }

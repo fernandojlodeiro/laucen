@@ -98,7 +98,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "panel_ver", label: "Panel", ayuda: "La pantalla de inicio con lo pendiente." },
   { key: "tablero_ml_ver", label: "Tablero de Mercado Libre", ayuda: "El tablero con la reputación, las publicaciones y lo pendiente de cada cuenta de Mercado Libre." },
   { key: "publicidad_ver", label: "Publicidad en Mercado Libre", ayuda: "Lo que gasta y vende la publicidad de cada cuenta, el veredicto por producto y su configuración." },
-  { key: "analisis_diario_ver", label: "Análisis diario", ayuda: "El análisis de cada mañana: campañas de Mercado Libre de las familias elegidas, ofertas relámpago, publicidad (invertido contra vendido) y visitas de la tienda, con su resumen; preparar los lotes y entrar a las ofertas que cumplen." },
+  { key: "analisis_diario_ver", label: "Análisis semanal", ayuda: "El análisis de los lunes (o cuando se pida): campañas de Mercado Libre de las familias elegidas, ofertas relámpago, publicidad (invertido contra vendido) y visitas de la tienda, con su resumen; preparar los lotes y entrar a las ofertas que cumplen." },
   { key: "pedidos_ver", label: "Pedidos", ayuda: "Listado y detalle de pedidos de todos los canales." },
   { key: "clientes_ver", label: "Clientes", ayuda: "Ver y corregir los datos de los clientes." },
   { key: "productos_ver", label: "Productos", ayuda: "Productos, variaciones, kits, fotos y cucardas." },
