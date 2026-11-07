@@ -23,6 +23,10 @@
     {
       "path": "/api/seguimiento/cron",
       "schedule": "40 8 * * *"
+    },
+    {
+      "path": "/api/analisis-diario/cron",
+      "schedule": "0 12 * * *"
     }
   ]
 }
