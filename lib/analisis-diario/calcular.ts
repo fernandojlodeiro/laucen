@@ -142,7 +142,7 @@ export function pagaHoy(pub: { precioVentaMl: number | null; campanas: Campana[]
 /** Cómo está una publicación activa con sus campañas, contra lo que dice el esquema (la propuesta del motor). null si
  *  está bien (en campaña al precio del esquema, o a su precio sin tachado y sin necesitar campaña). Pura.
  *  `sinLeer`: ya se le mandó algo que ML todavía no confirmó (se espera). `error`: lo último que contestó ML, si falló. */
-export function revisarPublicacion(pa: PropuestaPub, maxBajaPct: number, o: { sinLeer: boolean; error: string | null; ahora?: Date }):
+export function revisarPublicacion(pa: PropuestaPub, maxBajaPct: number, o: { sinLeer: boolean; error: string | null; ahora?: Date; ajustePct?: number }):
   { estado: EstadoCampana; detalle: string; campana: FilaCampanaPub["campana"] } | null {
   const ahora = o.ahora ?? new Date();
   const pub = pa.pub;
@@ -150,14 +150,17 @@ export function revisarPublicacion(pa: PropuestaPub, maxBajaPct: number, o: { si
   const pesos = (x: number) => `$ ${Math.round(x).toLocaleString("es-AR")}`;
   // En una campaña que la deja más abajo de lo que se acepta (el % de la configuración) contra el esquema: se mide lo que
   // queda por venta (lo que paga el comprador más lo que pone ML en una compartida), no lo que dice ML que pone cada uno.
-  if (pa.piso != null) {
+  // La base, como en las ofertas relámpago (lib/precios-ml/relampago.ts): el precio del esquema sin el % de más de la
+  // cuenta que no gana ese plan.
+  const piso = pa.piso == null ? null : Math.round(pa.piso / (1 + (o.ajustePct ?? 0) / 100));
+  if (piso != null) {
     for (const c of pub.campanas) {
       if (!enCurso(c, ahora)) continue;
       const r = recibeEnCampana(c);
-      if (r == null || r.queda >= pa.piso * (1 - maxBajaPct / 100) - 1) continue;
-      const b = bajaPct(r.queda, pa.piso);
+      if (r == null || r.queda >= piso * (1 - maxBajaPct / 100) - 1) continue;
+      const b = bajaPct(r.queda, piso);
       const como = r.aporteMl > 0 ? `el comprador paga ${pesos(r.paga)} y ML pone ${pesos(r.aporteMl)}: queda ${pesos(r.queda)} por venta` : `a ${pesos(r.queda)}`;
-      return { estado: "bajo_piso", detalle: `En «${c.nombre ?? c.tipo}» ${como}, ${b.toLocaleString("es-AR")} % debajo del esquema (${pesos(pa.piso)}), más que el ${maxBajaPct.toLocaleString("es-AR")} % aceptado.`,
+      return { estado: "bajo_piso", detalle: `En «${c.nombre ?? c.tipo}» ${como}, ${b.toLocaleString("es-AR")} % debajo del esquema (${pesos(piso)}), más que el ${maxBajaPct.toLocaleString("es-AR")} % aceptado.`,
         campana: { id: c.id, tipo: c.tipo, nombre: c.nombre ?? null, precio: Math.round(r.queda), bajaPct: b } };
     }
   }
@@ -223,7 +226,8 @@ export async function analizarCampanas(org: string, cfg: ConfigAnalisis): Promis
         res.publicaciones++;
         if (pa.pub.campanas.some((c) => enCurso(c, ahora))) res.enCampana++;
         else if (pa.lista != null && pa.venta != null && pa.lista <= pa.venta + 1) res.sinNecesidad++;
-        const r = revisarPublicacion(pa, cfg.maxBajaPct, { sinLeer: sinLeer.has(pa.pub.itemId), error: errores.get(pa.pub.itemId) ?? null, ahora });
+        const ajustePct = pa.pub.plan === "clasica" ? propuesta.ajustePct : propuesta.planes.find((x) => x.plan === pa.pub.plan)?.ajustePct ?? 0;
+        const r = revisarPublicacion(pa, cfg.maxBajaPct, { sinLeer: sinLeer.has(pa.pub.itemId), error: errores.get(pa.pub.itemId) ?? null, ahora, ajustePct });
         if (!r) continue;
         res.filas.push({
           ...r, canalId: canal.id, cuenta: canal.nombre, itemId: pa.pub.itemId, productoId: info.productoId, sku: info.sku, titulo: info.titulo,
