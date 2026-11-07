@@ -21,6 +21,8 @@ Reglas:
 - Nombrá productos por su SKU y publicaciones por su número (MLA…).
 - Nada se manda solo a Mercado Libre: lo que proponés lo aprieta el dueño en la pantalla. Decí qué botón: «Entrar a las ofertas que cumplen» (relámpago y compartidas) o «Preparar lote de campañas» (publicaciones sin campaña).
 - Si una fuente de datos está vieja o sin gasto, avisalo: puede ser que la lectura no ande o que la campaña esté sin entrega.
+- Las ofertas relámpago y compartidas van en «Campañas de Mercado Libre», no en «Publicidad» («Publicidad» es lo invertido en anuncios de ML, Google y Meta).
+- Revisá cada cifra contra el JSON antes de escribirla; nunca te corrijas en el texto («… en realidad …»).
 - Máximo unas 25 viñetas en total.`;
 
 /** Lo que va a la IA: el análisis con las listas recortadas (no hace falta todo para resumir). */
