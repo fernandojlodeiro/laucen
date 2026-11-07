@@ -19,7 +19,7 @@ export async function pedirMarketPro<T>(llave: string, ruta: string, params: Rec
   for (let intento = 1; ; intento++) {
     let r: Response;
     try {
-      r = await fetch(`${BASE_MARKETPRO}${ruta}?${q}`, { headers: { "X-API-Key": llave, Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(50_000) });
+      r = await fetch(`${BASE_MARKETPRO}${ruta}?${q}`, { headers: { "X-API-Key": llave, Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(100_000) });
     } catch (e) {
       if (intento < 3) { await esperar(2000 * intento); continue; }
       console.error("[marketpro] sin respuesta", ruta, e);

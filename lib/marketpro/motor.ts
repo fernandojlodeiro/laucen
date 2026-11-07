@@ -17,7 +17,7 @@ import { ErrorMarketPro, FILAS_POR_PEDIDO, pedirMarketPro, type CategoriaApi, ty
 
 export const PRIMER_MES = "202310"; // desde cuándo hay datos mensuales
 export const PRIMER_DIA = "2025-10-01"; // desde cuándo hay datos diarios
-const SEGUNDOS_POR_VUELTA = 180; // + el último pedido (hasta ~1 minuto): entra en los 5 minutos de la ruta
+const SEGUNDOS_POR_VUELTA = 170; // + el último pedido (Market Pro a veces tarda hasta ~100 s): entra en los 5 minutos de la ruta
 // Tandas cortas: Market Pro tarda más cuanto más adentro de una consulta se pagina (medido 5/11: 3,5 s por página al
 // principio, 11 s pasadas las 130.000 filas). Jardín vende ~10.000 publicaciones por día: 3 días son ~30.000 filas.
 const DIAS_POR_TANDA = 3;
