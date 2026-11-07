@@ -136,7 +136,12 @@ create table if not exists mpro_venta (
   primary key (organizacion_id, grano, periodo, item_id)
 );
 create index if not exists mpro_venta_item on mpro_venta (organizacion_id, item_id);
-alter table mpro_venta add column if not exists envio_tipo text;   -- shipping_mode_type (se guarda desde el 6/11)
+alter table mpro_venta add column if not exists envio_tipo text;
+-- Lo fijo que más se usa al agrupar, también en cada fila (Fer, 7/11: cruzar con mpro_publicacion tardaba 46 s por consulta).
+alter table mpro_venta add column if not exists cat int;
+alter table mpro_venta add column if not exists producto text;
+alter table mpro_venta add column if not exists vendedor text;
+alter table mpro_venta add column if not exists marca text;   -- shipping_mode_type (se guarda desde el 6/11)
 alter table mpro_venta enable row level security;
 
 -- Atributos de la publicación (sólo se piden en el último mes cerrado: pesan).

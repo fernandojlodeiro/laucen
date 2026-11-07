@@ -40,8 +40,8 @@ export async function ultimoMes(org: string): Promise<string | null> {
   return r?.m ?? null;
 }
 
-// La base de toda consulta: filas por mes de la ventana (como mínimo 6 meses, para el crecimiento), con lo fijo de la
-// publicación. $1 org, $2 último mes, $3 meses de la ventana, $4 categoría (con sus hijas), $5 vendedor, $6 marca, $7 producto.
+// La base de toda consulta: filas por mes de la ventana (como mínimo 6 meses, para el crecimiento), sin cruzar con
+// mpro_publicacion (lo fijo que se agrupa viaja en cada fila de mpro_venta; el título y la foto se buscan al final). $1 org, $2 último mes, $3 meses de la ventana, $4 categoría (con sus hijas), $5 vendedor, $6 marca, $7 producto.
 const BASE = `
   with yo as (
     -- Los apodos que son nuestras cuentas (lib/marketpro/vendedores.ts los identifica por catálogo).
@@ -50,15 +50,15 @@ const BASE = `
   ),
   base as (
     select v.periodo, v.item_id, v.vendidas, v.gmv, v.precio, v.envio, v.tipo, v.catalogo, v.conversion, v.visitas_dia,
-           p.producto, p.vendedor, p.alias, coalesce(p.marca, '—') marca, p.vendedor in (select apodo from yo) es_nuestra, p.cat, p.titulo, p.foto, p.ean, p.reputacion, p.provincia,
+           v.producto, v.vendedor, coalesce(v.marca, '—') marca, v.vendedor in (select apodo from yo) es_nuestra, v.cat, v.reputacion,
            v.periodo > $2::date - make_interval(months => $3::int) en_ventana,
            v.periodo > $2::date - interval '3 months' ult3,
            v.periodo <= $2::date - interval '3 months' and v.periodo > $2::date - interval '6 months' ant3
-      from mpro_venta v join mpro_publicacion p on p.organizacion_id = v.organizacion_id and p.item_id = v.item_id
+      from mpro_venta v
      where v.organizacion_id = $1 and v.grano = 'm' and v.periodo <= $2::date
        and v.periodo > $2::date - make_interval(months => greatest($3::int, 6))
-       and ($4::int is null or p.cat in (select category_id from mpro_categoria where pais = 'ar' and (category_id = $4 or $4 = any(padres))))
-       and ($5::text is null or p.vendedor = $5) and ($6::text is null or lower(p.marca) = lower($6)) and ($7::text is null or p.producto = $7)
+       and ($4::int is null or v.cat in (select category_id from mpro_categoria where pais = 'ar' and (category_id = $4 or $4 = any(padres))))
+       and ($5::text is null or v.vendedor = $5) and ($6::text is null or lower(v.marca) = lower($6)) and ($7::text is null or v.producto = $7)
   ),
   tuyos as (
     -- Nuestros productos por producto de catálogo de ML (Market Pro no da el número de publicación: viene cifrado).
@@ -107,12 +107,12 @@ export type Mes = { mes: string; unidades: number; gmv: number; publicaciones: n
 export async function serieMensual(org: string, f: Pick<Filtro, "cat" | "vendedor" | "marca" | "producto">): Promise<Mes[]> {
   return consulta<Mes>(`
     select to_char(v.periodo, 'YYYY-MM') mes, sum(v.vendidas)::int unidades, sum(v.gmv)::float8 gmv, count(distinct v.item_id) filter (where v.vendidas > 0)::int publicaciones,
-           count(distinct p.vendedor) filter (where v.vendidas > 0)::int vendedores, (sum(v.gmv) / nullif(sum(v.vendidas), 0))::float8 ticket,
+           count(distinct v.vendedor) filter (where v.vendidas > 0)::int vendedores, (sum(v.gmv) / nullif(sum(v.vendidas), 0))::float8 ticket,
            (select c.publicaciones from mpro_conteo c where c.organizacion_id = $1 and c.category_id = $2 and c.mes = v.periodo) total_pubs
-      from mpro_venta v join mpro_publicacion p on p.organizacion_id = v.organizacion_id and p.item_id = v.item_id
+      from mpro_venta v
      where v.organizacion_id = $1 and v.grano = 'm'
-       and ($2::int is null or p.cat in (select category_id from mpro_categoria where pais = 'ar' and (category_id = $2 or $2 = any(padres))))
-       and ($3::text is null or p.vendedor = $3) and ($4::text is null or lower(p.marca) = lower($4)) and ($5::text is null or p.producto = $5)
+       and ($2::int is null or v.cat in (select category_id from mpro_categoria where pais = 'ar' and (category_id = $2 or $2 = any(padres))))
+       and ($3::text is null or v.vendedor = $3) and ($4::text is null or lower(v.marca) = lower($4)) and ($5::text is null or v.producto = $5)
      group by v.periodo order by v.periodo`, [org, f.cat, f.vendedor, f.marca, f.producto]);
 }
 
@@ -149,24 +149,24 @@ export async function porProducto(org: string, mes: string, f: Filtro): Promise<
   const filas = await conLider<FilaProducto>(org, mes, f, "producto", `,
     agr as (
       select b.producto, ${MEDIDAS},
-             (array_agg(b.titulo order by b.vendidas desc))[1] titulo, (array_agg(b.foto order by b.vendidas desc) filter (where b.foto is not null))[1] foto,
              (array_agg(b.marca order by b.vendidas desc))[1] marca, (array_agg(b.cat order by b.vendidas desc))[1] cat,
              (array_agg(b.item_id order by b.vendidas desc))[1] item_top,
              min(b.precio) filter (where en_ventana and b.vendidas > 0 and b.periodo > $2::date - interval '3 months')::float8 precio_min,
              percentile_cont(0.5) within group (order by b.precio) filter (where en_ventana and b.vendidas > 0 and b.periodo > $2::date - interval '3 months')::float8 precio_mediana,
-             (array_agg(distinct b.ean) filter (where b.ean is not null)) eans,
              count(distinct b.item_id) filter (where b.es_nuestra)::int nuestras
         from base b
-       where $8::text = '' or b.titulo ilike '%' || $8 || '%' or b.marca ilike $8 || '%' or b.item_id = upper($8)
+       where $8::text = '' or b.marca ilike $8 || '%' or b.item_id = $8
+          or b.producto in (select pp.producto from mpro_publicacion pp where pp.organizacion_id = $1 and pp.titulo ilike '%' || $8 || '%')
        group by b.producto having sum(vendidas) filter (where en_ventana) > 0
     )
-    select a.*, l.lider_pct, l.lider, c.ruta,
+    select a.*, pt.titulo, pt.foto, l.lider_pct, l.lider, c.ruta,
            (select cv.clasica_pct::float8 from ml_costos_comisiones_vigente cv where cv.categoria_id = 'MLA' || a.cat) comision,
            coalesce(vn.producto_id, ve.producto_id)::int tuyo_producto, coalesce(vn.costo_promedio_ars, ve.costo)::float8 tuyo_costo
-      from agr a left join lider l on l.g = a.producto left join mpro_categoria c on c.pais = 'ar' and c.category_id = a.cat
+      from agr a left join mpro_publicacion pt on pt.organizacion_id = $1 and pt.item_id = a.item_top
+      left join lider l on l.g = a.producto left join mpro_categoria c on c.pais = 'ar' and c.category_id = a.cat
       left join tuyos tu on tu.producto = a.producto left join variacion vn on vn.id = tu.variacion_id
       left join lateral (select va.producto_id, va.costo_promedio_ars costo from variacion va
-                          where va.organizacion_id = $1 and a.eans is not null and va.codigo_barras = any(a.eans) limit 1) ve on true`, [f.q]);
+                          where va.organizacion_id = $1 and pt.ean is not null and va.codigo_barras = pt.ean limit 1) ve on true`, [f.q]);
   const conTuyos = f.tuyos === "si" ? filas.filter((x) => x.tuyo_producto) : f.tuyos === "no" ? filas.filter((x) => !x.tuyo_producto) : filas;
   return puntuar(conTuyos, f.meses).sort((a, b) => b.gmv - a.gmv);
 }
@@ -177,9 +177,11 @@ export async function porVendedor(org: string, mes: string, f: Filtro): Promise<
       select distinct on (vendedor) vendedor, cat from (select vendedor, cat, sum(gmv) g from base where en_ventana group by 1, 2) x
        order by vendedor, g desc nulls last
     )
-    select b.vendedor, (array_agg(b.alias) filter (where b.alias is not null))[1] alias, max(mv.nombre) nombre, max(mv.seller_id)::float8 seller_id,
+    select b.vendedor, (select pa.alias from mpro_publicacion pa where pa.organizacion_id = $1 and pa.vendedor = b.vendedor and pa.alias is not null limit 1) alias,
+           max(mv.nombre) nombre, max(mv.seller_id)::float8 seller_id,
            ${MEDIDAS}, null::float8 lider_pct,
-           (array_agg(b.reputacion order by b.periodo desc))[1] reputacion, (array_agg(b.provincia order by b.periodo desc))[1] provincia,
+           (array_agg(b.reputacion order by b.periodo desc))[1] reputacion,
+           (select pp.provincia from mpro_publicacion pp where pp.organizacion_id = $1 and pp.vendedor = b.vendedor and pp.provincia is not null limit 1) provincia,
            count(distinct b.producto) filter (where en_ventana and b.vendidas > 0)::int productos,
            count(distinct b.item_id) filter (where en_ventana and b.es_nuestra)::int nuestras,
            max(c.ruta) categoria_top
@@ -212,14 +214,15 @@ export type Oferta = {
 
 export async function ofertasDeProducto(org: string, mes: string, f: Filtro): Promise<Oferta[]> {
   return consulta<Oferta>(`${BASE}
-    select b.item_id, max(b.vendedor) vendedor, max(b.alias) alias, (select mv.nombre from mpro_vendedor mv where mv.organizacion_id = $1 and mv.apodo = max(b.vendedor) and mv.estado = 'ok') nombre, max(b.reputacion) reputacion, max(b.provincia) provincia, max(b.titulo) titulo, max(b.foto) foto,
+    select b.item_id, max(b.vendedor) vendedor, max(p.alias) alias, (select mv.nombre from mpro_vendedor mv where mv.organizacion_id = $1 and mv.apodo = max(b.vendedor) and mv.estado = 'ok') nombre, max(b.reputacion) reputacion, max(p.provincia) provincia, max(p.titulo) titulo, max(p.foto) foto,
            sum(b.vendidas) filter (where en_ventana)::int unidades, sum(b.gmv) filter (where en_ventana)::float8 gmv,
            (array_agg(b.precio order by b.periodo desc))[1]::float8 precio, (array_agg(b.envio order by b.periodo desc))[1] envio,
            (array_agg(b.tipo order by b.periodo desc))[1] tipo, (array_agg(b.catalogo order by b.periodo desc))[1] catalogo,
            (array_agg(b.conversion order by b.periodo desc))[1]::float8 conversion, (array_agg(b.visitas_dia order by b.periodo desc))[1]::float8 visitas_dia,
            (select v.dias_activa from mpro_venta v where v.organizacion_id = $1 and v.item_id = b.item_id order by v.periodo desc limit 1) dias_activa,
            bool_or(b.es_nuestra) nuestra
-      from base b group by b.item_id having sum(b.vendidas) filter (where en_ventana) > 0 order by 8 desc nulls last`, params(org, mes, f));
+      from base b left join mpro_publicacion p on p.organizacion_id = $1 and p.item_id = b.item_id
+     group by b.item_id having sum(b.vendidas) filter (where en_ventana) > 0 order by 8 desc nulls last`, params(org, mes, f));
 }
 
 /** Los atributos de la publicación más vendida del producto (del último mes cerrado). */
