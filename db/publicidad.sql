@@ -297,3 +297,19 @@ create table if not exists ga4_mp_credencial (
   actualizado_ts  timestamptz not null default now()
 );
 alter table ga4_mp_credencial enable row level security;
+
+-- El análisis diario (lib/analisis-diario/): una vez por día (9 h), las campañas de Mercado Libre de las familias elegidas
+-- (en cuáles están y en cuáles deberían), las ofertas relámpago a las que pueden entrar, la publicidad (lo invertido
+-- contra lo vendido) y las visitas de la tienda, con un resumen escrito por la IA. Una fila por día y organización.
+create table if not exists analisis_diario (
+  organizacion_id  text not null,
+  fecha            date not null,
+  datos            jsonb not null,
+  resumen          text,
+  resumen_error    text,
+  urgentes         int not null default 0,
+  avisado_ts       timestamptz,
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, fecha)
+);
+alter table analisis_diario enable row level security;

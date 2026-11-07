@@ -30,6 +30,7 @@ Una tabla centrada con **una columna por cuenta de Mercado Libre**, una **Web** 
 El número grande es lo que hay para atender (rojo si es mayor que cero, verde si es cero) y el chico, "de N", es el total de esa clase. Pasando el mouse por el ⓘ de cada fila se lee qué cuenta. Tocando el nombre de una cuenta se abre su canal.
 
 - **Publicidad para CORTAR** (cartel rojo arriba de la tabla, sólo si hay): los productos cuya publicidad en Mercado Libre gasta sin rendir, según [Publicidad en Mercado Libre](/ventas/campanas-ml). Tocándolo se abre esa lista. Sale si en la configuración de publicidad el aviso está en «cartel en Para hacer» o «las dos cosas».
+- **Análisis diario** (cartel amarillo, sólo si hay): lo que el análisis de la mañana encontró para hacer (ofertas relámpago que entran, publicaciones sin campaña, fuentes de datos viejas…). Tocándolo se abre [Análisis diario](/informes/analisis-diario). Sale si en su configuración el aviso está prendido.
 
 ## Criterios y reglas
 

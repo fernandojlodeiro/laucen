@@ -338,7 +338,7 @@ export async function prepararRelampagos(org: string, usuario: string, canal: nu
 /** El pedido para entrar a una oferta de una publicación. Relámpago (como dice el manual): deal_price, stock, promotion_type.
  *  Compartida (SMART, SMART_LIGHTNING): el precio lo pone ML; se acepta la propuesta por su campaña y su ref_id (offer_id),
  *  con stock en la relámpago compartida. */
-function cambioEntrar(f: Relampago, stock: number | null = f.stockEntrar): CambioMl {
+export function cambioEntrar(f: Relampago, stock: number | null = f.stockEntrar): CambioMl {
   const pesos = (x: number | null) => `$ ${(x ?? 0).toLocaleString("es-AR")}`;
   const que = f.tipo_promo === "LIGHTNING" ? "la oferta relámpago" : f.tipo_promo === "SMART_LIGHTNING" ? "la relámpago compartida" : `la oferta compartida «${f.nombre_promo ?? f.promocion_id}»`;
   const cuerpo = f.tipo_promo === "LIGHTNING" ? { deal_price: f.rel, stock, promotion_type: "LIGHTNING" }

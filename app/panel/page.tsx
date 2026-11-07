@@ -12,6 +12,7 @@ import { Tablero } from "@/app/mercadolibre/Tablero";
 import { monedaVista } from "@/lib/moneda";
 import Link from "next/link";
 import { enCortar } from "@/lib/publicidad/avisos";
+import { urgentesHoy } from "@/lib/analisis-diario/correr";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,20 @@ export default async function Panel() {
   if (!tienePermiso(sesion.permisos, "panel_ver")) redirect("/radar");
   // Publicidad (orden 596): lo que pasó a CORTAR, que no se pase por alto.
   const cortar = tienePermiso(sesion.permisos, "publicidad_ver") ? await enCortar(sesion.org.id).catch(() => []) : [];
+  // El análisis diario (Informes › Análisis diario): lo que pide atención hoy.
+  const analisis = tienePermiso(sesion.permisos, "analisis_diario_ver") ? await urgentesHoy(sesion.org.id).catch(() => []) : [];
   return (
     <Pantalla titulo="Para hacer" ancho="max-w-[2200px]" subtitulo="Lo que espera tu atención hoy, por cuenta, la web y el resto">
       {cortar.length > 0 && (
         <Link href="/ventas/campanas-ml?veredicto=cortar" className="block mb-4 rounded-xl border-2 border-[#C03420] bg-[#FDF1EF] px-4 py-3 text-sm text-[#C03420] hover:bg-[#FBE4DF]">
           <b>Publicidad: {cortar.length === 1 ? "1 producto para CORTAR" : `${cortar.length} productos para CORTAR`}</b> — sigue gastando sin rendir hasta que lo pauses en el panel de Mercado Libre.
           <span className="block text-xs mt-1">{cortar.slice(0, 5).map((c) => c.clave).join(" · ")}{cortar.length > 5 ? " · …" : ""} — ver en Ventas › Publicidad en Mercado Libre</span>
+        </Link>
+      )}
+      {analisis.length > 0 && (
+        <Link href="/informes/analisis-diario" className="block mb-4 rounded-xl border-2 border-[#E0B44C] bg-[#FFF8E5] px-4 py-3 text-sm text-[#8a6100] hover:bg-[#FFF1CC]">
+          <b>Análisis diario: {analisis.length === 1 ? "1 cosa para mirar" : `${analisis.length} cosas para mirar`}</b>
+          <span className="block text-xs mt-1">{analisis.slice(0, 3).join(" · ")}{analisis.length > 3 ? " · …" : ""} — ver en Informes › Análisis diario</span>
         </Link>
       )}
       <Tablero org={sesion.org.id} modo="hacer" moneda={await monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as const)} />
