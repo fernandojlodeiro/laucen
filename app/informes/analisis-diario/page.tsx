@@ -17,7 +17,7 @@ import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { analisisDe, diasConAnalisis } from "@/lib/analisis-diario/correr";
 import { configAnalisis, nombresFamilias } from "@/lib/analisis-diario/config";
-import type { Analisis, EstadoCampana, FilaCampanaPub, FilaOferta } from "@/lib/analisis-diario/calcular";
+import { resumenOfertas, type Analisis, type EstadoCampana, type FilaCampanaPub, type FilaOferta, type ResumenOfertas } from "@/lib/analisis-diario/calcular";
 import { accionAnalizar, accionEntrarOfertas, accionGuardarConfig, accionPrepararCampanas } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ const ESTADO_OFERTA: Record<string, string> = { candidate: "Propuesta", pending:
 export default async function AnalisisDiario({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("analisis_diario_ver");
   const sp = await searchParams;
-  const ver = ["campanas", "ofertas", "publicidad", "visitas", "config"].includes(sp.ver ?? "") ? sp.ver! : "resumen";
+  const ver = ["campanas", "relampago", "compartidas", "publicidad", "visitas", "config"].includes(sp.ver ?? "") ? sp.ver! : "resumen";
   const [fila, dias] = await Promise.all([analisisDe(s.org.id, FECHA.test(sp.fecha ?? "") ? sp.fecha! : null), diasConAnalisis(s.org.id)]);
   const a = fila?.datos ?? null;
   const i = fila ? dias.indexOf(fila.fecha) : -1;
@@ -70,6 +70,8 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
   const editando = ver === "config" && editandoFicha(sp);
   const oportunidades = a?.campanas.filas.filter((f) => f.estado === "oportunidad").length ?? 0;
   const entran = a?.ofertas.filter((f) => f.entra).length ?? 0;
+  const esRel = (f: FilaOferta) => f.tipo === "LIGHTNING" || f.tipo === "SMART_LIGHTNING";
+  const relampago = a?.ofertas.filter(esRel) ?? [], compartidas = a?.ofertas.filter((f) => !esRel(f)) ?? [];
 
   return (
     <Pantalla titulo="Análisis diario" ancho="max-w-[1600px]"
@@ -96,7 +98,8 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
       <Pestanas items={[
         { href: ir({ ver: undefined }), texto: "Resumen", activa: ver === "resumen" },
         { href: ir({ ver: "campanas" }), texto: "Campañas de ML", activa: ver === "campanas", cuenta: a?.campanas.filas.length ?? 0 },
-        { href: ir({ ver: "ofertas" }), texto: "Relámpago y compartidas", activa: ver === "ofertas", cuenta: a?.ofertas.length ?? 0 },
+        { href: ir({ ver: "relampago" }), texto: "Relámpago", activa: ver === "relampago", cuenta: relampago.length },
+        { href: ir({ ver: "compartidas" }), texto: "Compartidas", activa: ver === "compartidas", cuenta: compartidas.length },
         { href: ir({ ver: "publicidad" }), texto: "Publicidad", activa: ver === "publicidad" },
         { href: ir({ ver: "visitas" }), texto: "Visitas de la tienda", activa: ver === "visitas" },
         { href: ir({ ver: "config" }), texto: "Configuración", activa: ver === "config" },
@@ -105,7 +108,8 @@ export default async function AnalisisDiario({ searchParams }: { searchParams: P
         : !a || !fila ? (
           <p className={`${CAJA} text-xs text-[#5C6B76]`}>Todavía no hay ningún análisis. Se hace solo todos los días a las 9; para tener el de hoy ya, apretá «Volver a analizar».</p>
         ) : ver === "campanas" ? <Campanas a={a} fotos={fotos} />
-        : ver === "ofertas" ? <Ofertas a={a} fotos={fotos} />
+        : ver === "relampago" ? <Ofertas a={a} ofertas={relampago} relampago fotos={fotos} />
+        : ver === "compartidas" ? <Ofertas a={a} ofertas={compartidas} relampago={false} fotos={fotos} />
         : ver === "publicidad" ? <Publicidad a={a} />
         : ver === "visitas" ? <Visitas a={a} />
         : <Resumen a={a} resumen={fila.resumen} error={fila.resumen_error} />}
@@ -156,6 +160,8 @@ function Resumen({ a, resumen, error }: { a: Analisis; resumen: string | null; e
           {a.urgentes.length ? <ul className="text-xs space-y-1 list-disc pl-4">{a.urgentes.map((u) => <li key={u}>{u}</li>)}</ul>
             : <p className="text-xs text-[#5C6B76]">Nada urgente.</p>}
         </div>
+        <PorProducto titulo="Ofertas relámpago" filas={resumenOfertas(a.ofertas, true)} tope={a.config.maxBajaPct} ver="relampago" />
+        <PorProducto titulo="Ofertas compartidas" filas={resumenOfertas(a.ofertas, false)} tope={a.config.maxBajaPct} ver="compartidas" />
         <div className={CAJA}>
           <TituloSeccion titulo="En números" />
           <div className="grid grid-cols-2 gap-2">
@@ -168,6 +174,30 @@ function Resumen({ a, resumen, error }: { a: Analisis; resumen: string | null; e
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Las ofertas de un tipo, una línea por producto: cuántas propone ML, la que menos baja y si entra. */
+function PorProducto({ titulo, filas, tope, ver }: { titulo: string; filas: ResumenOfertas[]; tope: number; ver: string }) {
+  return (
+    <div className={CAJA}>
+      <TituloSeccion titulo={`${titulo} (${filas.length})`}>
+        <Link href={`${PANTALLA}?ver=${ver}`} className={SUAVE} scroll={false}>Ver todas</Link>
+      </TituloSeccion>
+      {filas.length === 0 ? <p className="text-xs text-[#5C6B76]">Mercado Libre no propone ninguna para estos productos.</p> : (
+        <ul className="text-xs space-y-1">
+          {filas.map((f) => (
+            <li key={f.productoId}>
+              <Link href={`/catalogo/productos/${f.productoId}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
+              {f.propuestas === 0 ? <span className="text-[#5C6B76]">sin propuestas nuevas</span>
+                : f.entran > 0 ? <span className="text-[#167655] font-semibold">{f.entran === 1 ? "1 entra" : `${f.entran} entran`}</span>
+                : <span className="text-[#5C6B76]">{f.propuestas === 1 ? "1 propuesta" : `${f.propuestas} propuestas`}, la mejor baja {pct(f.mejorBaja)} sobre el esquema{f.mejorPrecio != null ? ` (${pesos(f.mejorPrecio)} contra ${pesos(f.base)})` : ""}: no entra (tope {pct(tope)})</span>}
+              {f.aceptadas > 0 && <span className="text-[#5C6B76]"> · {f.aceptadas === 1 ? "1 ya aceptada" : `${f.aceptadas} ya aceptadas`}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -217,15 +247,16 @@ function Campanas({ a, fotos }: { a: Analisis; fotos: Map<number, string[]> }) {
   );
 }
 
-function Ofertas({ a, fotos }: { a: Analisis; fotos: Map<number, string[]> }) {
+function Ofertas({ a, ofertas, relampago, fotos }: { a: Analisis; ofertas: FilaOferta[]; relampago: boolean; fotos: Map<number, string[]> }) {
   return (
     <>
       <p className="text-xs text-[#5C6B76] mb-2">
-        Las ofertas relámpago y compartidas que Mercado Libre propone a las publicaciones de las familias elegidas, y las que ya están programadas o en curso.
-        «Entra» = baja hasta el {pct(a.config.maxBajaPct)} sobre el precio del esquema (en una compartida, lo que ponés vos), llega al piso del producto y hay el stock que pide.
+        {relampago ? "Las ofertas relámpago (unas horas, con stock reservado) que Mercado Libre propone a las publicaciones de las familias elegidas, y las ya programadas o en curso."
+          : "Las ofertas compartidas («Potencia tus ventas» y otras: Mercado Libre pone el precio y paga una parte del descuento) que propone a esas publicaciones, y las que ya están en curso."}
+        {" "}«Entra» = baja hasta el {pct(a.config.maxBajaPct)} sobre el precio del esquema{relampago ? "" : " (contando lo que pone Mercado Libre)"}, llega al piso del producto y hay el stock que pide.
         El detalle de cada una, en <Link href="/catalogo/precios-ml" className="underline">Precios en ML</Link>, pestaña Relámpago.
       </p>
-      {a.ofertas.length === 0 ? <p className={`${CAJA} text-xs text-[#5C6B76]`}>Mercado Libre no propone ninguna oferta a estos productos.</p> : (
+      {ofertas.length === 0 ? <p className={`${CAJA} text-xs text-[#5C6B76]`}>Mercado Libre no propone ninguna a estos productos.</p> : (
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}>
@@ -246,7 +277,7 @@ function Ofertas({ a, fotos }: { a: Analisis; fotos: Map<number, string[]> }) {
               </tr>
             </thead>
             <tbody>
-              {a.ofertas.map((f: FilaOferta) => (
+              {ofertas.map((f: FilaOferta) => (
                 <tr key={`${f.canalId}:${f.itemId}:${f.tipo}:${f.nombre}`} className={TR} data-canal={f.canalId}>
                   <td className={TD}><Producto id={f.productoId} sku={f.sku} titulo={f.titulo} fotos={fotos} /></td>
                   <td className={TD}>{f.estado !== "candidate" ? "—" : f.entra ? <Estado texto="Entra" tono="verde" /> : <Estado texto="No" tono="gris" />}</td>

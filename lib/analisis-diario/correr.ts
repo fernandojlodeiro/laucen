@@ -6,14 +6,15 @@
 import { consulta, una } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { avisarOrg } from "@/lib/avisos-push";
-import { calcularAnalisis, hoyAr, type Analisis } from "@/lib/analisis-diario/calcular";
+import { calcularAnalisis, hoyAr, resumenOfertas, type Analisis } from "@/lib/analisis-diario/calcular";
 import { configAnalisis } from "@/lib/analisis-diario/config";
 
 export const PANTALLA = "/informes/analisis-diario";
 
 const SISTEMA = `Sos el analista comercial de una empresa argentina que vende notebooks, impresoras 3D y otros productos en Mercado Libre (varias cuentas) y en su tienda web, con publicidad en Mercado Libre, Google Ads y Meta.
 Te paso, en JSON, el análisis automático de hoy. Escribile al dueño un resumen corto, en castellano rioplatense con voseo, directo y sin vueltas. Sabe de números y de su negocio; no le expliques lo obvio.
-Formato: texto plano con estos títulos en una línea propia, en este orden, y debajo viñetas con «- »: «Lo urgente», «Campañas de Mercado Libre», «Publicidad», «Visitas de la tienda», «Qué haría hoy». Si una sección no tiene nada que decir, una sola viñeta «Nada para hacer.».
+Formato: texto plano con estos títulos en una línea propia, en este orden, y debajo viñetas con «- »: «Lo urgente», «Ofertas relámpago», «Campañas y ofertas compartidas de Mercado Libre», «Publicidad», «Visitas de la tienda», «Qué haría hoy». Si una sección no tiene nada que decir, una sola viñeta «Nada para hacer.».
+En «Ofertas relámpago» (la lista relampagoPorProducto) va una viñeta por producto: cuántas propone ML, cuánto baja la mejor sobre el precio del esquema y si entra o por qué no; si ML no propone ninguna, decilo. Las compartidas («Potencia tus ventas» y otras donde ML pone parte) NO son relámpago: van en la sección siguiente (compartidasPorProducto).
 Reglas:
 - Usá sólo los datos que te paso. No inventes cifras ni causas; si algo no se puede saber con estos datos, decilo.
 - Montos en pesos con punto de miles («$ 1.250.000»). Un porcentaje siempre dice sobre qué es («baja 3 % sobre el precio del esquema», «el retorno es 4,2 veces lo invertido»); nunca un % suelto.
@@ -21,7 +22,7 @@ Reglas:
 - Nombrá productos por su SKU y publicaciones por su número (MLA…).
 - Nada se manda solo a Mercado Libre: lo que proponés lo aprieta el dueño en la pantalla. Decí qué botón: «Entrar a las ofertas que cumplen» (relámpago y compartidas) o «Preparar lote de campañas» (publicaciones sin campaña).
 - Si una fuente de datos está vieja o sin gasto, avisalo: puede ser que la lectura no ande o que la campaña esté sin entrega.
-- Las ofertas relámpago y compartidas van en «Campañas de Mercado Libre», no en «Publicidad» («Publicidad» es lo invertido en anuncios de ML, Google y Meta).
+- «Publicidad» es sólo lo invertido en anuncios de ML, Google y Meta.
 - Revisá cada cifra contra el JSON antes de escribirla; nunca te corrijas en el texto («… en realidad …»).
 - Máximo unas 25 viñetas en total.`;
 
@@ -29,6 +30,8 @@ Reglas:
 function paraIa(a: Analisis) {
   return {
     ...a,
+    relampagoPorProducto: resumenOfertas(a.ofertas, true).map(({ productoId: _p, ...r }) => r),
+    compartidasPorProducto: resumenOfertas(a.ofertas, false).map(({ productoId: _p, ...r }) => r),
     campanas: { ...a.campanas, filas: a.campanas.filas.slice(0, 60).map(({ productoId: _p, canalId: _c, ...f }) => f) },
     ofertas: a.ofertas.slice(0, 40).map(({ productoId: _p, canalId: _c, ...f }) => f),
     publicidad: { ...a.publicidad, mlAds: a.publicidad.mlAds.slice(0, 15), campanas: a.publicidad.campanas.slice(0, 20) },

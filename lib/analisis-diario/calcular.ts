@@ -421,3 +421,28 @@ export async function calcularAnalisis(org: string, hoy: string = hoyAr()): Prom
   for (const e of errores) urgentes.push(`No se pudo analizar ${e}`);
   return { ...base, urgentes };
 }
+
+// ── Resumen de las ofertas por producto ──────────────────────────────────────
+
+export type ResumenOfertas = {
+  sku: string; productoId: number; titulo: string;
+  /** Propuestas todavía no aceptadas, cuántas entran, la que menos baja y cuántas ya están programadas o en curso. */
+  propuestas: number; entran: number; mejorBaja: number | null; mejorPrecio: number | null; base: number | null; aceptadas: number;
+};
+
+/** Las ofertas de un tipo (relámpago: LIGHTNING y SMART_LIGHTNING; compartidas: SMART), juntas por producto. Pura. */
+export function resumenOfertas(ofertas: FilaOferta[], relampago: boolean): ResumenOfertas[] {
+  const por = new Map<number, ResumenOfertas>();
+  for (const f of ofertas) {
+    const esRel = f.tipo === "LIGHTNING" || f.tipo === "SMART_LIGHTNING";
+    if (esRel !== relampago) continue;
+    const r = por.get(f.productoId) ?? { sku: f.sku, productoId: f.productoId, titulo: f.titulo, propuestas: 0, entran: 0, mejorBaja: null, mejorPrecio: null, base: null, aceptadas: 0 };
+    if (f.estado === "candidate") {
+      r.propuestas++;
+      if (f.entra) r.entran++;
+      if (f.bajaPct != null && (r.mejorBaja == null || f.bajaPct < r.mejorBaja)) { r.mejorBaja = f.bajaPct; r.mejorPrecio = f.precio; r.base = f.base; }
+    } else r.aceptadas++;
+    por.set(f.productoId, r);
+  }
+  return [...por.values()].sort((a, b) => b.entran - a.entran || (a.mejorBaja ?? 99) - (b.mejorBaja ?? 99));
+}
