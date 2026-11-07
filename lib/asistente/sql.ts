@@ -76,14 +76,14 @@ export function tablaDelCambio(sqlCrudo: string): { tabla: string; tipo: "insert
 }
 
 /** Corre `fn` como el usuario (rol authenticated + su identidad), con tope de tiempo. Siempre deshace salvo `confirmar`. */
-async function comoUsuario<T>(authId: string, soloLectura: boolean, confirmar: boolean, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+async function comoUsuario<T>(authId: string, soloLectura: boolean, confirmar: boolean, fn: (c: PoolClient) => Promise<T>, segundos = 15): Promise<T> {
   if (!authId) throw new ErrorErp("No encuentro tu identidad de usuario: volvé a entrar al sistema.");
   const c = await pool.connect();
   try {
     await c.query("begin");
     await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: authId, role: "authenticated" })]);
     await c.query("set local role authenticated");
-    await c.query("set local statement_timeout = '15s'");
+    await c.query(`set local statement_timeout = '${Math.max(1, Math.min(120, Math.trunc(segundos)))}s'`);
     if (soloLectura) await c.query("set transaction read only");
     const r = await fn(c);
     await c.query(confirmar && !soloLectura ? "commit" : "rollback");
@@ -141,6 +141,7 @@ const TABLAS_PERMISO: [RegExp, Permiso[]][] = [
   [/^(arca_cargas|arca_impo_items|arca_depuracion|agg_\w+|softrade_\w+|rubros|rubro_ncm|ncm_clasificaciones|importacion_arca)$/, ["importaciones_ver"]],
   [/^(asistente_conversacion|asistente_mensaje|asistente_accion|asistente_pendiente)$/, ["asistente_historial_ver"]],
   [/^(chat|chat_mensaje|chat_caso)$/, ["mensajes_ver"]],
+  [/^mpro_\w+$/, ["market_pro_ver"]],
   [/^(tipo_cambio|ref_\w+)$/, ["todos"]],
 ];
 const SECRETAS = /(_llave|_credencial|^arca_ticket|^erp_llave|^arca_credencial|^medio_pago_credencial)$/;
@@ -189,12 +190,12 @@ export function revisarConsultaCon(sqlCrudo: string, permisos: Permisos, superad
 }
 
 /** Consulta de sólo lectura (SELECT o WITH … SELECT), hasta `tope` filas, como el usuario. */
-export async function consultarSql(sqlCrudo: string, authId: string, permisos: Permisos, superadmin: boolean, tope = TOPE_FILAS_CONSULTA) {
+export async function consultarSql(sqlCrudo: string, authId: string, permisos: Permisos, superadmin: boolean, tope = TOPE_FILAS_CONSULTA, segundos = 15) {
   const sql = await revisarConsulta(sqlCrudo, permisos, superadmin);
   return comoUsuario(authId, true, false, async (c) => {
     const r = await c.query(`select * from (${sql}) q limit ${Math.trunc(tope) + 1}`);
     return { sql, columnas: r.fields.map((f) => f.name), filas: filasLimpias(r.rows, tope), mas: r.rows.length > tope };
-  });
+  }, segundos);
 }
 
 /** Ensaya el cambio (lo corre y lo deshace): cuántas filas toca y cómo quedan. */

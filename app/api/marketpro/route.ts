@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { actualizarTodo, vuelta } from "@/lib/marketpro/motor";
 import { descubrirVendedores } from "@/lib/marketpro/vendedores";
+import { refrescarInformes } from "@/lib/marketpro/informe-ia";
 import { una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,8 @@ export async function GET(req: Request) {
     await Promise.all([
       vuelta(org, token).catch((e) => console.error("[marketpro] vuelta", e)),
       descubrirVendedores(org).catch((e) => console.error("[marketpro] vendedores", e)),
+      // Cada mañana, un informe de los ya pedidos que quedó atrás se vuelve a escribir (lib/marketpro/informe-ia.ts).
+      u.searchParams.get("plan") === "1" ? refrescarInformes(org).catch((e) => console.error("[marketpro] informe", e)) : null,
     ]);
   });
   return Response.json({ ok: true });

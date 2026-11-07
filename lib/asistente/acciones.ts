@@ -350,7 +350,7 @@ function exigirPermisos(a: Accion, permisos: Permisos) {
 export async function correrAccion(nombre: string, entrada: Record<string, unknown>, ctx: CtxAccion, conversacionId: number): Promise<{ texto: string; propuesta?: number }> {
   if (nombre === HERRAMIENTA_CONSULTAR_SQL.name) {
     if (!puedeConsultar(ctx.permisos, ctx.superadmin)) throw new ErrorErp("Esta persona no tiene permiso para consultas libres.");
-    const r = await consultarSql(String(entrada.sql ?? ""), ctx.authId, ctx.permisos, ctx.superadmin);
+    const r = await consultarSql(String(entrada.sql ?? ""), ctx.authId, ctx.permisos, ctx.superadmin, undefined, /\bmpro_/i.test(String(entrada.sql ?? "")) ? 45 : 15);
     // Se guarda para que el Excel la vuelva a correr con todas las filas.
     const g = await una<{ id: number }>(
       "insert into asistente_consulta (organizacion_id, conversacion_id, usuario_id, titulo, sql) values ($1, $2, $3, $4, $5) returning id::int",

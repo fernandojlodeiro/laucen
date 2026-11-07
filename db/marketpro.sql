@@ -257,3 +257,51 @@ alter table mpro_vendedor_ml enable row level security;
 -- Una vez (6/11): la pausa que dejó la prueba de países (sin error de la llave) se levanta al publicar este cambio;
 -- pasada la fecha, esta línea ya no hace nada (no pisa una pausa manual futura).
 update mpro_llave set pausado = false where pausado and ultimo_error is null and now() < '2026-11-07 12:00+00';
+
+-- El informe de cada categoría (Fer, 7/11; /market-pro/informe): lo que escribió la IA después de explorar los datos
+-- (lib/marketpro/informe-ia.ts). cat 0 = todas las bajadas. datos_hasta: el último mes cerrado que tenía al escribirlo
+-- (cuando cierra otro mes, se vuelve a escribir solo).
+create table if not exists mpro_informe (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  cat              int not null,
+  texto            text,
+  estado           text not null default 'trabajando' check (estado in ('trabajando', 'listo', 'error')),
+  error            text,
+  costo_usd        numeric(8, 4),
+  consultas        int,
+  datos_hasta      date,
+  pedido_por       text,
+  empezado_ts      timestamptz not null default now(),
+  generado_ts      timestamptz,
+  primary key (organizacion_id, cat)
+);
+alter table mpro_informe enable row level security;
+
+-- Lo que se agregó a mano al informe desde el asistente («Agregar al informe»).
+create table if not exists mpro_informe_extra (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  cat              int not null,
+  pregunta         text,
+  texto            text not null,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists mpro_informe_extra_cat on mpro_informe_extra (organizacion_id, cat, id);
+alter table mpro_informe_extra enable row level security;
+
+-- Políticas de fila: el asistente (consultas libres) y la IA del informe consultan como el usuario, y sin política
+-- no verían nada. La llave (mpro_llave) queda sin política: no la consulta nadie. El árbol de categorías es de todos.
+do $$
+declare t text;
+begin
+  foreach t in array array['mpro_seguida', 'mpro_descarga', 'mpro_publicacion', 'mpro_venta', 'mpro_atributos', 'mpro_conteo',
+                           'mpro_vendedor', 'mpro_catalogo_oferta', 'mpro_catalogo_leido', 'mpro_vendedor_ml', 'mpro_informe', 'mpro_informe_extra'] loop
+    if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = t and policyname = t || '_org') then
+      perform erp_politica_org(t);
+    end if;
+  end loop;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'mpro_categoria' and policyname = 'mpro_categoria_leer') then
+    create policy mpro_categoria_leer on mpro_categoria for select to authenticated using (true);
+  end if;
+end $$;

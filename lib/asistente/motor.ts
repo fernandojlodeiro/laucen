@@ -12,6 +12,7 @@
 // asistente que haga cosas»; prepara la acción y la persona la confirma con
 // un botón. Lo que no sabe hacer lo anota para el superadministrador.
 
+import { contextoDePantalla } from "@/lib/asistente/pantallas";
 import Anthropic from "@anthropic-ai/sdk";
 import { clienteClaude, hayClaude } from "@/lib/claude";
 import { tienePermiso, type Permisos, type PermisoKey } from "@/lib/permisos";
@@ -230,7 +231,7 @@ export async function preguntar({ nombre, fuera, q, ruta, historia, pregunta, co
   ];
   const sistema: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: SISTEMA, cache_control: { type: "ephemeral" } },
-    { type: "text", text: contexto(nombre, q, ruta, fuera, paginas, deAcciones.map((h) => h.name)), cache_control: { type: "ephemeral" } },
+    { type: "text", text: contexto(nombre, q, ruta, fuera, paginas, deAcciones.map((h) => h.name)) + await contextoDePantalla(ruta, q.org, q.permisos, q.superadmin), cache_control: { type: "ephemeral" } },
   ];
   const cliente = clienteClaude();
 

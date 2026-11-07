@@ -2,7 +2,7 @@
 titulo: Market Pro
 menu: Sourcing › Market Pro
 ruta: /market-pro
-rutas: /market-pro, /market-pro/categorias, /market-pro/productos, /market-pro/productos/ver, /market-pro/vendedores, /market-pro/marcas, /market-pro/descarga
+rutas: /market-pro, /market-pro/informe, /market-pro/categorias, /market-pro/productos, /market-pro/productos/ver, /market-pro/vendedores, /market-pro/marcas, /market-pro/descarga
 permiso: market_pro_ver
 resumen: Ventas de Mercado Libre por categoría, producto, vendedor y marca (datos de Market Pro de Real Trends), cruzadas con tu catálogo y tus costos, para decidir qué comprar y contra quién se compite.
 ---
@@ -21,7 +21,7 @@ El sistema baja esos datos solo y los muestra agrupados para contestar:
 ## Cómo se llega
 
 - Menú **Sourcing › Market Pro**.
-- Pestañas: **Resumen** ([/market-pro](/market-pro)), **Categorías** ([/market-pro/categorias](/market-pro/categorias)), **Productos** ([/market-pro/productos](/market-pro/productos)), **Vendedores** ([/market-pro/vendedores](/market-pro/vendedores)), **Marcas** ([/market-pro/marcas](/market-pro/marcas)) y **Descarga y llave** ([/market-pro/descarga](/market-pro/descarga)).
+- Pestañas: **Resumen** ([/market-pro](/market-pro)), **Informe** ([/market-pro/informe](/market-pro/informe)), **Categorías** ([/market-pro/categorias](/market-pro/categorias)), **Productos** ([/market-pro/productos](/market-pro/productos)), **Vendedores** ([/market-pro/vendedores](/market-pro/vendedores)), **Marcas** ([/market-pro/marcas](/market-pro/marcas)) y **Descarga y llave** ([/market-pro/descarga](/market-pro/descarga)).
 - Tocando un producto se abre su ficha ([/market-pro/productos/ver](/market-pro/productos/ver)): quién lo vende, a cuánto y cómo vendió mes a mes.
 - Market Pro no da el número de publicación de Mercado Libre (viene cifrado), así que no hay link a cada publicación. Para verlo en Mercado Libre, la ↗ al lado del producto (y el botón arriba a la derecha de su ficha) abre la página del producto de catálogo; si no es de catálogo, la búsqueda por su título. El código cifrado es siempre el mismo para cada publicación, así que su historia mes a mes y día a día se sigue igual.
 
@@ -36,6 +36,8 @@ Arriba de cada pestaña de análisis:
 - **Buscador** (en las listas): busca en cualquier parte del texto.
 
 **Resumen**: facturación, unidades y ticket del período; unidades de los últimos 12 meses contra los 12 anteriores; el gráfico de facturación mes a mes (al pasar el mouse por cada barra se ven unidades, vendedores y ticket; la barra clara es el mes en curso); y los 10 primeros de cada lista.
+
+**Informe**: de la categoría elegida (o de todas), los números de los últimos 12 meses en pesos y en dólares, la facturación mes a mes en pesos y en dólares, las franjas de precio, las subcategorías y los productos con más oportunidad, y **lo que encontró la IA**: qué dicen los números, oportunidades, dónde no meterse y qué mirar después, cada cosa con su número. Abajo, lo que se le agregó desde el asistente.
 
 **Categorías, Productos, Vendedores y Marcas**: una fila por cada uno, ordenable tocando el título de la columna, de a 50 por página, con «Descargar Excel» (baja lo que se ve, todas las filas).
 
@@ -60,6 +62,13 @@ La descarga corre sola de fondo, aunque se cierre la pantalla. En **Descarga y l
 
 Las categorías que habilita la llave se encuentran solas. Si hace falta otra: **Nueva categoría** (arriba a la derecha), escribí su número de Mercado Libre (por ejemplo MLA1652) y **Sumar**.
 
+### Pedir el informe de una categoría
+
+1. Pestaña **Informe** ([abrir](/market-pro/informe)) y elegí la **Categoría** arriba.
+2. Tocá **Analizar con IA** (o **Volver a analizar**), arriba a la derecha. Corre de fondo: tarda unos minutos y aparece solo.
+3. Para preguntarle más, abrí el asistente (la carita de abajo a la derecha). Ahí ve el informe y consulta los datos de Market Pro: se le puede pedir «investigalo vos» o que profundice cualquier punto, escribiendo o dictando con el micrófono.
+4. Si una respuesta sirve, tocá **＋ Agregar al informe** debajo de ella: queda como una sección más del informe, con la pregunta como título. Se borra con el tacho.
+
 ### Encontrar qué comprar
 
 1. Pestaña **Productos**, «Tu catálogo»: **Los que no tenés**.
@@ -83,6 +92,8 @@ Las categorías que habilita la llave se encuentran solas. Si hace falta otra: *
 - **Tu ganancia** (sólo en lo que ya tenés, con costo cargado): precio de mercado sin IVA, menos la comisión Clásica de la categoría (sin IVA), menos el costo promedio sin IVA. Se muestra **sobre la venta** (ganancia ÷ precio sin IVA) y **sobre el costo** (ganancia ÷ costo). No descuenta envío, cargos fijos ni impuestos: sirve para comparar productos, no para fijar precios. Si no se conoce la comisión de esa categoría se supone 14,5 %.
 - **Vendedores**: Mercado Libre obliga a Market Pro a mostrar el apodo ofuscado. «nosotros» marca los vendedores con publicaciones de tus cuentas. Si en Market Pro le pusiste un alias a un vendedor, se muestra el alias (el apodo ofuscado queda al pasar el mouse).
 - **Quién es cada vendedor**: Market Pro muestra al vendedor con un apodo de tres palabras y no da el número de publicación de Mercado Libre, pero sí de qué producto de catálogo es cada publicación. El sistema lee de Mercado Libre, sin costo, quiénes venden en cada catálogo (primero los que más facturan; cada catálogo se vuelve a leer a la semana) y a cada apodo le asigna el vendedor que está en sus mismos catálogos: el que más comparte, con al menos 2 catálogos en común, al menos la mitad de los del apodo y el doble que el que le sigue. Si dos o tres vendedores comparten casi los mismos catálogos (revendedores del mismo producto), desempatan la provincia y la medalla que da Market Pro: gana el único que coincide en las dos, o el que coincide y comparte al menos una vez y media más catálogos que el siguiente que también coincide; si el apodo vende en un solo catálogo, sólo cuando ese catálogo tiene un único vendedor. Así sale su nombre real, ciudad y medalla, y quedan marcadas como «nosotros» tus propias cuentas. Los que no venden nada de catálogo no se pueden identificar por esta vía: para ellos sirve el alias que les pongas en Market Pro. Se muestra el nombre real; si no hay, tu alias; si no, el apodo. En **Descarga y llave** se ve cuántos van identificados y está el botón **Descubrir vendedores ahora**.
+- **El informe de la IA**: parte de los números de la pantalla y hace sus propias consultas a los datos bajados (sólo lee, nunca cambia nada), con un tope de gasto por informe. Compara en dólares (dólar oficial promedio de cada mes) para que la inflación no parezca crecimiento. Cada mañana, si cerró un mes nuevo o el informe tiene más de 30 días, se vuelve a escribir solo uno de los informes pedidos. Es una guía para mirar primero, no una recomendación de compra.
+- **Franjas de precio**: los precios en dólares de los últimos 12 meses partidos en cinco franjas con la misma cantidad de publicaciones con ventas; **Parte** = unidades de la franja sobre las de todas; **Crec.** = unidades de los últimos 3 meses contra los 3 anteriores.
 - La llave **nunca se muestra**, sólo si está cargada y desde cuándo.
 
 ## Preguntas frecuentes

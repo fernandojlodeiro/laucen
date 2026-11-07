@@ -14,6 +14,7 @@ import Carita from "./Carita";
 import Texto from "./Texto";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { subirArchivo } from "@/lib/supabase-navegador";
+import { destinoDe } from "@/lib/asistente/destinos";
 
 type Accion = { id: number; resumen: string; detalle: string[]; estado: string; resultado: string | null };
 type Archivo = { id?: number; nombre: string; tipo: string };
@@ -61,6 +62,9 @@ export default function Asistente({ nombre, carita, usuario, organizacionId }: {
   const pathname = usePathname();
   const params = useSearchParams();
   const ruta = `${pathname}${params.size ? `?${params.toString()}` : ""}`;
+  // En una pantalla con informe, cada respuesta se puede guardar en él (lib/asistente/destinos.ts).
+  const destino = destinoDe(pathname, new URLSearchParams(params.toString()));
+  const [agregados, setAgregados] = useState<Record<string, "guardando" | "ok" | "error">>({});
 
   // Recuperar la conversación de esta pestaña.
   useEffect(() => {
@@ -168,6 +172,15 @@ export default function Asistente({ nombre, carita, usuario, organizacionId }: {
     fetch("/api/asistente/voto", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: m.id, voto: nuevo }) }).catch(() => {});
   }
 
+  async function agregarAlInforme(id: number) {
+    if (!destino) return;
+    const k = `${destino.clave}:${id}`;
+    setAgregados((a) => ({ ...a, [k]: "guardando" }));
+    const r = await fetch("/api/asistente/agregar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, destino: destino.clave }) }).catch(() => null);
+    setAgregados((a) => ({ ...a, [k]: r?.ok ? "ok" : "error" }));
+    if (r?.ok) window.dispatchEvent(new Event("informe-agregado"));
+  }
+
   /** Confirmar o cancelar una acción preparada: la tarjeta queda con el resultado. */
   async function resolver(accionId: number, decision: "confirmar" | "cancelar") {
     const marcar = (cambio: Partial<Accion>) => setMensajes((ms) => ms.map((m) => (m.acciones?.some((a) => a.id === accionId)
@@ -271,6 +284,16 @@ export default function Asistente({ nombre, carita, usuario, organizacionId }: {
                         className={`rounded-md border px-1.5 py-0.5 text-[11px] ${m.voto === 1 ? "bg-[#E6F4EC] border-[#167655]" : "bg-white border-[#E3E9F0]"}`}>👍</button>
                       <button type="button" onClick={() => votar(i, -1)} aria-label="No me sirvió" title="No me sirvió"
                         className={`rounded-md border px-1.5 py-0.5 text-[11px] ${m.voto === -1 ? "bg-[#FDF0EE] border-[#C03420]" : "bg-white border-[#E3E9F0]"}`}>👎</button>
+                      {destino && (() => {
+                        const e = agregados[`${destino.clave}:${m.id}`];
+                        return (
+                          <button type="button" onClick={() => agregarAlInforme(m.id!)} disabled={e === "guardando" || e === "ok"}
+                            title="Guardar esta respuesta como una sección más del informe de la pantalla"
+                            className={`rounded-md border px-2 py-0.5 text-[11px] ${e === "ok" ? "bg-[#E6F4EC] border-[#167655] text-[#167655]" : e === "error" ? "bg-[#FDF0EE] border-[#C03420] text-[#8A2A1C]" : "bg-white border-[#C9D6E2] text-[#16577F]"}`}>
+                            {e === "ok" ? "✓ Agregado al informe" : e === "guardando" ? "Guardando…" : e === "error" ? "No se pudo: probá de nuevo" : `＋ ${destino.etiqueta}`}
+                          </button>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

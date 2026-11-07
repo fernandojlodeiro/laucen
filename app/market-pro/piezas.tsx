@@ -27,7 +27,7 @@ export const filtrosDe = (sp: SP) => ({ cat: sp.cat ?? null, meses: sp.meses ?? 
 export function BarraMarketPro({ activa, sp }: { activa: string; sp: SP }) {
   const f = filtrosDe(sp);
   const items = [
-    ["", "Resumen"], ["categorias", "Categorías"], ["productos", "Productos"], ["vendedores", "Vendedores"], ["marcas", "Marcas"], ["descarga", "Descarga y llave"],
+    ["", "Resumen"], ["informe", "Informe"], ["categorias", "Categorías"], ["productos", "Productos"], ["vendedores", "Vendedores"], ["marcas", "Marcas"], ["descarga", "Descarga y llave"],
   ] as const;
   return (
     <BarraPestanas items={items.map(([k, texto]) => ({
