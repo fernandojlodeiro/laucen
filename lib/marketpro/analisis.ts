@@ -14,7 +14,14 @@
 // costo promedio (sin IVA) de esa variación: precio × (100 − comisión Clásica %) ÷ 121 − costo (como en precio_vs_ml:
 // la comisión trae IVA). Sin envío, cargos fijos ni impuestos: es para comparar, no para fijar precios.
 
+import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
+
+// Las cuentas de los meses cerrados cambian sólo cuando se baja algo nuevo y tardan (millones de filas): se guardan
+// 3 horas por organización y filtro (Fer, 7/11: la serie sin categoría tardaba 18 s). Lo que pase de 2 MB no se guarda
+// (lo hace Next) y se calcula cada vez.
+const guardado = <A extends unknown[], R>(nombre: string, fn: (...a: A) => Promise<R>) =>
+  (...a: A): Promise<R> => unstable_cache(() => fn(...a), ["mpro", nombre, JSON.stringify(a)], { revalidate: 10_800, tags: ["marketpro"] })();
 
 export type Filtro = { cat: number | null; meses: number; q: string; vendedor: string | null; marca: string | null; producto: string | null; tuyos: string | null };
 
@@ -104,7 +111,7 @@ function puntuar<T extends Medidas>(filas: T[], meses: number): T[] {
 
 export type Mes = { mes: string; unidades: number; gmv: number; publicaciones: number; vendedores: number; ticket: number | null; total_pubs: number | null };
 
-export async function serieMensual(org: string, f: Pick<Filtro, "cat" | "vendedor" | "marca" | "producto">): Promise<Mes[]> {
+async function serieMensualCrudo(org: string, f: Pick<Filtro, "cat" | "vendedor" | "marca" | "producto">): Promise<Mes[]> {
   return consulta<Mes>(`
     select to_char(v.periodo, 'YYYY-MM') mes, sum(v.vendidas)::int unidades, sum(v.gmv)::float8 gmv, count(distinct v.item_id) filter (where v.vendidas > 0)::int publicaciones,
            count(distinct v.vendedor) filter (where v.vendidas > 0)::int vendedores, (sum(v.gmv) / nullif(sum(v.vendidas), 0))::float8 ticket,
@@ -136,7 +143,7 @@ async function conLider<T extends Medidas>(org: string, mes: string, f: Filtro, 
   return filas;
 }
 
-export async function porCategoria(org: string, mes: string, f: Filtro): Promise<FilaCategoria[]> {
+async function porCategoriaCrudo(org: string, mes: string, f: Filtro): Promise<FilaCategoria[]> {
   const filas = await conLider<FilaCategoria>(org, mes, f, "cat", `
     select b.cat, c.ruta, ${MEDIDAS}, max(l.lider_pct) lider_pct,
            (select cv.clasica_pct::float8 from ml_costos_comisiones_vigente cv where cv.categoria_id = 'MLA' || b.cat) comision
@@ -145,7 +152,7 @@ export async function porCategoria(org: string, mes: string, f: Filtro): Promise
   return puntuar(filas, f.meses).sort((a, b) => b.gmv - a.gmv);
 }
 
-export async function porProducto(org: string, mes: string, f: Filtro): Promise<FilaProducto[]> {
+async function porProductoCrudo(org: string, mes: string, f: Filtro): Promise<FilaProducto[]> {
   const filas = await conLider<FilaProducto>(org, mes, f, "producto", `,
     agr as (
       select b.producto, ${MEDIDAS},
@@ -171,7 +178,7 @@ export async function porProducto(org: string, mes: string, f: Filtro): Promise<
   return puntuar(conTuyos, f.meses).sort((a, b) => b.gmv - a.gmv);
 }
 
-export async function porVendedor(org: string, mes: string, f: Filtro): Promise<FilaVendedor[]> {
+async function porVendedorCrudo(org: string, mes: string, f: Filtro): Promise<FilaVendedor[]> {
   const filas = await conLider<FilaVendedor>(org, mes, f, "vendedor", `,
     cattop as (
       select distinct on (vendedor) vendedor, cat from (select vendedor, cat, sum(gmv) g from base where en_ventana group by 1, 2) x
@@ -195,7 +202,7 @@ export async function porVendedor(org: string, mes: string, f: Filtro): Promise<
   return filas.map((x) => ({ ...x, lider_pct: total ? x.gmv / total : null, puntaje: null })).sort((a, b) => b.gmv - a.gmv);
 }
 
-export async function porMarca(org: string, mes: string, f: Filtro): Promise<FilaMarca[]> {
+async function porMarcaCrudo(org: string, mes: string, f: Filtro): Promise<FilaMarca[]> {
   const filas = await conLider<FilaMarca>(org, mes, f, "marca", `
     select b.marca, ${MEDIDAS}, max(l.lider_pct) lider_pct, count(distinct b.producto) filter (where en_ventana and b.vendidas > 0)::int productos
       from base b left join lider l on l.g = b.marca
@@ -282,3 +289,9 @@ export async function categoriasParaElegir(org: string): Promise<{ valor: string
      order by c.ruta`, [org]);
   return filas.map((x) => ({ valor: String(x.category_id), texto: x.ruta }));
 }
+
+export const serieMensual = guardado("serie", serieMensualCrudo);
+export const porCategoria = guardado("categorias", porCategoriaCrudo);
+export const porProducto = guardado("productos", porProductoCrudo);
+export const porVendedor = guardado("vendedores", porVendedorCrudo);
+export const porMarca = guardado("marcas", porMarcaCrudo);
