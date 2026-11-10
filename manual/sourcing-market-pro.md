@@ -2,7 +2,7 @@
 titulo: Market Pro
 menu: Sourcing › Market Pro
 ruta: /market-pro
-rutas: /market-pro, /market-pro/informe, /market-pro/categorias, /market-pro/productos, /market-pro/productos/ver, /market-pro/vendedores, /market-pro/marcas, /market-pro/descarga
+rutas: /market-pro, /market-pro/informe, /market-pro/importar, /market-pro/categorias, /market-pro/productos, /market-pro/productos/ver, /market-pro/vendedores, /market-pro/marcas, /market-pro/descarga
 permiso: market_pro_ver
 resumen: Ventas de Mercado Libre por categoría, producto, vendedor y marca (datos de Market Pro de Real Trends), cruzadas con tu catálogo y tus costos, para decidir qué comprar y contra quién se compite.
 ---
@@ -21,7 +21,7 @@ El sistema baja esos datos solo y los muestra agrupados para contestar:
 ## Cómo se llega
 
 - Menú **Sourcing › Market Pro**.
-- Pestañas: **Resumen** ([/market-pro](/market-pro)), **Informe** ([/market-pro/informe](/market-pro/informe)), **Categorías** ([/market-pro/categorias](/market-pro/categorias)), **Productos** ([/market-pro/productos](/market-pro/productos)), **Vendedores** ([/market-pro/vendedores](/market-pro/vendedores)), **Marcas** ([/market-pro/marcas](/market-pro/marcas)) y **Descarga y llave** ([/market-pro/descarga](/market-pro/descarga)).
+- Pestañas: **Resumen** ([/market-pro](/market-pro)), **Informe** ([/market-pro/informe](/market-pro/informe)), **Categorías** ([/market-pro/categorias](/market-pro/categorias)), **Productos** ([/market-pro/productos](/market-pro/productos)), **Vendedores** ([/market-pro/vendedores](/market-pro/vendedores)), **Marcas** ([/market-pro/marcas](/market-pro/marcas)), **Importar** ([/market-pro/importar](/market-pro/importar)) y **Descarga y llave** ([/market-pro/descarga](/market-pro/descarga)).
 - Tocando un producto se abre su ficha ([/market-pro/productos/ver](/market-pro/productos/ver)): quién lo vende, a cuánto y cómo vendió mes a mes.
 - Market Pro no da el número de publicación de Mercado Libre (viene cifrado), así que no hay link a cada publicación. Para verlo en Mercado Libre, la ↗ al lado del producto (y el botón arriba a la derecha de su ficha) abre la página del producto de catálogo; si no es de catálogo, la búsqueda por su título. El código cifrado es siempre el mismo para cada publicación, así que su historia mes a mes y día a día se sigue igual.
 
@@ -69,6 +69,14 @@ Las categorías que habilita la llave se encuentran solas. Si hace falta otra: *
 3. Para preguntarle más, abrí el asistente (la carita de abajo a la derecha). Ahí ve el informe y consulta los datos de Market Pro: se le puede pedir «investigalo vos» o que profundice cualquier punto, escribiendo o dictando con el micrófono.
 4. Si una respuesta sirve, tocá **＋ Agregar al informe** debajo de ella: queda como una sección más del informe, con la pregunta como título. Se borra con el tacho.
 
+### Costear una lista de precios de un proveedor
+
+1. Pestaña **Importar** ([abrir](/market-pro/importar)), botón **Nuevo costeo** arriba a la derecha.
+2. Pegá la lista de precios como venga (de un Excel, un mail o un PDF), el **monto a importar** en dólares FOB y, si querés, el dólar (sin dólar se usa el oficial del día). Tocá **Calcular**.
+3. La IA lee la lista y busca cada modelo en Market Pro (mismo producto de catálogo, mismo EAN o mismo modelo con las mismas specs). Tarda unos minutos y la pantalla se actualiza sola.
+4. Se ve cada modelo con su **costo nacionalizado** (en dólares y en pesos), el **mejor precio** al que se vende en Mercado Libre, la **ganancia** por unidad sobre la venta y sobre el costo, cuántas vende por mes el que más vende y cuántas se venden en total, y la cantidad propuesta (**Traer**).
+5. Para probar otro monto u otro dólar, cambialos arriba y tocá **Recalcular** (no vuelve a leer la lista). Los costos se cambian en [Configuración › Costos de importación](/config/importacion).
+
 ### Encontrar qué comprar
 
 1. Pestaña **Productos**, «Tu catálogo»: **Los que no tenés**.
@@ -94,6 +102,7 @@ Las categorías que habilita la llave se encuentran solas. Si hace falta otra: *
 - **Quién es cada vendedor**: Market Pro muestra al vendedor con un apodo de tres palabras y no da el número de publicación de Mercado Libre, pero sí de qué producto de catálogo es cada publicación. El sistema lee de Mercado Libre, sin costo, quiénes venden en cada catálogo (primero los que más facturan; cada catálogo se vuelve a leer a la semana) y a cada apodo le asigna el vendedor que está en sus mismos catálogos: el que más comparte, con al menos 2 catálogos en común, al menos la mitad de los del apodo y el doble que el que le sigue. Si dos o tres vendedores comparten casi los mismos catálogos (revendedores del mismo producto), desempatan la provincia y la medalla que da Market Pro: gana el único que coincide en las dos, o el que coincide y comparte al menos una vez y media más catálogos que el siguiente que también coincide; si el apodo vende en un solo catálogo, sólo cuando ese catálogo tiene un único vendedor. Así sale su nombre real, ciudad y medalla, y quedan marcadas como «nosotros» tus propias cuentas. Los que no venden nada de catálogo no se pueden identificar por esta vía: para ellos sirve el alias que les pongas en Market Pro. Se muestra el nombre real; si no hay, tu alias; si no, el apodo. En **Descarga y llave** se ve cuántos van identificados y está el botón **Descubrir vendedores ahora**.
 - **El informe de la IA**: parte de los números de la pantalla y hace sus propias consultas a los datos bajados (sólo lee, nunca cambia nada), con un tope de gasto por informe. Compara en dólares (dólar oficial promedio de cada mes) para que la inflación no parezca crecimiento. Cada mañana, si cerró un mes nuevo o el informe tiene más de 30 días, se vuelve a escribir solo uno de los informes pedidos. Es una guía para mirar primero, no una recomendación de compra.
 - **Franjas de precio**: los precios en dólares de los últimos 12 meses partidos en cinco franjas con la misma cantidad de publicaciones con ventas; **Parte** = unidades de la franja sobre las de todas; **Crec.** = unidades de los últimos 3 meses contra los 3 anteriores.
+- **Costeo de importación**: el costo nacionalizado sale de [Costos de importación](/config/importacion), repartido entre los modelos en proporción a su FOB. **Mejor precio** = el más bajo del último mes cerrado; **Mediana** = la de los últimos 3 meses. **Ganancia** = precio sin IVA − comisión Clásica de la categoría (sin IVA; si no se conoce, 14,5 %) − gastos de venta por unidad (si se cargaron) − costo nacionalizado; no descuenta envío si no se carga ni impuestos a las ganancias. **Líder/mes** = las unidades por mes del vendedor que más vende ese producto en los últimos 3 meses: lo que se vendería ganando el catálogo. **Traer**: de la que más gana sobre el costo a la que menos, hasta los meses de tope de lo que vende el líder (o lo que el proveedor tiene, si la lista lo dice), mientras alcance el monto. Un modelo que no se encontró en Market Pro se muestra sin datos de venta y no entra en la propuesta.
 - La llave **nunca se muestra**, sólo si está cargada y desde cuándo.
 
 ## Preguntas frecuentes

@@ -27,11 +27,11 @@ export const filtrosDe = (sp: SP) => ({ cat: sp.cat ?? null, meses: sp.meses ?? 
 export function BarraMarketPro({ activa, sp }: { activa: string; sp: SP }) {
   const f = filtrosDe(sp);
   const items = [
-    ["", "Resumen"], ["informe", "Informe"], ["categorias", "Categorías"], ["productos", "Productos"], ["vendedores", "Vendedores"], ["marcas", "Marcas"], ["descarga", "Descarga y llave"],
+    ["", "Resumen"], ["informe", "Informe"], ["categorias", "Categorías"], ["productos", "Productos"], ["vendedores", "Vendedores"], ["marcas", "Marcas"], ["importar", "Importar"], ["descarga", "Descarga y llave"],
   ] as const;
   return (
     <BarraPestanas items={items.map(([k, texto]) => ({
-      href: k === "descarga" ? "/market-pro/descarga" : url(`/market-pro${k ? `/${k}` : ""}`, f), texto, activa: activa === k, clave: k || "resumen",
+      href: k === "descarga" || k === "importar" ? `/market-pro/${k}` : url(`/market-pro${k ? `/${k}` : ""}`, f), texto, activa: activa === k, clave: k || "resumen",
     }))} />
   );
 }

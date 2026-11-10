@@ -305,3 +305,29 @@ begin
     create policy mpro_categoria_leer on mpro_categoria for select to authenticated using (true);
   end if;
 end $$;
+
+-- Costeos de importación (Fer, 10/11; /market-pro/importar): una lista de precios de proveedor, el monto a importar y lo
+-- que salió (cada modelo cruzado con Market Pro, su costo nacionalizado, su ganancia y la cantidad propuesta).
+create table if not exists mpro_costeo (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  titulo           text,
+  lista            text not null,
+  monto_usd        numeric(14, 2),
+  dolar            numeric(14, 4),
+  estado           text not null default 'trabajando' check (estado in ('trabajando', 'listo', 'error')),
+  error            text,
+  items            jsonb,
+  resultado        jsonb,
+  costo_ia_usd     numeric(8, 4),
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  terminado_ts     timestamptz
+);
+create index if not exists mpro_costeo_org on mpro_costeo (organizacion_id, id desc);
+alter table mpro_costeo enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'mpro_costeo' and policyname = 'mpro_costeo_org') then
+    perform erp_politica_org('mpro_costeo');
+  end if;
+end $$;

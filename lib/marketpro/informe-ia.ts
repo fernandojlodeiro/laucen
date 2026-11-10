@@ -4,11 +4,9 @@
 // con su número. Corre a pedido (botón «Volver a analizar») o sola cuando cierra un mes nuevo (refrescarInformes, desde
 // el plan de cada mañana). Tope de gasto por informe: TOPE_USD.
 
-import Anthropic from "@anthropic-ai/sdk";
-import { clienteClaude, hayClaude } from "@/lib/claude";
+import { hayClaude } from "@/lib/claude";
 import { consulta, una } from "@/lib/erp/base";
-import { MODELO_ASISTENTE } from "@/lib/asistente/motor";
-import { consultarSql } from "@/lib/asistente/sql";
+import { agenteSql, type QuienIa } from "@/lib/marketpro/agente";
 import type { Permisos } from "@/lib/permisos";
 import { datosInforme, type DatosInforme } from "@/lib/marketpro/informe";
 import { ultimoMes } from "@/lib/marketpro/analisis";
@@ -17,8 +15,6 @@ import { DICCIONARIO_MPRO } from "@/lib/marketpro/diccionario";
 const TOPE_USD = 1.5;
 const MAX_VUELTAS = 24;
 const SEGUNDOS = 240;
-// Claude Opus 5.5, US$ por millón de tokens.
-const PRECIO = { entrada: 4, salida: 20, escrituraCache: 5, lecturaCache: 0.4 };
 
 const SISTEMA = `Sos analista de mercado de una empresa argentina que importa y vende en Mercado Libre. Te dan los números de una categoría de Mercado Libre (datos de Market Pro) y podés consultar la base con consultar_sql (sólo lectura, PostgreSQL) para explorar lo que quieras: precios, franjas, marcas, specs en los atributos, estacionalidad, concentración de vendedores, Full o no, Premium o Clásica, catálogo, conversión, visitas, productos nuevos que crecen, publicaciones sin ventas, provincias, lo que se te ocurra según la categoría. Buscá oportunidades concretas de qué comprar para vender (y a qué precio) y dónde no meterse.
 
@@ -41,13 +37,7 @@ Qué escribir al final (en castellano rioplatense, voseo, directo, para un comer
 (2 a 4 preguntas concretas para seguir investigando.)
 No agregues nada antes del primer título ni después del último punto.`;
 
-const HERRAMIENTA: Anthropic.Beta.BetaToolUnion = {
-  name: "consultar_sql",
-  description: "Corre una consulta SELECT (o WITH … SELECT) de sólo lectura en la base de Laucen y devuelve hasta 100 filas en JSON. Una sola instrucción, sin comentarios. Tope de 45 segundos.",
-  input_schema: { type: "object", properties: { sql: { type: "string", description: "La consulta." }, para: { type: "string", description: "Qué querés averiguar (corto)." } }, required: ["sql"] },
-};
-
-export type QuienInforme = { authId: string; permisos: Permisos; superadmin: boolean; usuarioId: string | null };
+export type QuienInforme = QuienIa;
 
 /** El resumen de los números fijos que se le pasa a la IA (compacto). */
 function resumenParaIa(d: DatosInforme, ruta: string): string {
@@ -102,48 +92,8 @@ export async function generarInforme(org: string, cat: number, quien: QuienInfor
   }
 }
 
-async function correrIa(resumen: string, quien: QuienInforme): Promise<{ texto: string; usd: number; consultas: number }> {
-  const cliente = clienteClaude();
-  const fin = Date.now() + SEGUNDOS * 1000;
-  let usd = 0, consultas = 0, cerrar = false;
-  const mensajes: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: `Los números de partida (JSON):\n${resumen}\n\nExplorá y escribí el informe.` }];
-  for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
-    const r = await cliente.beta.messages.create({
-      model: MODELO_ASISTENTE, max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
-      output_config: { effort: "medium" }, cache_control: { type: "ephemeral" },
-      system: SISTEMA, tools: [HERRAMIENTA], tool_choice: cerrar ? { type: "none" } : { type: "auto" },
-      messages: mensajes,
-    });
-    const u = r.usage;
-    usd += (u.input_tokens * PRECIO.entrada + (u.cache_creation_input_tokens ?? 0) * PRECIO.escrituraCache
-      + (u.cache_read_input_tokens ?? 0) * PRECIO.lecturaCache + u.output_tokens * PRECIO.salida) / 1_000_000;
-    if (r.stop_reason === "refusal") throw new Error("La IA no quiso escribir el informe. Probá de nuevo más tarde.");
-    if (r.stop_reason === "pause_turn") { mensajes.push({ role: "assistant", content: r.content }); continue; }
-    const usos = r.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-    if (r.stop_reason !== "tool_use" || !usos.length) {
-      const texto = r.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
-      if (!texto) throw new Error("La IA no devolvió el informe. Probá de nuevo.");
-      return { texto, usd, consultas };
-    }
-    mensajes.push({ role: "assistant", content: r.content });
-    const resultados = await Promise.all(usos.map(async (t) => {
-      consultas++;
-      const sql = String((t.input as { sql?: unknown })?.sql ?? "");
-      try {
-        const res = await consultarSql(sql, quien.authId, quien.permisos, quien.superadmin, 100, 45);
-        const json = JSON.stringify({ columnas: res.columnas, filas: res.filas, mas: res.mas });
-        return { type: "tool_result" as const, tool_use_id: t.id, content: json.length > 20_000 ? `${json.slice(0, 20_000)}… (cortado: pedí menos filas o columnas)` : json };
-      } catch (e) {
-        return { type: "tool_result" as const, tool_use_id: t.id, content: `Error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 1500), is_error: true };
-      }
-    }));
-    cerrar = usd > TOPE_USD * 0.7 || Date.now() > fin - 60_000 || vuelta >= MAX_VUELTAS - 2;
-    mensajes.push({ role: "user", content: cerrar
-      ? [...resultados, { type: "text" as const, text: "Se terminó el tiempo para consultar: escribí ya el informe completo con lo que tenés." }]
-      : resultados });
-  }
-  throw new Error("La IA no terminó el informe a tiempo. Probá de nuevo.");
+async function correrIa(resumen: string, quien: QuienInforme) {
+  return agenteSql({ sistema: SISTEMA, mensaje: `Los números de partida (JSON):\n${resumen}\n\nExplorá y escribí el informe.`, quien, topeUsd: TOPE_USD, maxVueltas: MAX_VUELTAS, segundos: SEGUNDOS });
 }
 
 /** Quién firma los informes automáticos: el dueño de la organización (siempre superadministrador). */
