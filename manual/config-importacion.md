@@ -35,5 +35,5 @@ Abajo se ve un ejemplo: una caja de 30 notebooks a US$ 400 FOB, con todos los pa
 - **Honorarios del despachante** = % del CIF, con un mínimo.
 - **Costo nacionalizado sin IVA** = FOB + flete + aranceles + estadística + packing (por caja) + AWB + THC + TCA + gastos en destino + honorarios y gastos del despachante.
 - **Reparto entre modelos**: todo en proporción al valor FOB. Cada modelo cuesta su FOB × (costo del envío ÷ FOB del envío).
-- **Venta**: el IVA del precio de venta (notebooks 10,5 %) y, si se carga, un gasto por unidad vendida (envío y otros) que se resta de la ganancia.
+- **Venta**: el IVA del precio de venta (notebooks 10,5 %). El **envío** por unidad sale solo de tus ventas: lo que te cobró Mercado Libre de envío (con IVA) en las ventas de los últimos 90 días de los productos de la familia elegida (y sus subfamilias), dividido por las unidades vendidas; se resta sin su IVA. Si se carga, un gasto más por unidad vendida (sin IVA).
 - **Tope de la propuesta**: cuántos meses de lo que vende el que más vende cada producto se proponen como máximo.

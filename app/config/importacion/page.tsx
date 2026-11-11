@@ -6,6 +6,7 @@ import { entrarErp, Pantalla, Avisos, Dato, BotonesFicha, TituloSeccion, editand
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { formatearNumero } from "@/lib/numeros";
 import { costearEnvio, leerConfigCosteo } from "@/lib/marketpro/costeo-config";
+import { envioDeVentas } from "@/lib/marketpro/costeo";
 import { CAMPOS } from "./campos";
 import { accionGuardarCosteo } from "./acciones";
 
@@ -19,6 +20,8 @@ export default async function CostosImportacion({ searchParams }: { searchParams
   const s = await entrarErp("market_pro_config");
   const sp = await searchParams;
   const c = await leerConfigCosteo(s.org.id);
+  const ev = await envioDeVentas(s.org.id, c.envio_familia);
+  const AYUDA_ENVIO = "El envío por unidad que se resta de la ganancia sale de lo que te cobró Mercado Libre de envío en las ventas de los últimos 90 días de los productos de esta familia (y sus subfamilias). Vacío = no se cuenta.";
   const editando = editandoFicha(sp, "ficha");
   const VOLVER = "/config/importacion";
   const grupos = [...new Set(CAMPOS.map((f) => f.grupo))];
@@ -31,7 +34,11 @@ export default async function CostosImportacion({ searchParams }: { searchParams
       <Avisos sp={sp} />
       {!editando ? (
         <>
-          <div className={`${CAJA} mb-4`}><Dato etiqueta="Ruta">{c.nombre}</Dato></div>
+          <div className={`${CAJA} mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>
+            <Dato etiqueta="Ruta">{c.nombre}</Dato>
+            <Dato etiqueta="Familia para el envío de Mercado Libre" ayuda={AYUDA_ENVIO}>{c.envio_familia || null}</Dato>
+            <Dato etiqueta="Envío por unidad (con IVA)" numero ayuda={ev.unidades ? `Promedio de ${ev.ventas} ventas (${ev.unidades} unidades) de los últimos 90 días.` : "No hay ventas con el envío facturado en los últimos 90 días."}>{ev.promedio == null ? null : `$ ${formatearNumero(ev.promedio, "pesos")}`}</Dato>
+          </div>
           {grupos.map((g) => (
             <div key={g} className="mb-4">
               <TituloSeccion titulo={g} />
@@ -45,8 +52,13 @@ export default async function CostosImportacion({ searchParams }: { searchParams
         </>
       ) : (
         <form id="ficha" action={accionGuardarCosteo}>
-          <div className={`${CAJA} mb-4`}><label><span className={ETIQUETA}>Ruta</span>
-            <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} /></label></div>
+          <div className={`${CAJA} mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>
+            <label><span className={ETIQUETA}>Ruta</span>
+              <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} /></label>
+            <label><span className={ETIQUETA}>Familia para el envío de Mercado Libre</span>
+              <input name="envio_familia" defaultValue={c.envio_familia} placeholder="Notebooks" className={`${CAMPO} w-full`} />
+              <span className={AYUDA}>{AYUDA_ENVIO}</span></label>
+          </div>
           {grupos.map((g) => (
             <div key={g} className="mb-4">
               <TituloSeccion titulo={g} />

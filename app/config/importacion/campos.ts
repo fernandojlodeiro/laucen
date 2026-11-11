@@ -25,6 +25,6 @@ export const CAMPOS: Campo[] = [
   { grupo: "Gastos por envío", clave: "despachante_min", etiqueta: "Mínimo de honorarios (US$ + IVA)", tipo: "decimal" },
   { grupo: "Gastos por envío", clave: "gastos_despachante", etiqueta: "Gastos del despachante (US$ + IVA)", tipo: "decimal" },
   { grupo: "Venta", clave: "iva_venta_pct", etiqueta: "IVA del precio de venta (%)", tipo: "pct", ayuda: "Notebooks: 10,5 %." },
-  { grupo: "Venta", clave: "gasto_venta", etiqueta: "Envío y otros gastos por unidad vendida ($)", tipo: "pesos", ayuda: "Se resta de la ganancia. 0 = no se cuenta." },
+  { grupo: "Venta", clave: "gasto_venta", etiqueta: "Otros gastos por unidad vendida ($ sin IVA)", tipo: "pesos", ayuda: "Además del envío (que sale de tus ventas). Se resta de la ganancia. 0 = no se cuenta." },
   { grupo: "Venta", clave: "meses_tope", etiqueta: "Tope de la propuesta (meses)", tipo: "decimal", ayuda: "Se proponen como máximo estos meses de lo que vende el que más vende ese producto." },
 ];

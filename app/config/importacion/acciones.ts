@@ -13,7 +13,8 @@ const VOLVER = "/config/importacion";
 export async function accionGuardarCosteo(fd: FormData) {
   const s = await entrarErp("market_pro_config");
   await intentar(VOLVER, async () => {
-    const c: ConfigCosteo = { ...CONFIG_INICIAL, nombre: String(fd.get("nombre") ?? "").trim() || CONFIG_INICIAL.nombre };
+    const c: ConfigCosteo = { ...CONFIG_INICIAL, nombre: String(fd.get("nombre") ?? "").trim() || CONFIG_INICIAL.nombre,
+      envio_familia: String(fd.get("envio_familia") ?? "").trim() };
     for (const f of CAMPOS) {
       const v = leerNumero(fd.get(f.clave));
       if (v == null || v < 0) throw new ErrorErp(`Falta «${f.etiqueta}» (un número, 0 o más).`);

@@ -25,7 +25,8 @@ export type FilaCosteo = ItemLista & {
   mercado: Mercado | null; costo_usd: number; costo_ars: number;
   ganancia: number | null; sobre_venta: number | null; sobre_costo: number | null; cantidad: number;
 };
-export type ResultadoCosteo = { filas: FilaCosteo[]; envio: Envio | null; config: ConfigCosteo; dolar: number };
+export type EnvioVenta = { promedio: number | null; ventas: number; unidades: number };
+export type ResultadoCosteo = { filas: FilaCosteo[]; envio: Envio | null; config: ConfigCosteo; dolar: number; envio_venta?: EnvioVenta };
 
 const SISTEMA = `Te pasan la lista de precios de un proveedor de notebooks (en Miami), en cualquier formato (texto pegado de un Excel, un mail, un PDF). Tenés que:
 1. Leer cada modelo: marca, modelo (el código exacto, ej. «15-fd0012la», «82XB0012US»), una descripción corta con las specs (procesador, RAM, disco, pantalla) y el precio unitario FOB en dólares. Si dice cuántas hay disponibles, también.
@@ -73,13 +74,13 @@ export async function mercadoDe(org: string, productos: string[]): Promise<Map<s
 }
 
 /** Arma el resultado: costo de cada modelo, su ganancia y la cantidad propuesta para el monto. */
-export function calcular(items: ItemLista[], mercado: Map<string, Mercado>, c: ConfigCosteo, dolar: number, monto: number | null): ResultadoCosteo {
+export function calcular(items: ItemLista[], mercado: Map<string, Mercado>, c: ConfigCosteo, dolar: number, monto: number | null, ev: EnvioVenta = { promedio: null, ventas: 0, unidades: 0 }): ResultadoCosteo {
   // Primero, el orden y las cantidades con un coeficiente aproximado; después, el coeficiente del envío propuesto.
   const filasCon = (coef: number) => items.map((it) => {
     const m = it.producto ? mercado.get(it.producto) ?? null : null;
     const costo_usd = it.fob * coef;
     const costo_ars = costo_usd * dolar;
-    const g = m ? gananciaVenta(c, m.precio_min, m.comision ?? COMISION_SUPUESTA, costo_ars) : null;
+    const g = m ? gananciaVenta(c, m.precio_min, m.comision ?? COMISION_SUPUESTA, costo_ars, ev.promedio ?? 0) : null;
     return { ...it, mercado: m, costo_usd, costo_ars, ganancia: g?.ganancia ?? null, sobre_venta: g?.sobreVenta ?? null, sobre_costo: g?.sobreCosto ?? null, cantidad: 0 };
   });
   const proponer = (filas: FilaCosteo[]) => {
@@ -106,7 +107,26 @@ export function calcular(items: ItemLista[], mercado: Map<string, Mercado>, c: C
     coef = envio.coef;
     filas = proponer(filasCon(coef));
   }
-  return { filas, envio, config: c, dolar };
+  return { filas, envio, config: c, dolar, envio_venta: ev };
+}
+
+/** Lo que cobró Mercado Libre de envío por unidad en las ventas de los últimos 90 días de los productos de la familia
+ *  (y sus subfamilias) `familia`: la suma de los cargos de envío de la facturación de ML (ml_cargo tipo envio, con IVA)
+ *  de esos pedidos ÷ las unidades de esa familia en ellos. Sólo pedidos con el envío ya facturado. */
+export async function envioDeVentas(org: string, familia: string): Promise<EnvioVenta> {
+  if (!familia.trim()) return { promedio: null, ventas: 0, unidades: 0 };
+  const r = await una<EnvioVenta>(`
+    with fam as (select f.id from familia f where f.organizacion_id = $1 and lower(f.nombre) = lower($2)),
+    p as (
+      select p.id, sum(l.cantidad) u from pedido p join pedido_linea l on l.pedido_id = p.id
+        join variacion v on v.id = l.variacion_id join producto pr on pr.id = v.producto_id
+       where p.organizacion_id = $1 and p.fecha > now() - interval '90 days' and p.estado not in ('presupuesto', 'nuevo', 'cancelado', 'devuelto')
+         and (pr.familia_id in (select id from fam) or pr.familia_id in (select h.id from familia h where h.padre_id in (select id from fam)))
+       group by p.id
+    ),
+    e as (select p.id, p.u, (select sum(c.monto) from ml_cargo c where c.pedido_id = p.id and c.tipo = 'envio') envio from p)
+    select (sum(envio) / nullif(sum(u), 0))::float8 promedio, count(*)::int ventas, coalesce(sum(u), 0)::int unidades from e where envio is not null`, [org, familia.trim()]);
+  return r ?? { promedio: null, ventas: 0, unidades: 0 };
 }
 
 export async function dolarOficial(): Promise<number> {
@@ -124,7 +144,7 @@ export async function correrCosteo(org: string, id: number, quien: QuienIa): Pro
     const items = leerJson(texto);
     if (!items.length) throw new Error("No encontré modelos con precio en la lista.");
     const [config, mercado, dolar] = await Promise.all([leerConfigCosteo(org), mercadoDe(org, [...new Set(items.map((i) => i.producto).filter((p): p is string => !!p))]), c.dolar ? Promise.resolve(c.dolar) : dolarOficial()]);
-    const r = calcular(items, mercado, config, dolar, c.monto_usd);
+    const r = calcular(items, mercado, config, dolar, c.monto_usd, await envioDeVentas(org, config.envio_familia));
     await consulta(`update mpro_costeo set estado = 'listo', items = $3, resultado = $4, dolar = $5, costo_ia_usd = $6, terminado_ts = now(), error = null
                      where organizacion_id = $1 and id = $2`, [org, id, JSON.stringify(items), JSON.stringify(r), dolar, usd]);
     const cruzados = items.filter((i) => i.producto).length;
@@ -143,6 +163,6 @@ export async function recalcularCosteo(org: string, id: number, monto: number | 
   if (!c?.items) throw new Error("Ese costeo todavía no tiene la lista leída.");
   const m = monto ?? c.monto_usd, d = dolar ?? c.dolar ?? await dolarOficial();
   const [config, mercado] = await Promise.all([leerConfigCosteo(org), mercadoDe(org, [...new Set(c.items.map((i) => i.producto).filter((p): p is string => !!p))])]);
-  const r = calcular(c.items, mercado, config, d, m);
+  const r = calcular(c.items, mercado, config, d, m, await envioDeVentas(org, config.envio_familia));
   await consulta("update mpro_costeo set monto_usd = $3, dolar = $4, resultado = $5 where organizacion_id = $1 and id = $2", [org, id, m, d, JSON.stringify(r)]);
 }

@@ -175,7 +175,7 @@ function Detalle({ c }: { c: Costeo }) {
               </tbody></table>
             </div>
           )}
-          <p className="text-[11px] text-[#5C6B76] mt-3">Ganancia = precio sin IVA ({formatearNumero(r.config.iva_venta_pct, "pct")} %) − comisión Clásica de la categoría − {r.config.gasto_venta ? `gastos de venta (${pesos(r.config.gasto_venta)})` : "sin envío ni otros gastos de venta"} − costo nacionalizado. La propuesta va de la que más gana sobre el costo a la que menos, hasta {formatearNumero(r.config.meses_tope, "decimal")} meses de lo que vende el líder, mientras alcance el monto.</p>
+          <p className="text-[11px] text-[#5C6B76] mt-3">Ganancia = precio sin IVA ({formatearNumero(r.config.iva_venta_pct, "pct")} %) − comisión Clásica de la categoría − envío de Mercado Libre ({r.envio_venta?.promedio != null ? `${pesos(r.envio_venta.promedio)} con IVA por unidad: promedio de tus ${r.envio_venta.ventas} ventas de ${r.config.envio_familia} de los últimos 90 días` : "sin dato: no se descuenta"}){r.config.gasto_venta ? ` − otros gastos (${pesos(r.config.gasto_venta)})` : ""} − costo nacionalizado; la comisión y el envío, sin su IVA (es crédito). La propuesta va de la que más gana sobre el costo a la que menos, hasta {formatearNumero(r.config.meses_tope, "decimal")} meses de lo que vende el líder, mientras alcance el monto.</p>
         </>
       )}
     </>

@@ -23,7 +23,8 @@ export type ConfigCosteo = {
   divisor_vol: number;           // peso volumétrico = largo × ancho × alto ÷ divisor
   tca: [number | null, number][]; // [hasta kg (null = más), US$ total]
   iva_venta_pct: number;         // IVA del precio de venta (notebooks: 10,5 %)
-  gasto_venta: number;           // $ por unidad vendida (envío y otros); 0 = no se cuenta
+  envio_familia: string;         // el envío por unidad sale de lo que cobró ML en las ventas de esta familia (últimos 90 días)
+  gasto_venta: number;           // $ por unidad vendida, otros gastos además del envío (sin IVA); 0 = no se cuenta
   meses_tope: number;            // cuántos meses de lo que vende el que gana el catálogo se proponen como máximo
 };
 
@@ -35,7 +36,7 @@ export const CONFIG_INICIAL: ConfigCosteo = {
   tca: [[5, 52.31], [10, 71.14], [20, 103.14], [50, 149.93], [100, 205.82], [200, 279.5], [350, 381.16], [500, 526.48], [750, 622.56],
     [1000, 750.6], [1500, 880.22], [2000, 1019.95], [2500, 1155.66], [3000, 1359.42], [4000, 1577.46], [5000, 1916.92], [7000, 2279.29],
     [10000, 2742.22], [null, 3258.56]],
-  iva_venta_pct: 10.5, gasto_venta: 0, meses_tope: 2,
+  iva_venta_pct: 10.5, envio_familia: "Notebooks", gasto_venta: 0, meses_tope: 2,
 };
 
 export async function leerConfigCosteo(org: string): Promise<ConfigCosteo> {
@@ -80,12 +81,12 @@ export function costearEnvio(c: ConfigCosteo, fob: number, unidades: number): En
   };
 }
 
-/** Ganancia por unidad vendida en Mercado Libre (en $): precio sin IVA de venta, menos la comisión (que trae IVA 21 %),
- *  menos el gasto de venta por unidad, menos el costo nacionalizado. */
-export function gananciaVenta(c: ConfigCosteo, precio: number | null, comisionPct: number, costo: number) {
+/** Ganancia por unidad vendida en Mercado Libre (en $): precio sin IVA de venta, menos la comisión y el envío que
+ *  cobra ML (los dos traen IVA 21 %, que es crédito), menos los otros gastos por unidad, menos el costo nacionalizado. */
+export function gananciaVenta(c: ConfigCosteo, precio: number | null, comisionPct: number, costo: number, envioConIva = 0) {
   if (!precio || costo <= 0) return null;
   const neto = precio / (1 + c.iva_venta_pct / 100);
   const comision = precio * comisionPct / 100 / 1.21;
-  const ganancia = neto - comision - c.gasto_venta - costo;
+  const ganancia = neto - comision - envioConIva / 1.21 - c.gasto_venta - costo;
   return { ganancia, sobreVenta: ganancia / neto, sobreCosto: ganancia / costo };
 }
