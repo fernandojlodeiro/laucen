@@ -39,7 +39,7 @@ Arriba de cada pestaña de análisis:
 
 **Informe**: de la categoría elegida (o de todas), los números de los últimos 12 meses en pesos y en dólares, la facturación mes a mes en pesos y en dólares, las franjas de precio, las subcategorías y los productos con más oportunidad, y **lo que encontró la IA**: qué dicen los números, oportunidades, dónde no meterse y qué mirar después, cada cosa con su número. Abajo, lo que se le agregó desde el asistente.
 
-**Categorías, Productos, Vendedores y Marcas**: una fila por cada uno, ordenable tocando el título de la columna, de a 50 por página, con «Descargar Excel» (baja lo que se ve, todas las filas).
+**Categorías, Productos, Vendedores y Marcas**: una fila por cada uno (en Productos, los 5.000 que más facturan en el período, más los que ya tenés), ordenable tocando el título de la columna, de a 50 por página, con «Descargar Excel» (baja lo que se ve, todas las filas).
 
 En **Productos**, «Tu catálogo» deja ver sólo los que no tenés o sólo los que ya tenés. La marca «lo tenés» lleva a tu producto. Desde **Vendedores** o **Marcas**, tocar un nombre muestra sus productos.
 

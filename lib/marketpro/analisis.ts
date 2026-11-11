@@ -187,6 +187,9 @@ async function porCategoriaCrudo(org: string, mes: string, f: Filtro): Promise<F
   return puntuar(filas, f.meses).sort((a, b) => b.gmv - a.gmv);
 }
 
+/** Cuántos productos lista Productos (los que más facturan en el período). */
+export const TOPE_PRODUCTOS = 5000;
+
 async function porProductoCrudo(org: string, mes: string, f: Filtro): Promise<FilaProducto[]> {
   const filas = await conLider<FilaProducto>(org, mes, f, "producto", `,
     agr as (
@@ -200,11 +203,16 @@ async function porProductoCrudo(org: string, mes: string, f: Filtro): Promise<Fi
        where $8::text = '' or b.marca ilike $8 || '%' or b.item_id = $8
           or b.producto in (select pp.producto from mpro_publicacion pp where pp.organizacion_id = $1 and pp.titulo ilike '%' || $8 || '%')
        group by b.producto having sum(vendidas) filter (where en_ventana) > 0
+    ),
+    -- Los ${TOPE_PRODUCTOS} que más facturan (son cientos de miles: todos juntos no entran en una pantalla) y los que tenemos.
+    top as (
+      select * from agr where producto in (select producto from agr order by gmv desc nulls last limit ${TOPE_PRODUCTOS})
+          or producto in (select producto from tuyos)
     )
     select a.*, pt.titulo, pt.foto, l.lider_pct, l.lider, c.ruta,
            (select cv.clasica_pct::float8 from ml_costos_comisiones_vigente cv where cv.categoria_id = 'MLA' || a.cat) comision,
            coalesce(vn.producto_id, ve.producto_id)::int tuyo_producto, coalesce(vn.costo_promedio_ars, ve.costo)::float8 tuyo_costo
-      from agr a left join mpro_publicacion pt on pt.organizacion_id = $1 and pt.item_id = a.item_top
+      from top a left join mpro_publicacion pt on pt.organizacion_id = $1 and pt.item_id = a.item_top
       left join lider l on l.g = a.producto left join mpro_categoria c on c.pais = 'ar' and c.category_id = a.cat
       left join tuyos tu on tu.producto = a.producto left join variacion vn on vn.id = tu.variacion_id
       left join lateral (select va.producto_id, va.costo_promedio_ars costo from variacion va
@@ -355,8 +363,16 @@ export async function precalentar(org: string, segundos = 240): Promise<number> 
     const f = leerFiltro(cat ? { cat: String(cat) } : {});
     for (const correr of [() => serieMensual(org, f), () => porCategoria(org, mes, f), () => porProducto(org, mes, f), () => porVendedor(org, mes, f), () => porMarca(org, mes, f)]) {
       if (Date.now() > fin) return hechas;
-      await correr();
-      hechas++;
+      try {
+        await correr();
+        hechas++;
+      } catch (e) {
+        // Queda anotado (para mirar desde la base) y sigue con la próxima.
+        console.error("[marketpro] precalentar", e);
+        await consulta(`insert into mpro_cache (organizacion_id, clave, version, datos) values ($1, 'error', '', $2::jsonb)
+                        on conflict (organizacion_id, clave) do update set datos = excluded.datos, ts = now()`,
+          [org, JSON.stringify({ cat, error: e instanceof Error ? e.message : String(e) })]).catch(() => {});
+      }
     }
   }
   return hechas;
