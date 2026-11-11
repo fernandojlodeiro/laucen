@@ -322,7 +322,7 @@ export async function avance(org: string): Promise<{ categorias: AvanceCategoria
 }
 
 /** Las categorías para elegir (las seguidas y todo su árbol con datos). */
-export async function categoriasParaElegir(org: string): Promise<{ valor: string; texto: string }[]> {
+async function categoriasParaElegirCrudo(org: string): Promise<{ valor: string; texto: string }[]> {
   const filas = await consulta<{ category_id: number; ruta: string }>(`
     select distinct c.category_id, c.ruta from mpro_categoria c
      where c.pais = 'ar' and (c.category_id in (select category_id from mpro_seguida where organizacion_id = $1 and habilitada)
@@ -334,6 +334,8 @@ export async function categoriasParaElegir(org: string): Promise<{ valor: string
 }
 
 const serieGuardada = guardado("serie", serieMensualCrudo);
+/** Las categorías del filtro (las bajadas y sus hijas con datos): tarda unos segundos, también se guarda. */
+export const categoriasParaElegir = guardado("elegir", categoriasParaElegirCrudo);
 const categoriasGuardadas = guardado("categorias", porCategoriaCrudo);
 const productosGuardados = guardado("productos", porProductoCrudo);
 const vendedoresGuardados = guardado("vendedores", porVendedorCrudo);
@@ -359,6 +361,7 @@ export async function precalentar(org: string, segundos = 240): Promise<number> 
      where s.organizacion_id = $1 and s.habilitada and not exists (
        select 1 from mpro_seguida s2 where s2.organizacion_id = $1 and s2.habilitada and s2.category_id = any(c.padres))`, [org]);
   let hechas = 0;
+  await categoriasParaElegir(org);
   for (const cat of [null, ...raices.map((r) => r.c)]) {
     const f = leerFiltro(cat ? { cat: String(cat) } : {});
     for (const correr of [() => serieMensual(org, f), () => porCategoria(org, mes, f), () => porProducto(org, mes, f), () => porVendedor(org, mes, f), () => porMarca(org, mes, f)]) {
