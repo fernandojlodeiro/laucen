@@ -136,6 +136,7 @@ create table if not exists mpro_venta (
   primary key (organizacion_id, grano, periodo, item_id)
 );
 create index if not exists mpro_venta_item on mpro_venta (organizacion_id, item_id);
+create index if not exists mpro_venta_producto on mpro_venta (organizacion_id, producto, periodo) where grano = 'm';
 alter table mpro_venta add column if not exists envio_tipo text;
 -- Lo fijo que más se usa al agrupar, también en cada fila (Fer, 7/11: cruzar con mpro_publicacion tardaba 46 s por consulta).
 alter table mpro_venta add column if not exists cat int;
@@ -330,4 +331,29 @@ do $$ begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'mpro_costeo' and policyname = 'mpro_costeo_org') then
     perform erp_politica_org('mpro_costeo');
   end if;
+end $$;
+
+-- Las cuentas de las pantallas ya hechas (Fer, 11/11: tardaban más de un minuto; lib/marketpro/analisis.ts). version:
+-- la de los datos de meses cerrados con que se calcularon; si cambió, se recalculan.
+create table if not exists mpro_cache (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  clave            text not null,
+  version          text not null,
+  datos            jsonb not null,
+  ts               timestamptz not null default now(),
+  primary key (organizacion_id, clave)
+);
+alter table mpro_cache enable row level security;
+
+-- Cada 10 minutos, si las cuentas de las pantallas quedaron viejas, se recalculan de fondo (?calentar=1).
+do $$
+declare j record; cmd text := $c$select net.http_get('https://laucen.com/api/marketpro?calentar=1&org=' || l.organizacion_id || '&token=' || l.token) from public.mpro_llave l$c$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'marketpro-calentar';
+  if not found then perform cron.schedule('marketpro-calentar', '*/10 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar marketpro-calentar (%)', sqlerrm;
 end $$;

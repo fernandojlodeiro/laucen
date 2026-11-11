@@ -14,14 +14,49 @@
 // costo promedio (sin IVA) de esa variación: precio × (100 − comisión Clásica %) ÷ 121 − costo (como en precio_vs_ml:
 // la comisión trae IVA). Sin envío, cargos fijos ni impuestos: es para comparar, no para fijar precios.
 
-import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
 
-// Las cuentas de los meses cerrados cambian sólo cuando se baja algo nuevo y tardan (millones de filas): se guardan
-// 3 horas por organización y filtro (Fer, 7/11: la serie sin categoría tardaba 18 s). Lo que pase de 2 MB no se guarda
-// (lo hace Next) y se calcula cada vez.
-const guardado = <A extends unknown[], R>(nombre: string, fn: (...a: A) => Promise<R>) =>
-  (...a: A): Promise<R> => unstable_cache(() => fn(...a), ["mpro", nombre, JSON.stringify(a)], { revalidate: 10_800, tags: ["marketpro"] })();
+// Las cuentas de los meses cerrados tardan (millones de filas: hasta un minuto cada una) y sólo cambian cuando se baja
+// un mes cerrado: se guardan en la base (mpro_cache) con la «versión» de los datos, y se recalculan solas de fondo
+// (precalentar, desde /api/marketpro) apenas cambia algo. Fer, 11/11: la pantalla tardaba más de un minuto en abrir.
+// Los buscadores y el filtro «Tu catálogo» filtran en memoria sobre la lista guardada (así no hay una cuenta por cada
+// cosa que se escribe).
+
+/** La versión de los datos de meses cerrados: cambia cuando termina de bajarse un mes cerrado. */
+export async function versionDatos(org: string): Promise<string> {
+  const r = await una<{ v: string | null }>(`
+    select coalesce(to_char(max(terminada_ts), 'YYYYMMDDHH24MISS'), '0') || '-' || count(*) v from mpro_descarga
+     where organizacion_id = $1 and tipo = 'mes' and estado = 'terminada'
+       and mes < to_char(now() at time zone 'America/Argentina/Buenos_Aires', 'YYYYMM')`, [org]);
+  return r?.v ?? "0";
+}
+
+const enCurso = new Map<string, Promise<unknown>>();
+const guardado = <A extends [string, ...unknown[]], R>(nombre: string, fn: (...a: A) => Promise<R>) =>
+  async (...a: A): Promise<R> => {
+    const org = a[0];
+    const clave = `${nombre}:${JSON.stringify(a.slice(1))}`;
+    const version = await versionDatos(org);
+    const c = await una<{ datos: R }>("select datos from mpro_cache where organizacion_id = $1 and clave = $2 and version = $3", [org, clave, version]);
+    if (c) return c.datos;
+    const k = `${org}|${clave}|${version}`;
+    const ya = enCurso.get(k) as Promise<R> | undefined;
+    if (ya) return ya;
+    const p = (async () => {
+      const r = await fn(...a);
+      await consulta(`insert into mpro_cache (organizacion_id, clave, version, datos) values ($1, $2, $3, $4::jsonb)
+                      on conflict (organizacion_id, clave) do update set version = excluded.version, datos = excluded.datos, ts = now()`,
+        [org, clave, version, JSON.stringify(r)]).catch((e) => console.error("[marketpro] cache", e));
+      return r;
+    })().finally(() => enCurso.delete(k));
+    enCurso.set(k, p);
+    return p;
+  };
+
+const busca = (q: string, ...textos: (string | null | undefined)[]) => {
+  const t = q.trim().toLowerCase();
+  return !t || textos.some((x) => (x ?? "").toLowerCase().includes(t));
+};
 
 export type Filtro = { cat: number | null; meses: number; q: string; vendedor: string | null; marca: string | null; producto: string | null; tuyos: string | null };
 
@@ -290,8 +325,39 @@ export async function categoriasParaElegir(org: string): Promise<{ valor: string
   return filas.map((x) => ({ valor: String(x.category_id), texto: x.ruta }));
 }
 
-export const serieMensual = guardado("serie", serieMensualCrudo);
-export const porCategoria = guardado("categorias", porCategoriaCrudo);
-export const porProducto = guardado("productos", porProductoCrudo);
-export const porVendedor = guardado("vendedores", porVendedorCrudo);
-export const porMarca = guardado("marcas", porMarcaCrudo);
+const serieGuardada = guardado("serie", serieMensualCrudo);
+const categoriasGuardadas = guardado("categorias", porCategoriaCrudo);
+const productosGuardados = guardado("productos", porProductoCrudo);
+const vendedoresGuardados = guardado("vendedores", porVendedorCrudo);
+const marcasGuardadas = guardado("marcas", porMarcaCrudo);
+const sinBuscar = (f: Filtro): Filtro => ({ ...f, q: "", tuyos: null });
+
+export const serieMensual = (org: string, f: Pick<Filtro, "cat" | "vendedor" | "marca" | "producto">) =>
+  serieGuardada(org, { cat: f.cat, vendedor: f.vendedor, marca: f.marca, producto: f.producto });
+export const porCategoria = async (org: string, mes: string, f: Filtro) => (await categoriasGuardadas(org, mes, sinBuscar(f))).filter((c) => busca(f.q, c.ruta, String(c.cat)));
+export const porProducto = async (org: string, mes: string, f: Filtro) => (await productosGuardados(org, mes, sinBuscar(f)))
+  .filter((p) => (f.tuyos === "si" ? !!p.tuyo_producto : f.tuyos === "no" ? !p.tuyo_producto : true) && busca(f.q, p.titulo, p.marca, p.producto, p.item_top));
+export const porVendedor = async (org: string, mes: string, f: Filtro) => (await vendedoresGuardados(org, mes, sinBuscar(f))).filter((v) => busca(f.q, v.vendedor, v.alias, v.nombre));
+export const porMarca = async (org: string, mes: string, f: Filtro) => (await marcasGuardadas(org, mes, sinBuscar(f))).filter((m) => busca(f.q, m.marca));
+
+/** Deja calculadas de antemano las vistas de entrada (todas las categorías y cada categoría seguida principal, 12 meses),
+ *  de a una, hasta `segundos`. Si ya están al día, no hace nada. */
+export async function precalentar(org: string, segundos = 240): Promise<number> {
+  const fin = Date.now() + segundos * 1000;
+  const mes = await ultimoMes(org);
+  if (!mes) return 0;
+  const raices = await consulta<{ c: number }>(`
+    select s.category_id c from mpro_seguida s join mpro_categoria c on c.pais = 'ar' and c.category_id = s.category_id
+     where s.organizacion_id = $1 and s.habilitada and not exists (
+       select 1 from mpro_seguida s2 where s2.organizacion_id = $1 and s2.habilitada and s2.category_id = any(c.padres))`, [org]);
+  let hechas = 0;
+  for (const cat of [null, ...raices.map((r) => r.c)]) {
+    const f = leerFiltro(cat ? { cat: String(cat) } : {});
+    for (const correr of [() => serieMensual(org, f), () => porCategoria(org, mes, f), () => porProducto(org, mes, f), () => porVendedor(org, mes, f), () => porMarca(org, mes, f)]) {
+      if (Date.now() > fin) return hechas;
+      await correr();
+      hechas++;
+    }
+  }
+  return hechas;
+}

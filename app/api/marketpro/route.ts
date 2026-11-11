@@ -7,6 +7,7 @@ import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { actualizarTodo, vuelta } from "@/lib/marketpro/motor";
 import { descubrirVendedores } from "@/lib/marketpro/vendedores";
 import { refrescarInformes } from "@/lib/marketpro/informe-ia";
+import { precalentar } from "@/lib/marketpro/analisis";
 import { una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
     await asegurarEsquemaErp();
     const ok = await una("select 1 from mpro_llave where organizacion_id = $1 and token = $2::uuid", [org, token]);
     if (!ok) return;
+    // Sólo recalcular las cuentas de las pantallas (pg_cron, cada 10 minutos): si están al día, no hace nada.
+    if (u.searchParams.get("calentar") === "1") { await precalentar(org).catch((e) => console.error("[marketpro] precalentar", e)); return; }
     if (u.searchParams.get("plan") === "1") await actualizarTodo(org).catch((e) => console.error("[marketpro] plan", e));
     // En paralelo (es otra API, la de Mercado Libre): quién es cada vendedor (lib/marketpro/vendedores.ts).
     await Promise.all([
