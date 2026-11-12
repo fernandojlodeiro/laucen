@@ -114,7 +114,27 @@ test("PDF: por pedido, primero la etiqueta y enseguida su hoja; 10×15 o A4; só
   larga.lineas = Array.from({ length: 40 }, (_, i) => ({ ubicacion: `B-${i}`, orden_recorrido: i, sku: `S-${i}`, titulo: "Un título bastante largo para que ocupe dos renglones en la hoja", cantidad: 1, kit: null }));
   const rl = await m.hojas.armarPdf([larga], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira });
   assert.equal(rl.paginas[0], "etiqueta-propia:14");
-  assert.ok(rl.paginas.length > 2 && rl.paginas.slice(1).every((p) => p === "hoja:14"));
+  assert.ok(rl.paginas.length > 2 && rl.paginas.slice(1).every((p) => p === "hoja:14" || p === "cierre:14"));
+});
+
+test("10×15: cada pedido ocupa una cantidad par de páginas (impreso de a 2 por hoja, una A4 nunca junta dos pedidos)", async () => {
+  const larga = (id: number, n: number): DatosHoja => ({
+    ...hojaBase(id, { tipo: "ml", canalId: 1, envioExterno: String(id) }),
+    lineas: Array.from({ length: n }, (_, i) => ({ ubicacion: `B-${i}`, orden_recorrido: i, sku: `S-${i}`, titulo: "Un título bastante largo para que ocupe dos renglones en la hoja", cantidad: 1, kit: null })),
+  });
+  const hojas = [larga(21, 1), larga(22, 40), larga(23, 1), larga(24, 80), larga(25, 1)];
+  const r = await m.hojas.armarPdf(hojas, { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira });
+  assert.ok(r.paginas.includes("cierre:22") || r.paginas.includes("cierre:24"), "alguna hoja larga quedó impar y se completó");
+  assert.equal(r.paginas.length % 2, 0);
+  for (let i = 0; i < r.paginas.length; i += 2) {
+    const [a, b] = [r.paginas[i], r.paginas[i + 1]].map((x) => x.split(":")[1]);
+    assert.equal(a, b, `la hoja A4 ${i / 2 + 1} junta ${r.paginas[i]} con ${r.paginas[i + 1]}`);
+  }
+  const doc = await PDFDocument.load(r.pdf);
+  assert.equal(doc.getPageCount(), r.paginas.length);
+  // Sólo etiquetas y A4: sin páginas de cierre.
+  assert.ok(!(await m.hojas.armarPdf(hojas, { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true })).paginas.some((p) => p.startsWith("cierre")));
+  assert.ok(!(await m.hojas.armarPdf(hojas, { tam: "a4", bajarEtiquetaMl: etiquetaMlMentira })).paginas.some((p) => p.startsWith("cierre")));
 });
 
 test("ordenarLineas: por orden de recorrido, código de ubicación y SKU; sin ubicación al final", () => {

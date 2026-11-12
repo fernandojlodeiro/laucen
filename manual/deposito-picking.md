@@ -73,7 +73,7 @@ Para cada pedido, en orden (lo que vence antes primero, después lo más viejo):
 
 **En A4 va todo en una sola hoja por pedido**: arriba a la izquierda la etiqueta (la de Mercado Libre a su tamaño, la propia o el aviso de que falta); al costado, pegado al margen derecho (así queda aire para cortar la etiqueta), el encabezado de la hoja de preparación (número grande, código de barras, datos, «A cobrar» y las notas si entran); y en la mitad de abajo, las líneas a juntar. Si son muchas líneas, siguen en otra página ("Pedido N.º … (sigue)"). De lo que manda Mercado Libre sólo se usa la etiqueta: su resumen de productos y su hoja "Despachá tus productos" no salen, porque nuestra hoja dice lo mismo y además de qué ubicación sale cada cosa. Para cortar, la etiqueta de Mercado Libre queda con su tamaño original (10 × 15).
 
-En 10 × 15 (la térmica) cada cosa va en su página: primero la etiqueta y después la hoja.
+En 10 × 15 (la térmica) cada cosa va en su página: primero la etiqueta y después la hoja. **Cada pedido ocupa siempre una cantidad par de páginas**: si la hoja sigue en otra página y el pedido queda impar, se agrega al final una página casi en blanco que dice «Fin del pedido #…». Así, si el PDF de 10 × 15 se imprime en A4 de a dos páginas por hoja, cada hoja A4 lleva siempre dos páginas del mismo pedido y nunca la hoja de preparación de uno con la etiqueta de otro.
 
 ## Cómo se hace
 

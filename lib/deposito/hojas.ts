@@ -679,6 +679,15 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
   return paginas;
 }
 
+/** La página que completa un pedido impar en 10×15 (ver armarPdf): casi en
+ *  blanco, con una línea chica abajo para que ningún visor la saltee. */
+function paginaCierre(l: Lienzo, pedidoId: number) {
+  const [w] = PAGINA[l.tam];
+  const p = l.doc.addPage(PAGINA[l.tam]);
+  const s = `Fin del pedido #${pedidoId}`;
+  p.drawText(s, { x: (w - l.f.widthOfTextAtSize(s, 7)) / 2, y: 14, size: 7, font: l.f, color: gris });
+}
+
 /** A4, todo en una hoja (Fer, 3/10): la etiqueta arriba a la izquierda, el
  *  encabezado de la hoja al costado, y abajo las líneas a juntar (si no
  *  entran, siguen en otra página). `etiqueta`: la de ML ya recortada, la
@@ -711,6 +720,7 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
   const paginas: string[] = [];
   const sinEtiqueta: number[] = [];
   for (const d of hojas) {
+    const desde = doc.getPageCount();
     // En A4 la etiqueta se dibuja en la página única; si no, en la suya.
     let unica: Parameters<typeof paginaUnica>[2];
     let tipo: string;
@@ -757,6 +767,15 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
     } else if (!o.soloEtiqueta) {
       const n = await hoja(l, d);
       for (let i = 0; i < n; i++) paginas.push(`hoja:${d.pedidoId}`);
+    }
+    // 10×15 (Fer, 12/11): cada pedido ocupa una cantidad PAR de páginas. Ese
+    // PDF se imprime también de a 2 páginas por hoja A4; con un pedido impar
+    // (hoja larga, una etiqueta de más) todo lo que seguía quedaba corrido y
+    // cada A4 juntaba la hoja de un pedido con la etiqueta del siguiente. Con
+    // la página de cierre, una hoja A4 nunca lleva dos pedidos.
+    if (l.tam === "10x15" && !o.soloEtiqueta && (doc.getPageCount() - desde) % 2 === 1) {
+      paginaCierre(l, d.pedidoId);
+      paginas.push(`cierre:${d.pedidoId}`);
     }
   }
   return { pdf: await doc.save(), paginas, sinEtiqueta };
