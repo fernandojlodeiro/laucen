@@ -176,8 +176,9 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
   // "Recibimos tu pedido", por la cola de los avisos (sale en un minuto): el mail, a todos; el WhatsApp, a los que
   // esperan el pago (lib/pedidos/seguimiento.ts). Si paga antes con tarjeta, no sale: le llega el de pago confirmado.
   await consulta(`insert into correo_cola (organizacion_id, pedido_id, tipo) values ($1, $2, 'recibido') on conflict (pedido_id, tipo) do nothing`, [org, pedido.pedidoId]);
-  await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars) values ($1, $2, $3, 'pendiente', $4)`,
-    [org, pedido.pedidoId, tipoBase(d.medio), aCobrar]);
+  // El pago pendiente, con las cuotas elegidas al comprar (1 si no eligió).
+  await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars, cuotas) values ($1, $2, $3, 'pendiente', $4, $5)`,
+    [org, pedido.pedidoId, tipoBase(d.medio), aCobrar, cot.cuotas?.elegidas ?? 1]);
   if (pedidoPv) await consulta(`insert into correo_cola (organizacion_id, pedido_id, tipo) values ($1, $2, 'recibido') on conflict (pedido_id, tipo) do nothing`, [org, pedidoPv]);
 
   // La vuelta del comprador, a la dirección pública de la tienda; el aviso
@@ -230,7 +231,7 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
     pedidoId: p.id, token: tarjeta.token, bin: tarjeta.bin, marca: tarjeta.marca, total: importe, cuotas: codigoPayway(financiacionTienda(t), tarjeta.cuotas), email: p.email, clienteId: p.cliente_id,
   });
   if (r.aprobado) await confirmarPago(org, p.id, { medio: "payway", idExterno: r.id, importe, cuotas: tarjeta.cuotas, detalle: r.detalle, crudo: r.crudo }, "tienda");
-  else await pagoFallido(org, p.id, "payway", r.id, "rechazado", r.detalle, r.crudo);
+  else await pagoFallido(org, p.id, "payway", r.id, "rechazado", r.detalle, r.crudo, tarjeta.cuotas);
   return { aprobado: r.aprobado, detalle: r.detalle };
 }
 

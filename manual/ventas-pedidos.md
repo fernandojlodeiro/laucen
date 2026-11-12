@@ -97,7 +97,7 @@ Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloq
 5. **"Mensajes"** (sólo si hay): la conversación del pedido, como un chat. Trae los mensajes de Mercado Libre de la venta y el WhatsApp del cliente desde que se hizo el pedido. Los del comprador salen a la izquierda y los nuestros a la derecha, con quién lo escribió (el comprador, nosotros o la IA), dónde y cuándo.
 5. **"Cargos de Mercado Libre"** (sólo si ya están): la venta, cada cargo restado por tipo y el **"Neto de Mercado Libre"**; aparte, las retenciones y percepciones.
 6. **"Operación"** (sólo pedidos que **no** son de Mercado Libre): ver más abajo.
-7. **"Pagos"**: los pagos registrados (Fecha, Medio, Estado, Importe, Detalle). En los de Mercado Libre aparece sólo si hay alguno.
+7. **"Pagos"**: los pagos registrados y cada intento de pago con tarjeta, también los rechazados (Fecha, Medio, Cuotas, Tarjeta, Estado, Importe, Detalle). **Cuotas** son las que eligió el comprador (1 = en un pago). **Tarjeta** muestra la marca y los primeros 6 números de la tarjeta usada: si hay varios rechazos con números distintos, el comprador probó tarjetas distintas. El **Detalle** de un rechazo trae el motivo que dio el banco. En los de Mercado Libre aparece sólo si hay alguno.
 8. **"Facturación"**: los comprobantes del pedido (tipo y número, estado, **"PDF"** si está autorizado, y si es de Mercado Libre, "En ML: …") y los botones **"Facturar"** y **"Subir factura a Mercado Libre"**.
 9. **"Movimientos de stock"**: cada reserva, venta o liberación que generó el pedido (fecha, tipo, SKU, producto —o "del kit …"—, cantidad, desde, hacia, nota).
 

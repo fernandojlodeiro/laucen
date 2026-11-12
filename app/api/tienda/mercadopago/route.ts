@@ -29,7 +29,7 @@ async function atender(req: Request) {
   if (p.estado === "aprobado") {
     await confirmarPago(m.organizacion_id, p.pedidoId, { medio: "mercadopago", idExterno: p.id, importe: p.importe, cuotas: p.cuotas, detalle: "Aprobado por Mercado Pago", crudo: p.crudo }, "tienda");
   } else if (p.estado === "rechazado" || p.estado === "cancelado") {
-    await pagoFallido(m.organizacion_id, p.pedidoId, "mercadopago", p.id, p.estado, `Mercado Pago: ${p.estado}`, p.crudo);
+    await pagoFallido(m.organizacion_id, p.pedidoId, "mercadopago", p.id, p.estado, `Mercado Pago: ${p.estado}`, p.crudo, p.cuotas);
   }
   return new Response(null, { status: 200 });
 }

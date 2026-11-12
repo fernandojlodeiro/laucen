@@ -86,8 +86,11 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   if (!p) return null;
   const vence = await vencimientoDe(org, pid);
   const frenoCc = p.estado_pago === "a_convenir" ? await motivoFrenoCc(pid) : null;
-  const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
-    select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
+  // La tarjeta de cada intento (marca y primeros 6 números): con varios rechazos se ve si probó tarjetas distintas.
+  const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date; marca: string | null; bin: string | null }>(`
+    select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha,
+           coalesce(datos_externos ->> 'card_brand', datos_externos ->> 'payment_method_id') marca,
+           coalesce(datos_externos ->> 'bin', datos_externos -> 'card' ->> 'first_six_digits') bin from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
   // Los comprobantes de pago y el conforme de retiro, con un link firmado por una hora (el bucket es privado).
   const archivosDe = async (tabla: "pedido_comprobante_pago" | "pedido_conforme_retiro") => {
@@ -127,14 +130,16 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const TablaPagos = pagos.length > 0 && (
     <div className={`${CAJA_TABLA} mt-2`}>
       <table className={TABLA}>
-        <thead className={THEAD}><tr><th className={THN}>Fecha</th><th className={TH}>Medio</th><th className={TH}>Estado</th><th className={THN}>Importe</th><th className={TH}>Detalle</th></tr></thead>
+        <thead className={THEAD}><tr><th className={THN}>Fecha</th><th className={TH}>Medio</th><th className={THN}>Cuotas</th><th className={TH}>Tarjeta</th><th className={TH}>Estado</th><th className={THN}>Importe</th><th className={TH}>Detalle</th></tr></thead>
         <tbody>
           {pagos.map((x) => {
             const e = ESTADO_PAGO[x.estado] ?? { texto: x.estado, tono: "gris" as const };
             return (
               <tr key={x.id} className={TR}>
                 <td className={TDN}>{fechaHora(x.fecha)}</td>
-                <td className={TD}>{nombreMedio(x.medio)}{x.cuotas > 1 && <span className="text-[#5C6B76]"> · {x.cuotas} cuotas</span>}</td>
+                <td className={TD}>{nombreMedio(x.medio)}</td>
+                <td className={TDN}>{x.cuotas}</td>
+                <td className={`${TD} text-[#5C6B76]`}>{[x.marca, x.bin && `${x.bin}…`].filter(Boolean).join(" ") || "—"}</td>
                 <td className={TD}><Estado texto={e.texto} tono={e.tono} /></td>
                 <td className={TDN}>{formatear(x.importe, "ARS")}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{x.detalle ?? ""}</td>

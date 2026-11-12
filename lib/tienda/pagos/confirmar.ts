@@ -147,9 +147,10 @@ export async function entregarYCobrar(org: string, pedidoId: number, medio: stri
 }
 
 /** Marca un pago como rechazado/cancelado (el pedido sigue "nuevo", se puede reintentar). */
-export async function pagoFallido(org: string, pedidoId: number, medio: string, idExterno: string | null, estado: "rechazado" | "cancelado", detalle: string, crudo?: unknown) {
-  await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars, id_externo, detalle, datos_externos)
-                  select $1, $2, $3, $4, total_ars, $5, $6, $7::jsonb from pedido where id = $2 and organizacion_id = $1
+export async function pagoFallido(org: string, pedidoId: number, medio: string, idExterno: string | null, estado: "rechazado" | "cancelado", detalle: string, crudo?: unknown, cuotas?: number) {
+  // Las cuotas que eligió el comprador (Fer, 12/11: antes quedaban en 1 en todo intento rechazado).
+  await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars, id_externo, detalle, datos_externos, cuotas)
+                  select $1, $2, $3, $4, total_ars, $5, $6, $7::jsonb, $8 from pedido where id = $2 and organizacion_id = $1
                   on conflict (medio, id_externo) where id_externo is not null do update set estado = excluded.estado, detalle = excluded.detalle, actualizado_ts = now()`,
-    [org, pedidoId, medio, estado, idExterno, detalle, JSON.stringify(crudo ?? {})]);
+    [org, pedidoId, medio, estado, idExterno, detalle, JSON.stringify(crudo ?? {}), cuotas && cuotas > 0 ? cuotas : 1]);
 }
