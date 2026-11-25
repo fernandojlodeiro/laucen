@@ -62,6 +62,13 @@ no la primera.
   agrega y saca los dominios de las tiendas; la cargó Fer el 3/10). **Después de que Fer cambia una variable, se despliega
   con un push a main, nunca con el botón "Redeploy" de Vercel**: ese botón vuelve a desplegar
   un commit viejo y deja producción atrasada.
+- **Acceso de las sesiones a Supabase** (Fer, 25/11): las sesiones de Code usan el conector de Supabase de la
+  cuenta de Claude de Fer, y sus permisos se configuran ahí, no en el repo: [Conectores de Claude](https://claude.ai/customize/connectors)
+  › Supabase › permisos de cada herramienta. Todas van en «permitir siempre», salvo las que generan gasto
+  (`create_project`, `create_branch`, `restore_project`), que no se usan sin pedírselo a Fer. Si a Fer le vuelven a
+  aparecer carteles de aprobación por Supabase, lo primero es revisar esa pantalla: una actualización del conector
+  puede volverlos a «pedir aprobación». No hay archivo de permisos de Claude en el repo, y una sesión no puede
+  crearse permisos a sí misma.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
 - **Sólo `main` despliega** (Fer, 2/11, bitácora #1023): las ramas `claude/*` no arman vista previa en
   Vercel (`git.deploymentEnabled` en `vercel.json`); costaban la mitad de los builds y nadie las miraba.
