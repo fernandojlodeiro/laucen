@@ -142,9 +142,11 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
  *  stock y costo promedio, y eso no se puede deshacer con certeza. */
 export async function volverABorrador(org: string, facturaId: number) {
   await enTransaccion(async (c) => {
-    const f = (await c.query<{ estado: string }>("select estado from factura_compra where id = $1 and organizacion_id = $2 for update", [facturaId, org])).rows[0];
+    const f = (await c.query<{ estado: string; cerrado: boolean; periodo_iva: string | null }>("select estado, iva_mes_cerrado(emisor_id, periodo_iva) cerrado, periodo_iva from factura_compra where id = $1 and organizacion_id = $2 for update", [facturaId, org])).rows[0];
     if (!f) throw new ErrorErp("La factura no existe.");
     if (f.estado !== "registrada") throw new ErrorErp("Sólo una factura registrada vuelve a borrador.");
+    // Su mes del Libro de IVA ya está liquidado (declaración jurada de IVA cargada): nadie la toca (db/impuestos.sql).
+    if (f.cerrado) throw new ErrorErp(`Entró en el Libro de IVA compras de ${f.periodo_iva!.split("-").reverse().join("/")}, que ya está liquidado: no se puede cambiar. Corregila con una nota de crédito o de débito, que entra en el mes en curso.`);
     const conProducto = (await c.query("select 1 from factura_compra_linea where factura_id = $1 and variacion_id is not null limit 1", [facturaId])).rowCount;
     if (conProducto) throw new ErrorErp("Tiene mercadería: al registrarla entró el stock y se recalculó el costo, y eso no se puede deshacer. Corregila con una nota de crédito o de débito.");
     const movs = (await c.query<{ id: string }>(
@@ -173,9 +175,10 @@ export async function volverABorrador(org: string, facturaId: number) {
  *  no se deshace con certeza. */
 export async function despachoABorrador(org: string, despachoId: number) {
   await enTransaccion(async (c) => {
-    const d = (await c.query<{ estado: string }>("select estado from despacho_importacion where id = $1 and organizacion_id = $2 for update", [despachoId, org])).rows[0];
+    const d = (await c.query<{ estado: string; cerrado: boolean; periodo_iva: string | null }>("select estado, iva_mes_cerrado(emisor_id, periodo_iva) cerrado, periodo_iva from despacho_importacion where id = $1 and organizacion_id = $2 for update", [despachoId, org])).rows[0];
     if (!d) throw new ErrorErp("El despacho no existe.");
     if (d.estado !== "registrado") throw new ErrorErp("Sólo un despacho registrado vuelve a borrador.");
+    if (d.cerrado) throw new ErrorErp(`Entró en el Libro de IVA compras de ${d.periodo_iva!.split("-").reverse().join("/")}, que ya está liquidado: no se puede cambiar.`);
     if ((await c.query("select 1 from despacho_linea where despacho_id = $1 and variacion_id is not null limit 1", [despachoId])).rowCount)
       throw new ErrorErp("Tiene mercadería con producto: al registrarlo entró el stock y se recalculó el costo, y eso no se puede deshacer.");
     await c.query("update asiento set estado = 'anulado' where organizacion_id = $1 and origen = 'despacho' and referencia_id = $2 and estado = 'vigente'", [org, despachoId]);

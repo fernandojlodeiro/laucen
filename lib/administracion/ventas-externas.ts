@@ -82,8 +82,10 @@ export async function importarVentasExternas(org: string, emisorId: number, sist
   const enLaucen = new Set((await consulta<{ k: string }>(`
     select tipo_cbte || '|' || punto_venta || '|' || numero k from comprobante
      where organizacion_id = $1 and emisor_id = $2 and estado = 'autorizado' and ambiente = 'produccion'`, [org, emisorId])).map((x) => x.k));
-  const aGrabar = cbtes.filter((c) => !enLaucen.has(clave(c.tipo, c.puntoVenta, c.numero)));
-  const yaEnLaucen = cbtes.length - aGrabar.length;
+  const cerrados = await mesesLiquidados(org, emisorId);
+  const aGrabar = cbtes.filter((c) => !enLaucen.has(clave(c.tipo, c.puntoVenta, c.numero)) && !cerrados.has(c.fecha.slice(0, 7)));
+  const liquidados = cbtes.filter((c) => cerrados.has(c.fecha.slice(0, 7)) && !enLaucen.has(clave(c.tipo, c.puntoVenta, c.numero))).length;
+  const yaEnLaucen = cbtes.length - aGrabar.length - liquidados;
   let nuevos = 0, reemplazados = 0;
   // De a 500 por consulta: un año son un par de miles de comprobantes.
   for (let i = 0; i < aGrabar.length; i += 500) {
@@ -96,7 +98,7 @@ export async function importarVentasExternas(org: string, emisorId: number, sist
       returning (xmax = 0) nuevo`, [org, emisorId, sistema, JSON.stringify(filas), archivo]);
     for (const x of r) if (x.nuevo) nuevos++; else reemplazados++;
   }
-  return { nuevos, reemplazados, yaEnLaucen, desde: cbtes.reduce((m, c) => (c.fecha < m ? c.fecha : m), cbtes[0].fecha), hasta: cbtes.reduce((m, c) => (c.fecha > m ? c.fecha : m), cbtes[0].fecha) };
+  return { nuevos, reemplazados, yaEnLaucen, liquidados, desde: cbtes.reduce((m, c) => (c.fecha < m ? c.fecha : m), cbtes[0].fecha), hasta: cbtes.reduce((m, c) => (c.fecha > m ? c.fecha : m), cbtes[0].fecha) };
 }
 
 /** Las ventas de otro sistema de un período, como comprobantes del libro (id negativo: no chocan con los de Laucen). */
@@ -112,4 +114,9 @@ export function resumenVentasExternas(org: string) {
   return consulta<{ emisor_id: number; sistema: string; n: number; desde: string; hasta: string }>(`
     select emisor_id::int, sistema, count(*)::int n, to_char(min(fecha), 'YYYY-MM-DD') desde, to_char(max(fecha), 'YYYY-MM-DD') hasta
       from venta_externa where organizacion_id = $1 group by 1, 2 order by 1, 2`, [org]);
+}
+
+/** Los meses (AAAA-MM) de la razón social con declaración jurada de IVA cargada: lo de esos meses no se toca (db/impuestos.sql). */
+async function mesesLiquidados(org: string, emisorId: number) {
+  return new Set((await consulta<{ periodo: string }>("select distinct periodo from ddjj where organizacion_id = $1 and emisor_id = $2 and impuesto = 'iva'", [org, emisorId])).map((x) => x.periodo));
 }

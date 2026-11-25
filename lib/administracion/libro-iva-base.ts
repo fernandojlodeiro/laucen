@@ -19,6 +19,10 @@ import {
   type CbteIva, type ImpuestoDespacho,
 } from "@/lib/administracion/libro-iva";
 
+// El día con que una factura o despacho entra en el libro: el de su fecha, salvo que su mes ya estuviera liquidado al
+// registrarlo (periodo_iva, db/impuestos.sql): entonces el día 1 del mes en que se imputó.
+const fechaIva = (t: string) => `(case when ${t}.periodo_iva is null or ${t}.periodo_iva = to_char(${t}.fecha, 'YYYY-MM') then ${t}.fecha else to_date(${t}.periodo_iva || '-01', 'YYYY-MM-DD') end)`;
+
 const r2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
 const PCT_DE_ID: Record<number, number> = { 3: 0, 4: 10.5, 5: 21, 6: 27, 8: 5, 9: 2.5 };
 const CONDICION_TEXTO: Record<string, string> = {
@@ -78,7 +82,7 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
            p.id::int proveedor_id, coalesce(nullif(p.razon_social, ''), p.nombre) nombre, p.cuit, p.condicion_iva,
            coalesce(f.total_ars / nullif(f.total_usd, 0), tc_del_dia(f.organizacion_id, f.fecha)) tc
       from factura_compra f join proveedor p on p.id = f.proveedor_id
-     where f.organizacion_id = $1 and f.estado = 'registrada' and f.fecha between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)`, [org, desde, hasta, emisorId]);
+     where f.organizacion_id = $1 and f.estado = 'registrada' and ${fechaIva("f")} between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   const compras: CbteIva[] = [];
   for (const f of facturas) {
     const enlace = `/compras/facturas/${f.id}`;
@@ -124,7 +128,7 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
     select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.cotizacion, d.fob_usd, d.flete_usd, d.seguro_usd, d.gastos, d.impuestos,
            coalesce(nullif(p.razon_social, ''), p.nombre) proveedor, tc_del_dia(d.organizacion_id, d.fecha) tc
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id
-     where d.organizacion_id = $1 and d.estado = 'registrado' and d.fecha between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
+     where d.organizacion_id = $1 and d.estado = 'registrado' and ${fechaIva("d")} between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   for (const d of despachos) {
     const enlace = `/compras/despachos/${d.id}`;
     const cot = Number(d.cotizacion);
@@ -178,21 +182,36 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
   }
 
   // Cargadas en el período con fecha de otro período (no están en este libro).
+  // Las que entran en este libro con fecha de un mes anterior porque ese mes ya estaba liquidado.
+  const movidas = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null; nombre: string }>(`
+    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text numero, p.nombre
+      from factura_compra f join proveedor p on p.id = f.proveedor_id
+     where f.organizacion_id = $1 and f.estado = 'registrada' and ${fechaIva("f")} between $2::date and $3::date
+       and f.fecha not between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)
+     order by f.fecha`, [org, desde, hasta, emisorId]);
+  for (const f of movidas) {
+    avisos.push({ texto: `${f.es_nota_credito ? "NC" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} de ${f.nombre}: tiene fecha ${fechaAr(f.fecha)} pero entra en este libro porque su mes ya estaba liquidado cuando se registró.`, enlace: `/compras/facturas/${f.id}` });
+  }
   const otras = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null; nombre: string }>(`
     select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text numero, p.nombre
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado = 'registrada'
        and (coalesce(f.registrada_ts, f.creado_ts) at time zone 'America/Argentina/Buenos_Aires')::date between $2::date and $3::date
-       and f.fecha not between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)
+       and ${fechaIva("f")} not between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)
      order by f.fecha`, [org, desde, hasta, emisorId]);
   for (const f of otras) {
-    avisos.push({ texto: `${f.es_nota_credito ? "NC" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} de ${f.nombre}: se cargó en este período pero tiene fecha ${fechaAr(f.fecha)}; está en el libro de ese mes (si ya se presentó, consultalo con el contador).`, enlace: `/compras/facturas/${f.id}` });
+    avisos.push({ texto: `${f.es_nota_credito ? "NC" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} de ${f.nombre}: se cargó en este período pero tiene fecha ${fechaAr(f.fecha)}; está en el libro de ese mes (todavía no estaba liquidado).`, enlace: `/compras/facturas/${f.id}` });
   }
+  const movidosDesp = await consulta<{ id: number; fecha: string; numero: string | null }>(`
+    select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero from despacho_importacion d
+     where d.organizacion_id = $1 and d.estado = 'registrado' and ${fechaIva("d")} between $2::date and $3::date
+       and d.fecha not between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
+  for (const d of movidosDesp) avisos.push({ texto: `Despacho ${d.numero ?? "s/n"}: tiene fecha ${fechaAr(d.fecha)} pero entra en este libro porque su mes ya estaba liquidado cuando se registró.`, enlace: `/compras/despachos/${d.id}` });
   const otrosDesp = await consulta<{ id: number; fecha: string; numero: string | null }>(`
-    select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, numero from despacho_importacion
-     where organizacion_id = $1 and estado = 'registrado'
-       and (coalesce(registrado_ts, creado_ts) at time zone 'America/Argentina/Buenos_Aires')::date between $2::date and $3::date
-       and fecha not between $2::date and $3::date and ($4::bigint is null or emisor_id = $4)`, [org, desde, hasta, emisorId]);
+    select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero from despacho_importacion d
+     where d.organizacion_id = $1 and d.estado = 'registrado'
+       and (coalesce(d.registrado_ts, d.creado_ts) at time zone 'America/Argentina/Buenos_Aires')::date between $2::date and $3::date
+       and ${fechaIva("d")} not between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   for (const d of otrosDesp) avisos.push({ texto: `Despacho ${d.numero ?? "s/n"}: se registró en este período pero tiene fecha ${fechaAr(d.fecha)}.`, enlace: `/compras/despachos/${d.id}` });
 
   // Lo que tiene fecha del período y no entra.

@@ -65,7 +65,7 @@ Si el despacho se cargó desde su PDF, arriba a la derecha (en borrador y regist
 - La caja de totales, en dos columnas, pesos y dólares: FOB, flete y seguro, los gastos (el renglón lleva el nombre de cada uno, por ejemplo "Derechos de importación, Arancel SIM"), **Costo total puesto en depósito**, "Impuestos (crédito fiscal, aparte)" y **Gastos + impuestos (el total pagado del despacho)**, para compararlo con el "PAGADO" del despacho.
 - **Todo se ve en las dos monedas**: los gastos e impuestos (se cargan en pesos) muestran al lado su equivalente en dólares, y las líneas (se cargan en dólares) su FOB total en pesos. La conversión es siempre con el dólar del despacho (su cotización).
 
-**Registrado:** arriba a la derecha, **Volver a borrador** (si ninguna línea tiene producto; si tiene, dice que ya entró al stock y no vuelve). Todo en sólo lectura (Estado con fecha y hora, Proveedor, Cotización, Depósito, FOB, Flete, Seguro, Notas), con el prorrateo que quedó guardado al registrar.
+**Registrado:** arriba a la derecha, **Volver a borrador** (si ninguna línea tiene producto; si tiene, dice que ya entró al stock y no vuelve; si su mes del Libro de IVA ya está liquidado, dice **🔒 Su mes del Libro de IVA ya está liquidado** y no vuelve). Junto a la fecha, debajo del título, **Libro de IVA mm/aaaa**: el mes en que entró en el Libro de IVA compras (ver [Libros de IVA](/administracion/libros-iva), «Meses liquidados»). Todo en sólo lectura (Estado con fecha y hora, Proveedor, Cotización, Depósito, FOB, Flete, Seguro, Notas), con el prorrateo que quedó guardado al registrar.
 
 ## Cómo se hace
 

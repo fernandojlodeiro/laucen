@@ -43,7 +43,9 @@ export async function importarComprasExternas(org: string, emisorId: number, sis
              when 'M' then case when f.es_nota_credito then 53 when f.es_nota_debito then 52 else 51 end end) || '|' || coalesce(f.punto_venta, 0) || '|' || coalesce(f.numero, 0) k
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.emisor_id = $2 and f.estado = 'registrada'`, [org, emisorId])).map((x) => x.k));
-  const aGrabar = cbtes.filter((c) => !enLaucen.has(clave(c.cuit, c.tipo, c.puntoVenta, c.numero)));
+  const cerrados = await mesesLiquidados(org, emisorId);
+  const aGrabar = cbtes.filter((c) => !enLaucen.has(clave(c.cuit, c.tipo, c.puntoVenta, c.numero)) && !cerrados.has(c.fecha.slice(0, 7)));
+  const liquidados = cbtes.filter((c) => cerrados.has(c.fecha.slice(0, 7)) && !enLaucen.has(clave(c.cuit, c.tipo, c.puntoVenta, c.numero))).length;
   let nuevos = 0, reemplazados = 0;
   for (let i = 0; i < aGrabar.length; i += 500) {
     const filas = aGrabar.slice(i, i + 500).map((c) => ({ fecha: c.fecha, cuit: c.cuit, tipo: c.tipo, punto_venta: c.puntoVenta, numero: Number(c.numero), datos: c }));
@@ -56,7 +58,7 @@ export async function importarComprasExternas(org: string, emisorId: number, sis
     for (const x of r) if (x.nuevo) nuevos++; else reemplazados++;
   }
   const fechas = cbtes.map((c) => c.fecha).sort();
-  return { nuevos, reemplazados, yaEnLaucen: cbtes.length - aGrabar.length, desde: fechas[0], hasta: fechas.at(-1)! };
+  return { nuevos, reemplazados, yaEnLaucen: cbtes.length - aGrabar.length - liquidados, liquidados, desde: fechas[0], hasta: fechas.at(-1)! };
 }
 
 /** Las compras de períodos anteriores de un período, como comprobantes del libro (id negativo: no chocan con los de Laucen). */
@@ -75,4 +77,9 @@ export function resumenComprasExternas(org: string) {
   return consulta<{ emisor_id: number; sistema: string; n: number; desde: string; hasta: string }>(`
     select emisor_id::int, sistema, count(*)::int n, to_char(min(fecha), 'YYYY-MM-DD') desde, to_char(max(fecha), 'YYYY-MM-DD') hasta
       from compra_externa where organizacion_id = $1 group by 1, 2 order by 1, 2`, [org]);
+}
+
+/** Los meses (AAAA-MM) de la razón social con declaración jurada de IVA cargada: lo de esos meses no se toca (db/impuestos.sql). */
+async function mesesLiquidados(org: string, emisorId: number) {
+  return new Set((await consulta<{ periodo: string }>("select distinct periodo from ddjj where organizacion_id = $1 and emisor_id = $2 and impuesto = 'iva'", [org, emisorId])).map((x) => x.periodo));
 }

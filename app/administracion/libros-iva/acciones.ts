@@ -1,7 +1,7 @@
 "use server";
 
-// Libros de IVA › «Mandar al Drive» (Fer, 23/10): arma los TXT del Libro de IVA Digital del mes de la razón social y
-// los sube, de fondo, a su carpeta de ese mes en el Drive (año › mes › carpeta, según la ruta cargada en Configuración ›
+// Libros de IVA › «Mandar al Drive» (Fer, 23/10 y 25/11): arma los TXT del Libro de IVA Digital del mes de la razón
+// social y las ventas por provincia (Excel), y los sube, de fondo, a su carpeta de ese mes en el Drive (año › mes › carpeta, según la ruta cargada en Configuración ›
 // Google Drive; lib/google/drive.ts). Si ya se habían mandado, los reemplaza.
 
 import { entrarErp } from "@/app/componentes/erp";
@@ -9,9 +9,7 @@ import { ErrorErp, una } from "@/lib/erp/base";
 import { leerArchivoArca } from "@/lib/administracion/arca-mc-archivo";
 import { deMisComprobantes, importarComprasExternas, type CompraExterna } from "@/lib/administracion/compras-externas";
 import { deFondo } from "@/lib/tareas-fondo";
-import { archivosLibroIvaDigital, rangoMes } from "@/lib/administracion/libro-iva";
-import { libroIvaPeriodo } from "@/lib/administracion/libro-iva-base";
-import { subirAlDrive } from "@/lib/google/drive";
+import { mandarLibroAlDrive } from "@/lib/administracion/libro-iva-drive";
 import { intentar } from "@/lib/erp/acciones";
 import { leerLibroVentas, importarVentasExternas } from "@/lib/administracion/ventas-externas";
 
@@ -23,11 +21,8 @@ export async function accionMandarAlDrive(fd: FormData) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new ErrorErp("Elegí un mes entero.");
     const e = await una<{ nombre: string }>("select coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1 and id = $2", [s.org.id, rs]);
     if (!e) throw new ErrorErp("Elegí la razón social.");
-    const { desde, hasta } = rangoMes(mes);
-    const { ventas, compras } = await libroIvaPeriodo(s.org.id, desde, hasta, rs);
-    const archivos = archivosLibroIvaDigital(mes.replace("-", ""), ventas, compras)
-      .map((a) => ({ nombre: a.nombre, contenido: Buffer.from(a.contenido, "latin1"), tipo: "text/plain" }));
-    const r = await subirAlDrive(s.org.id, rs, mes, archivos);
+    // Los 5 TXT y las ventas por provincia; queda en el registro de subidas (lib/administracion/libro-iva-drive.ts).
+    const r = await mandarLibroAlDrive(s.org.id, rs, mes, "todo", "manual", s.usuario.id);
     return `Listo: ${r.cantidad} archivos del Libro de IVA de ${mes.split("-").reverse().join("/")} en ${r.donde}.`;
   });
 }
@@ -48,7 +43,7 @@ export async function accionImportarVentasExternas(fd: FormData) {
     if (graves.length) throw new ErrorErp(`${graves.slice(0, 3).join(" ")}${graves.length > 3 ? ` (y ${graves.length - 3} más)` : ""}`);
     const r = await importarVentasExternas(s.org.id, rs, sistema, cbte.name, cbtes);
     const f = (x: string) => x.split("-").reverse().join("/");
-    return `Ventas de ${sistema} del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están en Laucen` : ""}.${errores.length ? ` Ojo: ${errores.join(" ")}` : ""}`;
+    return `Ventas de ${sistema} del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están en Laucen` : ""}${r.liquidados ? `, ${r.liquidados} salteadas porque su mes ya está liquidado` : ""}.${errores.length ? ` Ojo: ${errores.join(" ")}` : ""}`;
   });
 }
 
@@ -83,6 +78,6 @@ export async function accionImportarComprasExternas(fd: FormData) {
     }
     const r = await importarComprasExternas(s.org.id, rs, "Mis Comprobantes", archivos.map((a) => a.name).join(", ").slice(0, 200), cbtes);
     const f = (x: string) => x.split("-").reverse().join("/");
-    return `Compras del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están cargadas como facturas de compra` : ""}.${errores.length ? ` No entraron: ${errores.slice(0, 3).join(" ")}${errores.length > 3 ? ` (y ${errores.length - 3} más)` : ""}` : ""}`;
+    return `Compras del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están cargadas como facturas de compra` : ""}${r.liquidados ? `, ${r.liquidados} salteadas porque su mes ya está liquidado` : ""}.${errores.length ? ` No entraron: ${errores.slice(0, 3).join(" ")}${errores.length > 3 ? ` (y ${errores.length - 3} más)` : ""}` : ""}`;
   });
 }

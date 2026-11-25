@@ -60,7 +60,12 @@ export default async function FichaDdjj({ params, searchParams }: { params: Prom
         {d.archivo && <a href={`${ruta}/pdf`} target="_blank" rel="noreferrer" className={SUAVE}>Ver el PDF</a>}
         {d.archivo && <a href={`${ruta}/pdf?bajar=1`} className={SUAVE}>Bajar el PDF</a>}
         <BotonesFicha editando={editando} ver={ruta} editar={`${ruta}?editar=ficha`} />
-        {!editando && <TachoConfirmar accion={accionBorrarDdjj} campos={{ id: String(d.id), rs: String(d.emisor_id) }} pregunta="¿Borrar la declaración?" />}
+        {/* La de IVA traba su mes del Libro de IVA: sólo el superadministrador la borra (lib/impuestos/ddjj.ts). */}
+        {!editando && (d.impuesto !== "iva"
+          ? <TachoConfirmar accion={accionBorrarDdjj} campos={{ id: String(d.id), rs: String(d.emisor_id) }} pregunta="¿Borrar la declaración?" />
+          : s.superadmin
+            ? <TachoConfirmar accion={accionBorrarDdjj} campos={{ id: String(d.id), rs: String(d.emisor_id) }} pregunta="¿Borrar? Destraba el Libro de IVA de ese mes (queda anotado quién la borró)." />
+            : <span className="self-center text-[11px] text-[#5C6B76]">🔒 Traba el Libro de IVA del mes</span>)}
       </>}>
       <Avisos sp={sp} />
       <form id="ficha" action={accionCorregirDdjj} className={`${CAJA} mb-4`}>

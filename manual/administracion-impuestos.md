@@ -64,6 +64,8 @@ Las declaraciones (de los últimos meses) que no coinciden con lo cargado, cada 
 
 Título: el impuesto, el mes y, si es rectificativa, su número; debajo, la razón social. Arriba a la derecha: **Ver el PDF**, **Bajar el PDF** (si se subió), el **lápiz** (pasa a edición: **Grabar** / **Cancelar**) y el **tacho** ("¿Borrar la declaración?").
 
+**La declaración de IVA traba su mes del Libro de IVA** (ver [Libros de IVA](/administracion/libros-iva), «Meses liquidados»): apenas se carga, las compras de ese mes ya no se pueden cambiar. Por eso sólo un **superadministrador** ve el tacho de una declaración de IVA (pregunta "¿Borrar? Destraba el Libro de IVA de ese mes"), y queda anotado quién la borró y cuándo; los demás ven «🔒 Traba el Libro de IVA del mes». Su lápiz sigue andando: corregir los importes, la fecha o las notas no cambia el libro.
+
 - **Presentada el** y **Notas**.
 - IVA: Débito fiscal, Crédito fiscal, Saldo técnico a favor del mes anterior, Saldo técnico a favor que queda, Retenciones, percepciones y pagos a cuenta, Libre disponibilidad a favor del mes anterior, Libre disponibilidad a favor que queda y A pagar.
 - Ingresos Brutos: **Base imponible total** y la tabla de provincias con Coef., Alíc., Base, Determ., Ret., Percep., Aduana, Recaud. (bancarias y SIRTAC), Restan (los valores que restan del resumen del CM03), Saldo ant., A pagar y A favor. En edición, cada número es un campo y abajo está **Agregar una provincia (se agrega al grabar)**.

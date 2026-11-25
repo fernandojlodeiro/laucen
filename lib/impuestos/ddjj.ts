@@ -2,7 +2,7 @@
 // La última declaración de IIBB de una razón social deja sus provincias (coeficiente y alícuota) en iibb_jurisdiccion,
 // y la última municipal, la alícuota y el mínimo: así la posición del mes en curso usa lo vigente.
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
 import { datosDe, type DatosDdjj, type DatosIibb, type DatosMunicipal, type Impuesto } from "@/lib/impuestos/ddjj-leer";
 import { asegurarCuentasIibb } from "@/lib/impuestos/cuentas";
 
@@ -37,11 +37,24 @@ export async function corregirDdjj(org: string, id: number, datos: DatosDdjj, ex
   await aplicarVigente(org, r.emisor_id, r.impuesto);
 }
 
-export async function borrarDdjj(org: string, id: number) {
-  // Si vino del Drive, se olvida que se leyó: la próxima búsqueda la vuelve a leer.
-  await consulta("delete from drive_archivo_leido where organizacion_id = $1 and ddjj_id = $2", [org, id]);
-  const r = await una<{ emisor_id: number; impuesto: Impuesto }>("delete from ddjj where organizacion_id = $1 and id = $2 returning emisor_id::int, impuesto", [org, id]);
-  if (!r) throw new ErrorErp("La declaración no existe.");
+/** La de IVA traba su mes del Libro de IVA (db/impuestos.sql): sólo la borra el superadministrador, y queda anotado
+ *  quién y cuándo (ddjj_borrada). Borrarla destraba el mes. */
+export async function borrarDdjj(org: string, id: number, quien: { superadmin: boolean; usuarioId: string; email: string | null }) {
+  const r = await enTransaccion(async (c) => {
+    const d = (await c.query<{ emisor_id: number; impuesto: Impuesto; periodo: string; rectificativa: number; datos: unknown }>(
+      "select emisor_id::int, impuesto, periodo, rectificativa, datos from ddjj where organizacion_id = $1 and id = $2 for update", [org, id])).rows[0];
+    if (!d) throw new ErrorErp("La declaración no existe.");
+    if (d.impuesto === "iva") {
+      if (!quien.superadmin) throw new ErrorErp("La declaración de IVA traba ese mes del Libro de IVA: sólo el superadministrador la puede borrar.");
+      await c.query("select set_config('laucen.ddjj_borrar', 'si', true)");
+      await c.query(`insert into ddjj_borrada (organizacion_id, emisor_id, impuesto, periodo, rectificativa, datos, usuario_id, usuario_email)
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`, [org, d.emisor_id, d.impuesto, d.periodo, d.rectificativa, JSON.stringify(d.datos ?? null), quien.usuarioId, quien.email]);
+    }
+    // Si vino del Drive, se olvida que se leyó: la próxima búsqueda la vuelve a leer.
+    await c.query("delete from drive_archivo_leido where organizacion_id = $1 and ddjj_id = $2", [org, id]);
+    await c.query("delete from ddjj where organizacion_id = $1 and id = $2", [org, id]);
+    return d;
+  });
   await aplicarVigente(org, r.emisor_id, r.impuesto);
 }
 

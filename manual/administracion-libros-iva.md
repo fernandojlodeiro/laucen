@@ -4,7 +4,7 @@ menu: Administración › Libros de IVA
 ruta: /administracion/libros-iva
 rutas: /administracion/libros-iva
 permiso: libros_iva_ver
-resumen: Libro IVA Ventas y Libro IVA Compras del mes, resumen por alícuota y saldo técnico, avisos para revisar, Excel y los archivos del Libro de IVA Digital de ARCA.
+resumen: Libro IVA Ventas y Libro IVA Compras del mes, ventas por provincia, resumen por alícuota y saldo técnico, avisos para revisar, Excel, los archivos del Libro de IVA Digital de ARCA y su subida automática al Drive; los meses con declaración jurada de IVA quedan trabados.
 ---
 
 ## Para qué sirve
@@ -13,7 +13,7 @@ Muestra, para un mes (o un rango de fechas), los dos libros de IVA:
 - **IVA Ventas**: los comprobantes de venta electrónicos autorizados por ARCA.
 - **IVA Compras**: las facturas de compra registradas y los despachos de importación registrados.
 
-Cada comprobante con su neto gravado e IVA por alícuota, no gravado, exento, percepciones y total, en pesos. Arriba, el **resumen** del mes: débito fiscal − crédito fiscal = **saldo técnico**. Además, una pestaña de **Avisos** con lo que conviene revisar antes de presentar, el **Excel** de cada libro y los **archivos del Libro de IVA Digital** para importar en ARCA.
+Cada comprobante con su neto gravado e IVA por alícuota, no gravado, exento, percepciones y total, en pesos. Arriba, el **resumen** del mes: débito fiscal − crédito fiscal = **saldo técnico**. Además, las **ventas por provincia** (para Ingresos Brutos), una pestaña de **Avisos** con lo que conviene revisar antes de presentar, el **Excel** de cada libro, los **archivos del Libro de IVA Digital** para importar en ARCA y el **registro de lo que se subió al Drive**, que se hace solo.
 
 Esta pantalla no carga nada: sólo lee lo que ya está en [Facturación](/administracion/facturacion), [Facturas de compra](/compras/facturas) y [Despachos de importación](/compras/despachos).
 
@@ -23,7 +23,7 @@ Esta pantalla no carga nada: sólo lee lo que ya está en [Facturación](/admini
 
 ## Qué hay en la pantalla
 
-Arriba a la derecha: **Descargar Excel** (en las pestañas IVA Ventas e IVA Compras; baja el libro que estás mirando).
+Arriba a la derecha: **Descargar Excel** (en las pestañas IVA Ventas, IVA Compras y Ventas por provincia; baja lo que estás mirando).
 
 Filtros (en un renglón):
 - **Mes**: los últimos 24 meses. **De entrada se muestra el mes pasado**, que es el que se presenta.
@@ -34,7 +34,7 @@ Filtros (en un renglón):
 - Tabla por alícuota del período: Base ventas, Débito fiscal, Base compras, Crédito fiscal, con su total.
 - Caja de saldo: **Débito fiscal (ventas)**, **− Crédito fiscal (compras y despachos)**, **Saldo técnico a pagar** (en rojo) o **a favor** (en verde), **Percepciones de IVA sufridas (saldo a favor, aparte)** y **Saldo después de percepciones**. Con la aclaración "Orientativo: no incluye saldos de meses anteriores, retenciones ni restituciones. La declaración jurada la arma el contador."
 
-Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Avisos (N)**.
+Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Ventas por provincia (N provincias)**, **Avisos (N)**.
 
 **Tabla del libro** (Ventas o Compras):
 - Fecha; Comprobante (con el código de ARCA en gris, ej. "001", y el texto "FA 00002-00000123"; enlace al comprobante; si es en dólares, "US$ × cotización"); Cliente o Proveedor (con tipo y número de documento, condición de IVA y, en ventas, el canal).
@@ -42,13 +42,20 @@ Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Avisos (N
 - Las notas de crédito salen en rojo y en negativo.
 - De a 50 filas, con paginador. Abajo, la fila **Total del período** (de todo el período, no sólo de la página) y la línea "Neto gravado … · IVA …".
 
+**Ventas por provincia**: una fila por provincia, de la que más vendió a la que menos: Provincia, **Cbtes.** (cantidad de comprobantes), **Sin prov.** (cuántos no tenían provincia y se asignaron a Córdoba), **Neto sin IVA**, **Total con IVA** y **% del neto**; abajo, la fila de totales. Siempre en pesos.
+
 **Avisos**: lista de cosas para revisar, cada una con enlace a lo que hay que mirar. Si no hay nada: "Nada para revisar en el período."
 
 **Libro de IVA Digital (ARCA)**, al pie:
 - Si no elegiste un mes entero: "Los archivos se arman por mes entero: elegí un mes arriba."
-- Con un mes: **Bajar los 5 archivos (.zip)** y un botón por archivo con su cantidad de renglones: ventas cbte, ventas alicuotas, compras cbte, compras alicuotas, importaciones.
+- Con un mes: **Bajar los 5 archivos (.zip)**, **ventas por provincia (.xlsx)** y un botón por archivo con su cantidad de renglones: ventas cbte, ventas alicuotas, compras cbte, compras alicuotas, importaciones.
 - Al lado, si Google Drive está conectado y la razón social tiene su ruta cargada: **Mandar al Drive** (corre de fondo: el botón pasa a "Trabajando…" y al terminar aparece el cartel). Si no, el enlace "Conectar Google Drive (y la ruta de esta razón social) para mandarlos a su carpeta", que lleva a [Configuración › Google Drive](/config/google-drive).
 - El aviso: antes de presentar, validarlos importándolos en el Libro de IVA Digital de ARCA (Portal IVA → Libro IVA Digital → Importar), que el primero lo revise el contador, y mirar la pestaña «Avisos».
+
+**Subidas al Drive · <mes>**, debajo (con un mes elegido):
+- Si el mes tiene cargada la declaración jurada de IVA: **🔒 Mes liquidado**, con enlace a la declaración y su fecha de presentación (ver «Meses liquidados» más abajo).
+- Si no: cómo se suben solos los archivos de ese mes.
+- La lista de subidas, de la más nueva a la más vieja: **Fecha y hora**, **Qué** («Libro entero (5 archivos + ventas por provincia)» o «Compras (3 archivos)»; al pasar el mouse, los nombres de los archivos), **Cómo** (Automática o A mano) y **Resultado** («Subido a …» con la carpeta, o en rojo «No se subió: …» con el motivo). Si no hay ninguna: "Todavía no se subió nada de este mes."
 
 ## Cómo se hace
 
@@ -73,7 +80,15 @@ Elegí período (y canal, si querés, en ventas), andá a la pestaña del libro 
 ### Mandarlos a la carpeta del mes en Google Drive
 1. Elegí un **Mes** entero (y la razón social, si hay más de una).
 2. En el recuadro «Libro de IVA Digital (ARCA)», apretá **Mandar al Drive**.
-3. Al terminar sale "Listo: 5 archivos del Libro de IVA de mm/aaaa en …" con la carpeta donde quedaron (la del año y el mes según la ruta cargada en [Configuración › Google Drive](/config/google-drive); si no existían, se crean). Si se mandan de nuevo, se reemplazan (no se duplican).
+3. Al terminar sale "Listo: 6 archivos del Libro de IVA de mm/aaaa en …" con la carpeta donde quedaron (la del año y el mes según la ruta cargada en [Configuración › Google Drive](/config/google-drive); si no existían, se crean): los 5 TXT y las ventas por provincia (VENTAS_POR_PROVINCIA_AAAAMM.xlsx). Si se mandan de nuevo, se reemplazan (no se duplican).
+4. Queda anotado en «Subidas al Drive» como «A mano».
+
+No hace falta mandarlos: se suben solos (ver «Subida automática al Drive»).
+
+### Ver las ventas por provincia
+1. Elegí el **Mes** (y la razón social, si hay más de una).
+2. Tocá la pestaña **Ventas por provincia**.
+3. Para el Excel, **Descargar Excel** arriba a la derecha (o **ventas por provincia (.xlsx)** en el recuadro del Libro de IVA Digital). Es el mismo archivo que se sube al Drive.
 
 ### Sumar las ventas facturadas con otro sistema
 Si antes se facturaba con otro sistema (con el mismo punto de venta), sus ventas se suman al libro como si las hubiera emitido este, así el libro y los archivos de ARCA quedan completos y con la numeración seguida.
@@ -99,6 +114,11 @@ Para los meses en que las facturas de compra no se cargaban acá, el libro de IV
 - Si el archivo es del CUIT de la otra razón social, no se importa y avisa.
 - En la tabla, esas compras dicen «anterior a Laucen (Mis Comprobantes)» debajo del proveedor y no tienen enlace.
 
+### Corregir algo de un mes ya liquidado
+No se puede: el mes quedó trabado al cargar su declaración jurada de IVA. Lo que haga falta va en el mes en curso:
+- Una factura de compra con fecha de ese mes que llegó tarde: cargala y registrala como siempre; entra sola en el primer mes sin liquidar.
+- Una factura registrada que estaba mal: se corrige con una nota de crédito o de débito, que entra en el mes en curso.
+
 ### Ver sólo las ventas de un canal
 En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales."
 
@@ -107,10 +127,10 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 ### Qué entra en cada libro
 - **IVA Ventas**: comprobantes electrónicos **autorizados** por ARCA, en **producción** (los de homologación/prueba no entran), con número, cuya **fecha** cae en el período.
 - **IVA Compras**:
-  - facturas de compra **registradas** (las en borrador no entran) cuya **fecha de la factura** cae en el período;
-  - despachos de importación **registrados** cuya fecha cae en el período.
+  - facturas de compra **registradas** (las en borrador no entran) cuya **fecha de la factura** cae en el período, salvo que al registrarlas su mes ya estuviera liquidado: entonces entran en el **primer mes sin liquidar** (ver «Meses liquidados»);
+  - despachos de importación **registrados**, con el mismo criterio.
   - **Facturas E (exterior) y X no entran** (sale un aviso: la mercadería del exterior entra por el despacho; la X no es un comprobante fiscal).
-- El período se toma por la **fecha del comprobante**, no por el día en que se cargó.
+- El período se toma por la **fecha del comprobante**, no por el día en que se cargó (salvo el caso de los meses liquidados). En los archivos de ARCA, el comprobante va siempre con su fecha original.
 
 ### Cómo se pasa cada comprobante al libro
 - Todo **en pesos**: lo que está en dólares se multiplica por la **cotización del propio comprobante**.
@@ -139,7 +159,8 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - Despacho sin número, sin IVA, o con IVA que no da 21 ni 10,5 %.
 - **Posible duplicado** en compras: mismo CUIT, tipo, punto de venta y número dos veces (despachos: mismo número).
 - Comprobante de venta repetido; venta A cuyo receptor no tiene CUIT.
-- Facturas de compra y despachos **registrados en este período pero con fecha de otro**: están en el libro de ese otro mes (si ya se presentó, consultarlo con el contador).
+- Facturas de compra y despachos **registrados en este período pero con fecha de otro**: están en el libro de ese otro mes (que todavía no estaba liquidado).
+- Facturas de compra y despachos **con fecha de un mes anterior que entran en este libro** porque su mes ya estaba liquidado cuando se registraron.
 - Facturas de compra y despachos del período que **siguen en borrador** (no entran hasta registrarlos).
 - Ventas del período de **homologación** (prueba) o **no autorizadas** por ARCA (pendientes, con error o rechazadas).
 
@@ -152,13 +173,38 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - En las **compras**, lo que figura como neto gravado al 0 % (así trae Mis Comprobantes de ARCA la parte exenta de una factura A) se informa en el archivo como **operaciones exentas** y no como alícuota: el Libro de IVA Digital rechaza una alícuota 0 % con importe en una compra. En pantalla se sigue viendo en la columna 0 %.
 - **Hay que validarlos importándolos en ARCA** antes de presentar.
 
+### Ventas por provincia
+- Son los mismos comprobantes del libro de IVA ventas del período (los de este sistema y los importados de otro sistema).
+- La provincia de cada comprobante sale, en este orden: 1) la **dirección de entrega del pedido** (la de Mercado Libre, o la del envío cargado en el pedido); 2) si no tiene, la **dirección cargada del cliente** (la principal; si no hay principal, la última cargada); 3) las ventas importadas de otro sistema no tienen pedido: se busca al cliente por su **CUIT o DNI** y se usa su dirección; 4) si no hay ninguna, **Córdoba**, y se cuenta en «Sin prov.».
+- La provincia se lee con los 24 nombres de la lista de provincias («Capital Federal» para la Ciudad de Buenos Aires).
+- **Neto sin IVA** = neto gravado + no gravado + exento (y, en las facturas C, el total), igual que la base de Ingresos Brutos de [Impuestos](/administracion/impuestos). **Total con IVA** = el total del comprobante.
+- Las notas de crédito restan; lo que está en dólares va a la cotización del comprobante. El **%** es sobre el neto sin IVA del período.
+
+### Subida automática al Drive
+Con Google Drive conectado y la ruta de la razón social cargada en [Configuración › Google Drive](/config/google-drive), los archivos se suben solos, a la madrugada (alrededor de las 3), a la carpeta del mes:
+- **El día 1 de cada mes**, el **libro entero del mes que terminó**: los 5 TXT del Libro de IVA Digital y las ventas por provincia. Si esa noche no se pudo (por ejemplo, el Drive estaba desconectado), se vuelve a intentar cada noche hasta que salga.
+- **Todas las noches**, los **3 archivos de compras** (COMPRAS_CBTE, COMPRAS_ALICUOTAS e IMPORTACIONES) de cada mes **todavía sin liquidar** (incluido el mes en curso), **sólo si cambiaron** desde la última vez que se subieron. Un mes sin ninguna compra no se sube.
+- Cuando el mes se liquida (se carga su declaración jurada de IVA), sus compras dejan de subirse: ya no pueden cambiar.
+- Cada subida, automática o a mano, queda en «Subidas al Drive» con fecha, hora y resultado.
+- Lo que se sube reemplaza al archivo del mismo nombre que ya estaba en la carpeta.
+
+### Meses liquidados
+Un mes de una razón social queda **liquidado** apenas se carga su **declaración jurada de IVA** en [Impuestos](/administracion/impuestos) (subida a mano o leída del Drive). Desde ese momento **nadie puede alterar nada que haya entrado en ese libro**:
+- Las facturas de compra y los despachos registrados en ese mes no vuelven a borrador ni cambian sus importes, fechas, proveedor ni número. En su ficha dice **🔒 liquidado**.
+- No se importan, reemplazan ni borran ventas de otro sistema ni compras anteriores de ese mes (al importar, esas se saltean y se avisa cuántas).
+- Una factura de compra o un despacho **con fecha de un mes liquidado** que se registra después entra en el **primer mes sin liquidar** desde su fecha (si el mes siguiente también está liquidado, en el que sigue, y así). Su ficha muestra en qué mes del Libro de IVA entró, y el libro de ese mes lo marca en Avisos.
+- La traba vale por cualquier camino, no sólo desde las pantallas.
+- La declaración jurada de IVA no se puede borrar ni pasar a otro mes. Sólo un **superadministrador** puede borrarla desde su ficha en Impuestos, y queda anotado quién lo hizo y cuándo; al borrarla, el mes se destraba.
+- Corregir lo que trae la declaración (sus importes, fecha o notas) sí se puede: eso no cambia el libro.
+
 ## Con más de una razón social
 
 **Cada razón social presenta su propio libro de IVA**, así que esta pantalla se mira de **una sola** (no hay "Todas"): arriba aparece el selector **"Razón social"** y, sin elegir, se ve la principal.
 
 - **IVA Ventas** muestra los comprobantes emitidos por esa razón social (por el CUIT con el que se facturó, sin importar el canal).
 - **IVA Compras** muestra las facturas de compra y los despachos registrados **a nombre de esa razón social**.
-- El resumen, los **Avisos**, el **Excel** y los **archivos de ARCA** (Libro de IVA Digital) salen de la razón social elegida.
+- El resumen, las **ventas por provincia**, los **Avisos**, el **Excel** y los **archivos de ARCA** (Libro de IVA Digital) salen de la razón social elegida.
+- Cada razón social se sube a su propia carpeta del Drive y se liquida por separado: la declaración de IVA de una no traba el libro de la otra.
 - Una factura de compra cargada a nombre de la otra razón social no entra acá; entra en el libro de la otra.
 
 ## Preguntas frecuentes
@@ -173,7 +219,16 @@ Puede estar en borrador (no entra hasta registrarla), tener fecha de otro mes, o
 Porque es el que se presenta. Elegí otro en "Mes".
 
 **Cargué una factura vieja este mes, ¿en qué libro queda?**
-En el del mes de su fecha. En la pestaña Avisos del mes en que la cargaste aparece "se cargó en este período pero tiene fecha …".
+En el del mes de su fecha, si ese mes todavía no está liquidado (en la pestaña Avisos del mes en que la cargaste aparece "se cargó en este período pero tiene fecha …"). Si ya está liquidado, en el primer mes sin liquidar; su ficha lo dice.
+
+**¿Por qué no puedo volver a borrador una factura?**
+Si dice 🔒 liquidado, su mes del Libro de IVA ya tiene la declaración jurada de IVA cargada y no se toca. Corregila con una nota de crédito o de débito.
+
+**¿Tengo que mandar los archivos al Drive todos los meses?**
+No: el día 1 se sube solo el libro entero del mes que terminó, y las compras se van subiendo cada noche que cambian, hasta que el mes se liquida. Lo ves en «Subidas al Drive».
+
+**¿De dónde sale la provincia de cada venta?**
+De la dirección de entrega del pedido; si no tiene, de la dirección del cliente; si no hay ninguna, se asigna a Córdoba (columna «Sin prov.»).
 
 **¿El saldo técnico es lo que tengo que pagar?**
 Es orientativo: no incluye saldos a favor de meses anteriores, retenciones ni restituciones. La declaración jurada la arma el contador.

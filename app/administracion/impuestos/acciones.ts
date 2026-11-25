@@ -111,7 +111,7 @@ export async function accionBorrarDdjj(fd: FormData) {
   const id = Number(texto(fd, "id")) || 0;
   const rs = Number(texto(fd, "rs")) || null;
   await intentar(`${BASE}/${id}`, async () => {
-    await borrarDdjj(s.org.id, id);
+    await borrarDdjj(s.org.id, id, { superadmin: s.superadmin, usuarioId: s.usuario.id, email: s.usuario.email ?? null });
     revalidatePath(BASE);
     return { ir: volver(rs, { ver: "declaraciones", ok: "Declaración borrada." }) };
   });

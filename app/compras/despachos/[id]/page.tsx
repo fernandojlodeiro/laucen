@@ -37,7 +37,7 @@ type Despacho = {
   id: number; numero: string | null; proveedor_id: number | null; proveedor: string | null; fecha: string; cotizacion: number;
   fob_usd: number; flete_usd: number; seguro_usd: number; gastos: Item[]; impuestos: Item[]; deposito_id: number | null; deposito: string | null;
   estado: string; notas: string | null; registrado_ts: Date | null; emisor_id: number | null; emisor: string | null;
-  archivo: string | null; lectura: LecturaDespacho | null;
+  archivo: string | null; lectura: LecturaDespacho | null; periodo_iva: string | null; iva_cerrado: boolean;
 };
 type Linea = {
   id: number; variacion_id: number | null; descripcion: string; ncm: string | null; cantidad: number; fob_unit_usd: number;
@@ -58,7 +58,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
     select d.id::int, d.numero, d.proveedor_id::int, p.nombre proveedor, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.cotizacion::float,
            d.fob_usd::float, d.flete_usd::float, d.seguro_usd::float, d.gastos, d.impuestos, d.deposito_id::int, dep.nombre deposito,
            d.estado, d.notas, d.registrado_ts, d.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = d.emisor_id) emisor,
-           d.archivo, d.lectura
+           d.archivo, d.lectura, d.periodo_iva, iva_mes_cerrado(d.emisor_id, d.periodo_iva) iva_cerrado
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id left join deposito dep on dep.id = d.deposito_id
      where d.id = $1 and d.organizacion_id = $2`, [did, s.org.id]);
   if (!d) notFound();
@@ -165,7 +165,8 @@ export default async function DetalleDespacho({ params, searchParams }: { params
     <Pantalla ancho="max-w-6xl"
       titulo={<>Despacho <span className="font-mono">{d.numero ?? `#${d.id} (sin número)`}</span></>}
       camino={[{ texto: d.numero ?? `#${d.id}` }]}
-      subtitulo={<>{fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}</>}
+      subtitulo={<>{fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}
+        {d.periodo_iva && <> · Libro de IVA <Link href={`/administracion/libros-iva?libro=compras&mes=${d.periodo_iva}${d.emisor_id ? `&rs=${d.emisor_id}` : ""}`} className="text-[#16577F] hover:underline">{d.periodo_iva.split("-").reverse().join("/")}</Link>{d.iva_cerrado ? " 🔒 liquidado" : ""}{d.periodo_iva !== d.fecha.slice(0, 7) ? " (su mes ya estaba liquidado)" : ""}</>}</>}
       acciones={<>
         {/* El PDF del despacho, guardado al subirlo (Fer, 23/10): verlo en otra pestaña o bajarlo. */}
         {d.archivo && <a href={`/compras/despachos/${did}/pdf`} target="_blank" rel="noreferrer" className={SUAVE}>Ver el PDF</a>}
@@ -177,7 +178,9 @@ export default async function DetalleDespacho({ params, searchParams }: { params
             pregunta="¿Registrar? Ingresa el stock y deja el costo puesto en depósito. Después no se puede cambiar." corriendo="Registrando…" />
           <TachoConfirmar accion={accionBorrarDespacho} campos={{ id: String(did) }} pregunta="¿Borrar el borrador?" />
         </>
-      ) : d.estado === "registrado" ? (lineas.some((l) => l.variacion_id != null) ? (
+      ) : d.estado === "registrado" ? (d.iva_cerrado ? (
+        <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">🔒 Su mes del Libro de IVA ya está liquidado: no se puede cambiar.</span>
+      ) : lineas.some((l) => l.variacion_id != null) ? (
         <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">Tiene mercadería con producto: ya entró al stock y no vuelve a borrador.</span>
       ) : (
         <BotonConfirmar accion={accionDespachoABorrador} campos={{ id: String(did) }} clase={SUAVE} texto="Volver a borrador"

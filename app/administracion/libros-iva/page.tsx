@@ -29,6 +29,8 @@ import { libroIvaPeriodo, canalesConVentas, type AvisoLibro } from "@/lib/admini
 import { elegirRazonSocial, nombreRs } from "@/lib/razon-social";
 import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
 import { periodoDe, mesesParaElegir, nombreMes, canalDe, type SPLibro } from "./comun";
+import { ventasPorProvincia, PROVINCIA_POR_DEFECTO, type FilaProvincia } from "@/lib/administracion/ventas-provincia";
+import { enviosDelMes, liquidacionDelMes, type EnvioLibro } from "@/lib/administracion/libro-iva-drive";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -47,7 +49,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const org = s.org.id;
   const { desde, hasta, periodo } = periodoDe(sp);
-  const libro = sp.libro === "compras" || sp.libro === "avisos" ? sp.libro : "ventas";
+  const libro = sp.libro === "compras" || sp.libro === "avisos" || sp.libro === "provincias" ? sp.libro : "ventas";
   const canal = canalDe(sp);
   // Cada razón social presenta su libro de IVA: se mira de una sola (la principal, sin elegir).
   const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
@@ -62,17 +64,22 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const ventasCanal = canal ? armarLibro(ventasV.filter((v) => v.canalId === canal)) : libroVentas;
   const resumen = resumenIva(libroVentas.totales, libroCompras.totales);
   const archivos = periodo && /^\d{6}$/.test(periodo) ? archivosLibroIvaDigital(periodo, ventas, compras) : null;
+  const provincias = await ventasPorProvincia(org, ventas);
 
   const filtros = { mes: sp.mes, desde: sp.desde, hasta: sp.hasta, rs: rs.multi && rs.id ? String(rs.id) : undefined };
   const mesElegido = periodo && /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4)}` : "";
   const meses = mesesParaElegir();
   const titulo = mesElegido ? nombreMes(mesElegido) : `${fechaAr(desde)} al ${fechaAr(hasta)}`;
+  const [envios, liquidacion] = mesElegido && rs.id
+    ? await Promise.all([enviosDelMes(org, rs.id, mesElegido), liquidacionDelMes(org, rs.id, mesElegido)])
+    : [[] as EnvioLibro[], null];
 
   return (
     <Pantalla titulo="Libros de IVA" ancho="max-w-[1400px]"
       subtitulo="Libro IVA Ventas y Libro IVA Compras: comprobantes del período por fecha, con neto gravado e IVA por alícuota. Las notas de crédito restan; lo que está en dólares va a la cotización del comprobante."
       acciones={<>
-        {libro !== "avisos" && <a href={url(`${BASE}/excel`, { ...filtros, libro, canal: libro === "ventas" ? sp.canal : undefined })} className={VERDE}>Descargar Excel</a>}
+        {libro === "provincias" && <a href={url(`${BASE}/provincias`, filtros)} className={VERDE}>Descargar Excel</a>}
+        {(libro === "ventas" || libro === "compras") && <a href={url(`${BASE}/excel`, { ...filtros, libro, canal: libro === "ventas" ? sp.canal : undefined })} className={VERDE}>Descargar Excel</a>}
         <BotonNuevo texto={IMPORTAR} clave={CLAVE_IMPORTAR} />
       </>}>
       <Avisos sp={sp} />
@@ -127,6 +134,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
       <Pestanas items={[
         { clave: "ventas", texto: "IVA Ventas", activa: libro === "ventas", href: url(BASE, { ...filtros, canal: sp.canal }), cuenta: ventasCanal.filas.length },
         { clave: "compras", texto: "IVA Compras", activa: libro === "compras", href: url(BASE, { ...filtros, libro: "compras" }), cuenta: libroCompras.filas.length },
+        { clave: "provincias", texto: "Ventas por provincia", activa: libro === "provincias", href: url(BASE, { ...filtros, libro: "provincias" }), cuenta: provincias.length },
         { clave: "avisos", texto: "Avisos", activa: libro === "avisos", href: url(BASE, { ...filtros, libro: "avisos" }), cuenta: avisos.length },
       ]} />
 
@@ -137,9 +145,11 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
         </>
       )}
       {libro === "compras" && <TablaLibro filas={libroCompras.filas} totales={libroCompras.totales} sp={sp} compras enDolares={enDolares} />}
+      {libro === "provincias" && <TablaProvincias filas={provincias} />}
       {libro === "avisos" && <ListaAvisos avisos={avisos} />}
 
       <LibroDigital archivos={archivos} filtros={filtros} mes={mesElegido} rs={rs.id} drive={drive.conectado && !drive.permiso_viejo && !!rs.id && !!rutas[String(rs.id)]} />
+      {mesElegido && rs.id && <SubidasDrive mes={mesElegido} envios={envios} liquidacion={liquidacion} drive={drive.conectado && !!rutas[String(rs.id)]} />}
     </Pantalla>
   );
 }
@@ -286,6 +296,7 @@ function LibroDigital({ archivos, filtros, mes, rs, drive }: {
         <>
           <div className="flex flex-wrap gap-2 mb-2">
             <a href={url(`${BASE}/txt`, filtros)} className={VERDE}>Bajar los 5 archivos (.zip)</a>
+            <a href={url(`${BASE}/provincias`, filtros)} className={SUAVE}>ventas por provincia (.xlsx)</a>
             {archivos.map((a) => {
               const clave = a.nombre.replace(/^LIBRO_IVA_DIGITAL_/, "").replace(/_\d{6}\.txt$/, "");
               return <a key={a.nombre} href={url(`${BASE}/txt`, { ...filtros, archivo: clave })} className={SUAVE}>{clave.replace(/_/g, " ").toLowerCase()} ({a.renglones})</a>;
@@ -300,6 +311,90 @@ function LibroDigital({ archivos, filtros, mes, rs, drive }: {
           </p>
         </>
       )}
+    </section>
+  );
+}
+
+function TablaProvincias({ filas }: { filas: FilaProvincia[] }) {
+  if (!filas.length) return <p className={`${CAJA} text-xs text-[#5C6B76] mb-4`}>No hay comprobantes de venta en el período.</p>;
+  const t = (k: "comprobantes" | "asignados" | "neto" | "total") => filas.reduce((s, f) => s + f[k], 0);
+  return (
+    <div className="mb-4">
+      <div className={`${CAJA_TABLA} max-w-4xl`}>
+        <table className={TABLA}>
+          <thead className={THEAD}>
+            <tr>
+              <th className={TH}>Provincia</th><th className={THN} title="Comprobantes">Cbtes.</th>
+              <th className={THN} title={`Sin provincia, asignados a ${PROVINCIA_POR_DEFECTO}`}>Sin prov.</th>
+              <th className={THN}>Neto sin IVA</th><th className={THN}>Total con IVA</th><th className={THN} title="Porcentaje sobre el neto sin IVA del período">% del neto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={f.provincia} className={TR}>
+                <td className={TD}>{f.provincia}</td>
+                <td className={TDN}>{f.comprobantes.toLocaleString("es-AR")}</td>
+                <td className={TDN}>{f.asignados ? f.asignados.toLocaleString("es-AR") : ""}</td>
+                <td className={TDN}>{n2(f.neto, "0,00")}</td>
+                <td className={TDN}>{n2(f.total, "0,00")}</td>
+                <td className={TDN}>{f.pct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %</td>
+              </tr>
+            ))}
+            <tr className={`${TR} font-bold bg-[#FAFBFC]`}>
+              <td className={TD}>Total</td>
+              <td className={TDN}>{t("comprobantes").toLocaleString("es-AR")}</td><td className={TDN}>{t("asignados").toLocaleString("es-AR")}</td>
+              <td className={TDN}>{n2(t("neto"), "0,00")}</td><td className={TDN}>{n2(t("total"), "0,00")}</td><td className={TDN}>100,0 %</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-[#5C6B76] mt-1">
+        Provincia de cada comprobante: la dirección de entrega del pedido (la de Mercado Libre); si no tiene, la dirección cargada del cliente (las ventas de otro sistema
+        buscan al cliente por su CUIT o DNI); si no hay ninguna, {PROVINCIA_POR_DEFECTO}. Las notas de crédito restan; lo que está en dólares va a la cotización del comprobante.
+        Siempre en pesos.
+      </p>
+    </div>
+  );
+}
+
+const fechaHora = (ts: string) => new Date(ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+function SubidasDrive({ mes, envios, liquidacion, drive }: {
+  mes: string; envios: EnvioLibro[]; liquidacion: Awaited<ReturnType<typeof liquidacionDelMes>>; drive: boolean;
+}) {
+  return (
+    <section className={`${CAJA} text-xs mt-3`}>
+      <h2 className="text-sm font-bold mb-1">Subidas al Drive · {nombreMes(mes)}</h2>
+      {liquidacion
+        ? <p className="rounded-lg px-3 py-2 mb-2 bg-[#EEF2F6] text-[#2B3A45]">
+            🔒 <b>Mes liquidado</b>: está cargada la <Link href={`/administracion/impuestos/${liquidacion.id}`} className="text-[#16577F] hover:underline">declaración jurada de IVA</Link>
+            {liquidacion.fecha_presentacion ? ` (presentada el ${fechaAr(liquidacion.fecha_presentacion)})` : ""}. Sus comprobantes de compra ya no se pueden cambiar y las compras dejan de subirse;
+            una factura con fecha de este mes que se registre ahora entra en el primer mes sin liquidar.
+          </p>
+        : <p className="text-[#5C6B76] mb-2">
+            {drive
+              ? "Se suben solos: el día 1 del mes siguiente, el libro entero (los 5 archivos y las ventas por provincia); y cada noche, mientras el mes no esté liquidado, los 3 archivos de compras si cambiaron."
+              : "Con Google Drive conectado y la ruta de esta razón social cargada, se suben solos: el día 1 del mes siguiente el libro entero y cada noche las compras si cambiaron."}
+          </p>}
+      {envios.length === 0
+        ? <p className="text-[#5C6B76]">Todavía no se subió nada de este mes.</p>
+        : (
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Fecha y hora</th><th className={TH}>Qué</th><th className={TH}>Cómo</th><th className={TH}>Resultado</th></tr></thead>
+              <tbody>
+                {envios.map((e) => (
+                  <tr key={e.id} className={TR}>
+                    <td className={`${TD} whitespace-nowrap`}>{fechaHora(e.ts)}</td>
+                    <td className={TD} title={e.archivos?.join("\n") ?? undefined}>{e.que === "todo" ? "Libro entero (5 archivos + ventas por provincia)" : "Compras (3 archivos)"}</td>
+                    <td className={TD}>{e.origen === "automatico" ? "Automática" : "A mano"}</td>
+                    <td className={TD}>{e.ok ? <span className="text-[#1F6E4A]">Subido{e.donde ? ` a ${e.donde}` : ""}</span> : <span className="text-[#C03420]">No se subió: {e.error}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
     </section>
   );
 }

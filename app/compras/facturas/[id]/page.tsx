@@ -36,7 +36,7 @@ type Factura = {
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
   recepcion_id: number | null; cuenta_gasto_id: number | null; cuenta_gasto: string | null; estado: string; notas: string | null; registrada_ts: Date | null;
   diferencia_recepcion: DiferenciaRecepcion[] | null; emisor_id: number | null; emisor: string | null;
-  archivo: string | null; validada_arca_ts: Date | null;
+  archivo: string | null; validada_arca_ts: Date | null; periodo_iva: string | null; iva_cerrado: boolean;
 };
 type Linea = { id: number; variacion_id: number | null; sku: string | null; descripcion: string; cantidad: number; costo_unit: number; iva_pct: number; neto: number; iva: number };
 
@@ -52,7 +52,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
            f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts,
            f.diferencia_recepcion, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor,
-           f.archivo, f.validada_arca_ts
+           f.archivo, f.validada_arca_ts, f.periodo_iva, iva_mes_cerrado(f.emisor_id, f.periodo_iva) iva_cerrado
       from factura_compra f join proveedor p on p.id = f.proveedor_id
       left join deposito d on d.id = f.deposito_id
       left join plan_cuenta pc on pc.id = f.cuenta_gasto_id and pc.organizacion_id = f.organizacion_id
@@ -108,7 +108,9 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
         </>
       ) : (
         <>
-          {f.estado === "registrada" && (conProducto ? (
+          {f.estado === "registrada" && (f.iva_cerrado ? (
+            <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">🔒 Su mes del Libro de IVA ya está liquidado: no se puede cambiar (se corrige con una nota de crédito o de débito, que entra en el mes en curso).</span>
+          ) : conProducto ? (
             <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">Tiene mercadería: no vuelve a borrador (se corrige con una nota de crédito o de débito).</span>
           ) : (
             <BotonConfirmar accion={accionVolverABorrador} campos={{ id: String(fid) }} clase={SUAVE} texto="Volver a borrador"
@@ -144,7 +146,14 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
             <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className="font-semibold text-[#16577F] hover:underline">{f.proveedor}</Link>
             <div className="text-[#5C6B76]">ver cuenta corriente</div>
           </Dato>
-          <Dato t="Fecha">{fechaAR(f.fecha)}{f.vencimiento && <div className="text-[#5C6B76]">vence {fechaAR(f.vencimiento)}</div>}</Dato>
+          <Dato t="Fecha">{fechaAR(f.fecha)}{f.vencimiento && <div className="text-[#5C6B76]">vence {fechaAR(f.vencimiento)}</div>}
+            {f.periodo_iva && (
+              <div className={f.iva_cerrado || f.periodo_iva !== f.fecha.slice(0, 7) ? "text-[#2B3A45]" : "text-[#5C6B76]"}>
+                Libro de IVA: <Link href={`/administracion/libros-iva?libro=compras&mes=${f.periodo_iva}${f.emisor_id ? `&rs=${f.emisor_id}` : ""}`} className="text-[#16577F] hover:underline">{f.periodo_iva.split("-").reverse().join("/")}</Link>
+                {f.iva_cerrado ? " 🔒 liquidado" : ""}{f.periodo_iva !== f.fecha.slice(0, 7) ? " (su mes ya estaba liquidado)" : ""}
+              </div>
+            )}
+          </Dato>
           <Dato t="Moneda">{m === "USD" ? `Dólares · cotización ${f.cotizacion.toLocaleString("es-AR")}` : "Pesos"}</Dato>
           <Dato t="Depósito">{f.recepcion_id ? <Link href={`/deposito/recepcion/${f.recepcion_id}`} className="text-[#16577F] hover:underline">Recepción #{f.recepcion_id}</Link> : (f.deposito ?? "—")}</Dato>
           <Dato t="Cuenta de gasto">{f.cuenta_gasto ?? "Mercadería"}</Dato>
