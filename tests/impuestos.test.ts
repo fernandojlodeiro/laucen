@@ -106,3 +106,20 @@ test("CM03: la provincia sale del nombre de la fila aunque el código venga corr
   assert.equal(codigoJurisdiccion("SANTIAGO DEL"), 922);
   assert.equal(codigoJurisdiccion("TIERRA DEL FUEGO"), 923);
 });
+
+test("Mis Retenciones de ARCA: encabezados de ARCA, fechas dd/mm/aaaa, importes con punto o coma", async () => {
+  const { leerMisRetenciones } = await import("@/lib/impuestos/retenciones");
+  const enc = ["CUIT Agente Ret./Perc.", "Denominación o Razón Social", "Impuesto", "Descripción Impuesto", "Régimen", "Descripción Régimen", "Fecha Ret./Perc.",
+    "Número Certificado", "Descripción Operación", "Importe Ret./Perc.", "Número Comprobante", "Fecha Comprobante", "Descripción Comprobante", "Fecha Registración DJ Ag.Ret."];
+  const { filas, errores } = leerMisRetenciones([
+    enc,
+    ["30639453738", "TELECOM", "767", "SICORE IVA", "493", "PERCEPCION IVA", "01/10/2026", "85425", "PERCEPCION", "766.74", "0000395008207627", "08/09/2026", "FACTURA", "13/11/2026"],
+    ["30703088534", "MERCADOLIBRE S.R.L.", "767", "SICORE IVA", "972", "x", "15/02/2026", "1", "PERCEPCION", "-8.759,82", "", "", "NOTA DE CREDITO", ""],
+    ["", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["123", "MAL", "767", "", "", "", "sin fecha", "", "", "x", "", "", "", ""],
+  ]);
+  assert.equal(filas.length, 2);
+  assert.deepEqual([filas[0].fecha, filas[0].importe, filas[0].impuesto, filas[0].regimen, filas[0].fecha_comprobante], ["2026-10-01", 766.74, 767, 493, "2026-09-08"]);
+  assert.equal(filas[1].importe, -8759.82);
+  assert.equal(errores.length, 1);
+});

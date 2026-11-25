@@ -153,7 +153,7 @@ async function Posicion({ org, emisorId, mes }: { org: string; emisorId: number;
               {iva.saldoTecnicoFavor > 0
                 ? <Fila t="Saldo técnico a favor (pasa al mes que viene)" v={iva.saldoTecnicoFavor} fuerte />
                 : <Fila t="Impuesto del mes" v={iva.impuesto} fuerte />}
-              <Fila t="Percepciones de IVA (pagos a cuenta)" v={iva.pagosACuenta} signo="−" />
+              <Fila t={c.pagosDeArca ? "Percepciones y retenciones de IVA (pagos a cuenta, de Mis Retenciones de ARCA)" : "Percepciones de IVA de las facturas de compra (pagos a cuenta)"} v={iva.pagosACuenta} signo="−" />
               <Fila t={`Saldo de libre disponibilidad del mes anterior${p.simulado.iva ? " (simulado)" : ""}`} v={iva.saldoLibreAnterior} signo="−" />
               {iva.aPagar > 0 || iva.saldoLibreFavor === 0
                 ? <Fila t={<span className="text-[#C03420]">A pagar</span>} v={iva.aPagar} fuerte />

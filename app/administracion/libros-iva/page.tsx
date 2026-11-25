@@ -10,7 +10,8 @@ import Link from "next/link";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { conexionDrive, rutasDe } from "@/lib/google/drive";
-import { accionMandarAlDrive, accionImportarVentasExternas, accionImportarComprasExternas } from "./acciones";
+import { accionMandarAlDrive, accionImportarVentasExternas, accionImportarComprasExternas, accionImportarRetenciones } from "./acciones";
+import { resumenRetenciones } from "@/lib/impuestos/retenciones";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { resumenVentasExternas } from "@/lib/administracion/ventas-externas";
 import { resumenComprasExternas } from "@/lib/administracion/compras-externas";
@@ -55,6 +56,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   // Cada razón social presenta su libro de IVA: se mira de una sola (la principal, sin elegir).
   const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
   const [{ ventas, compras, avisos }, canales, drive, rutas, externas, externasCompras] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org), conexionDrive(org), rutasDe(org), resumenVentasExternas(org), resumenComprasExternas(org)]);
+  const retencionesArca = await resumenRetenciones(org);
 
   // En dólares se mira el mismo libro con cada comprobante al dólar de su día (los archivos para ARCA siguen en pesos).
   const enDolares = s.moneda === "USD";
@@ -110,6 +112,23 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
             volver a importar reemplaza, no duplica.
           </p>
         </form>
+        <h3 className="text-xs font-bold mt-3 mb-1 border-t border-[#E3E9F0] pt-3">Percepciones y retenciones sufridas (Mis Retenciones de ARCA)</h3>
+        <form action={accionImportarRetenciones} className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="volver" value={url(BASE, filtros)} />
+          <ElegirRs rs={rs} />
+          <label><span className={ETIQUETA}>Listado de «Mis Retenciones» (.xls o .xlsx)</span>
+            <input type="file" name="archivo" required accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="text-xs" /></label>
+          <BotonEnviar clase={PRIMARIO} corriendo="Importando…">Importar percepciones y retenciones</BotonEnviar>
+          <p className="w-full text-[11px] text-[#5C6B76]">
+            Son los pagos a cuenta de IVA de la declaración simulada, por la fecha de la percepción o retención (como los toma el contador). Bajá el listado desde el
+            primer mes que quieras hasta hoy; volver a importar no duplica. El archivo no dice de qué razón social es: elegila bien.
+          </p>
+        </form>
+        {retencionesArca.length > 0 && (
+          <ul className="mt-2 text-[11px] text-[#5C6B76]">
+            {retencionesArca.map((x) => <li key={x.emisor_id}>Ya importado: percepciones y retenciones · {(() => { const r = rs.razones.find((y) => y.id === x.emisor_id); return r ? nombreRs(r) : `Razón social ${x.emisor_id}`; })()} · {x.n.toLocaleString("es-AR")} del {fechaAr(x.desde)} al {fechaAr(x.hasta)}</li>)}
+          </ul>
+        )}
         {(externas.length > 0 || externasCompras.length > 0) && (
           <ul className="mt-2 text-[11px] text-[#5C6B76]">
             {[...externas.map((x) => ({ ...x, que: "ventas" })), ...externasCompras.map((x) => ({ ...x, que: "compras" }))].map((x) => (
@@ -425,7 +444,7 @@ function DdjjSimulada({ p, mes, rs, liquidado }: { p: PosicionDelMes; mes: strin
         {iva.saldoTecnicoFavor > 0
           ? <Fila t="Saldo técnico a favor (pasa al mes que viene)" v={iva.saldoTecnicoFavor} fuerte clase="text-[#1F6E4A]" />
           : <Fila t="Impuesto del mes" v={iva.impuesto} fuerte />}
-        <Fila t="Percepciones de IVA (pagos a cuenta)" v={iva.pagosACuenta} signo="−" />
+        <Fila t={p.cargado.pagosDeArca ? "Percepciones y retenciones de IVA (de Mis Retenciones de ARCA)" : "Percepciones de IVA de las facturas de compra"} v={iva.pagosACuenta} signo="−" />
         <Fila t={`Saldo de libre disponibilidad del mes anterior${sim}`} v={iva.saldoLibreAnterior} signo="−" />
         {iva.aPagar > 0 || iva.saldoLibreFavor === 0
           ? <Fila t="A pagar" v={iva.aPagar} fuerte clase="text-[#C03420]" />
@@ -434,7 +453,7 @@ function DdjjSimulada({ p, mes, rs, liquidado }: { p: PosicionDelMes; mes: strin
       {p.avisos.filter((a) => /IVA/.test(a)).map((a, i) => <p key={i} className="mt-1 text-[11px] text-[#8a6100]">{a}</p>)}
       <p className="mt-1 text-[10px] text-[#5C6B76]">
         Como el formulario de ARCA: débito − crédito − saldo técnico anterior; si da negativo, queda saldo técnico a favor. Al impuesto se le restan los pagos a cuenta y el saldo
-        de libre disponibilidad anterior. Los pagos a cuenta son las percepciones de IVA de las facturas de compra y los despachos: las retenciones de IVA que no están cargadas no se ven.
+        de libre disponibilidad anterior. Los pagos a cuenta salen de «Mis Retenciones» de ARCA, por la fecha de la percepción (importalo con «+ Importar ventas o compras anteriores»); en un mes que no está ahí, de las percepciones de IVA de las facturas de compra y los despachos.
       </p>
     </section>
   );

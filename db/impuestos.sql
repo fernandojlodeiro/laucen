@@ -284,3 +284,34 @@ create table if not exists libro_iva_envio (
 );
 create index if not exists libro_iva_envio_mes on libro_iva_envio (organizacion_id, emisor_id, periodo, ts desc);
 alter table libro_iva_envio enable row level security;
+
+-- Percepciones y retenciones sufridas, de «Mis Retenciones» de ARCA (Fer, 25/11): las que el contador toma como pagos a
+-- cuenta en la declaración (impuesto 767 = IVA), por la fecha de la percepción o retención, no la de la factura. Un mes
+-- que está entre la primera y la última fecha importadas de la razón social sale de acá (lib/impuestos/retenciones.ts);
+-- uno que no, de las percepciones de las facturas de compra. Las de un mes liquidado no cambian (externa_iva_traba).
+create table if not exists retencion_arca (
+  id                 bigint generated always as identity primary key,
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  emisor_id          bigint not null references emisor(id) on delete cascade,
+  cuit_agente        text not null,
+  agente             text,
+  impuesto           int not null,
+  impuesto_texto     text,
+  regimen            int,
+  regimen_texto      text,
+  fecha              date not null,
+  certificado        text not null default '',
+  operacion          text,
+  importe            numeric(16,2) not null,
+  comprobante        text not null default '',
+  fecha_comprobante  date,
+  tipo_comprobante   text,
+  fecha_dj_agente    date,
+  archivo            text,
+  importado_ts       timestamptz not null default now(),
+  unique (emisor_id, cuit_agente, impuesto, regimen, fecha, certificado, comprobante, importe)
+);
+create index if not exists retencion_arca_fecha on retencion_arca (organizacion_id, emisor_id, impuesto, fecha);
+alter table retencion_arca enable row level security;
+drop trigger if exists retencion_arca_iva_traba on retencion_arca;
+create trigger retencion_arca_iva_traba before insert or update or delete on retencion_arca for each row execute function externa_iva_traba();

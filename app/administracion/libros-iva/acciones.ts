@@ -12,6 +12,9 @@ import { deFondo } from "@/lib/tareas-fondo";
 import { mandarLibroAlDrive } from "@/lib/administracion/libro-iva-drive";
 import { intentar } from "@/lib/erp/acciones";
 import { leerLibroVentas, importarVentasExternas } from "@/lib/administracion/ventas-externas";
+import { leerMisRetenciones, importarRetenciones } from "@/lib/impuestos/retenciones";
+import { esXlsViejo, tablaDeXlsViejo } from "@/lib/xls-viejo";
+import { tablaDeExcel } from "@/lib/administracion/arca-mc-archivo";
 
 export async function accionMandarAlDrive(fd: FormData) {
   const s = await entrarErp("libros_iva_ver");
@@ -79,5 +82,25 @@ export async function accionImportarComprasExternas(fd: FormData) {
     const r = await importarComprasExternas(s.org.id, rs, "Mis Comprobantes", archivos.map((a) => a.name).join(", ").slice(0, 200), cbtes);
     const f = (x: string) => x.split("-").reverse().join("/");
     return `Compras del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevos} nuevas, ${r.reemplazados} actualizadas${r.yaEnLaucen ? `, ${r.yaEnLaucen} salteadas porque ya están cargadas como facturas de compra` : ""}${r.liquidados ? `, ${r.liquidados} salteadas porque su mes ya está liquidado` : ""}.${errores.length ? ` No entraron: ${errores.slice(0, 3).join(" ")}${errores.length > 3 ? ` (y ${errores.length - 3} más)` : ""}` : ""}`;
+  });
+}
+
+// Percepciones y retenciones sufridas, de «Mis Retenciones» de ARCA (Fer, 25/11): los pagos a cuenta de IVA de la
+// declaración simulada (lib/impuestos/retenciones.ts). ARCA lo baja como .xls viejo (lib/xls-viejo.ts).
+export async function accionImportarRetenciones(fd: FormData) {
+  const s = await entrarErp("libros_iva_ver");
+  const volver = String(fd.get("volver") ?? "/administracion/libros-iva");
+  return intentar(volver.startsWith("/administracion/libros-iva") ? volver : "/administracion/libros-iva", async () => {
+    const rs = Number(fd.get("rs")) || 0;
+    const a = fd.get("archivo");
+    if (!(a instanceof File) || !a.size) throw new ErrorErp("Elegí el archivo de «Mis Retenciones» de ARCA (.xls o .xlsx).");
+    const buf = new Uint8Array(await a.arrayBuffer());
+    let tabla: (string | number | null)[][];
+    try { tabla = esXlsViejo(buf) ? tablaDeXlsViejo(buf) : await tablaDeExcel(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer); }
+    catch (e) { if (e instanceof ErrorErp) throw e; throw new ErrorErp("No se pudo leer el archivo: bajalo de nuevo de «Mis Retenciones» de ARCA, en Excel."); }
+    const { filas, errores } = leerMisRetenciones(tabla);
+    const r = await importarRetenciones(s.org.id, rs, a.name.slice(0, 200), filas);
+    const f = (x: string) => x.split("-").reverse().join("/");
+    return `Percepciones y retenciones del ${f(r.desde)} al ${f(r.hasta)}: ${r.nuevas} nuevas${r.yaEstaban ? `, ${r.yaEstaban} ya estaban` : ""}${r.liquidadas ? `, ${r.liquidadas} salteadas porque su mes ya está liquidado` : ""}.${errores.length ? ` No entraron: ${errores.slice(0, 3).join(" ")}` : ""}`;
   });
 }

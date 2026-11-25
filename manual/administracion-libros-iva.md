@@ -34,7 +34,7 @@ Filtros (en un renglón):
 - Tabla por alícuota del período: Base ventas, Débito fiscal, Base compras, Crédito fiscal, con su total.
 - Caja de saldo: **Débito fiscal (ventas)**, **− Crédito fiscal (compras y despachos)**, **Saldo técnico a pagar** (en rojo) o **a favor** (en verde), **Percepciones de IVA sufridas (saldo a favor, aparte)** y **Saldo después de percepciones**. Con la aclaración "Orientativo: no incluye saldos de meses anteriores, retenciones ni restituciones. La declaración jurada la arma el contador."
 
-**Declaración jurada de IVA simulada · <mes>** (con un mes entero elegido), debajo del resumen: la declaración de IVA del mes como la arma el contador, con los saldos que dejó el mes anterior: **Débito fiscal**, **− Crédito fiscal**, **− Saldo técnico a favor del mes anterior**, **Saldo técnico a favor** (si da negativo; pasa al mes que viene) o **Impuesto del mes**, **− Percepciones de IVA (pagos a cuenta)**, **− Saldo de libre disponibilidad del mes anterior** y **A pagar** (en rojo) o **Saldo de libre disponibilidad a favor** (en verde). Si el mes anterior todavía no tiene declaración, sus saldos salen de su simulación y los renglones dicen «(simulado)». Con el enlace **ver en Impuestos**, donde está también la de Ingresos Brutos y la municipal. Si el mes ya tiene su declaración, el título dice «calculada con lo cargado», para compararla. Los criterios, en [Impuestos](/administracion/impuestos).
+**Declaración jurada de IVA simulada · <mes>** (con un mes entero elegido), debajo del resumen: la declaración de IVA del mes como la arma el contador, con los saldos que dejó el mes anterior: **Débito fiscal**, **− Crédito fiscal**, **− Saldo técnico a favor del mes anterior**, **Saldo técnico a favor** (si da negativo; pasa al mes que viene) o **Impuesto del mes**, **− Percepciones de IVA (pagos a cuenta)**, **− Saldo de libre disponibilidad del mes anterior** y **A pagar** (en rojo) o **Saldo de libre disponibilidad a favor** (en verde). Si el mes anterior todavía no tiene declaración, sus saldos salen de su simulación y los renglones dicen «(simulado)». Con el enlace **ver en Impuestos**, donde está también la de Ingresos Brutos y la municipal. Si el mes ya tiene su declaración, el título dice «calculada con lo cargado», para compararla. Los pagos a cuenta salen de lo importado de **Mis Retenciones** de ARCA (ver «Cargar las percepciones y retenciones sufridas»); en un mes que no está ahí, de las percepciones de IVA de las facturas de compra y los despachos, y el renglón lo dice. Los criterios, en [Impuestos](/administracion/impuestos).
 
 Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Ventas por provincia (N provincias)**, **Avisos (N)**.
 
@@ -120,6 +120,16 @@ Para los meses en que las facturas de compra no se cargaban acá, el libro de IV
 No se puede: el mes quedó trabado al cargar su declaración jurada de IVA. Lo que haga falta va en el mes en curso:
 - Una factura de compra con fecha de ese mes que llegó tarde: cargala y registrala como siempre; entra sola en el primer mes sin liquidar.
 - Una factura registrada que estaba mal: se corrige con una nota de crédito o de débito, que entra en el mes en curso.
+
+### Cargar las percepciones y retenciones sufridas (Mis Retenciones de ARCA)
+Son los pagos a cuenta de IVA que el contador resta en la declaración: las percepciones de servicios, bancos, seguros, Mercado Libre, etc. Las facturas de compra muchas veces no las traen todas.
+1. En ARCA, servicio **Mis Retenciones**, consultá las de la razón social desde el primer mes que quieras hasta hoy y bajalas en Excel.
+2. Apretá **+ Importar ventas o compras anteriores** (arriba a la derecha).
+3. En «Percepciones y retenciones sufridas (Mis Retenciones de ARCA)», elegí la razón social (el archivo no dice de cuál es) y el archivo.
+4. Apretá **Importar percepciones y retenciones**. Sale cuántas entraron y de qué fecha a qué fecha.
+
+- Volver a importar no duplica: lo que ya estaba se saltea. Lo de un mes ya liquidado no se toca.
+- Conviene importarlo cada mes, antes de mirar la declaración simulada.
 
 ### Ver sólo las ventas de un canal
 En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales."

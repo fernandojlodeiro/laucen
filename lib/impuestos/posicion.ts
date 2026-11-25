@@ -5,7 +5,8 @@
 //
 // De dónde sale cada cosa:
 //   · IVA: débito y crédito del libro de IVA (lib/administracion/libro-iva-base.ts, el mismo que se presenta);
-//     pagos a cuenta = percepciones de IVA de compras y despachos. Saldo técnico y de libre disponibilidad anteriores:
+//     pagos a cuenta = lo importado de «Mis Retenciones» de ARCA si cubre el mes (más el IVA adicional de los
+//     despachos); si no, las percepciones de IVA de compras y despachos. Saldo técnico y de libre disponibilidad anteriores:
 //     los que dejó la declaración del mes anterior.
 //   · IIBB (Convenio Multilateral): base = ventas del mes sin IVA (neto gravado + no gravado + exento, en pesos, las
 //     notas de crédito restan). Por jurisdicción: base × coeficiente unificado × alícuota (los de la tabla
@@ -20,6 +21,7 @@ import { armarLibro, resumenIva, rangoMes, clasificarImpuestosDespacho, type Cbt
 import { libroIvaPeriodo } from "@/lib/administracion/libro-iva-base";
 import { datosDe, type DatosIva, type DatosIibb, type DatosMunicipal, type Impuesto } from "@/lib/impuestos/ddjj-leer";
 import { SEDE_POR_DEFECTO, nombreJurisdiccion, provinciasDePercepcion } from "@/lib/impuestos/jurisdicciones";
+import { pagosACuentaArca } from "@/lib/impuestos/retenciones";
 
 export { provinciasDePercepcion };
 
@@ -201,16 +203,22 @@ export async function cargadoDelMes(org: string, emisorId: number, mes: string) 
   const rs = await datosRazonSocial(org, emisorId);
   if (!rs) throw new Error("La razón social no existe.");
   const { desde, hasta } = rangoMes(mes);
-  const [{ ventas, compras }, percepciones, aduaneras, retenciones] = await Promise.all([
+  const [{ ventas, compras }, percepciones, aduaneras, retenciones, arca] = await Promise.all([
     libroIvaPeriodo(org, desde, hasta, emisorId),
     percepcionesCompras(org, emisorId, desde, hasta, rs.sede),
     percepcionesAduaneras(org, emisorId, desde, hasta),
     retencionesMercadoPago(org, emisorId, rs.es_principal, desde, hasta),
+    pagosACuentaArca(org, emisorId, desde, hasta),
   ]);
   const lv = armarLibro(ventas), lc = armarLibro(compras);
   const res = resumenIva(lv.totales, lc.totales);
+  // Pagos a cuenta de IVA: si el mes está en lo importado de «Mis Retenciones» de ARCA, ése (por la fecha de la
+  // percepción, como lo toma el contador) más el IVA adicional de los despachos, que no figura ahí; si no, las
+  // percepciones de IVA de las facturas de compra y los despachos (lib/impuestos/retenciones.ts).
+  const aduanaIva = r2(armarLibro(compras.filter((x) => x.origen === "despacho")).totales.percepcionIva);
+  const percepcionesIva = arca.cubierto ? r2(arca.importe + aduanaIva) : r2(res.percepciones);
   return { rs, desde, hasta, ventas: ventas.length, compras: compras.length, base: baseVentas(ventas), debito: res.debito, credito: res.credito,
-    percepcionesIva: r2(res.percepciones), percepcionesIibb: percepciones, aduaneras, retenciones };
+    percepcionesIva, pagosDeArca: arca.cubierto, percepcionesIibb: percepciones, aduaneras, retenciones };
 }
 
 /** La posición de un mes: lo cargado + lo que dejó el mes anterior. El mes anterior es su declaración jurada si ya
