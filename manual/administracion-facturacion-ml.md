@@ -49,7 +49,7 @@ Con datos:
 
 **Control con ARCA**:
 - Un cartel: si faltan, "X de N comprobantes de Mercado Libre no están en las facturas de compra: importá "Mis Comprobantes" de ARCA de ese mes (Compras → Facturas de compra)."; si están todos, "Los N comprobantes de Mercado Libre están en las facturas de compra importadas de ARCA."; si no hay, "Mercado Libre no informó facturas en este período."
-- Tabla: Fecha, **Cuenta** (sólo con "Todas las cuentas" y más de una cuenta), Cobra, Comprobante ("Factura" o "Nota de crédito" y número), **Importe según ML** (las notas de crédito en negativo) y **En las facturas de compra (ARCA)**: **Está** (verde, enlace a la factura; si el total difiere en más de $ 1, "con otro total ($ …)") o **Falta en la importación de ARCA** (amarillo).
+- Tabla: Fecha, **Cuenta** (sólo con "Todas las cuentas" y más de una cuenta), Cobra, Comprobante ("Factura" o "Nota de crédito" y número), **Importe según ML** (las notas de crédito en negativo) y **En las facturas de compra (ARCA)**: **Está** (verde, enlace a la factura; si el total difiere en más de $ 1, "con otro total ($ …)") o **Falta en la importación de ARCA** (amarillo), o **Mercado Libre todavía no la emitió** (gris: el período sigue abierto y el comprobante no tiene número todavía; no cuenta como faltante).
 - Si hay: **En ARCA y no en la API (N)**: facturas de compra de Mercado Libre de esas fechas que no coinciden con ningún comprobante de la API (pueden ser de otro período o de una cuenta que no está conectada), con fecha, comprobante (enlace) y total.
 
 ## Cómo se hace
@@ -112,10 +112,11 @@ Los cargos que vienen del detalle de las notas de crédito restan. Los importes 
 - Para el costo de la venta cuentan comisión, envíos, cargo fijo, publicidad, bonificaciones y otros. **Los impuestos no** son costo: son percepciones y retenciones que se toman a cuenta.
 
 ### Control con ARCA
-- Se buscan las facturas de compra **no anuladas** de los proveedores con el **CUIT de MercadoLibre S.R.L.** (30-70308853-4), que factura tanto los cargos de Mercado Libre como los de Mercado Pago.
-- Un comprobante de la API **"Está"** si hay una factura de compra con el mismo **número** y, si la API trae punto de venta, el mismo **punto de venta**, y del mismo tipo (factura con factura, nota de crédito con nota de crédito).
+- Se buscan las facturas de compra **no anuladas** de los proveedores con el **CUIT de MercadoLibre S.R.L.** (30-70308853-4), que factura los cargos de Mercado Libre y de Mercado Pago, o el de **MELI LOG S.R.L.** (30-71568605-4), que factura los envíos.
+- Un comprobante de la API **"Está"** si hay una factura de compra con el mismo **número** (Mercado Libre lo informa con el punto de venta, la letra y el número juntos, por ejemplo 0011A05550563 = punto de venta 11, número 5550563) y el mismo **punto de venta**, y del mismo tipo (factura con factura, nota de crédito con nota de crédito).
 - "con otro total" si el total de la factura de compra difiere en más de $ 1 del importe de Mercado Libre.
 - **En ARCA y no en la API**: facturas de compra de ese CUIT con fecha entre el inicio del período y 10 días después de su fin, que no se usaron en ninguna coincidencia.
+- Si Mercado Libre no informa la fecha del comprobante, se muestra la de la factura de compra con la que coincide.
 - Para que el control funcione, el proveedor Mercado Libre tiene que tener bien cargado su CUIT (si se creó por la importación de ARCA, ya lo tiene).
 
 ## Preguntas frecuentes

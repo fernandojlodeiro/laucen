@@ -123,6 +123,9 @@ test("clasifica los cargos y lee los números de comprobante", () => {
   assert.deepEqual(c("Cargo por venta", null, "BONUS"), { tipo: "bonificacion", impuesto: null });
   assert.deepEqual(m.fac.numeroDeDocumento("A 0034-00012345"), { puntoVenta: 34, numero: 12345 });
   assert.deepEqual(m.fac.numeroDeDocumento("A0034-00012345"), { puntoVenta: 34, numero: 12345 });
+  // Como lo manda hoy la API: punto de venta, letra y número pegados.
+  assert.deepEqual(m.fac.numeroDeDocumento("0011A05550563"), { puntoVenta: 11, numero: 5550563 });
+  assert.equal(m.fac.numeroDeDocumento("MLA123"), null);
   const cargo = m.fac.mapearCargo(detalle(9007, "Bonificación cargo por venta", 200, { order: "2000001", tipo: "BONUS" }))!;
   assert.deepEqual([cargo.tipo, cargo.monto, cargo.order_id], ["bonificacion", -200, "2000001"]);
   assert.equal(m.fac.mapearCargo({ charge_info: {} }), null);

@@ -18,8 +18,9 @@ import { registrarFactura, recalcularFactura } from "@/lib/administracion/compra
 import { asegurarPlan, contabilizarPendientes } from "@/lib/administracion/contabilidad";
 import { armarFactura, type CbteArca, type LecturaArca } from "@/lib/administracion/arca-mc-leer";
 
-/** CUIT de MercadoLibre S.R.L. (factura los cargos de Mercado Libre y de Mercado Pago). */
-export const CUITS_MERCADO_LIBRE = ["30703088534"];
+/** CUIT de MercadoLibre S.R.L. (factura los cargos de Mercado Libre y de Mercado Pago) y de MELI LOG S.R.L. (factura
+ *  los envíos; la facturación de Mercado Libre por API los informa junto con los demás comprobantes). */
+export const CUITS_MERCADO_LIBRE = ["30703088534", "30715686054"];
 export const esMercadoLibre = (cuit: string | null | undefined, nombre?: string | null) =>
   CUITS_MERCADO_LIBRE.includes(String(cuit ?? "").replace(/\D/g, "")) || /mercado\s*libre|mercadolibre|mercado\s*pago/i.test(nombre ?? "");
 

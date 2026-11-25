@@ -104,9 +104,11 @@ export function mapearCargo(d: DetalleMl, notaCredito = false): FilaCargo | null
   };
 }
 
-/** "A 0034-00123456", "0034-00123456", "A0034-00123456" → punto de venta y número. */
+/** "A 0034-00123456", "0034-00123456", "A0034-00123456" y como lo manda hoy la API, "0011A05550563" (punto de venta,
+ *  letra y número pegados) → punto de venta y número. */
 export function numeroDeDocumento(s: string | null | undefined): { puntoVenta: number; numero: number } | null {
-  const m = String(s ?? "").match(/(\d{1,5})\s*-\s*(\d{1,8})\s*$/);
+  const t = String(s ?? "").trim();
+  const m = t.match(/(\d{1,5})\s*-\s*(\d{1,8})$/) ?? t.match(/^(\d{4,5})\s*[A-Za-z]\s*(\d{8})$/);
   return m ? { puntoVenta: Number(m[1]), numero: Number(m[2]) } : null;
 }
 
@@ -411,17 +413,19 @@ export function impuestosPeriodo(org: string, clave: string, canal: number | nul
  *  cuenta son: todas vienen con el mismo CUIT de Mercado Libre). */
 export async function controlPeriodo(org: string, clave: string, cuits: string[], canal: number | null = null, usd = false) {
   const todos = await consulta<{ id: number; canal_id: number | null; cuenta: string | null; grupo: Grupo; tipo: string; numero: string | null; punto_venta: number | null;
-    numero_cbte: string | null; fecha: string | null; monto: number; factura_id: number | null; factura_total: number | null }>(`
-    select d.id::int, d.canal_id::int, ${SQL_CUENTA("d")} cuenta, d.grupo, d.tipo, d.numero, d.punto_venta, d.numero_cbte::text, to_char(d.fecha, 'YYYY-MM-DD') fecha, (${usd ? "d.monto / nullif(d.tc_dia, 0)" : "d.monto"})::float monto,
+    numero_cbte: string | null; fecha: string | null; monto: number; factura_id: number | null; factura_total: number | null;
+    /** Mercado Libre todavía no la emitió (período abierto: sin número): no puede estar en ARCA. */
+    sin_emitir: boolean }>(`
+    select d.id::int, d.canal_id::int, ${SQL_CUENTA("d")} cuenta, d.grupo, d.tipo, d.numero, d.punto_venta, (d.numero is null) sin_emitir, d.numero_cbte::text, to_char(coalesce(d.fecha, f.fecha), 'YYYY-MM-DD') fecha, (${usd ? "d.monto / nullif(d.tc_dia, 0)" : "d.monto"})::float monto,
            f.id::int factura_id, f.total::float factura_total
       from ml_factura_documento d
       left join lateral (
-        select f.id, ${usd ? "f.total_usd" : "f.total"} total from factura_compra f join proveedor pr on pr.id = f.proveedor_id
+        select f.id, f.fecha, ${usd ? "f.total_usd" : "f.total"} total from factura_compra f join proveedor pr on pr.id = f.proveedor_id
          where f.organizacion_id = d.organizacion_id and f.estado <> 'anulada' and regexp_replace(pr.cuit, '\\D', '', 'g') = any($3::text[])
            and f.es_nota_credito = (d.tipo = 'CREDIT_NOTE') and d.numero_cbte is not null and f.numero = d.numero_cbte
            and (d.punto_venta is null or f.punto_venta = d.punto_venta)
          order by f.id limit 1) f on true
-     where d.organizacion_id = $1 and d.clave = $2 order by d.fecha, d.numero, cuenta`, [org, clave, cuits]);
+     where d.organizacion_id = $1 and d.clave = $2 order by coalesce(d.fecha, f.fecha), d.numero, cuenta`, [org, clave, cuits]);
   const docs = canal == null ? todos : todos.filter((d) => d.canal_id === canal);
   const rango = await una<{ desde: string | null; hasta: string | null }>(`
     select to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta) + 10, 'YYYY-MM-DD') hasta from ml_factura_periodo

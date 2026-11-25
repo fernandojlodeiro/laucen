@@ -130,3 +130,9 @@ create table if not exists ml_cupo_facturacion (
   libre_ts  timestamptz not null default now()
 );
 alter table ml_cupo_facturacion enable row level security;
+
+-- La API manda el número pegado ("0011A05550563": punto de venta, letra, número) y no se separaba: sin punto de venta
+-- ni número, el control contra las facturas de compra de ARCA no cruzaba ninguno (Fer, 25/11). Se completan los leídos.
+update ml_factura_documento set punto_venta = substring(numero from '^(\d{4,5})[A-Za-z]')::int,
+       numero_cbte = substring(numero from '[A-Za-z](\d{8})$')::bigint
+ where numero_cbte is null and numero ~ '^\d{4,5}[A-Za-z]\d{8}$';

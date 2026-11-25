@@ -66,7 +66,7 @@ export default async function FacturacionMl({ searchParams }: { searchParams: Pr
     ? await Promise.all([resumenPeriodo(org, periodo.clave, canal, usd), impuestosPeriodo(org, periodo.clave, canal, usd), controlPeriodo(org, periodo.clave, CUITS_MERCADO_LIBRE, canal, usd)])
     : [[], [], { docs: [], sobran: [] }];
   const nombreCuenta = cuentas.find((c) => c.id === canal)?.nombre;
-  const faltan = control.docs.filter((d) => !d.factura_id).length;
+  const faltan = control.docs.filter((d) => !d.factura_id && !d.sin_emitir).length;
 
   return (
     <Pantalla titulo="Facturación de Mercado Libre"
@@ -225,7 +225,9 @@ function Control({ docs, sobran, faltan, conCuenta, unaCuenta, moneda }: Awaited
       <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${faltan ? "bg-[#FFF8E5] text-[#8a6100]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>
         {docs.length === 0 ? "Mercado Libre no informó facturas en este período."
           : faltan ? `${faltan} de ${docs.length} comprobantes de Mercado Libre no están en las facturas de compra: importá "Mis Comprobantes" de ARCA de ese mes (Compras → Facturas de compra).`
-          : `Los ${docs.length} comprobantes de Mercado Libre están en las facturas de compra importadas de ARCA.`}
+          : docs.some((d) => d.sin_emitir)
+            ? `Los ${docs.filter((d) => !d.sin_emitir).length} comprobantes ya emitidos por Mercado Libre están en las facturas de compra importadas de ARCA; ${docs.filter((d) => d.sin_emitir).length} todavía no los emitió (el período sigue abierto).`
+            : `Los ${docs.length} comprobantes de Mercado Libre están en las facturas de compra importadas de ARCA.`}
       </p>
       <div className={`${CAJA_TABLA} mb-4`}>
         <table className={TABLA}>
@@ -242,6 +244,7 @@ function Control({ docs, sobran, faltan, conCuenta, unaCuenta, moneda }: Awaited
                   {d.factura_id
                     ? <><Link href={`/compras/facturas/${d.factura_id}`} className="text-[#16577F] hover:underline"><Estado texto="Está" tono="verde" /></Link>
                       {d.factura_total != null && Math.abs(d.factura_total - d.monto) > 1 && <span className="ml-1 text-[10px] text-[#8a6100]">con otro total ({pesos(d.factura_total)})</span>}</>
+                    : d.sin_emitir ? <Estado texto="Mercado Libre todavía no la emitió" tono="gris" />
                     : <Estado texto="Falta en la importación de ARCA" tono="amarillo" />}
                 </td>
               </tr>
