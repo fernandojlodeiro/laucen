@@ -213,20 +213,33 @@ export async function cargadoDelMes(org: string, emisorId: number, mes: string) 
     percepcionesIva: r2(res.percepciones), percepcionesIibb: percepciones, aduaneras, retenciones };
 }
 
-/** La posición de un mes: lo cargado + lo que dejó la declaración del mes anterior. */
-export async function posicionMes(org: string, emisorId: number, mes: string) {
+/** La posición de un mes: lo cargado + lo que dejó el mes anterior. El mes anterior es su declaración jurada si ya
+ *  está cargada; si todavía no (el contador la presenta el mes siguiente), su propia posición simulada, encadenada así
+ *  hasta la última declaración que haya (hasta 12 meses para atrás). Sin ninguna declaración, el saldo anterior es cero. */
+export async function posicionMes(org: string, emisorId: number, mes: string, profundidad = 0): Promise<PosicionDelMes> {
   const c = await cargadoDelMes(org, emisorId, mes);
   const ant = mesAnterior(mes);
   const avisos: string[] = [];
   const [ivaAnt, iibbAnt, munAnt] = await Promise.all((["iva", "iibb", "municipal"] as const).map((i) => ddjjAntesDe(org, emisorId, i, mes)));
+  // Si alguna declaración del mes anterior falta pero hay una más vieja, se simula el mes anterior (que a su vez se
+  // apoya en el suyo) y sus saldos hacen de «anterior».
+  const falta = (d: FilaDdjj | null) => !!d && d.periodo < ant;
+  const previa = profundidad < 12 && (falta(ivaAnt) || falta(iibbAnt) || (c.rs.municipal_inscripta && falta(munAnt)))
+    ? await posicionMes(org, emisorId, ant, profundidad + 1) : null;
+  const mesAr = (m: string) => m.split("-").reverse().join("/");
   const nota = (i: Impuesto, d: FilaDdjj | null, texto: string) => {
     if (i === "municipal" && !c.rs.municipal_inscripta) return;
     if (!d) avisos.push(`No hay ninguna declaración de ${texto} cargada: el saldo a favor anterior se toma en cero.`);
-    else if (d.periodo !== ant) avisos.push(`La última declaración de ${texto} cargada es la de ${d.periodo.split("-").reverse().join("/")}, no la de ${ant.split("-").reverse().join("/")}: el saldo anterior sale de ésa.`);
+    else if (d.periodo !== ant) avisos.push(previa
+      ? `Todavía no está la declaración de ${texto} de ${mesAr(ant)}: el saldo anterior sale de la simulación de ${mesAr(ant)}, encadenada desde la declaración de ${mesAr(d.periodo)}.`
+      : `La última declaración de ${texto} cargada es la de ${mesAr(d.periodo)}, no la de ${mesAr(ant)}: el saldo anterior sale de ésa.`);
   };
   nota("iva", ivaAnt, "IVA"); nota("iibb", iibbAnt, "Ingresos Brutos"); nota("municipal", munAnt, "la municipal");
+  const usarPrevia = (d: FilaDdjj | null) => !!previa && falta(d);
 
-  const iva = calcularIva({ debito: c.debito, credito: c.credito, pagosACuenta: c.percepcionesIva, anterior: ivaAnt ? (datosDe("iva", ivaAnt.datos) as DatosIva) : null });
+  const iva = calcularIva({ debito: c.debito, credito: c.credito, pagosACuenta: c.percepcionesIva,
+    anterior: usarPrevia(ivaAnt) ? { saldo_tecnico_favor: previa!.iva.saldoTecnicoFavor, saldo_libre_favor: previa!.iva.saldoLibreFavor }
+      : ivaAnt ? (datosDe("iva", ivaAnt.datos) as DatosIva) : null });
 
   const dIibbAnt = iibbAnt ? (datosDe("iibb", iibbAnt.datos) as DatosIibb) : null;
   // Sólo las que tienen coeficiente (el resumen del CM03 no lo trae: se carga a mano en «Provincias»).
@@ -235,7 +248,9 @@ export async function posicionMes(org: string, emisorId: number, mes: string) {
     : (dIibbAnt?.jurisdicciones ?? []).filter((j) => j.coeficiente > 0).map((j) => ({ codigo: j.codigo, coeficiente: j.coeficiente, alicuota: j.alicuota }));
   if (!jurs.length) avisos.push("Faltan el coeficiente unificado y la alícuota de cada provincia de Ingresos Brutos (la declaración mensual resumida no los trae): cargalos con el lápiz en la pestaña «Provincias». Sin eso, el impuesto determinado de IIBB da cero; las percepciones y los saldos a favor sí se ven.");
   else if (c.rs.jurisdicciones.some((j) => !(j.coeficiente > 0))) avisos.push(`Sin coeficiente en «Provincias»: ${c.rs.jurisdicciones.filter((j) => !(j.coeficiente > 0)).map((j) => nombreJurisdiccion(j.codigo)).join(", ")}. Su impuesto determinado da cero.`);
-  const anteriores = new Map((dIibbAnt?.jurisdicciones ?? []).map((j) => [j.codigo, j.saldo < 0 ? -j.saldo : 0]));
+  const anteriores = usarPrevia(iibbAnt)
+    ? new Map(previa!.iibb.filas.map((f) => [f.codigo, f.saldo < 0 ? -f.saldo : 0]))
+    : new Map((dIibbAnt?.jurisdicciones ?? []).map((j) => [j.codigo, j.saldo < 0 ? -j.saldo : 0]));
   const iibb = calcularIibb({ base: c.base, jurisdicciones: jurs, percepciones: c.percepcionesIibb, aduaneras: c.aduaneras, retenciones: c.retenciones, anteriores, sede: c.rs.sede });
 
   let municipal: PosicionMunicipal | null = null;
@@ -244,10 +259,19 @@ export async function posicionMes(org: string, emisorId: number, mes: string) {
     const alicuota = c.rs.municipal_alicuota != null ? Number(c.rs.municipal_alicuota) : dm?.alicuota ?? 0;
     const minimo = c.rs.municipal_minimo != null ? Number(c.rs.municipal_minimo) : dm?.minimo ?? 0;
     if (!alicuota) avisos.push("Falta la alícuota de la municipal de Córdoba: se carga sola al subir una declaración municipal, o a mano en la pestaña «Provincias».");
-    municipal = calcularMunicipal({ base: c.base, alicuota, minimo, saldoAnterior: dm && dm.saldo < 0 ? -dm.saldo : 0 });
+    const saldoAnterior = usarPrevia(munAnt) && previa!.municipal ? (previa!.municipal.saldo < 0 ? -previa!.municipal.saldo : 0) : dm && dm.saldo < 0 ? -dm.saldo : 0;
+    municipal = calcularMunicipal({ base: c.base, alicuota, minimo, saldoAnterior });
   }
-  return { cargado: c, iva, iibb, municipal, avisos, anteriores: { iva: ivaAnt, iibb: iibbAnt, municipal: munAnt } };
+  return { cargado: c, iva, iibb, municipal, avisos, anteriores: { iva: ivaAnt, iibb: iibbAnt, municipal: munAnt },
+    simulado: { iva: usarPrevia(ivaAnt), iibb: usarPrevia(iibbAnt), municipal: usarPrevia(munAnt) } };
 }
+
+export type PosicionDelMes = {
+  cargado: Cargado; iva: PosicionIva; iibb: ReturnType<typeof calcularIibb>; municipal: PosicionMunicipal | null; avisos: string[];
+  anteriores: { iva: FilaDdjj | null; iibb: FilaDdjj | null; municipal: FilaDdjj | null };
+  /** Si el saldo anterior de cada impuesto salió de la simulación del mes anterior (falta su declaración). */
+  simulado: { iva: boolean; iibb: boolean; municipal: boolean };
+};
 
 // ── Control de una declaración contra lo cargado ─────────────────────
 

@@ -31,6 +31,7 @@ import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
 import { periodoDe, mesesParaElegir, nombreMes, canalDe, type SPLibro } from "./comun";
 import { ventasPorProvincia, PROVINCIA_POR_DEFECTO, type FilaProvincia } from "@/lib/administracion/ventas-provincia";
 import { enviosDelMes, liquidacionDelMes, type EnvioLibro } from "@/lib/administracion/libro-iva-drive";
+import { posicionMes, type PosicionDelMes } from "@/lib/impuestos/posicion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -70,9 +71,9 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const mesElegido = periodo && /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4)}` : "";
   const meses = mesesParaElegir();
   const titulo = mesElegido ? nombreMes(mesElegido) : `${fechaAr(desde)} al ${fechaAr(hasta)}`;
-  const [envios, liquidacion] = mesElegido && rs.id
-    ? await Promise.all([enviosDelMes(org, rs.id, mesElegido), liquidacionDelMes(org, rs.id, mesElegido)])
-    : [[] as EnvioLibro[], null];
+  const [envios, liquidacion, posicion] = mesElegido && rs.id
+    ? await Promise.all([enviosDelMes(org, rs.id, mesElegido), liquidacionDelMes(org, rs.id, mesElegido), posicionMes(org, rs.id, mesElegido).catch(() => null)])
+    : [[] as EnvioLibro[], null, null];
 
   return (
     <Pantalla titulo="Libros de IVA" ancho="max-w-[1400px]"
@@ -130,6 +131,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
       </div>
 
       <Resumen r={resumen} titulo={titulo} signo={enDolares ? "US$" : "$"} />
+      {posicion && mesElegido && rs.id && <DdjjSimulada p={posicion} mes={mesElegido} rs={rs.id} liquidado={!!liquidacion} />}
 
       <Pestanas items={[
         { clave: "ventas", texto: "IVA Ventas", activa: libro === "ventas", href: url(BASE, { ...filtros, canal: sp.canal }), cuenta: ventasCanal.filas.length },
@@ -395,6 +397,45 @@ function SubidasDrive({ mes, envios, liquidacion, drive }: {
             </table>
           </div>
         )}
+    </section>
+  );
+}
+
+/** La declaración jurada de IVA del mes como la armaría el contador (F.2002), con los saldos que dejó el mes anterior:
+ *  su declaración, o su simulación si todavía no está (lib/impuestos/posicion.ts). Siempre en pesos. */
+function DdjjSimulada({ p, mes, rs, liquidado }: { p: PosicionDelMes; mes: string; rs: number; liquidado: boolean }) {
+  const { iva } = p;
+  const pesos = plata("$");
+  const Fila = ({ t, v, signo = "", fuerte = false, clase = "" }: { t: string; v: number; signo?: string; fuerte?: boolean; clase?: string }) => (
+    <div className={`flex justify-between gap-3 ${fuerte ? "font-bold border-t border-[#E3E9F0] pt-1" : ""} ${clase}`}>
+      <span>{signo && <span className="inline-block w-4 text-[#5C6B76]">{signo}</span>}{t}</span><span className="tabular-nums whitespace-nowrap">{pesos(v)}</span>
+    </div>
+  );
+  const sim = p.simulado.iva ? " (simulado)" : "";
+  return (
+    <section className={`${CAJA} text-xs mb-4 max-w-3xl`}>
+      <h2 className="text-sm font-bold mb-1">
+        Declaración jurada de IVA {liquidado ? "· calculada con lo cargado" : "simulada"} · {nombreMes(mes)}
+        <Link href={url("/administracion/impuestos", { mes, rs: String(rs) })} className="ml-2 text-[11px] font-normal text-[#16577F] hover:underline">ver en Impuestos</Link>
+      </h2>
+      <div className="space-y-1">
+        <Fila t="Débito fiscal (ventas)" v={iva.debito} />
+        <Fila t="Crédito fiscal (compras y despachos)" v={iva.credito} signo="−" />
+        <Fila t={`Saldo técnico a favor del mes anterior${sim}`} v={iva.saldoTecnicoAnterior} signo="−" />
+        {iva.saldoTecnicoFavor > 0
+          ? <Fila t="Saldo técnico a favor (pasa al mes que viene)" v={iva.saldoTecnicoFavor} fuerte clase="text-[#1F6E4A]" />
+          : <Fila t="Impuesto del mes" v={iva.impuesto} fuerte />}
+        <Fila t="Percepciones de IVA (pagos a cuenta)" v={iva.pagosACuenta} signo="−" />
+        <Fila t={`Saldo de libre disponibilidad del mes anterior${sim}`} v={iva.saldoLibreAnterior} signo="−" />
+        {iva.aPagar > 0 || iva.saldoLibreFavor === 0
+          ? <Fila t="A pagar" v={iva.aPagar} fuerte clase="text-[#C03420]" />
+          : <Fila t="Saldo de libre disponibilidad a favor (pasa al mes que viene)" v={iva.saldoLibreFavor} fuerte clase="text-[#1F6E4A]" />}
+      </div>
+      {p.avisos.filter((a) => /IVA/.test(a)).map((a, i) => <p key={i} className="mt-1 text-[11px] text-[#8a6100]">{a}</p>)}
+      <p className="mt-1 text-[10px] text-[#5C6B76]">
+        Como el formulario de ARCA: débito − crédito − saldo técnico anterior; si da negativo, queda saldo técnico a favor. Al impuesto se le restan los pagos a cuenta y el saldo
+        de libre disponibilidad anterior. Los pagos a cuenta son las percepciones de IVA de las facturas de compra y los despachos: las retenciones de IVA que no están cargadas no se ven.
+      </p>
     </section>
   );
 }

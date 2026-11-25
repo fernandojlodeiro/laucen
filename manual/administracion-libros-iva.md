@@ -34,6 +34,8 @@ Filtros (en un renglón):
 - Tabla por alícuota del período: Base ventas, Débito fiscal, Base compras, Crédito fiscal, con su total.
 - Caja de saldo: **Débito fiscal (ventas)**, **− Crédito fiscal (compras y despachos)**, **Saldo técnico a pagar** (en rojo) o **a favor** (en verde), **Percepciones de IVA sufridas (saldo a favor, aparte)** y **Saldo después de percepciones**. Con la aclaración "Orientativo: no incluye saldos de meses anteriores, retenciones ni restituciones. La declaración jurada la arma el contador."
 
+**Declaración jurada de IVA simulada · <mes>** (con un mes entero elegido), debajo del resumen: la declaración de IVA del mes como la arma el contador, con los saldos que dejó el mes anterior: **Débito fiscal**, **− Crédito fiscal**, **− Saldo técnico a favor del mes anterior**, **Saldo técnico a favor** (si da negativo; pasa al mes que viene) o **Impuesto del mes**, **− Percepciones de IVA (pagos a cuenta)**, **− Saldo de libre disponibilidad del mes anterior** y **A pagar** (en rojo) o **Saldo de libre disponibilidad a favor** (en verde). Si el mes anterior todavía no tiene declaración, sus saldos salen de su simulación y los renglones dicen «(simulado)». Con el enlace **ver en Impuestos**, donde está también la de Ingresos Brutos y la municipal. Si el mes ya tiene su declaración, el título dice «calculada con lo cargado», para compararla. Los criterios, en [Impuestos](/administracion/impuestos).
+
 Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Ventas por provincia (N provincias)**, **Avisos (N)**.
 
 **Tabla del libro** (Ventas o Compras):
@@ -231,7 +233,7 @@ No: el día 1 se sube solo el libro entero del mes que terminó, y las compras s
 De la dirección de entrega del pedido; si no tiene, de la dirección del cliente; si no hay ninguna, se asigna a Córdoba (columna «Sin prov.»).
 
 **¿El saldo técnico es lo que tengo que pagar?**
-Es orientativo: no incluye saldos a favor de meses anteriores, retenciones ni restituciones. La declaración jurada la arma el contador.
+No: es el del mes suelto. Lo que se pagaría lo muestra el recuadro «Declaración jurada de IVA simulada», que resta los saldos a favor del mes anterior y las percepciones. Las retenciones de IVA que no están cargadas no se ven; la declaración la arma el contador.
 
 **¿Por qué no puedo bajar los archivos de ARCA?**
 Porque elegiste un rango que no es un mes entero. Elegí un mes en el filtro "Mes".

@@ -149,12 +149,12 @@ async function Posicion({ org, emisorId, mes }: { org: string; emisorId: number;
             <tbody>
               <Fila t="Débito fiscal (ventas)" v={iva.debito} />
               <Fila t="Crédito fiscal (compras y despachos)" v={iva.credito} signo="−" />
-              <Fila t="Saldo técnico a favor del mes anterior" v={iva.saldoTecnicoAnterior} signo="−" />
+              <Fila t={`Saldo técnico a favor del mes anterior${p.simulado.iva ? " (simulado)" : ""}`} v={iva.saldoTecnicoAnterior} signo="−" />
               {iva.saldoTecnicoFavor > 0
                 ? <Fila t="Saldo técnico a favor (pasa al mes que viene)" v={iva.saldoTecnicoFavor} fuerte />
                 : <Fila t="Impuesto del mes" v={iva.impuesto} fuerte />}
               <Fila t="Percepciones de IVA (pagos a cuenta)" v={iva.pagosACuenta} signo="−" />
-              <Fila t="Saldo de libre disponibilidad del mes anterior" v={iva.saldoLibreAnterior} signo="−" />
+              <Fila t={`Saldo de libre disponibilidad del mes anterior${p.simulado.iva ? " (simulado)" : ""}`} v={iva.saldoLibreAnterior} signo="−" />
               {iva.aPagar > 0 || iva.saldoLibreFavor === 0
                 ? <Fila t={<span className="text-[#C03420]">A pagar</span>} v={iva.aPagar} fuerte />
                 : <Fila t={<span className="text-[#1F6E4A]">Saldo de libre disponibilidad a favor</span>} v={iva.saldoLibreFavor} fuerte />}
