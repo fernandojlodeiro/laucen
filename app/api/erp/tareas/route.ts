@@ -7,7 +7,7 @@
 // importaciones que siguen solas en segundo plano; la cola de salida a
 // Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna
 // y la lectura de la facturación de ML (lib/mercadolibre/facturacion.ts) y de las declaraciones juradas que el
-// contador dejó en el Drive (lib/impuestos/drive-ddjj.ts).
+// contador dejó en el Drive (lib/impuestos/drive-ddjj.ts) y el Libro de IVA al Drive (lib/administracion/libro-iva-drive.ts).
 
 import { after } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -36,6 +36,7 @@ import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolib
 import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/drive-ddjj";
 import { leerFacturasDelDrive, organizacionesParaLeerFacturas } from "@/lib/compras/drive-facturas";
+import { vueltaLibrosIva, organizacionesParaLibroIva } from "@/lib/administracion/libro-iva-drive";
 import { renovarTokensInstagram } from "@/lib/mensajes/instagram";
 import { anunciosMetaPendientes, leerAnunciosMeta } from "@/lib/publicidad/meta-ads";
 import { googleAdsPendientes, leerGoogleAds } from "@/lib/publicidad/google-ads";
@@ -164,7 +165,12 @@ export async function GET(req: Request) {
   // Las facturas de compra que se dejan en las carpetas del Drive (lib/compras/drive-facturas.ts): también una vez por noche.
   const facturasDrive = enVentanaBarrida() ? await organizacionesParaLeerFacturas().catch(() => [] as string[]) : [];
   if (facturasDrive.length) informe.facturas_drive = facturasDrive.length;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || pdfMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length || facturasDrive.length) {
+  // El Libro de IVA al Drive (lib/administracion/libro-iva-drive.ts): una vez por noche, de 3 a 5 (hora argentina), así
+  // ya se leyeron las declaraciones de la 1.ª hora y un mes recién liquidado no se vuelve a subir.
+  const horaAr = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+  const libroIva = horaAr >= 3 && horaAr < 5 ? await organizacionesParaLibroIva().catch(() => [] as string[]) : [];
+  if (libroIva.length) informe.libro_iva = libroIva.length;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || pdfMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length || facturasDrive.length || libroIva.length) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -173,6 +179,13 @@ export async function GET(req: Request) {
               console.log("[tareas] declaraciones del Drive", org, JSON.stringify(await leerDdjjDelDrive(org, "drive", { hastaMs: t0 + 100_000 })));
             } catch (e) {
               console.error("[tareas] declaraciones del Drive", org, e instanceof Error ? e.message : e);
+            }
+          }
+          for (const org of libroIva) {
+            try {
+              console.log("[tareas] libro de IVA al Drive", org, JSON.stringify(await vueltaLibrosIva(undefined, org)));
+            } catch (e) {
+              console.error("[tareas] libro de IVA al Drive", org, e instanceof Error ? e.message : e);
             }
           }
           for (const org of facturasDrive) {

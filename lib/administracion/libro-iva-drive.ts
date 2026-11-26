@@ -1,5 +1,5 @@
 // El Libro de IVA al Drive (Fer, 23/10 y 25/11): lo que se sube a la carpeta del mes de cada razón social, el registro de
-// cada subida (libro_iva_envio, db/impuestos.sql) y la vuelta de cada noche (app/api/libros-iva/cron):
+// cada subida (libro_iva_envio, db/impuestos.sql) y la vuelta de cada noche (la corre app/api/erp/tareas):
 //
 //   · «todo»: los 5 TXT del Libro de IVA Digital + las ventas por provincia (Excel). Lo sube el botón «Mandar al Drive»
 //     y, solo, el día 1 de cada mes el del mes que terminó (si esa noche falla, se reintenta la siguiente).
@@ -75,12 +75,20 @@ const mesMas = (mes: string, n: number) => {
   return new Date(Date.UTC(a, m - 1 + n, 1)).toISOString().slice(0, 7);
 };
 
-/** La vuelta de cada noche, para todas las organizaciones con el Drive conectado. Devuelve qué hizo. */
-export async function vueltaLibrosIva(hoy = hoyArgentina()) {
+/** Para la tarea de la noche (app/api/erp/tareas, entre las 3 y las 5, después de leer las declaraciones del Drive):
+ *  las organizaciones con el Drive conectado, alguna ruta y sin vuelta del libro en las últimas 20 horas. */
+export async function organizacionesParaLibroIva() {
+  return (await consulta<{ organizacion_id: string }>(`select organizacion_id from google_drive
+    where refresh_token is not null and rutas <> '{}'::jsonb and (libro_iva_ts is null or libro_iva_ts < now() - interval '20 hours')`)).map((x) => x.organizacion_id);
+}
+
+/** La vuelta de cada noche, de una organización (o de todas las que tienen el Drive conectado). Al terminar deja la
+ *  marca de la noche (google_drive.libro_iva_ts) y lo hecho (libro_iva_resultado). Devuelve qué hizo. */
+export async function vueltaLibrosIva(hoy = hoyArgentina(), soloOrg: string | null = null) {
   const mesActual = hoy.slice(0, 7);
   const mesPasado = mesMas(mesActual, -1);
   const hecho: string[] = [];
-  const orgs = await consulta<{ organizacion_id: string }>("select organizacion_id from google_drive where refresh_token is not null");
+  const orgs = await consulta<{ organizacion_id: string }>("select organizacion_id from google_drive where refresh_token is not null and ($1::text is null or organizacion_id = $1)", [soloOrg]);
   for (const { organizacion_id: org } of orgs) {
     const rutas = await rutasDe(org);
     const emisores = await consulta<{ id: number; nombre: string }>("select id::int, coalesce(nombre, razon_social) nombre from emisor where organizacion_id = $1 order by id", [org]);
@@ -108,6 +116,8 @@ export async function vueltaLibrosIva(hoy = hoyArgentina()) {
         } catch (x) { hecho.push(`${e.nombre} ${mes}: error ${x instanceof Error ? x.message : x}`); }
       }
     }
+    await consulta("update google_drive set libro_iva_ts = now(), libro_iva_resultado = $2 where organizacion_id = $1",
+      [org, (hecho.join(" · ") || "Nada para subir.").slice(0, 2000)]);
   }
   return hecho;
 }

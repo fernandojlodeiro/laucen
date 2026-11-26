@@ -193,7 +193,7 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - Las notas de crédito restan; lo que está en dólares va a la cotización del comprobante. El **%** es sobre el neto sin IVA del período.
 
 ### Subida automática al Drive
-Con Google Drive conectado y la ruta de la razón social cargada en [Configuración › Google Drive](/config/google-drive), los archivos se suben solos, a la madrugada (alrededor de las 3), a la carpeta del mes:
+Con Google Drive conectado y la ruta de la razón social cargada en [Configuración › Google Drive](/config/google-drive), los archivos se suben solos, a la madrugada (entre las 3 y las 5, después de leer las declaraciones del contador que haya en el Drive), a la carpeta del mes:
 - **El día 1 de cada mes**, el **libro entero del mes que terminó**: los 5 TXT del Libro de IVA Digital y las ventas por provincia. Si esa noche no se pudo (por ejemplo, el Drive estaba desconectado), se vuelve a intentar cada noche hasta que salga.
 - **Todas las noches**, los **3 archivos de compras** (COMPRAS_CBTE, COMPRAS_ALICUOTAS e IMPORTACIONES) de cada mes **todavía sin liquidar** (incluido el mes en curso), **sólo si cambiaron** desde la última vez que se subieron. Un mes sin ninguna compra no se sube.
 - Cuando el mes se liquida (se carga su declaración jurada de IVA), sus compras dejan de subirse: ya no pueden cambiar.

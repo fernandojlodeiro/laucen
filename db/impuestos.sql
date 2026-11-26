@@ -315,3 +315,7 @@ create index if not exists retencion_arca_fecha on retencion_arca (organizacion_
 alter table retencion_arca enable row level security;
 drop trigger if exists retencion_arca_iva_traba on retencion_arca;
 create trigger retencion_arca_iva_traba before insert or update or delete on retencion_arca for each row execute function externa_iva_traba();
+
+-- La vuelta nocturna del Libro de IVA al Drive (la corre /api/erp/tareas): cuándo terminó la última y qué hizo.
+alter table google_drive add column if not exists libro_iva_ts timestamptz;
+alter table google_drive add column if not exists libro_iva_resultado text;

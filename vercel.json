@@ -27,10 +27,6 @@
     {
       "path": "/api/analisis-diario/cron",
       "schedule": "0 12 * * 1"
-    },
-    {
-      "path": "/api/libros-iva/cron",
-      "schedule": "0 6 * * *"
     }
   ]
 }
