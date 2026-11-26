@@ -46,6 +46,19 @@ export async function quitarCarpetaFacturas(org: string, indice: number) {
     [org, JSON.stringify(actuales.filter((_, i) => i !== indice))]);
 }
 
+/** Un PDF con algo antes de «%PDF-» (espacios, una marca, un encabezado de mail): se abre igual en el visor, pero la IA
+ *  lo rechaza como inválido. Se recorta desde el encabezado; si no hay encabezado en el primer KB, queda como está. */
+export function recortarPdf(datos: ArrayBuffer): ArrayBuffer {
+  const b = new Uint8Array(datos, 0, Math.min(datos.byteLength, 1024));
+  for (let i = 1; i + 4 < b.length; i++) {
+    if (b[i] === 0x25 && b[i + 1] === 0x50 && b[i + 2] === 0x44 && b[i + 3] === 0x46 && b[i + 4] === 0x2d) return datos.slice(i);
+  }
+  return datos;
+}
+
+/** La IA dice que el PDF no es válido (dañado, protegido con contraseña o no es un PDF): reintentarlo no sirve. */
+const PDF_INVALIDO = /PDF specified was not valid|password|encrypted/i;
+
 /** El tipo por el contenido y no por lo que dice el Drive: hay fotos guardadas como PDF y PDF sin extensión. */
 function tipoReal(datos: ArrayBuffer, declarado: string) {
   const b = new Uint8Array(datos.slice(0, 8));
@@ -92,8 +105,14 @@ export async function leerFacturasDelDrive(org: string, usuarioId: string, opts:
           [org, f.id, f.name, reintentar ? null : f.modifiedTime, f.donde, estado, mensaje, facturaId]);
         try {
           if (Number(f.size ?? 0) > 20_000_000) throw new Error("es muy grande para leerlo");
-          const datos = await bajarDelDrive(token, f.id);
+          const datos = recortarPdf(await bajarDelDrive(token, f.id));
           const l = await leerFacturaArchivo(datos, tipoReal(datos, f.mimeType));
+          if ("error" in l && PDF_INVALIDO.test(l.error)) {
+            // No es pasajero: queda con la fecha del archivo y se vuelve a probar sólo si se reemplaza en el Drive.
+            await anotar("error", "El PDF no se puede leer: está dañado o protegido con contraseña. Abrilo y guardalo de nuevo como PDF (o imprimilo a PDF) en la misma carpeta, o cargá la factura a mano.");
+            res.errores.push(`${f.donde} › ${f.name}: el PDF no se puede leer (dañado o protegido)`);
+            continue;
+          }
           if ("error" in l) throw new Error(l.error); // pasajero: se reintenta
           // Una factura bonificada (total cero) no suma nada al libro ni a la cuenta corriente.
           if (l.lectura.es_comprobante !== false && Number(l.lectura.total) === 0) {

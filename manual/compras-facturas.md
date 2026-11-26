@@ -151,7 +151,8 @@ Cómo trata cada archivo:
 - Una factura nueva se carga como en "Subir una factura de gastos": registrada si el proveedor ya tiene cuenta de gasto; si no, en borrador.
 - Una factura que ya estaba cargada (por ejemplo, importada de Mis Comprobantes) no se duplica: si no tenía el archivo, se le suma, y desde su detalle se puede ver.
 - Lo que no es una factura (comprobantes de pago o transferencias, cedulones, boletas de Rentas o de la municipalidad, resúmenes) se saltea.
-- Cada archivo se lee una sola vez; si se cambia en el Drive, se vuelve a leer. Si dio error, se reintenta en la próxima lectura.
+- Cada archivo se lee una sola vez; si se cambia en el Drive, se vuelve a leer. Si dio un error pasajero (la IA no respondió), se reintenta en la próxima lectura.
+- Un PDF que no se puede leer (dañado o protegido con contraseña) queda con el error «El PDF no se puede leer…» y no se reintenta hasta que se reemplace en el Drive: abrilo y guardalo de nuevo como PDF (o imprimilo a PDF) en la misma carpeta, o cargá la factura a mano.
 - Si son muchos, corta a los pocos minutos y avisa: apretá de nuevo y sigue donde quedó.
 - Además, se lee sola una vez por noche (este mes y el anterior).
 

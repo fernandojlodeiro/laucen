@@ -129,3 +129,12 @@ test("Excel de ventas por provincia: el nombre de la hoja puede traer «/» (mes
   const b = await excelProvincias([{ provincia: "Córdoba", comprobantes: 2, asignados: 1, neto: 100, total: 121, pct: 100 }], "Ventas por provincia 10/2026");
   assert.ok(b.length > 1000);
 });
+
+test("PDF del Drive con basura antes del encabezado: se recorta desde «%PDF-»", async () => {
+  const { recortarPdf } = await import("@/lib/compras/drive-facturas");
+  const con = new TextEncoder().encode("\r\n﻿basura%PDF-1.4\n...");
+  const r = new TextDecoder().decode(recortarPdf(con.buffer.slice(0)));
+  assert.ok(r.startsWith("%PDF-1.4"));
+  const sano = new TextEncoder().encode("%PDF-1.7\n...");
+  assert.equal(recortarPdf(sano.buffer.slice(0)).byteLength, sano.byteLength);
+});
