@@ -38,6 +38,8 @@ export const RUTAS_PUBLICAS = [
   "/api/tipo-cambio/cron",
   "/api/seguimiento/cron",
   "/api/analisis-diario/cron",
+  // La vuelta del Libro de IVA al Drive a pedido: la protege erp_llave (la de cada noche va por /api/erp/tareas).
+  "/api/libros-iva/cron",
   // Las vueltas del precio de mercado: se relanzan solas; las protege el token de la tanda.
   "/api/precios-mercado",
   // El motor de Market Pro (lo llama la base cada 2 minutos y se llama a sí mismo); lo protege el token de la llave.
