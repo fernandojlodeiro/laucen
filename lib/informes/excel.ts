@@ -16,7 +16,8 @@ const FORMATOS = {
 /** El archivo .xlsx (para mandarlo a otro lado, como al Drive). */
 export async function excelBuffer<T>(hoja: string, columnas: ColumnaExcel<T>[], filas: T[], totales: (string | number | null)[][] = []): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
-  const h = libro.addWorksheet(hoja.slice(0, 31), { views: [{ state: "frozen", ySplit: 1 }] });
+  // Excel no acepta * ? : \ / [ ] en el nombre de una hoja (y lo corta a 31 letras).
+  const h = libro.addWorksheet(hoja.replace(/[*?:\\/[\]]/g, "-").slice(0, 31), { views: [{ state: "frozen", ySplit: 1 }] });
   h.columns = columnas.map((c) => ({ header: c.titulo, width: c.ancho ?? 14, style: c.formato && c.formato !== "texto" ? { numFmt: FORMATOS[c.formato] } : {} }));
   h.getRow(1).font = { bold: true };
   for (const f of filas) h.addRow(columnas.map((c) => c.valor(f)));

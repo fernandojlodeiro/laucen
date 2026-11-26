@@ -123,3 +123,9 @@ test("Mis Retenciones de ARCA: encabezados de ARCA, fechas dd/mm/aaaa, importes 
   assert.equal(filas[1].importe, -8759.82);
   assert.equal(errores.length, 1);
 });
+
+test("Excel de ventas por provincia: el nombre de la hoja puede traer «/» (mes/año)", async () => {
+  const { excelProvincias } = await import("@/lib/administracion/ventas-provincia");
+  const b = await excelProvincias([{ provincia: "Córdoba", comprobantes: 2, asignados: 1, neto: 100, total: 121, pct: 100 }], "Ventas por provincia 10/2026");
+  assert.ok(b.length > 1000);
+});

@@ -76,10 +76,10 @@ const mesMas = (mes: string, n: number) => {
 };
 
 /** Para la tarea de la noche (app/api/erp/tareas, entre las 3 y las 5, después de leer las declaraciones del Drive):
- *  las organizaciones con el Drive conectado, alguna ruta y sin vuelta del libro en las últimas 20 horas. */
+ *  las organizaciones con el Drive conectado, alguna ruta y sin vuelta del libro en las últimas 10 horas (la ventana es de 2: una por noche, aunque de día se haya corrido a mano). */
 export async function organizacionesParaLibroIva() {
   return (await consulta<{ organizacion_id: string }>(`select organizacion_id from google_drive
-    where refresh_token is not null and rutas <> '{}'::jsonb and (libro_iva_ts is null or libro_iva_ts < now() - interval '20 hours')`)).map((x) => x.organizacion_id);
+    where refresh_token is not null and rutas <> '{}'::jsonb and (libro_iva_ts is null or libro_iva_ts < now() - interval '10 hours')`)).map((x) => x.organizacion_id);
 }
 
 /** La vuelta de cada noche, de una organización (o de todas las que tienen el Drive conectado). Al terminar deja la
